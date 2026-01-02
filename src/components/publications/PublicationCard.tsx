@@ -10,7 +10,8 @@ import {
   Edit, 
   Trash2, 
   Download,
-  StickyNote
+  StickyNote,
+  Hash
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -50,13 +51,15 @@ export function PublicationCard({
   return (
     <Card 
       className={cn(
-        "group transition-all duration-200 hover:shadow-md cursor-pointer border-border/50",
-        isSelected && "ring-2 ring-primary/50 border-primary/50"
+        "group transition-all duration-300 cursor-pointer border-2",
+        isSelected 
+          ? "border-primary/50 bg-primary/5 shadow-lg glow-purple" 
+          : "border-border hover:border-primary/30"
       )}
       onClick={onEdit}
     >
-      <CardContent className="p-4">
-        <div className="flex items-start gap-3">
+      <CardContent className="p-5">
+        <div className="flex items-start gap-4">
           <div 
             className="pt-1"
             onClick={(e) => {
@@ -66,19 +69,21 @@ export function PublicationCard({
           >
             <Checkbox 
               checked={isSelected}
-              className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+              className="data-[state=checked]:bg-primary data-[state=checked]:border-primary h-5 w-5 rounded-md"
             />
           </div>
 
           <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-2">
+            <div className="flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
-                <h3 className="font-display text-lg font-semibold text-foreground leading-tight line-clamp-2">
+                <h3 className="font-bold text-lg text-foreground leading-tight line-clamp-2 group-hover:text-primary transition-colors">
                   {publication.title}
                 </h3>
-                <p className="text-sm text-muted-foreground mt-1">
+                <p className="text-sm text-muted-foreground mt-1.5 font-mono">
                   {formatAuthors(publication.authors)}
-                  {publication.year && ` (${publication.year})`}
+                  {publication.year && (
+                    <span className="text-neon-green"> • {publication.year}</span>
+                  )}
                 </p>
               </div>
 
@@ -87,7 +92,7 @@ export function PublicationCard({
                   <Button 
                     variant="ghost" 
                     size="icon" 
-                    className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8"
+                    className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity h-9 w-9"
                   >
                     <MoreVertical className="w-4 h-4" />
                   </Button>
@@ -114,33 +119,34 @@ export function PublicationCard({
             </div>
 
             {publication.journal && (
-              <p className="text-sm text-muted-foreground mt-1 italic">
+              <p className="text-sm text-muted-foreground mt-2 italic font-light">
                 {publication.journal}
-                {publication.volume && `, ${publication.volume}`}
+                {publication.volume && `, vol. ${publication.volume}`}
                 {publication.issue && `(${publication.issue})`}
                 {publication.pages && `, pp. ${publication.pages}`}
               </p>
             )}
 
-            <div className="flex flex-wrap items-center gap-2 mt-3">
+            <div className="flex flex-wrap items-center gap-2 mt-4">
               {tags.map((tag) => (
                 <Badge 
                   key={tag.id}
-                  variant="secondary"
-                  className="text-xs font-normal"
+                  variant="outline"
+                  className="text-xs font-mono border-2 transition-all hover:scale-105"
                   style={{ 
-                    backgroundColor: `${tag.color}20`,
+                    backgroundColor: `${tag.color}15`,
                     color: tag.color,
                     borderColor: `${tag.color}40`
                   }}
                 >
+                  <Hash className="w-3 h-3 mr-1" />
                   {tag.name}
                 </Badge>
               ))}
 
-              <div className="flex items-center gap-1 ml-auto">
+              <div className="flex items-center gap-2 ml-auto">
                 {publication.notes && (
-                  <div className="text-muted-foreground" title="Has notes">
+                  <div className="text-neon-orange" title="Has notes">
                     <StickyNote className="w-4 h-4" />
                   </div>
                 )}
@@ -150,7 +156,7 @@ export function PublicationCard({
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="text-muted-foreground hover:text-primary transition-colors"
+                    className="text-muted-foreground hover:text-neon-pink transition-colors"
                     title="View PDF"
                   >
                     <FileText className="w-4 h-4" />
@@ -162,7 +168,7 @@ export function PublicationCard({
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="text-muted-foreground hover:text-primary transition-colors"
+                    className="text-muted-foreground hover:text-neon-blue transition-colors"
                     title="View DOI"
                   >
                     <ExternalLink className="w-4 h-4" />

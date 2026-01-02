@@ -8,16 +8,16 @@ import {
   Search, 
   Download, 
   Menu, 
-  Filter,
   SortAsc,
   CheckSquare,
-  Square
+  Square,
+  Sparkles,
+  Command
 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
@@ -99,8 +99,8 @@ export function PublicationList({
   return (
     <div className="flex-1 flex flex-col min-h-0">
       {/* Header */}
-      <header className="bg-card border-b border-border px-4 lg:px-6 py-4 shrink-0">
-        <div className="flex items-center gap-3">
+      <header className="bg-card/50 backdrop-blur-xl border-b-2 border-border px-4 lg:px-8 py-5 shrink-0 sticky top-0 z-10">
+        <div className="flex items-center gap-4">
           <Button
             variant="ghost"
             size="icon"
@@ -111,31 +111,49 @@ export function PublicationList({
           </Button>
 
           <div className="flex-1 min-w-0">
-            <h1 className="font-display text-2xl lg:text-3xl font-bold truncate">
-              {selectedVault ? selectedVault.name : 'All Publications'}
-            </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {filteredPublications.length} publication{filteredPublications.length !== 1 ? 's' : ''}
-              {selectedIds.size > 0 && ` · ${selectedIds.size} selected`}
+            <div className="flex items-center gap-3">
+              {selectedVault && (
+                <div 
+                  className="w-4 h-4 rounded-md shrink-0 shadow-sm"
+                  style={{ backgroundColor: selectedVault.color }}
+                />
+              )}
+              <h1 className="text-2xl lg:text-3xl font-bold truncate">
+                {selectedVault ? selectedVault.name : (
+                  <>
+                    <span className="text-gradient">All Papers</span>
+                  </>
+                )}
+              </h1>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1 font-mono">
+              {filteredPublications.length} item{filteredPublications.length !== 1 ? 's' : ''}
+              {selectedIds.size > 0 && (
+                <span className="text-neon-green"> • {selectedIds.size} selected</span>
+              )}
             </p>
           </div>
 
-          <Button onClick={onAddPublication} className="shrink-0">
+          <Button onClick={onAddPublication} variant="glow" className="shrink-0">
             <Plus className="w-4 h-4 lg:mr-2" />
-            <span className="hidden lg:inline">Add</span>
+            <span className="hidden lg:inline">Add Paper</span>
           </Button>
         </div>
 
         {/* Search and filters */}
-        <div className="flex items-center gap-3 mt-4">
+        <div className="flex items-center gap-3 mt-5">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search publications..."
-              className="pl-10"
+              placeholder="Search papers..."
+              className="pl-11 font-mono"
             />
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 hidden lg:flex items-center gap-1 text-xs text-muted-foreground border border-border rounded-md px-1.5 py-0.5">
+              <Command className="w-3 h-3" />
+              <span>K</span>
+            </div>
           </div>
 
           <DropdownMenu>
@@ -144,15 +162,15 @@ export function PublicationList({
                 <SortAsc className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="font-mono">
               <DropdownMenuItem onClick={() => setSortBy('created')}>
-                Recently Added
+                recently_added
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setSortBy('year')}>
-                Publication Year
+                publication_year
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setSortBy('title')}>
-                Title A-Z
+                title_asc
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -165,7 +183,7 @@ export function PublicationList({
               title={selectedIds.size === filteredPublications.length ? 'Deselect all' : 'Select all'}
             >
               {selectedIds.size === filteredPublications.length ? (
-                <CheckSquare className="w-4 h-4" />
+                <CheckSquare className="w-4 h-4 text-neon-green" />
               ) : (
                 <Square className="w-4 h-4" />
               )}
@@ -174,40 +192,40 @@ export function PublicationList({
 
           {selectedIds.size > 0 && (
             <Button
-              variant="outline"
+              variant="accent"
               onClick={() => onExportBibtex(selectedPublications)}
             >
               <Download className="w-4 h-4 lg:mr-2" />
-              <span className="hidden lg:inline">Export ({selectedIds.size})</span>
+              <span className="hidden lg:inline font-mono">export({selectedIds.size})</span>
             </Button>
           )}
         </div>
       </header>
 
       {/* Publication list */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 lg:p-6">
+      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 lg:p-8">
         {filteredPublications.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
-              <Search className="w-8 h-8 text-muted-foreground" />
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-20 h-20 rounded-3xl bg-gradient-primary flex items-center justify-center mb-6 shadow-lg glow-purple">
+              <Sparkles className="w-10 h-10 text-white" />
             </div>
-            <h3 className="font-display text-xl font-semibold mb-2">
-              {searchQuery ? 'No results found' : 'No publications yet'}
+            <h3 className="text-2xl font-bold mb-2">
+              {searchQuery ? 'No results found' : 'No papers yet'}
             </h3>
-            <p className="text-muted-foreground max-w-sm mb-6">
+            <p className="text-muted-foreground max-w-sm mb-8 font-mono text-sm">
               {searchQuery
-                ? 'Try adjusting your search terms'
-                : 'Add your first publication to start building your library'}
+                ? '// try adjusting your search terms'
+                : '// add your first paper to start building your library'}
             </p>
             {!searchQuery && (
-              <Button onClick={onAddPublication}>
+              <Button onClick={onAddPublication} variant="glow">
                 <Plus className="w-4 h-4 mr-2" />
-                Add Publication
+                Add Your First Paper
               </Button>
             )}
           </div>
         ) : (
-          <div className="space-y-3 max-w-4xl mx-auto">
+          <div className="space-y-4 max-w-4xl mx-auto">
             {filteredPublications.map((pub, index) => (
               <div
                 key={pub.id}

@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { X, Plus } from 'lucide-react';
+import { X, Plus, Hash } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface PublicationDialogProps {
@@ -144,10 +144,14 @@ export function PublicationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] p-0">
+      <DialogContent className="max-w-2xl max-h-[90vh] p-0 border-2 bg-card/95 backdrop-blur-xl">
         <DialogHeader className="p-6 pb-0">
-          <DialogTitle className="font-display text-2xl">
-            {publication ? 'Edit Publication' : 'Add Publication'}
+          <DialogTitle className="text-2xl font-bold">
+            {publication ? (
+              <span>Edit <span className="text-gradient">Paper</span></span>
+            ) : (
+              <span>Add <span className="text-gradient">Paper</span></span>
+            )}
           </DialogTitle>
         </DialogHeader>
 
@@ -155,7 +159,7 @@ export function PublicationDialog({
           <form onSubmit={handleSubmit} className="p-6 pt-4 space-y-6">
             {/* Title */}
             <div className="space-y-2">
-              <Label htmlFor="title">Title *</Label>
+              <Label htmlFor="title" className="font-semibold">Title *</Label>
               <Input
                 id="title"
                 value={formData.title}
@@ -167,19 +171,20 @@ export function PublicationDialog({
 
             {/* Authors */}
             <div className="space-y-2">
-              <Label htmlFor="authors">Authors (comma-separated)</Label>
+              <Label htmlFor="authors" className="font-semibold">Authors <span className="text-muted-foreground font-mono text-xs">(comma-separated)</span></Label>
               <Input
                 id="authors"
                 value={authorsInput}
                 onChange={(e) => setAuthorsInput(e.target.value)}
                 placeholder="John Doe, Jane Smith"
+                className="font-mono"
               />
             </div>
 
             {/* Year and Type */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="year">Year</Label>
+                <Label htmlFor="year" className="font-semibold">Year</Label>
                 <Input
                   id="year"
                   type="number"
@@ -188,20 +193,21 @@ export function PublicationDialog({
                     setFormData({ ...formData, year: e.target.value ? parseInt(e.target.value) : undefined })
                   }
                   placeholder="2024"
+                  className="font-mono"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="type">Type</Label>
+                <Label htmlFor="type" className="font-semibold">Type</Label>
                 <Select
                   value={formData.publication_type}
                   onValueChange={(value) => setFormData({ ...formData, publication_type: value })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="font-mono">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {PUBLICATION_TYPES.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
+                      <SelectItem key={type.value} value={type.value} className="font-mono">
                         {type.label}
                       </SelectItem>
                     ))}
@@ -212,41 +218,44 @@ export function PublicationDialog({
 
             {/* Journal Info */}
             <div className="space-y-2">
-              <Label htmlFor="journal">Journal / Conference</Label>
+              <Label htmlFor="journal" className="font-semibold">Journal / Conference</Label>
               <Input
                 id="journal"
                 value={formData.journal}
                 onChange={(e) => setFormData({ ...formData, journal: e.target.value })}
-                placeholder="Nature, Science, etc."
+                placeholder="Nature, Science, NeurIPS..."
               />
             </div>
 
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="volume">Volume</Label>
+                <Label htmlFor="volume" className="font-semibold text-sm">Volume</Label>
                 <Input
                   id="volume"
                   value={formData.volume}
                   onChange={(e) => setFormData({ ...formData, volume: e.target.value })}
                   placeholder="12"
+                  className="font-mono"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="issue">Issue</Label>
+                <Label htmlFor="issue" className="font-semibold text-sm">Issue</Label>
                 <Input
                   id="issue"
                   value={formData.issue}
                   onChange={(e) => setFormData({ ...formData, issue: e.target.value })}
                   placeholder="3"
+                  className="font-mono"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="pages">Pages</Label>
+                <Label htmlFor="pages" className="font-semibold text-sm">Pages</Label>
                 <Input
                   id="pages"
                   value={formData.pages}
                   onChange={(e) => setFormData({ ...formData, pages: e.target.value })}
                   placeholder="1-10"
+                  className="font-mono"
                 />
               </div>
             </div>
@@ -254,39 +263,42 @@ export function PublicationDialog({
             {/* DOI and URL */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="doi">DOI</Label>
+                <Label htmlFor="doi" className="font-semibold">DOI</Label>
                 <Input
                   id="doi"
                   value={formData.doi}
                   onChange={(e) => setFormData({ ...formData, doi: e.target.value })}
                   placeholder="10.1000/xyz123"
+                  className="font-mono text-sm"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="url">URL</Label>
+                <Label htmlFor="url" className="font-semibold">URL</Label>
                 <Input
                   id="url"
                   value={formData.url}
                   onChange={(e) => setFormData({ ...formData, url: e.target.value })}
                   placeholder="https://..."
+                  className="font-mono text-sm"
                 />
               </div>
             </div>
 
             {/* PDF URL */}
             <div className="space-y-2">
-              <Label htmlFor="pdf_url">PDF URL</Label>
+              <Label htmlFor="pdf_url" className="font-semibold">PDF URL</Label>
               <Input
                 id="pdf_url"
                 value={formData.pdf_url}
                 onChange={(e) => setFormData({ ...formData, pdf_url: e.target.value })}
                 placeholder="Link to PDF file"
+                className="font-mono text-sm"
               />
             </div>
 
             {/* Vault */}
             <div className="space-y-2">
-              <Label htmlFor="vault">Vault</Label>
+              <Label htmlFor="vault" className="font-semibold">Vault</Label>
               <Select
                 value={formData.vault_id || 'none'}
                 onValueChange={(value) =>
@@ -302,7 +314,7 @@ export function PublicationDialog({
                     <SelectItem key={vault.id} value={vault.id}>
                       <div className="flex items-center gap-2">
                         <div
-                          className="w-3 h-3 rounded-full"
+                          className="w-3 h-3 rounded-md"
                           style={{ backgroundColor: vault.color }}
                         />
                         {vault.name}
@@ -314,21 +326,22 @@ export function PublicationDialog({
             </div>
 
             {/* Tags */}
-            <div className="space-y-2">
-              <Label>Tags</Label>
-              <div className="flex flex-wrap gap-2 mb-2">
+            <div className="space-y-3">
+              <Label className="font-semibold">Tags</Label>
+              <div className="flex flex-wrap gap-2">
                 {tags.map((tag) => (
                   <Badge
                     key={tag.id}
                     variant={selectedTags.includes(tag.id) ? 'default' : 'outline'}
-                    className="cursor-pointer transition-colors"
+                    className="cursor-pointer transition-all hover:scale-105 font-mono border-2"
                     style={
                       selectedTags.includes(tag.id)
                         ? { backgroundColor: tag.color, borderColor: tag.color }
-                        : { borderColor: tag.color, color: tag.color }
+                        : { borderColor: `${tag.color}60`, color: tag.color }
                     }
                     onClick={() => toggleTag(tag.id)}
                   >
+                    <Hash className="w-3 h-3 mr-1" />
                     {tag.name}
                     {selectedTags.includes(tag.id) && (
                       <X className="w-3 h-3 ml-1" />
@@ -340,8 +353,8 @@ export function PublicationDialog({
                 <Input
                   value={newTagName}
                   onChange={(e) => setNewTagName(e.target.value)}
-                  placeholder="New tag name"
-                  className="flex-1"
+                  placeholder="new_tag_name"
+                  className="flex-1 font-mono"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
@@ -357,46 +370,49 @@ export function PublicationDialog({
 
             {/* Abstract */}
             <div className="space-y-2">
-              <Label htmlFor="abstract">Abstract</Label>
+              <Label htmlFor="abstract" className="font-semibold">Abstract</Label>
               <Textarea
                 id="abstract"
                 value={formData.abstract}
                 onChange={(e) => setFormData({ ...formData, abstract: e.target.value })}
                 placeholder="Publication abstract..."
                 rows={4}
+                className="font-mono text-sm"
               />
             </div>
 
             {/* Notes */}
             <div className="space-y-2">
-              <Label htmlFor="notes">Notes</Label>
+              <Label htmlFor="notes" className="font-semibold">Notes <span className="text-muted-foreground font-mono text-xs">(markdown supported)</span></Label>
               <Textarea
                 id="notes"
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                placeholder="Your personal notes..."
+                placeholder="// your personal notes..."
                 rows={3}
+                className="font-mono text-sm"
               />
             </div>
 
             {/* BibTeX Key */}
             <div className="space-y-2">
-              <Label htmlFor="bibtex_key">BibTeX Key (optional)</Label>
+              <Label htmlFor="bibtex_key" className="font-semibold">BibTeX Key <span className="text-muted-foreground font-mono text-xs">(auto-generated if empty)</span></Label>
               <Input
                 id="bibtex_key"
                 value={formData.bibtex_key}
                 onChange={(e) => setFormData({ ...formData, bibtex_key: e.target.value })}
-                placeholder="Auto-generated if empty"
+                placeholder="author2024title"
+                className="font-mono"
               />
             </div>
 
             {/* Actions */}
-            <div className="flex justify-end gap-3 pt-4 border-t">
+            <div className="flex justify-end gap-3 pt-4 border-t-2 border-border">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? 'Saving...' : publication ? 'Update' : 'Add Publication'}
+              <Button type="submit" variant="glow" disabled={saving}>
+                {saving ? 'Saving...' : publication ? 'Update Paper' : 'Add Paper'}
               </Button>
             </div>
           </form>
