@@ -9,6 +9,7 @@ import { PublicationDialog } from '@/components/publications/PublicationDialog';
 import { VaultDialog } from '@/components/vaults/VaultDialog';
 import { publicationToBibtex, exportMultipleToBibtex, downloadBibtex } from '@/lib/bibtex';
 import { useToast } from '@/hooks/use-toast';
+import { Sparkles } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -119,7 +120,7 @@ export default function Dashboard() {
           );
         }
 
-        toast({ title: 'Publication updated' });
+        toast({ title: 'Paper updated ✨' });
       } else {
         const { data: newPub, error } = await supabase
           .from('publications')
@@ -138,7 +139,7 @@ export default function Dashboard() {
           );
         }
 
-        toast({ title: 'Publication added' });
+        toast({ title: 'Paper added ✨' });
       }
 
       fetchData();
@@ -146,7 +147,7 @@ export default function Dashboard() {
     } catch (error: any) {
       console.error('Error saving publication:', error);
       toast({
-        title: 'Error saving publication',
+        title: 'Error saving paper',
         description: error.message,
         variant: 'destructive',
       });
@@ -164,12 +165,12 @@ export default function Dashboard() {
 
       if (error) throw error;
 
-      toast({ title: 'Publication deleted' });
+      toast({ title: 'Paper deleted' });
       fetchData();
     } catch (error: any) {
       console.error('Error deleting publication:', error);
       toast({
-        title: 'Error deleting publication',
+        title: 'Error deleting paper',
         description: error.message,
         variant: 'destructive',
       });
@@ -182,7 +183,7 @@ export default function Dashboard() {
     if (!user) return null;
 
     try {
-      const colors = ['#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f97316', '#22c55e', '#06b6d4'];
+      const colors = ['#a855f7', '#ec4899', '#f43f5e', '#22c55e', '#06b6d4', '#3b82f6', '#f97316'];
       const color = colors[Math.floor(Math.random() * colors.length)];
 
       const { data, error } = await supabase
@@ -217,14 +218,14 @@ export default function Dashboard() {
           .eq('id', editingVault.id);
 
         if (error) throw error;
-        toast({ title: 'Vault updated' });
+        toast({ title: 'Vault updated ✨' });
       } else {
         const { error } = await supabase
           .from('vaults')
           .insert([{ ...data, user_id: user.id } as any]);
 
         if (error) throw error;
-        toast({ title: 'Vault created' });
+        toast({ title: 'Vault created ✨' });
       }
 
       fetchData();
@@ -251,15 +252,17 @@ export default function Dashboard() {
       : exportMultipleToBibtex(pubs);
 
     downloadBibtex(content, filename);
-    toast({ title: `Exported ${pubs.length} reference${pubs.length > 1 ? 's' : ''}` });
+    toast({ title: `Exported ${pubs.length} reference${pubs.length > 1 ? 's' : ''} 📄` });
   };
 
   if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
-          <p className="text-muted-foreground">Loading your library...</p>
+          <div className="w-16 h-16 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-lg glow-purple animate-glow-pulse">
+            <Sparkles className="w-8 h-8 text-white" />
+          </div>
+          <p className="text-muted-foreground font-mono text-sm">// loading your library...</p>
         </div>
       </div>
     );
@@ -317,12 +320,11 @@ export default function Dashboard() {
       />
 
       <AlertDialog open={!!deleteConfirmation} onOpenChange={() => setDeleteConfirmation(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="border-2 bg-card/95 backdrop-blur-xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete publication?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete "{deleteConfirmation?.title}". This action cannot be
-              undone.
+            <AlertDialogTitle className="text-xl font-bold">Delete paper?</AlertDialogTitle>
+            <AlertDialogDescription className="font-mono text-sm">
+              // this will permanently delete "{deleteConfirmation?.title}"
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

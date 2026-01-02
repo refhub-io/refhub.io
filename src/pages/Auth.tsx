@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { BookOpen, Mail, Lock, User, ArrowRight } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Sparkles } from 'lucide-react';
 
 export default function Auth() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -37,7 +37,7 @@ export default function Auth() {
           }
         } else {
           toast({
-            title: 'Welcome to Citadel!',
+            title: 'Welcome to refhub.io!',
             description: 'Your account has been created successfully.',
           });
           navigate('/');
@@ -66,52 +66,61 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5" />
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Background effects */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-neon-purple/20 via-transparent to-transparent" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,_var(--tw-gradient-stops))] from-neon-green/10 via-transparent to-transparent" />
+      <div className="absolute top-1/4 -left-32 w-64 h-64 bg-neon-purple/30 rounded-full blur-[128px]" />
+      <div className="absolute bottom-1/4 -right-32 w-64 h-64 bg-neon-green/20 rounded-full blur-[128px]" />
       
-      <div className="w-full max-w-md animate-fade-in relative">
+      <div className="w-full max-w-md animate-fade-in relative z-10">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 mb-4">
-            <BookOpen className="w-8 h-8 text-primary" />
+          <div className="inline-flex items-center gap-2 mb-4">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-lg glow-purple">
+              <Sparkles className="w-6 h-6 text-white" />
+            </div>
           </div>
-          <h1 className="text-4xl font-display font-bold text-foreground">Citadel</h1>
-          <p className="text-muted-foreground mt-2">Your scholarly reference sanctuary</p>
+          <h1 className="text-4xl font-bold">
+            <span className="text-gradient">refhub</span>
+            <span className="text-muted-foreground">.io</span>
+          </h1>
+          <p className="text-muted-foreground mt-2 font-mono text-sm">// your research, organized</p>
         </div>
 
-        <Card className="border-border/50 shadow-lg">
+        <Card className="border-2 border-border/50 bg-card/80 backdrop-blur-xl">
           <CardHeader className="space-y-1 pb-4">
-            <CardTitle className="text-2xl font-display text-center">
+            <CardTitle className="text-2xl text-center">
               {isSignUp ? 'Create an account' : 'Welcome back'}
             </CardTitle>
-            <CardDescription className="text-center">
+            <CardDescription className="text-center font-mono text-xs">
               {isSignUp
-                ? 'Start organizing your research today'
-                : 'Sign in to access your library'}
+                ? '// start organizing your papers today'
+                : '// sign in to access your library'}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               {isSignUp && (
                 <div className="space-y-2">
-                  <Label htmlFor="displayName">Display Name</Label>
+                  <Label htmlFor="displayName" className="text-sm font-semibold">Display Name</Label>
                   <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
                       id="displayName"
                       type="text"
                       placeholder="Your name"
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
-                      className="pl-10"
+                      className="pl-11"
                     />
                   </div>
                 </div>
               )}
               
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email" className="text-sm font-semibold">Email</Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     id="email"
                     type="email"
@@ -119,15 +128,15 @@ export default function Auth() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="pl-10"
+                    className="pl-11"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password" className="text-sm font-semibold">Password</Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     id="password"
                     type="password"
@@ -136,20 +145,21 @@ export default function Auth() {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     minLength={6}
-                    className="pl-10"
+                    className="pl-11"
                   />
                 </div>
               </div>
 
               <Button
                 type="submit"
+                variant="glow"
                 className="w-full"
                 disabled={loading}
               >
                 {loading ? (
                   <span className="flex items-center gap-2">
-                    <span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                    {isSignUp ? 'Creating account...' : 'Signing in...'}
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    {isSignUp ? 'Creating...' : 'Signing in...'}
                   </span>
                 ) : (
                   <span className="flex items-center gap-2">
@@ -164,15 +174,19 @@ export default function Auth() {
               <button
                 type="button"
                 onClick={() => setIsSignUp(!isSignUp)}
-                className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                className="text-sm text-muted-foreground hover:text-primary transition-colors font-mono"
               >
                 {isSignUp
-                  ? 'Already have an account? Sign in'
-                  : "Don't have an account? Sign up"}
+                  ? '// already have an account? sign in'
+                  : "// don't have an account? sign up"}
               </button>
             </div>
           </CardContent>
         </Card>
+
+        <p className="text-center text-xs text-muted-foreground mt-6 font-mono">
+          Built for researchers, by researchers ✨
+        </p>
       </div>
     </div>
   );

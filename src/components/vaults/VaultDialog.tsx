@@ -12,9 +12,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 
 const VAULT_COLORS = [
-  '#6366f1', // Indigo
-  '#8b5cf6', // Violet
+  '#a855f7', // Purple
   '#ec4899', // Pink
+  '#f43f5e', // Rose
   '#ef4444', // Red
   '#f97316', // Orange
   '#eab308', // Yellow
@@ -62,59 +62,68 @@ export function VaultDialog({ open, onOpenChange, vault, onSave }: VaultDialogPr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md border-2 bg-card/95 backdrop-blur-xl">
         <DialogHeader>
-          <DialogTitle className="font-display text-2xl">
-            {vault ? 'Edit Vault' : 'Create Vault'}
+          <DialogTitle className="text-2xl font-bold">
+            {vault ? (
+              <span>Edit <span className="text-gradient">Vault</span></span>
+            ) : (
+              <span>Create <span className="text-gradient">Vault</span></span>
+            )}
           </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6 pt-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Name *</Label>
+            <Label htmlFor="name" className="font-semibold">Name *</Label>
             <Input
               id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="My Research Project"
+              placeholder="my_research_project"
               required
+              className="font-mono"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
+            <Label htmlFor="description" className="font-semibold">Description</Label>
             <Textarea
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="What is this vault for?"
+              placeholder="// what is this vault for?"
               rows={3}
+              className="font-mono text-sm"
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>Color</Label>
-            <div className="flex flex-wrap gap-2">
+          <div className="space-y-3">
+            <Label className="font-semibold">Color</Label>
+            <div className="flex flex-wrap gap-3">
               {VAULT_COLORS.map((c) => (
                 <button
                   key={c}
                   type="button"
                   onClick={() => setColor(c)}
-                  className={`w-8 h-8 rounded-full transition-all ${
-                    color === c ? 'ring-2 ring-offset-2 ring-primary scale-110' : 'hover:scale-105'
+                  className={`w-10 h-10 rounded-xl transition-all duration-200 shadow-lg ${
+                    color === c ? 'ring-2 ring-offset-2 ring-offset-background ring-white scale-110' : 'hover:scale-105'
                   }`}
-                  style={{ backgroundColor: c }}
+                  style={{ 
+                    backgroundColor: c,
+                    boxShadow: color === c ? `0 0 20px ${c}50` : undefined
+                  }}
                 />
               ))}
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
+          <div className="flex justify-end gap-3 pt-4 border-t-2 border-border">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={saving || !name.trim()}>
-              {saving ? 'Saving...' : vault ? 'Update' : 'Create'}
+            <Button type="submit" variant="glow" disabled={saving || !name.trim()}>
+              {saving ? 'Saving...' : vault ? 'Update Vault' : 'Create Vault'}
             </Button>
           </div>
         </form>
