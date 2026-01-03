@@ -1,27 +1,37 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { 
   FolderOpen, 
   Plus, 
   LogOut, 
   ChevronDown,
   ChevronRight,
-  Home,
   Menu,
   X,
   Sparkles,
-  Zap
+  Zap,
+  Globe,
+  Share2,
+  MoreHorizontal
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { Vault } from '@/types/database';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface SidebarProps {
   vaults: Vault[];
   selectedVaultId: string | null;
   onSelectVault: (vaultId: string | null) => void;
   onCreateVault: () => void;
+  onEditVault?: (vault: Vault) => void;
+  onShareVault?: (vault: Vault) => void;
   isMobileOpen: boolean;
   onMobileClose: () => void;
 }
@@ -31,6 +41,8 @@ export function Sidebar({
   selectedVaultId, 
   onSelectVault, 
   onCreateVault,
+  onEditVault,
+  onShareVault,
   isMobileOpen,
   onMobileClose
 }: SidebarProps) {
@@ -105,6 +117,17 @@ export function Sidebar({
             All Papers
           </button>
 
+          <Link
+            to="/explore"
+            onClick={onMobileClose}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 hover:bg-sidebar-accent/50 text-sidebar-foreground/80 border-2 border-transparent"
+          >
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-sidebar-accent">
+              <Globe className="w-4 h-4 text-neon" />
+            </div>
+            Explore Public
+          </Link>
+
           <div className="pt-4">
             <button
               onClick={() => setIsVaultsExpanded(!isVaultsExpanded)}
@@ -124,25 +147,58 @@ export function Sidebar({
             {isVaultsExpanded && (
               <div className="mt-2 space-y-1">
                 {vaults.map((vault) => (
-                  <button
+                  <div
                     key={vault.id}
-                    onClick={() => {
-                      onSelectVault(vault.id);
-                      onMobileClose();
-                    }}
                     className={cn(
-                      "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all duration-200",
+                      "w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm transition-all duration-200 group",
                       selectedVaultId === vault.id
                         ? "bg-sidebar-accent text-sidebar-foreground border-2 border-primary/30"
                         : "hover:bg-sidebar-accent/50 text-sidebar-foreground/70 border-2 border-transparent"
                     )}
                   >
-                    <div 
-                      className="w-3 h-3 rounded-md shrink-0 shadow-sm" 
-                      style={{ backgroundColor: vault.color }}
-                    />
-                    <span className="truncate font-medium">{vault.name}</span>
-                  </button>
+                    <button
+                      onClick={() => {
+                        onSelectVault(vault.id);
+                        onMobileClose();
+                      }}
+                      className="flex items-center gap-3 flex-1 min-w-0"
+                    >
+                      <div 
+                        className="w-3 h-3 rounded-md shrink-0 shadow-sm" 
+                        style={{ backgroundColor: vault.color }}
+                      />
+                      <span className="truncate font-medium">{vault.name}</span>
+                      {vault.is_public && (
+                        <Globe className="w-3 h-3 text-neon shrink-0" />
+                      )}
+                    </button>
+                    
+                    {onShareVault && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <MoreHorizontal className="w-3.5 h-3.5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-40">
+                          {onEditVault && (
+                            <DropdownMenuItem onClick={() => onEditVault(vault)}>
+                              Edit vault
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem onClick={() => onShareVault(vault)}>
+                            <Share2 className="w-3.5 h-3.5 mr-2" />
+                            Share vault
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </div>
                 ))}
 
                 <button

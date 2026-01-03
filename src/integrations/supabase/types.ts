@@ -216,8 +216,10 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          is_public: boolean | null
           is_shared: boolean | null
           name: string
+          public_slug: string | null
           updated_at: string
           user_id: string
         }
@@ -226,8 +228,10 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_public?: boolean | null
           is_shared?: boolean | null
           name: string
+          public_slug?: string | null
           updated_at?: string
           user_id: string
         }
@@ -236,8 +240,10 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_public?: boolean | null
           is_shared?: boolean | null
           name?: string
+          public_slug?: string | null
           updated_at?: string
           user_id?: string
         }

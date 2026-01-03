@@ -7,6 +7,8 @@ import { AuthProvider } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import PublicVault from "./pages/PublicVault";
+import Explore from "./pages/Explore";
 
 const queryClient = new QueryClient();
 
@@ -20,6 +22,8 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/explore" element={<Explore />} />
+            <Route path="/public/:slug" element={<PublicVault />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
