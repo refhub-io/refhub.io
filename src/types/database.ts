@@ -27,6 +27,8 @@ export interface Vault {
   description: string | null;
   color: string;
   is_shared: boolean;
+  is_public: boolean;
+  public_slug: string | null;
   created_at: string;
   updated_at: string;
 }

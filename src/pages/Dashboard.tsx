@@ -7,6 +7,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationDialog } from '@/components/publications/PublicationDialog';
 import { VaultDialog } from '@/components/vaults/VaultDialog';
+import { ShareVaultDialog } from '@/components/vaults/ShareVaultDialog';
 import { publicationToBibtex, exportMultipleToBibtex, downloadBibtex } from '@/lib/bibtex';
 import { useToast } from '@/hooks/use-toast';
 import { Sparkles } from 'lucide-react';
@@ -40,6 +41,9 @@ export default function Dashboard() {
 
   const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
   const [editingVault, setEditingVault] = useState<Vault | null>(null);
+
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+  const [sharingVault, setSharingVault] = useState<Vault | null>(null);
 
   const [deleteConfirmation, setDeleteConfirmation] = useState<Publication | null>(null);
 
@@ -278,6 +282,14 @@ export default function Dashboard() {
           setEditingVault(null);
           setIsVaultDialogOpen(true);
         }}
+        onEditVault={(vault) => {
+          setEditingVault(vault);
+          setIsVaultDialogOpen(true);
+        }}
+        onShareVault={(vault) => {
+          setSharingVault(vault);
+          setIsShareDialogOpen(true);
+        }}
         isMobileOpen={isMobileSidebarOpen}
         onMobileClose={() => setIsMobileSidebarOpen(false)}
       />
@@ -317,6 +329,13 @@ export default function Dashboard() {
         onOpenChange={setIsVaultDialogOpen}
         vault={editingVault}
         onSave={handleSaveVault}
+      />
+
+      <ShareVaultDialog
+        open={isShareDialogOpen}
+        onOpenChange={setIsShareDialogOpen}
+        vault={sharingVault}
+        onUpdate={fetchData}
       />
 
       <AlertDialog open={!!deleteConfirmation} onOpenChange={() => setDeleteConfirmation(null)}>
