@@ -175,9 +175,49 @@ function parseBibtexEntry(entry: string): ParsedEntry | null {
 export function parseBibtex(bibtexContent: string): Partial<Publication>[] {
   const publications: Partial<Publication>[] = [];
   
-  // Split into entries - find all @type{...} blocks
-  const entryRegex = /@\w+\s*\{[^@]*\}/gi;
-  const entries = bibtexContent.match(entryRegex) || [];
+  // Split into entries by finding balanced braces after @type{
+  const entries: string[] = [];
+  let i = 0;
+  const content = bibtexContent;
+  
+  while (i < content.length) {
+    // Find next @ that starts an entry type
+    const atIndex = content.indexOf('@', i);
+    if (atIndex === -1) break;
+    
+    // Check if it's a valid entry start (@ followed by word characters)
+    const afterAt = content.slice(atIndex + 1);
+    const typeMatch = afterAt.match(/^(\w+)\s*\{/);
+    if (!typeMatch) {
+      i = atIndex + 1;
+      continue;
+    }
+    
+    // Find the opening brace
+    const braceStart = atIndex + 1 + typeMatch[0].indexOf('{');
+    
+    // Find matching closing brace
+    let braceDepth = 0;
+    let entryEnd = -1;
+    for (let j = braceStart; j < content.length; j++) {
+      if (content[j] === '{') {
+        braceDepth++;
+      } else if (content[j] === '}') {
+        braceDepth--;
+        if (braceDepth === 0) {
+          entryEnd = j + 1;
+          break;
+        }
+      }
+    }
+    
+    if (entryEnd > atIndex) {
+      entries.push(content.slice(atIndex, entryEnd));
+      i = entryEnd;
+    } else {
+      i = atIndex + 1;
+    }
+  }
   
   for (const entry of entries) {
     const parsed = parseBibtexEntry(entry);
