@@ -268,20 +268,22 @@ export function ImportDialog({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="font-semibold">BibTeX Content</Label>
-                <label className="cursor-pointer">
-                  <input
-                    type="file"
-                    accept=".bib,.txt"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                  />
-                  <Button variant="outline" size="sm" className="gap-2" asChild>
-                    <span>
-                      <Upload className="w-4 h-4" />
-                      Upload .bib
-                    </span>
-                  </Button>
-                </label>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="gap-2"
+                  onClick={() => document.getElementById('bib-file-input')?.click()}
+                >
+                  <Upload className="w-4 h-4" />
+                  Upload .bib
+                </Button>
+                <input
+                  id="bib-file-input"
+                  type="file"
+                  accept=".bib,.txt"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
               </div>
               <Textarea
                 value={bibtexInput}
