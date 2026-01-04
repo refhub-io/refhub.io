@@ -12,7 +12,8 @@ import {
   CheckSquare,
   Square,
   Sparkles,
-  Command
+  Command,
+  Upload
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -28,6 +29,7 @@ interface PublicationListProps {
   publicationTagsMap: Record<string, string[]>;
   selectedVault: Vault | null;
   onAddPublication: () => void;
+  onImportPublications: () => void;
   onEditPublication: (pub: Publication) => void;
   onDeletePublication: (pub: Publication) => void;
   onExportBibtex: (pubs: Publication[]) => void;
@@ -41,6 +43,7 @@ export function PublicationList({
   publicationTagsMap,
   selectedVault,
   onAddPublication,
+  onImportPublications,
   onEditPublication,
   onDeletePublication,
   onExportBibtex,
@@ -133,6 +136,11 @@ export function PublicationList({
               )}
             </p>
           </div>
+
+          <Button onClick={onImportPublications} variant="outline" className="shrink-0">
+            <Upload className="w-4 h-4 lg:mr-2" />
+            <span className="hidden lg:inline">Import</span>
+          </Button>
 
           <Button onClick={onAddPublication} variant="glow" className="shrink-0">
             <Plus className="w-4 h-4 lg:mr-2" />

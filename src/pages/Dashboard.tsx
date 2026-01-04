@@ -6,6 +6,7 @@ import { Publication, Vault, Tag, PublicationTag } from '@/types/database';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationDialog } from '@/components/publications/PublicationDialog';
+import { ImportDialog } from '@/components/publications/ImportDialog';
 import { VaultDialog } from '@/components/vaults/VaultDialog';
 import { ShareVaultDialog } from '@/components/vaults/ShareVaultDialog';
 import { publicationToBibtex, exportMultipleToBibtex, downloadBibtex } from '@/lib/bibtex';
@@ -37,6 +38,7 @@ export default function Dashboard() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   const [isPublicationDialogOpen, setIsPublicationDialogOpen] = useState(false);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [editingPublication, setEditingPublication] = useState<Publication | null>(null);
 
   const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
@@ -155,6 +157,29 @@ export default function Dashboard() {
         description: error.message,
         variant: 'destructive',
       });
+    }
+  };
+
+  const handleBulkImport = async (publications: Partial<Publication>[]) => {
+    if (!user) return;
+
+    try {
+      const pubsToInsert = publications.map(pub => ({
+        ...pub,
+        user_id: user.id,
+        authors: pub.authors || [],
+      }));
+
+      const { error } = await supabase
+        .from('publications')
+        .insert(pubsToInsert as any);
+
+      if (error) throw error;
+
+      fetchData();
+    } catch (error: any) {
+      console.error('Error importing publications:', error);
+      throw error;
     }
   };
 
@@ -304,6 +329,7 @@ export default function Dashboard() {
           setEditingPublication(null);
           setIsPublicationDialogOpen(true);
         }}
+        onImportPublications={() => setIsImportDialogOpen(true)}
         onEditPublication={(pub) => {
           setEditingPublication(pub);
           setIsPublicationDialogOpen(true);
@@ -322,6 +348,13 @@ export default function Dashboard() {
         publicationTags={editingPublication ? publicationTagsMap[editingPublication.id] || [] : []}
         onSave={handleSavePublication}
         onCreateTag={handleCreateTag}
+      />
+
+      <ImportDialog
+        open={isImportDialogOpen}
+        onOpenChange={setIsImportDialogOpen}
+        vaults={vaults}
+        onImport={handleBulkImport}
       />
 
       <VaultDialog
