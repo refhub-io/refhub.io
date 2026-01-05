@@ -279,8 +279,7 @@ export interface DOIMetadata {
   type?: string;
 }
 
-export async function fetchDOIMetadata(doi: string): Promise<DOIMetadata> {
-  // Clean up DOI - extract just the DOI part
+function cleanDOI(doi: string): string {
   let cleanDoi = doi.trim();
   
   // Handle various DOI formats
@@ -294,60 +293,179 @@ export async function fetchDOIMetadata(doi: string): Promise<DOIMetadata> {
     cleanDoi = cleanDoi.replace('https://dx.doi.org/', '');
   }
   
-  const response = await fetch(`https://api.crossref.org/works/${encodeURIComponent(cleanDoi)}`, {
-    headers: {
-      'Accept': 'application/json',
-    },
-  });
-  
-  if (!response.ok) {
-    throw new Error('DOI not found or invalid');
-  }
-  
-  const data = await response.json();
-  const work = data.message;
-  
-  // Extract authors
-  const authors = (work.author || []).map((a: any) => {
-    if (a.given && a.family) {
-      return `${a.given} ${a.family}`;
+  return cleanDoi;
+}
+
+async function fetchFromCrossRef(cleanDoi: string): Promise<DOIMetadata | null> {
+  try {
+    const response = await fetch(`https://api.crossref.org/works/${encodeURIComponent(cleanDoi)}`, {
+      headers: { 'Accept': 'application/json' },
+    });
+    
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    const work = data.message;
+    
+    const authors = (work.author || []).map((a: any) => {
+      if (a.given && a.family) return `${a.given} ${a.family}`;
+      return a.name || 'Unknown Author';
+    });
+    
+    let year: number | undefined;
+    if (work['published-print']?.['date-parts']?.[0]?.[0]) {
+      year = work['published-print']['date-parts'][0][0];
+    } else if (work['published-online']?.['date-parts']?.[0]?.[0]) {
+      year = work['published-online']['date-parts'][0][0];
+    } else if (work['created']?.['date-parts']?.[0]?.[0]) {
+      year = work['created']['date-parts'][0][0];
     }
-    return a.name || 'Unknown Author';
-  });
-  
-  // Extract year from published date
-  let year: number | undefined;
-  if (work['published-print']?.['date-parts']?.[0]?.[0]) {
-    year = work['published-print']['date-parts'][0][0];
-  } else if (work['published-online']?.['date-parts']?.[0]?.[0]) {
-    year = work['published-online']['date-parts'][0][0];
-  } else if (work['created']?.['date-parts']?.[0]?.[0]) {
-    year = work['created']['date-parts'][0][0];
+    
+    let publicationType = 'article';
+    if (work.type === 'book' || work.type === 'book-chapter') {
+      publicationType = 'book';
+    } else if (work.type === 'proceedings-article') {
+      publicationType = 'inproceedings';
+    } else if (work.type === 'dissertation') {
+      publicationType = 'thesis';
+    } else if (work.type === 'report') {
+      publicationType = 'report';
+    }
+    
+    return {
+      title: Array.isArray(work.title) ? work.title[0] : work.title || 'Untitled',
+      authors,
+      year,
+      journal: work['container-title']?.[0] || undefined,
+      volume: work.volume || undefined,
+      issue: work.issue || undefined,
+      pages: work.page || undefined,
+      doi: cleanDoi,
+      url: work.URL || `https://doi.org/${cleanDoi}`,
+      abstract: work.abstract?.replace(/<[^>]*>/g, '') || undefined,
+      type: publicationType,
+    };
+  } catch {
+    return null;
   }
-  
-  // Map CrossRef type to our types
-  let publicationType = 'article';
-  if (work.type === 'book' || work.type === 'book-chapter') {
-    publicationType = 'book';
-  } else if (work.type === 'proceedings-article') {
-    publicationType = 'inproceedings';
-  } else if (work.type === 'dissertation') {
-    publicationType = 'thesis';
-  } else if (work.type === 'report') {
-    publicationType = 'report';
+}
+
+async function fetchFromOpenAlex(cleanDoi: string): Promise<DOIMetadata | null> {
+  try {
+    const response = await fetch(`https://api.openalex.org/works/doi:${encodeURIComponent(cleanDoi)}`, {
+      headers: { 'Accept': 'application/json' },
+    });
+    
+    if (!response.ok) return null;
+    
+    const work = await response.json();
+    
+    const authors = (work.authorships || []).map((a: any) => 
+      a.author?.display_name || 'Unknown Author'
+    );
+    
+    const year = work.publication_year || undefined;
+    
+    let publicationType = 'article';
+    const type = work.type?.toLowerCase() || '';
+    if (type.includes('book')) {
+      publicationType = 'book';
+    } else if (type.includes('proceedings') || type.includes('conference')) {
+      publicationType = 'inproceedings';
+    } else if (type.includes('dissertation') || type.includes('thesis')) {
+      publicationType = 'thesis';
+    } else if (type.includes('report')) {
+      publicationType = 'report';
+    }
+    
+    return {
+      title: work.title || 'Untitled',
+      authors,
+      year,
+      journal: work.primary_location?.source?.display_name || undefined,
+      volume: work.biblio?.volume || undefined,
+      issue: work.biblio?.issue || undefined,
+      pages: work.biblio?.first_page && work.biblio?.last_page 
+        ? `${work.biblio.first_page}-${work.biblio.last_page}` 
+        : work.biblio?.first_page || undefined,
+      doi: cleanDoi,
+      url: work.doi ? `https://doi.org/${cleanDoi}` : work.id || undefined,
+      abstract: work.abstract_inverted_index 
+        ? reconstructAbstract(work.abstract_inverted_index)
+        : undefined,
+      type: publicationType,
+    };
+  } catch {
+    return null;
   }
+}
+
+// OpenAlex stores abstracts as inverted index - reconstruct it
+function reconstructAbstract(invertedIndex: Record<string, number[]>): string {
+  const words: [string, number][] = [];
+  for (const [word, positions] of Object.entries(invertedIndex)) {
+    for (const pos of positions) {
+      words.push([word, pos]);
+    }
+  }
+  words.sort((a, b) => a[1] - b[1]);
+  return words.map(w => w[0]).join(' ');
+}
+
+async function fetchFromSemanticScholar(cleanDoi: string): Promise<DOIMetadata | null> {
+  try {
+    const response = await fetch(
+      `https://api.semanticscholar.org/graph/v1/paper/DOI:${encodeURIComponent(cleanDoi)}?fields=title,authors,year,venue,publicationVenue,abstract,externalIds,publicationTypes`,
+      { headers: { 'Accept': 'application/json' } }
+    );
+    
+    if (!response.ok) return null;
+    
+    const work = await response.json();
+    
+    const authors = (work.authors || []).map((a: any) => a.name || 'Unknown Author');
+    
+    let publicationType = 'article';
+    const types = work.publicationTypes || [];
+    if (types.includes('Book') || types.includes('BookSection')) {
+      publicationType = 'book';
+    } else if (types.includes('Conference')) {
+      publicationType = 'inproceedings';
+    } else if (types.includes('Dissertation')) {
+      publicationType = 'thesis';
+    } else if (types.includes('Report')) {
+      publicationType = 'report';
+    }
+    
+    return {
+      title: work.title || 'Untitled',
+      authors,
+      year: work.year || undefined,
+      journal: work.venue || work.publicationVenue?.name || undefined,
+      doi: cleanDoi,
+      url: `https://doi.org/${cleanDoi}`,
+      abstract: work.abstract || undefined,
+      type: publicationType,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchDOIMetadata(doi: string): Promise<DOIMetadata> {
+  const cleanDoi = cleanDOI(doi);
   
-  return {
-    title: Array.isArray(work.title) ? work.title[0] : work.title || 'Untitled',
-    authors,
-    year,
-    journal: work['container-title']?.[0] || undefined,
-    volume: work.volume || undefined,
-    issue: work.issue || undefined,
-    pages: work.page || undefined,
-    doi: cleanDoi,
-    url: work.URL || `https://doi.org/${cleanDoi}`,
-    abstract: work.abstract?.replace(/<[^>]*>/g, '') || undefined, // Strip HTML tags
-    type: publicationType,
-  };
+  // Try CrossRef first
+  const crossRefResult = await fetchFromCrossRef(cleanDoi);
+  if (crossRefResult) return crossRefResult;
+  
+  // Fallback to OpenAlex
+  const openAlexResult = await fetchFromOpenAlex(cleanDoi);
+  if (openAlexResult) return openAlexResult;
+  
+  // Fallback to Semantic Scholar
+  const semanticScholarResult = await fetchFromSemanticScholar(cleanDoi);
+  if (semanticScholarResult) return semanticScholarResult;
+  
+  throw new Error('DOI not found in CrossRef, OpenAlex, or Semantic Scholar');
 }
