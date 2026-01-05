@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import PublicVault from "./pages/PublicVault";
 import Explore from "./pages/Explore";
+import TheCodex from "./pages/TheCodex";
 
 const queryClient = new QueryClient();
 
@@ -23,6 +24,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/explore" element={<Explore />} />
+            <Route path="/codex" element={<TheCodex />} />
             <Route path="/public/:slug" element={<PublicVault />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -55,6 +55,9 @@ export default function PublicVault() {
 
       setVault(vaultData as Vault);
 
+      // Increment view count
+      await supabase.rpc('increment_vault_views', { vault_uuid: vaultData.id });
+
       // Fetch publications in this vault
       const { data: pubsData } = await supabase
         .from('publications')
@@ -120,10 +123,14 @@ export default function PublicVault() {
     return tags.filter(t => tagIds.includes(t.id));
   };
 
-  const handleExportAll = () => {
-    if (filteredPublications.length === 0) return;
+  const handleExportAll = async () => {
+    if (filteredPublications.length === 0 || !vault) return;
+    
+    // Increment download count
+    await supabase.rpc('increment_vault_downloads', { vault_uuid: vault.id });
+    
     const content = exportMultipleToBibtex(filteredPublications);
-    downloadBibtex(content, `${vault?.name || 'references'}.bib`);
+    downloadBibtex(content, `${vault.name || 'references'}.bib`);
     toast({ title: `Exported ${filteredPublications.length} references 📄` });
   };
 

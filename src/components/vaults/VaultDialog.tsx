@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Vault } from '@/types/database';
+import { Vault, VAULT_CATEGORIES } from '@/types/database';
 import {
   Dialog,
   DialogContent,
@@ -10,6 +10,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const VAULT_COLORS = [
   '#a855f7', // Purple
@@ -35,6 +42,8 @@ export function VaultDialog({ open, onOpenChange, vault, onSave }: VaultDialogPr
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState(VAULT_COLORS[0]);
+  const [category, setCategory] = useState<string>('');
+  const [abstract, setAbstract] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -42,10 +51,14 @@ export function VaultDialog({ open, onOpenChange, vault, onSave }: VaultDialogPr
       setName(vault.name);
       setDescription(vault.description || '');
       setColor(vault.color);
+      setCategory(vault.category || '');
+      setAbstract(vault.abstract || '');
     } else {
       setName('');
       setDescription('');
       setColor(VAULT_COLORS[Math.floor(Math.random() * VAULT_COLORS.length)]);
+      setCategory('');
+      setAbstract('');
     }
   }, [vault, open]);
 
@@ -53,7 +66,13 @@ export function VaultDialog({ open, onOpenChange, vault, onSave }: VaultDialogPr
     e.preventDefault();
     setSaving(true);
     try {
-      await onSave({ name, description, color });
+      await onSave({ 
+        name, 
+        description, 
+        color,
+        category: category || null,
+        abstract: abstract || null,
+      });
       onOpenChange(false);
     } finally {
       setSaving(false);
@@ -62,7 +81,7 @@ export function VaultDialog({ open, onOpenChange, vault, onSave }: VaultDialogPr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md border-2 bg-card/95 backdrop-blur-xl">
+      <DialogContent className="max-w-md border-2 bg-card/95 backdrop-blur-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold">
             {vault ? (
@@ -73,7 +92,7 @@ export function VaultDialog({ open, onOpenChange, vault, onSave }: VaultDialogPr
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6 pt-4">
+        <form onSubmit={handleSubmit} className="space-y-5 pt-4">
           <div className="space-y-2">
             <Label htmlFor="name" className="font-semibold">Name *</Label>
             <Input
@@ -87,15 +106,45 @@ export function VaultDialog({ open, onOpenChange, vault, onSave }: VaultDialogPr
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description" className="font-semibold">Description</Label>
-            <Textarea
+            <Label htmlFor="category" className="font-semibold">Category</Label>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a category" />
+              </SelectTrigger>
+              <SelectContent>
+                {VAULT_CATEGORIES.map((cat) => (
+                  <SelectItem key={cat} value={cat}>
+                    {cat}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="description" className="font-semibold">Short Description</Label>
+            <Input
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="// what is this vault for?"
-              rows={3}
+              placeholder="A brief tagline for your vault"
               className="font-mono text-sm"
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="abstract" className="font-semibold">Abstract</Label>
+            <Textarea
+              id="abstract"
+              value={abstract}
+              onChange={(e) => setAbstract(e.target.value)}
+              placeholder="Describe the contents and purpose of this collection..."
+              rows={3}
+              className="text-sm"
+            />
+            <p className="text-xs text-muted-foreground">
+              Shown on The Codex marketplace when published
+            </p>
           </div>
 
           <div className="space-y-3">
