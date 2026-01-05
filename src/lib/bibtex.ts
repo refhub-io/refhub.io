@@ -115,14 +115,31 @@ function parseBibtexEntry(entry: string): ParsedEntry | null {
   let braceDepth = 0;
   let inValue = false;
   let inQuotes = false;
+  let waitingForValue = false;
   
   for (let i = 0; i < content.length; i++) {
     const char = content[i];
     
     if (!inValue) {
       if (char === '=') {
-        inValue = true;
+        waitingForValue = true;
         currentField = currentField.trim().toLowerCase();
+      } else if (waitingForValue) {
+        // Look for start of value (brace or quote)
+        if (char === '{') {
+          inValue = true;
+          waitingForValue = false;
+          braceDepth = 1;
+        } else if (char === '"') {
+          inValue = true;
+          waitingForValue = false;
+          inQuotes = true;
+        } else if (!char.match(/\s/)) {
+          // Bare value (number or string without braces)
+          inValue = true;
+          waitingForValue = false;
+          currentValue += char;
+        }
       } else {
         currentField += char;
       }
@@ -132,22 +149,23 @@ function parseBibtexEntry(entry: string): ParsedEntry | null {
         if (braceDepth > 1) currentValue += char;
       } else if (char === '}' && !inQuotes) {
         braceDepth--;
-        if (braceDepth > 0) currentValue += char;
-        if (braceDepth === 0) {
+        if (braceDepth > 0) {
+          currentValue += char;
+        } else if (braceDepth === 0) {
           fields[currentField] = parseField(currentValue);
           currentField = '';
           currentValue = '';
           inValue = false;
         }
       } else if (char === '"' && braceDepth === 0) {
-        if (!inQuotes) {
-          inQuotes = true;
-        } else {
+        if (inQuotes) {
           inQuotes = false;
           fields[currentField] = parseField(currentValue);
           currentField = '';
           currentValue = '';
           inValue = false;
+        } else {
+          currentValue += char;
         }
       } else if (char === ',' && braceDepth === 0 && !inQuotes) {
         if (currentValue.trim()) {
