@@ -6,13 +6,13 @@ import {
   LogOut, 
   ChevronDown,
   ChevronRight,
-  Menu,
   X,
   Sparkles,
   Zap,
   Globe,
   Share2,
-  MoreHorizontal
+  MoreHorizontal,
+  Scroll
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -116,6 +116,17 @@ export function Sidebar({
             </div>
             All Papers
           </button>
+
+          <Link
+            to="/codex"
+            onClick={onMobileClose}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 hover:bg-sidebar-accent/50 text-sidebar-foreground/80 border-2 border-transparent"
+          >
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-gradient-to-br from-amber-500/20 to-orange-500/20">
+              <Scroll className="w-4 h-4 text-amber-500" />
+            </div>
+            The Codex
+          </Link>
 
           <Link
             to="/explore"

@@ -83,11 +83,18 @@ export default function Explore() {
               <span className="text-foreground/60">.io</span>
             </span>
           </Link>
-          <Link to="/dashboard">
-            <Button variant="outline" size="sm">
-              Dashboard
-            </Button>
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link to="/codex">
+              <Button variant="ghost" size="sm" className="text-amber-500 hover:text-amber-400">
+                The Codex
+              </Button>
+            </Link>
+            <Link to="/dashboard">
+              <Button variant="outline" size="sm">
+                Dashboard
+              </Button>
+            </Link>
+          </div>
         </div>
       </header>
 

@@ -210,8 +210,45 @@ export type Database = {
           },
         ]
       }
+      vault_stats: {
+        Row: {
+          created_at: string | null
+          download_count: number | null
+          id: string
+          updated_at: string | null
+          vault_id: string
+          view_count: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          download_count?: number | null
+          id?: string
+          updated_at?: string | null
+          vault_id: string
+          view_count?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          download_count?: number | null
+          id?: string
+          updated_at?: string | null
+          vault_id?: string
+          view_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vault_stats_vault_id_fkey"
+            columns: ["vault_id"]
+            isOneToOne: true
+            referencedRelation: "vaults"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vaults: {
         Row: {
+          abstract: string | null
+          category: string | null
           color: string | null
           created_at: string
           description: string | null
@@ -224,6 +261,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          abstract?: string | null
+          category?: string | null
           color?: string | null
           created_at?: string
           description?: string | null
@@ -236,6 +275,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          abstract?: string | null
+          category?: string | null
           color?: string | null
           created_at?: string
           description?: string | null
@@ -254,7 +295,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      increment_vault_downloads: {
+        Args: { vault_uuid: string }
+        Returns: undefined
+      }
+      increment_vault_views: {
+        Args: { vault_uuid: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

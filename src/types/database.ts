@@ -29,9 +29,41 @@ export interface Vault {
   is_shared: boolean;
   is_public: boolean;
   public_slug: string | null;
+  category: string | null;
+  abstract: string | null;
   created_at: string;
   updated_at: string;
 }
+
+export interface VaultStats {
+  id: string;
+  vault_id: string;
+  view_count: number;
+  download_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export const VAULT_CATEGORIES = [
+  'Machine Learning',
+  'Computer Vision',
+  'Natural Language Processing',
+  'Robotics',
+  'Physics',
+  'Biology',
+  'Chemistry',
+  'Mathematics',
+  'Economics',
+  'Psychology',
+  'Neuroscience',
+  'Medicine',
+  'Engineering',
+  'Environmental Science',
+  'Social Sciences',
+  'Other',
+] as const;
+
+export type VaultCategory = typeof VAULT_CATEGORIES[number];
 
 export interface Tag {
   id: string;
