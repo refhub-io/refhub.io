@@ -208,7 +208,7 @@ export function ImportDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] p-0 border-2 bg-card/95 backdrop-blur-xl">
+      <DialogContent className="w-[95vw] max-w-3xl max-h-[85vh] p-0 border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col">
         <DialogHeader className="p-6 pb-0">
           <DialogTitle className="text-2xl font-bold">
             <span>Import <span className="text-gradient">Papers</span></span>
@@ -218,207 +218,207 @@ export function ImportDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="p-6 pt-4">
-          <TabsList className="grid w-full grid-cols-2 mb-4">
-            <TabsTrigger value="doi" className="gap-2">
-              <Link className="w-4 h-4" />
-              DOI Lookup
-            </TabsTrigger>
-            <TabsTrigger value="bibtex" className="gap-2">
-              <FileText className="w-4 h-4" />
-              BibTeX Import
-            </TabsTrigger>
-          </TabsList>
+        <ScrollArea className="flex-1 overflow-auto">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="p-4 sm:p-6 pt-4">
+            <TabsList className="grid w-full grid-cols-2 mb-4">
+              <TabsTrigger value="doi" className="gap-2 text-xs sm:text-sm">
+                <Link className="w-4 h-4" />
+                <span className="hidden xs:inline">DOI</span> Lookup
+              </TabsTrigger>
+              <TabsTrigger value="bibtex" className="gap-2 text-xs sm:text-sm">
+                <FileText className="w-4 h-4" />
+                <span className="hidden xs:inline">BibTeX</span> Import
+              </TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="doi" className="space-y-4">
-            <div className="space-y-2">
-              <Label className="font-semibold">Enter DOI</Label>
-              <div className="flex gap-2">
-                <Input
-                  value={doiInput}
-                  onChange={(e) => setDoiInput(e.target.value)}
-                  placeholder="10.1000/xyz123 or https://doi.org/..."
-                  className="font-mono flex-1"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleDOILookup();
-                    }
-                  }}
-                />
-                <Button 
-                  onClick={handleDOILookup} 
-                  disabled={doiLoading || !doiInput.trim()}
-                  variant="glow"
-                >
-                  {doiLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    'Lookup'
-                  )}
-                </Button>
+            <TabsContent value="doi" className="space-y-4">
+              <div className="space-y-2">
+                <Label className="font-semibold">Enter DOI</Label>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Input
+                    value={doiInput}
+                    onChange={(e) => setDoiInput(e.target.value)}
+                    placeholder="10.1000/xyz123 or https://doi.org/..."
+                    className="font-mono flex-1 text-sm"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleDOILookup();
+                      }
+                    }}
+                  />
+                  <Button 
+                    onClick={handleDOILookup} 
+                    disabled={doiLoading || !doiInput.trim()}
+                    variant="glow"
+                    className="w-full sm:w-auto"
+                  >
+                    {doiLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      'Lookup'
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground font-mono">
+                  // supports doi.org URLs, DOI strings, or doi: prefix
+                </p>
               </div>
-              <p className="text-xs text-muted-foreground font-mono">
-                // supports doi.org URLs, DOI strings, or doi: prefix
-              </p>
-            </div>
-          </TabsContent>
+            </TabsContent>
 
-          <TabsContent value="bibtex" className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="font-semibold">BibTeX Content</Label>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="gap-2"
-                  onClick={() => document.getElementById('bib-file-input')?.click()}
-                >
-                  <Upload className="w-4 h-4" />
-                  Upload .bib
-                </Button>
-                <input
-                  id="bib-file-input"
-                  type="file"
-                  accept=".bib,.txt"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
-              </div>
-              <Textarea
-                value={bibtexInput}
-                onChange={(e) => setBibtexInput(e.target.value)}
-                placeholder="@article{key,
+            <TabsContent value="bibtex" className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="font-semibold">BibTeX Content</Label>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="gap-2 text-xs sm:text-sm"
+                    onClick={() => document.getElementById('bib-file-input')?.click()}
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span className="hidden sm:inline">Upload</span> .bib
+                  </Button>
+                  <input
+                    id="bib-file-input"
+                    type="file"
+                    accept=".bib,.txt"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                </div>
+                <Textarea
+                  value={bibtexInput}
+                  onChange={(e) => setBibtexInput(e.target.value)}
+                  placeholder="@article{key,
   title = {Paper Title},
   author = {Author Name},
   year = {2024},
   ...
 }"
-                rows={8}
-                className="font-mono text-sm"
-              />
-              <Button 
-                onClick={handleBibtexParse} 
-                disabled={!bibtexInput.trim()}
-                variant="glow"
-                className="w-full"
-              >
-                Parse BibTeX
-              </Button>
-            </div>
-          </TabsContent>
-        </Tabs>
-
-        {/* Parsed Publications List */}
-        {parsedPublications.length > 0 && (
-          <div className="px-6 pb-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <Label className="font-semibold">
-                Parsed Papers ({selectedIndices.size}/{parsedPublications.length} selected)
-              </Label>
-              <div className="flex gap-2">
-                <Button variant="ghost" size="sm" onClick={selectAll}>
-                  Select All
-                </Button>
-                <Button variant="ghost" size="sm" onClick={selectNone}>
-                  Clear
+                  rows={6}
+                  className="font-mono text-sm"
+                />
+                <Button 
+                  onClick={handleBibtexParse} 
+                  disabled={!bibtexInput.trim()}
+                  variant="glow"
+                  className="w-full"
+                >
+                  Parse BibTeX
                 </Button>
               </div>
-            </div>
+            </TabsContent>
+          </Tabs>
 
-            <ScrollArea className="h-48 border-2 rounded-lg">
-              <div className="p-2 space-y-2">
-                {parsedPublications.map((pub, index) => (
-                  <div
-                    key={index}
-                    className={`flex items-start gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${
-                      selectedIndices.has(index)
-                        ? 'bg-primary/10 border-primary/50'
-                        : 'bg-muted/30 border-transparent hover:border-border'
-                    }`}
-                    onClick={() => toggleSelection(index)}
-                  >
-                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                      selectedIndices.has(index) ? 'bg-primary border-primary' : 'border-muted-foreground'
-                    }`}>
-                      {selectedIndices.has(index) && <Check className="w-3 h-3 text-primary-foreground" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{pub.title}</p>
-                      <p className="text-xs text-muted-foreground font-mono truncate">
-                        {pub.authors?.join(', ') || 'Unknown authors'} • {pub.year || 'n.d.'}
-                      </p>
-                      {pub.doi && (
-                        <Badge variant="outline" className="mt-1 font-mono text-xs">
-                          {pub.doi}
-                        </Badge>
-                      )}
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="flex-shrink-0 h-6 w-6 text-muted-foreground hover:text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removePublication(index);
-                      }}
+          {/* Parsed Publications List */}
+          {parsedPublications.length > 0 && (
+            <div className="px-4 sm:px-6 pb-6 space-y-4">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="font-semibold text-sm">
+                  Parsed ({selectedIndices.size}/{parsedPublications.length})
+                </Label>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={selectAll} className="text-xs px-2">
+                    All
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={selectNone} className="text-xs px-2">
+                    None
+                  </Button>
+                </div>
+              </div>
+
+              <div className="border-2 rounded-lg max-h-40 overflow-y-auto">
+                <div className="p-2 space-y-2">
+                  {parsedPublications.map((pub, index) => (
+                    <div
+                      key={index}
+                      className={`flex items-start gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg border transition-colors cursor-pointer ${
+                        selectedIndices.has(index)
+                          ? 'bg-primary/10 border-primary/50'
+                          : 'bg-muted/30 border-transparent hover:border-border'
+                      }`}
+                      onClick={() => toggleSelection(index)}
                     >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
-
-            {/* Import Options */}
-            <div className="space-y-2">
-              <Label className="font-semibold">Import to Vault</Label>
-              <Select
-                value={targetVaultId || 'none'}
-                onValueChange={(value) => setTargetVaultId(value === 'none' ? null : value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a vault" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No vault</SelectItem>
-                  {vaults.map((vault) => (
-                    <SelectItem key={vault.id} value={vault.id}>
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-3 h-3 rounded-md"
-                          style={{ backgroundColor: vault.color }}
-                        />
-                        {vault.name}
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                        selectedIndices.has(index) ? 'bg-primary border-primary' : 'border-muted-foreground'
+                      }`}>
+                        {selectedIndices.has(index) && <Check className="w-3 h-3 text-primary-foreground" />}
                       </div>
-                    </SelectItem>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-xs sm:text-sm line-clamp-2">{pub.title}</p>
+                        <p className="text-xs text-muted-foreground font-mono truncate">
+                          {pub.authors?.slice(0, 2).join(', ')}{pub.authors && pub.authors.length > 2 ? '...' : ''} • {pub.year || 'n.d.'}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="flex-shrink-0 h-6 w-6 text-muted-foreground hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removePublication(index);
+                        }}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
+                </div>
+              </div>
 
-            {/* Import Button */}
-            <div className="flex justify-end gap-3 pt-4 border-t-2 border-border">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Cancel
-              </Button>
-              <Button 
-                variant="glow" 
-                onClick={handleImport}
-                disabled={importing || selectedIndices.size === 0}
-              >
-                {importing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Importing...
-                  </>
-                ) : (
-                  `Import ${selectedIndices.size} Paper${selectedIndices.size !== 1 ? 's' : ''}`
-                )}
-              </Button>
+              {/* Import Options */}
+              <div className="space-y-2">
+                <Label className="font-semibold text-sm">Import to Vault</Label>
+                <Select
+                  value={targetVaultId || 'none'}
+                  onValueChange={(value) => setTargetVaultId(value === 'none' ? null : value)}
+                >
+                  <SelectTrigger className="text-sm">
+                    <SelectValue placeholder="Select a vault" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No vault</SelectItem>
+                    {vaults.map((vault) => (
+                      <SelectItem key={vault.id} value={vault.id}>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-3 h-3 rounded-md"
+                            style={{ backgroundColor: vault.color }}
+                          />
+                          {vault.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Import Button */}
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t-2 border-border">
+                <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
+                  Cancel
+                </Button>
+                <Button 
+                  variant="glow" 
+                  onClick={handleImport}
+                  disabled={importing || selectedIndices.size === 0}
+                  className="w-full sm:w-auto"
+                >
+                  {importing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Importing...
+                    </>
+                  ) : (
+                    `Import ${selectedIndices.size} Paper${selectedIndices.size !== 1 ? 's' : ''}`
+                  )}
+                </Button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </ScrollArea>
+
       </DialogContent>
     </Dialog>
   );
