@@ -17,6 +17,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Lock, Users, Globe } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+type VaultVisibility = 'private' | 'protected' | 'public';
 
 const VAULT_COLORS = [
   '#a855f7', // Purple
@@ -44,7 +48,14 @@ export function VaultDialog({ open, onOpenChange, vault, onSave }: VaultDialogPr
   const [color, setColor] = useState(VAULT_COLORS[0]);
   const [category, setCategory] = useState<string>('');
   const [abstract, setAbstract] = useState('');
+  const [visibility, setVisibility] = useState<VaultVisibility>('private');
   const [saving, setSaving] = useState(false);
+
+  const getVisibility = (v: Vault): VaultVisibility => {
+    if (v.is_public) return 'public';
+    if (v.is_shared) return 'protected';
+    return 'private';
+  };
 
   useEffect(() => {
     if (vault) {
@@ -53,12 +64,14 @@ export function VaultDialog({ open, onOpenChange, vault, onSave }: VaultDialogPr
       setColor(vault.color);
       setCategory(vault.category || '');
       setAbstract(vault.abstract || '');
+      setVisibility(getVisibility(vault));
     } else {
       setName('');
       setDescription('');
       setColor(VAULT_COLORS[Math.floor(Math.random() * VAULT_COLORS.length)]);
       setCategory('');
       setAbstract('');
+      setVisibility('private');
     }
   }, [vault, open]);
 
@@ -72,12 +85,21 @@ export function VaultDialog({ open, onOpenChange, vault, onSave }: VaultDialogPr
         color,
         category: category || null,
         abstract: abstract || null,
+        is_public: visibility === 'public',
+        is_shared: visibility === 'protected',
+        public_slug: visibility === 'public' ? name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') : null,
       });
       onOpenChange(false);
     } finally {
       setSaving(false);
     }
   };
+
+  const visibilityOptions = [
+    { value: 'private' as const, label: 'Private', icon: Lock, description: 'Only you can access' },
+    { value: 'protected' as const, label: 'Protected', icon: Users, description: 'Shared with specific people' },
+    { value: 'public' as const, label: 'Public', icon: Globe, description: 'Listed in The Codex' },
+  ];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -144,6 +166,35 @@ export function VaultDialog({ open, onOpenChange, vault, onSave }: VaultDialogPr
             />
             <p className="text-xs text-muted-foreground">
               Shown on The Codex marketplace when published
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <Label className="font-semibold">Visibility</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {visibilityOptions.map((option) => {
+                const Icon = option.icon;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setVisibility(option.value)}
+                    className={cn(
+                      "flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all duration-200",
+                      visibility === option.value
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border hover:border-primary/50 text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span className="text-xs font-semibold">{option.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {visibilityOptions.find(o => o.value === visibility)?.description}
+              {visibility === 'protected' && vault && ' — Configure sharing via the Share button after saving.'}
             </p>
           </div>
 
