@@ -12,7 +12,9 @@ import {
   Globe,
   Share2,
   MoreHorizontal,
-  Scroll
+  Scroll,
+  Lock,
+  Users
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -128,17 +130,6 @@ export function Sidebar({
             The Codex
           </Link>
 
-          <Link
-            to="/explore"
-            onClick={onMobileClose}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 hover:bg-sidebar-accent/50 text-sidebar-foreground/80 border-2 border-transparent"
-          >
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-sidebar-accent">
-              <Globe className="w-4 h-4 text-neon" />
-            </div>
-            Explore Public
-          </Link>
-
           <div className="pt-4">
             <button
               onClick={() => setIsVaultsExpanded(!isVaultsExpanded)}
@@ -179,8 +170,12 @@ export function Sidebar({
                         style={{ backgroundColor: vault.color }}
                       />
                       <span className="truncate font-medium">{vault.name}</span>
-                      {vault.is_public && (
+                      {vault.is_public ? (
                         <Globe className="w-3 h-3 text-neon shrink-0" />
+                      ) : vault.is_shared ? (
+                        <Users className="w-3 h-3 text-blue-400 shrink-0" />
+                      ) : (
+                        <Lock className="w-3 h-3 text-muted-foreground/50 shrink-0" />
                       )}
                     </button>
                     
