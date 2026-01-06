@@ -11,10 +11,10 @@ import {
   Zap,
   Globe,
   Share2,
-  MoreHorizontal,
   Scroll,
   Lock,
-  Users
+  Users,
+  Pencil
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -179,30 +179,32 @@ export function Sidebar({
                       )}
                     </button>
                     
+                    {onEditVault && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEditVault(vault);
+                        }}
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </Button>
+                    )}
+                    
                     {onShareVault && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <MoreHorizontal className="w-3.5 h-3.5" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-40">
-                          {onEditVault && (
-                            <DropdownMenuItem onClick={() => onEditVault(vault)}>
-                              Edit vault
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem onClick={() => onShareVault(vault)}>
-                            <Share2 className="w-3.5 h-3.5 mr-2" />
-                            Share vault
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-neon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onShareVault(vault);
+                        }}
+                      >
+                        <Share2 className="w-3 h-3" />
+                      </Button>
                     )}
                   </div>
                 ))}
