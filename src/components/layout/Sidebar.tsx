@@ -10,22 +10,15 @@ import {
   Sparkles,
   Zap,
   Globe,
-  Share2,
   Scroll,
   Lock,
   Users,
-  Pencil
+  Settings
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { Vault } from '@/types/database';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 
 interface SidebarProps {
   vaults: Vault[];
@@ -33,7 +26,6 @@ interface SidebarProps {
   onSelectVault: (vaultId: string | null) => void;
   onCreateVault: () => void;
   onEditVault?: (vault: Vault) => void;
-  onShareVault?: (vault: Vault) => void;
   isMobileOpen: boolean;
   onMobileClose: () => void;
 }
@@ -44,7 +36,6 @@ export function Sidebar({
   onSelectVault, 
   onCreateVault,
   onEditVault,
-  onShareVault,
   isMobileOpen,
   onMobileClose
 }: SidebarProps) {
@@ -183,27 +174,13 @@ export function Sidebar({
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary"
+                        className="h-6 w-6 text-muted-foreground hover:text-primary"
                         onClick={(e) => {
                           e.stopPropagation();
                           onEditVault(vault);
                         }}
                       >
-                        <Pencil className="w-3 h-3" />
-                      </Button>
-                    )}
-                    
-                    {onShareVault && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-neon"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onShareVault(vault);
-                        }}
-                      >
-                        <Share2 className="w-3 h-3" />
+                        <Settings className="w-3.5 h-3.5" />
                       </Button>
                     )}
                   </div>
