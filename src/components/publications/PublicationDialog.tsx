@@ -20,6 +20,9 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { X, Plus, Hash } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { RelatedPapersSection } from './RelatedPapersSection';
+import { usePublicationRelations } from '@/hooks/usePublicationRelations';
+import { useAuth } from '@/hooks/useAuth';
 
 interface PublicationDialogProps {
   open: boolean;
@@ -28,6 +31,7 @@ interface PublicationDialogProps {
   vaults: Vault[];
   tags: Tag[];
   publicationTags: string[];
+  allPublications: Publication[];
   onSave: (data: Partial<Publication>, tagIds: string[]) => Promise<void>;
   onCreateTag: (name: string) => Promise<Tag | null>;
 }
@@ -39,9 +43,17 @@ export function PublicationDialog({
   vaults,
   tags,
   publicationTags,
+  allPublications,
   onSave,
   onCreateTag,
 }: PublicationDialogProps) {
+  const { user } = useAuth();
+  const {
+    relations,
+    loading: relationsLoading,
+    addRelation,
+    removeRelation,
+  } = usePublicationRelations(publication?.id || null, user?.id || null);
   const [formData, setFormData] = useState<Partial<Publication>>({
     title: '',
     authors: [],
@@ -405,6 +417,18 @@ export function PublicationDialog({
                 className="font-mono"
               />
             </div>
+
+            {/* Related Papers - only show when editing an existing publication */}
+            {publication && (
+              <RelatedPapersSection
+                relations={relations}
+                allPublications={allPublications}
+                currentPublicationId={publication.id}
+                loading={relationsLoading}
+                onAddRelation={addRelation}
+                onRemoveRelation={removeRelation}
+              />
+            )}
 
             {/* Actions */}
             <div className="flex justify-end gap-3 pt-4 border-t-2 border-border">

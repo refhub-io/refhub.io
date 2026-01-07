@@ -27,6 +27,7 @@ interface PublicationListProps {
   tags: Tag[];
   vaults: Vault[];
   publicationTagsMap: Record<string, string[]>;
+  relationsCountMap: Record<string, number>;
   selectedVault: Vault | null;
   onAddPublication: () => void;
   onImportPublications: () => void;
@@ -41,6 +42,7 @@ export function PublicationList({
   tags,
   vaults,
   publicationTagsMap,
+  relationsCountMap,
   selectedVault,
   onAddPublication,
   onImportPublications,
@@ -243,6 +245,7 @@ export function PublicationList({
                 <PublicationCard
                   publication={pub}
                   tags={getPublicationTags(pub.id)}
+                  relationsCount={relationsCountMap[pub.id] || 0}
                   isSelected={selectedIds.has(pub.id)}
                   onToggleSelect={() => toggleSelection(pub.id)}
                   onEdit={() => onEditPublication(pub)}

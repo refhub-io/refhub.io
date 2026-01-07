@@ -98,6 +98,27 @@ export interface VaultShare {
   created_at: string;
 }
 
+export interface PublicationRelation {
+  id: string;
+  publication_id: string;
+  related_publication_id: string;
+  relation_type: string;
+  created_at: string;
+  created_by: string;
+}
+
+export const RELATION_TYPES = [
+  { value: 'related', label: 'Related' },
+  { value: 'cites', label: 'Cites' },
+  { value: 'extends', label: 'Extends' },
+  { value: 'contradicts', label: 'Contradicts' },
+  { value: 'reviews', label: 'Reviews' },
+  { value: 'builds_on', label: 'Builds On' },
+  { value: 'supersedes', label: 'Supersedes' },
+] as const;
+
+export type RelationType = typeof RELATION_TYPES[number]['value'];
+
 export type PublicationType = 
   | 'article'
   | 'book'
