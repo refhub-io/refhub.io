@@ -8,6 +8,7 @@ import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationDialog } from '@/components/publications/PublicationDialog';
 import { ImportDialog } from '@/components/publications/ImportDialog';
 import { VaultDialog } from '@/components/vaults/VaultDialog';
+import { RelationshipGraph } from '@/components/publications/RelationshipGraph';
 import { publicationToBibtex, exportMultipleToBibtex, downloadBibtex } from '@/lib/bibtex';
 import { useToast } from '@/hooks/use-toast';
 import { Sparkles } from 'lucide-react';
@@ -43,7 +44,7 @@ export default function Dashboard() {
 
   const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
   const [editingVault, setEditingVault] = useState<Vault | null>(null);
-
+  const [isGraphOpen, setIsGraphOpen] = useState(false);
 
   const [deleteConfirmation, setDeleteConfirmation] = useState<Publication | null>(null);
 
@@ -341,6 +342,7 @@ export default function Dashboard() {
         onDeletePublication={(pub) => setDeleteConfirmation(pub)}
         onExportBibtex={handleExportBibtex}
         onMobileMenuOpen={() => setIsMobileSidebarOpen(true)}
+        onOpenGraph={() => setIsGraphOpen(true)}
       />
 
       <PublicationDialog
@@ -368,6 +370,17 @@ export default function Dashboard() {
         vault={editingVault}
         onSave={handleSaveVault}
         onUpdate={fetchData}
+      />
+
+      <RelationshipGraph
+        open={isGraphOpen}
+        onOpenChange={setIsGraphOpen}
+        publications={publications}
+        relations={publicationRelations}
+        onSelectPublication={(pub) => {
+          setEditingPublication(pub);
+          setIsPublicationDialogOpen(true);
+        }}
       />
 
       <AlertDialog open={!!deleteConfirmation} onOpenChange={() => setDeleteConfirmation(null)}>
