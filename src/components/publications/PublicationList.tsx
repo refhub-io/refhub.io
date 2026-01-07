@@ -13,7 +13,8 @@ import {
   Square,
   Sparkles,
   Command,
-  Upload
+  Upload,
+  Network
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -35,6 +36,7 @@ interface PublicationListProps {
   onDeletePublication: (pub: Publication) => void;
   onExportBibtex: (pubs: Publication[]) => void;
   onMobileMenuOpen: () => void;
+  onOpenGraph: () => void;
 }
 
 export function PublicationList({
@@ -50,6 +52,7 @@ export function PublicationList({
   onDeletePublication,
   onExportBibtex,
   onMobileMenuOpen,
+  onOpenGraph,
 }: PublicationListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -138,6 +141,10 @@ export function PublicationList({
               )}
             </p>
           </div>
+
+          <Button onClick={onOpenGraph} variant="outline" size="icon" className="shrink-0" title="View relationship graph">
+            <Network className="w-4 h-4" />
+          </Button>
 
           <Button onClick={onImportPublications} variant="outline" className="shrink-0">
             <Upload className="w-4 h-4 lg:mr-2" />
