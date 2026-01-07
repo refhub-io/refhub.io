@@ -44,6 +44,48 @@ export type Database = {
         }
         Relationships: []
       }
+      publication_relations: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          publication_id: string
+          related_publication_id: string
+          relation_type: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          publication_id: string
+          related_publication_id: string
+          relation_type?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          publication_id?: string
+          related_publication_id?: string
+          relation_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publication_relations_publication_id_fkey"
+            columns: ["publication_id"]
+            isOneToOne: false
+            referencedRelation: "publications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publication_relations_related_publication_id_fkey"
+            columns: ["related_publication_id"]
+            isOneToOne: false
+            referencedRelation: "publications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       publication_tags: {
         Row: {
           id: string

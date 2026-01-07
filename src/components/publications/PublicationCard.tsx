@@ -11,7 +11,8 @@ import {
   Trash2, 
   Download,
   StickyNote,
-  Hash
+  Hash,
+  Link2
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -25,6 +26,7 @@ import { cn } from '@/lib/utils';
 interface PublicationCardProps {
   publication: Publication;
   tags: Tag[];
+  relationsCount?: number;
   isSelected: boolean;
   onToggleSelect: () => void;
   onEdit: () => void;
@@ -35,6 +37,7 @@ interface PublicationCardProps {
 export function PublicationCard({
   publication,
   tags,
+  relationsCount = 0,
   isSelected,
   onToggleSelect,
   onEdit,
@@ -145,6 +148,12 @@ export function PublicationCard({
               ))}
 
               <div className="flex items-center gap-2 ml-auto">
+                {relationsCount > 0 && (
+                  <div className="flex items-center gap-1 text-primary" title={`${relationsCount} related paper${relationsCount > 1 ? 's' : ''}`}>
+                    <Link2 className="w-4 h-4" />
+                    <span className="text-xs font-mono">{relationsCount}</span>
+                  </div>
+                )}
                 {publication.notes && (
                   <div className="text-neon-orange" title="Has notes">
                     <StickyNote className="w-4 h-4" />

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { Publication, Vault, Tag, PublicationTag } from '@/types/database';
+import { Publication, Vault, Tag, PublicationTag, PublicationRelation } from '@/types/database';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationDialog } from '@/components/publications/PublicationDialog';
@@ -31,6 +31,7 @@ export default function Dashboard() {
   const [vaults, setVaults] = useState<Vault[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [publicationTags, setPublicationTags] = useState<PublicationTag[]>([]);
+  const [publicationRelations, setPublicationRelations] = useState<PublicationRelation[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [selectedVaultId, setSelectedVaultId] = useState<string | null>(null);
@@ -61,17 +62,19 @@ export default function Dashboard() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [pubsRes, vaultsRes, tagsRes, pubTagsRes] = await Promise.all([
+      const [pubsRes, vaultsRes, tagsRes, pubTagsRes, relationsRes] = await Promise.all([
         supabase.from('publications').select('*').order('created_at', { ascending: false }),
         supabase.from('vaults').select('*').order('name'),
         supabase.from('tags').select('*').order('name'),
         supabase.from('publication_tags').select('*'),
+        supabase.from('publication_relations').select('*'),
       ]);
 
       if (pubsRes.data) setPublications(pubsRes.data as Publication[]);
       if (vaultsRes.data) setVaults(vaultsRes.data as Vault[]);
       if (tagsRes.data) setTags(tagsRes.data as Tag[]);
       if (pubTagsRes.data) setPublicationTags(pubTagsRes.data as PublicationTag[]);
+      if (relationsRes.data) setPublicationRelations(relationsRes.data as PublicationRelation[]);
     } catch (error) {
       console.error('Error fetching data:', error);
       toast({
@@ -98,6 +101,13 @@ export default function Dashboard() {
       publicationTagsMap[pt.publication_id] = [];
     }
     publicationTagsMap[pt.publication_id].push(pt.tag_id);
+  });
+
+  // Build relations count map (bidirectional)
+  const relationsCountMap: Record<string, number> = {};
+  publicationRelations.forEach((rel) => {
+    relationsCountMap[rel.publication_id] = (relationsCountMap[rel.publication_id] || 0) + 1;
+    relationsCountMap[rel.related_publication_id] = (relationsCountMap[rel.related_publication_id] || 0) + 1;
   });
 
   const handleSavePublication = async (data: Partial<Publication>, tagIds: string[]) => {
@@ -317,6 +327,7 @@ export default function Dashboard() {
         tags={tags}
         vaults={vaults}
         publicationTagsMap={publicationTagsMap}
+        relationsCountMap={relationsCountMap}
         selectedVault={selectedVault}
         onAddPublication={() => {
           setEditingPublication(null);
@@ -339,6 +350,7 @@ export default function Dashboard() {
         vaults={vaults}
         tags={tags}
         publicationTags={editingPublication ? publicationTagsMap[editingPublication.id] || [] : []}
+        allPublications={publications}
         onSave={handleSavePublication}
         onCreateTag={handleCreateTag}
       />
