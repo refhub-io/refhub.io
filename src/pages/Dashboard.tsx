@@ -65,11 +65,13 @@ export default function Dashboard() {
   }, [user]);
 
   const fetchData = async () => {
+    if (!user) return;
     setLoading(true);
     try {
+      // Only fetch vaults owned by the current user (not public vaults from others)
       const [pubsRes, vaultsRes, tagsRes, pubTagsRes, relationsRes] = await Promise.all([
         supabase.from('publications').select('*').order('created_at', { ascending: false }),
-        supabase.from('vaults').select('*').order('name'),
+        supabase.from('vaults').select('*').eq('user_id', user.id).order('name'),
         supabase.from('tags').select('*').order('name'),
         supabase.from('publication_tags').select('*'),
         supabase.from('publication_relations').select('*'),

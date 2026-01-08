@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag } from '@/types/database';
 import { publicationToBibtex, exportMultipleToBibtex, downloadBibtex } from '@/lib/bibtex';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
+import { useVaultFavorites } from '@/hooks/useVaultFavorites';
+import { useVaultFork } from '@/hooks/useVaultFork';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -17,12 +20,18 @@ import {
   Calendar,
   Users,
   ArrowLeft,
-  Globe
+  Globe,
+  Heart,
+  GitFork
 } from 'lucide-react';
 
 export default function PublicVault() {
   const { slug } = useParams();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const { isFavorite, toggleFavorite } = useVaultFavorites();
+  const { forkVault } = useVaultFork();
+  const navigate = useNavigate();
   const [vault, setVault] = useState<Vault | null>(null);
   const [publications, setPublications] = useState<Publication[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
@@ -30,6 +39,8 @@ export default function PublicVault() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [notFound, setNotFound] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
+  const [forking, setForking] = useState(false);
 
   useEffect(() => {
     if (slug) {
@@ -54,6 +65,11 @@ export default function PublicVault() {
       }
 
       setVault(vaultData as Vault);
+      
+      // Check if current user is the owner
+      if (user && vaultData.user_id === user.id) {
+        setIsOwner(true);
+      }
 
       // Increment view count
       await supabase.rpc('increment_vault_views', { vault_uuid: vaultData.id });
@@ -140,6 +156,45 @@ export default function PublicVault() {
     toast({ title: 'Reference exported 📄' });
   };
 
+  const handleFavorite = async () => {
+    if (!user) {
+      toast({
+        title: 'Sign in required',
+        description: 'Please sign in to favorite this vault.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!vault) return;
+    
+    const success = await toggleFavorite(vault.id);
+    if (success) {
+      toast({
+        title: isFavorite(vault.id) ? 'Removed from favorites' : 'Added to favorites ❤️',
+      });
+    }
+  };
+
+  const handleFork = async () => {
+    if (!user) {
+      toast({
+        title: 'Sign in required',
+        description: 'Please sign in to fork this vault.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!vault) return;
+    
+    setForking(true);
+    const newVault = await forkVault(vault);
+    setForking(false);
+    
+    if (newVault) {
+      navigate('/dashboard');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -220,6 +275,30 @@ export default function PublicVault() {
                 </span>
               </div>
             </div>
+            
+            {/* Fork/Favorite buttons - only show if not owner */}
+            {!isOwner && (
+              <div className="flex gap-2 shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleFavorite}
+                  className={vault && isFavorite(vault.id) ? 'text-rose-500 border-rose-500/30' : ''}
+                >
+                  <Heart className={`w-4 h-4 mr-1.5 ${vault && isFavorite(vault.id) ? 'fill-rose-500' : ''}`} />
+                  {vault && isFavorite(vault.id) ? 'Favorited' : 'Favorite'}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleFork}
+                  disabled={forking}
+                >
+                  <GitFork className="w-4 h-4 mr-1.5" />
+                  {forking ? 'Forking...' : 'Fork'}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </div>
