@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useProfile } from '@/hooks/useProfile';
 import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag, PublicationRelation } from '@/types/database';
 import { Sidebar } from '@/components/layout/Sidebar';
@@ -9,6 +10,7 @@ import { PublicationDialog } from '@/components/publications/PublicationDialog';
 import { ImportDialog } from '@/components/publications/ImportDialog';
 import { VaultDialog } from '@/components/vaults/VaultDialog';
 import { RelationshipGraph } from '@/components/publications/RelationshipGraph';
+import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { publicationToBibtex, exportMultipleToBibtex, downloadBibtex } from '@/lib/bibtex';
 import { useToast } from '@/hooks/use-toast';
 import { Sparkles } from 'lucide-react';
@@ -25,6 +27,7 @@ import {
 
 export default function Dashboard() {
   const { user, loading: authLoading } = useAuth();
+  const { profile, refetch: refetchProfile } = useProfile();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -45,6 +48,7 @@ export default function Dashboard() {
   const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
   const [editingVault, setEditingVault] = useState<Vault | null>(null);
   const [isGraphOpen, setIsGraphOpen] = useState(false);
+  const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
 
   const [deleteConfirmation, setDeleteConfirmation] = useState<Publication | null>(null);
 
@@ -321,6 +325,8 @@ export default function Dashboard() {
         }}
         isMobileOpen={isMobileSidebarOpen}
         onMobileClose={() => setIsMobileSidebarOpen(false)}
+        profile={profile}
+        onEditProfile={() => setIsProfileDialogOpen(true)}
       />
 
       <PublicationList
@@ -370,6 +376,14 @@ export default function Dashboard() {
         vault={editingVault}
         onSave={handleSaveVault}
         onUpdate={fetchData}
+      />
+
+      <ProfileDialog
+        open={isProfileDialogOpen}
+        onOpenChange={(open) => {
+          setIsProfileDialogOpen(open);
+          if (!open) refetchProfile();
+        }}
       />
 
       <RelationshipGraph

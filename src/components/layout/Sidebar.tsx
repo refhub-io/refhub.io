@@ -13,12 +13,15 @@ import {
   Scroll,
   Lock,
   Users,
-  Settings
+  Settings,
+  Pencil
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { Vault } from '@/types/database';
+import { ProfileAvatar } from '@/components/profile/ProfileAvatar';
+import { Profile } from '@/hooks/useProfile';
 
 interface SidebarProps {
   vaults: Vault[];
@@ -28,6 +31,8 @@ interface SidebarProps {
   onEditVault?: (vault: Vault) => void;
   isMobileOpen: boolean;
   onMobileClose: () => void;
+  profile?: Profile | null;
+  onEditProfile?: () => void;
 }
 
 export function Sidebar({ 
@@ -37,7 +42,9 @@ export function Sidebar({
   onCreateVault,
   onEditVault,
   isMobileOpen,
-  onMobileClose
+  onMobileClose,
+  profile,
+  onEditProfile
 }: SidebarProps) {
   const [isVaultsExpanded, setIsVaultsExpanded] = useState(true);
   const { user, signOut } = useAuth();
@@ -203,14 +210,32 @@ export function Sidebar({
 
         {/* User section */}
         <div className="p-4 border-t-2 border-sidebar-border">
-          <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-sidebar-accent/50 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center text-sm font-bold text-white shadow-lg">
-              {user?.email?.charAt(0).toUpperCase()}
-            </div>
+          <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-sidebar-accent/50 mb-3 group">
+            <ProfileAvatar
+              name={profile?.display_name || user?.email?.split('@')[0] || 'User'}
+              avatarUrl={profile?.avatar_url}
+              size={40}
+            />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold truncate text-sidebar-foreground">{user?.email?.split('@')[0]}</p>
-              <p className="text-xs text-sidebar-foreground/50 truncate font-mono">{user?.email}</p>
+              <p className="text-sm font-semibold truncate text-sidebar-foreground">
+                {profile?.display_name || user?.email?.split('@')[0]}
+              </p>
+              {profile?.username ? (
+                <p className="text-xs text-sidebar-foreground/50 truncate font-mono">@{profile.username}</p>
+              ) : (
+                <p className="text-xs text-sidebar-foreground/50 truncate font-mono">{user?.email}</p>
+              )}
             </div>
+            {onEditProfile && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary"
+                onClick={onEditProfile}
+              >
+                <Pencil className="w-4 h-4" />
+              </Button>
+            )}
           </div>
           <Button
             variant="ghost"

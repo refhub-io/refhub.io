@@ -85,6 +85,11 @@ export interface Profile {
   display_name: string | null;
   email: string | null;
   avatar_url: string | null;
+  username: string | null;
+  bio: string | null;
+  github_url: string | null;
+  linkedin_url: string | null;
+  bluesky_url: string | null;
   created_at: string;
   updated_at: string;
 }
