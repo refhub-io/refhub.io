@@ -232,6 +232,74 @@ export type Database = {
         }
         Relationships: []
       }
+      vault_favorites: {
+        Row: {
+          created_at: string
+          id: string
+          user_id: string
+          vault_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          user_id: string
+          vault_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          user_id?: string
+          vault_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vault_favorites_vault_id_fkey"
+            columns: ["vault_id"]
+            isOneToOne: false
+            referencedRelation: "vaults"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vault_forks: {
+        Row: {
+          created_at: string
+          forked_by: string
+          forked_vault_id: string
+          id: string
+          original_vault_id: string
+        }
+        Insert: {
+          created_at?: string
+          forked_by: string
+          forked_vault_id: string
+          id?: string
+          original_vault_id: string
+        }
+        Update: {
+          created_at?: string
+          forked_by?: string
+          forked_vault_id?: string
+          id?: string
+          original_vault_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vault_forks_forked_vault_id_fkey"
+            columns: ["forked_vault_id"]
+            isOneToOne: true
+            referencedRelation: "vaults"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vault_forks_original_vault_id_fkey"
+            columns: ["original_vault_id"]
+            isOneToOne: false
+            referencedRelation: "vaults"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vault_shares: {
         Row: {
           created_at: string

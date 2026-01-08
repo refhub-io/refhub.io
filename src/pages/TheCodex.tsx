@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Vault, VaultStats, VAULT_CATEGORIES } from '@/types/database';
+import { useAuth } from '@/hooks/useAuth';
+import { useVaultFavorites } from '@/hooks/useVaultFavorites';
+import { useVaultFork } from '@/hooks/useVaultFork';
+import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -17,7 +21,9 @@ import {
   Clock,
   Filter,
   Scroll,
-  Library
+  Library,
+  Heart,
+  GitFork
 } from 'lucide-react';
 import {
   Select,
@@ -38,10 +44,16 @@ interface CodexVault extends Vault {
 }
 
 export default function TheCodex() {
+  const { user } = useAuth();
+  const { isFavorite, toggleFavorite } = useVaultFavorites();
+  const { forkVault } = useVaultFork();
+  const { toast } = useToast();
+  const navigate = useNavigate();
   const [vaults, setVaults] = useState<CodexVault[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [forkingId, setForkingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPublicVaults();
@@ -132,6 +144,58 @@ export default function TheCodex() {
   const getOwnerName = (owner?: CodexVault['owner']) => {
     if (!owner) return 'Unknown';
     return owner.display_name || owner.email?.split('@')[0] || 'Unknown';
+  };
+
+  const handleFavorite = async (e: React.MouseEvent, vaultId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!user) {
+      toast({
+        title: 'Sign in required',
+        description: 'Please sign in to favorite this vault.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    const success = await toggleFavorite(vaultId);
+    if (success) {
+      toast({
+        title: isFavorite(vaultId) ? 'Removed from favorites' : 'Added to favorites ❤️',
+      });
+    }
+  };
+
+  const handleFork = async (e: React.MouseEvent, vault: CodexVault) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!user) {
+      toast({
+        title: 'Sign in required',
+        description: 'Please sign in to fork this vault.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Don't allow forking own vaults
+    if (vault.user_id === user.id) {
+      toast({
+        title: 'Cannot fork own vault',
+        description: 'You already own this vault.',
+      });
+      return;
+    }
+    
+    setForkingId(vault.id);
+    const newVault = await forkVault(vault as Vault);
+    setForkingId(null);
+    
+    if (newVault) {
+      navigate('/dashboard');
+    }
   };
 
   return (
@@ -316,9 +380,28 @@ export default function TheCodex() {
                           {formatDistanceToNow(new Date(vault.updated_at), { addSuffix: true })}
                         </span>
                       </div>
-                      <div className="flex items-center text-sm text-amber-500 font-semibold group-hover:gap-2 transition-all">
-                        View
-                        <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                      <div className="flex items-center gap-2">
+                        {user && vault.user_id !== user.id && (
+                          <>
+                            <button
+                              onClick={(e) => handleFavorite(e, vault.id)}
+                              className={`p-1.5 rounded-lg hover:bg-muted transition-colors ${isFavorite(vault.id) ? 'text-rose-500' : 'text-muted-foreground hover:text-rose-500'}`}
+                            >
+                              <Heart className={`w-4 h-4 ${isFavorite(vault.id) ? 'fill-rose-500' : ''}`} />
+                            </button>
+                            <button
+                              onClick={(e) => handleFork(e, vault)}
+                              disabled={forkingId === vault.id}
+                              className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-muted transition-colors disabled:opacity-50"
+                            >
+                              <GitFork className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                        <div className="flex items-center text-sm text-amber-500 font-semibold group-hover:gap-2 transition-all">
+                          View
+                          <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                        </div>
                       </div>
                     </div>
                   </article>

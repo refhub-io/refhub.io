@@ -112,6 +112,21 @@ export interface PublicationRelation {
   created_by: string;
 }
 
+export interface VaultFavorite {
+  id: string;
+  vault_id: string;
+  user_id: string;
+  created_at: string;
+}
+
+export interface VaultFork {
+  id: string;
+  original_vault_id: string;
+  forked_vault_id: string;
+  forked_by: string;
+  created_at: string;
+}
+
 export const RELATION_TYPES = [
   { value: 'related', label: 'Related' },
   { value: 'cites', label: 'Cites' },

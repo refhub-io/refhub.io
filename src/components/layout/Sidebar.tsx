@@ -14,7 +14,8 @@ import {
   Lock,
   Users,
   Settings,
-  Pencil
+  Pencil,
+  Heart
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -22,6 +23,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Vault } from '@/types/database';
 import { ProfileAvatar } from '@/components/profile/ProfileAvatar';
 import { Profile } from '@/hooks/useProfile';
+import { useVaultFavorites } from '@/hooks/useVaultFavorites';
 
 interface SidebarProps {
   vaults: Vault[];
@@ -47,7 +49,9 @@ export function Sidebar({
   onEditProfile
 }: SidebarProps) {
   const [isVaultsExpanded, setIsVaultsExpanded] = useState(true);
+  const [isFavoritesExpanded, setIsFavoritesExpanded] = useState(true);
   const { user, signOut } = useAuth();
+  const { favoriteVaults } = useVaultFavorites();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -206,6 +210,46 @@ export function Sidebar({
               </div>
             )}
           </div>
+
+          {/* Favorites Section */}
+          {favoriteVaults.length > 0 && (
+            <div className="pt-2">
+              <button
+                onClick={() => setIsFavoritesExpanded(!isFavoritesExpanded)}
+                className="w-full flex items-center justify-between px-4 py-2 text-xs font-bold uppercase tracking-widest text-sidebar-foreground/40 hover:text-sidebar-foreground/60 transition-colors font-mono"
+              >
+                <span className="flex items-center gap-2">
+                  <Heart className="w-3.5 h-3.5" />
+                  Favorites
+                </span>
+                {isFavoritesExpanded ? (
+                  <ChevronDown className="w-3.5 h-3.5" />
+                ) : (
+                  <ChevronRight className="w-3.5 h-3.5" />
+                )}
+              </button>
+
+              {isFavoritesExpanded && (
+                <div className="mt-2 space-y-1">
+                  {favoriteVaults.map((vault) => (
+                    <Link
+                      key={vault.id}
+                      to={`/public/${vault.public_slug}`}
+                      onClick={onMobileClose}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm hover:bg-sidebar-accent/50 text-sidebar-foreground/70 border-2 border-transparent transition-all duration-200"
+                    >
+                      <div 
+                        className="w-3 h-3 rounded-md shrink-0 shadow-sm" 
+                        style={{ backgroundColor: vault.color }}
+                      />
+                      <span className="truncate font-medium">{vault.name}</span>
+                      <Globe className="w-3 h-3 text-neon shrink-0" />
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </nav>
 
         {/* User section */}
