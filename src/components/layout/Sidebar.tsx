@@ -15,7 +15,8 @@ import {
   Users,
   Settings,
   Pencil,
-  Heart
+  Heart,
+  Share2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -24,9 +25,11 @@ import { Vault } from '@/types/database';
 import { ProfileAvatar } from '@/components/profile/ProfileAvatar';
 import { Profile } from '@/hooks/useProfile';
 import { useVaultFavorites } from '@/hooks/useVaultFavorites';
+import { NotificationDropdown } from '@/components/notifications/NotificationDropdown';
 
 interface SidebarProps {
   vaults: Vault[];
+  sharedVaults?: Vault[];
   selectedVaultId: string | null;
   onSelectVault: (vaultId: string | null) => void;
   onCreateVault: () => void;
@@ -39,6 +42,7 @@ interface SidebarProps {
 
 export function Sidebar({ 
   vaults, 
+  sharedVaults = [],
   selectedVaultId, 
   onSelectVault, 
   onCreateVault,
@@ -49,6 +53,7 @@ export function Sidebar({
   onEditProfile
 }: SidebarProps) {
   const [isVaultsExpanded, setIsVaultsExpanded] = useState(true);
+  const [isSharedExpanded, setIsSharedExpanded] = useState(true);
   const [isFavoritesExpanded, setIsFavoritesExpanded] = useState(true);
   const { user, signOut } = useAuth();
   const { favoriteVaults } = useVaultFavorites();
@@ -211,6 +216,57 @@ export function Sidebar({
             )}
           </div>
 
+          {/* Shared With Me Section */}
+          {sharedVaults.length > 0 && (
+            <div className="pt-2">
+              <button
+                onClick={() => setIsSharedExpanded(!isSharedExpanded)}
+                className="w-full flex items-center justify-between px-4 py-2 text-xs font-bold uppercase tracking-widest text-sidebar-foreground/40 hover:text-sidebar-foreground/60 transition-colors font-mono"
+              >
+                <span className="flex items-center gap-2">
+                  <Share2 className="w-3.5 h-3.5" />
+                  Shared with me
+                </span>
+                {isSharedExpanded ? (
+                  <ChevronDown className="w-3.5 h-3.5" />
+                ) : (
+                  <ChevronRight className="w-3.5 h-3.5" />
+                )}
+              </button>
+
+              {isSharedExpanded && (
+                <div className="mt-2 space-y-1">
+                  {sharedVaults.map((vault) => (
+                    <div
+                      key={vault.id}
+                      className={cn(
+                        "w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm transition-all duration-200 group",
+                        selectedVaultId === vault.id
+                          ? "bg-sidebar-accent text-sidebar-foreground border-2 border-blue-400/30"
+                          : "hover:bg-sidebar-accent/50 text-sidebar-foreground/70 border-2 border-transparent"
+                      )}
+                    >
+                      <button
+                        onClick={() => {
+                          onSelectVault(vault.id);
+                          onMobileClose();
+                        }}
+                        className="flex items-center gap-3 flex-1 min-w-0"
+                      >
+                        <div 
+                          className="w-3 h-3 rounded-md shrink-0 shadow-sm" 
+                          style={{ backgroundColor: vault.color || '#6366f1' }}
+                        />
+                        <span className="truncate font-medium">{vault.name}</span>
+                        <Share2 className="w-3 h-3 text-blue-400 shrink-0" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Favorites Section */}
           {favoriteVaults.length > 0 && (
             <div className="pt-2">
@@ -240,7 +296,7 @@ export function Sidebar({
                     >
                       <div 
                         className="w-3 h-3 rounded-md shrink-0 shadow-sm" 
-                        style={{ backgroundColor: vault.color }}
+                        style={{ backgroundColor: vault.color || '#6366f1' }}
                       />
                       <span className="truncate font-medium">{vault.name}</span>
                       <Globe className="w-3 h-3 text-neon shrink-0" />
@@ -270,6 +326,7 @@ export function Sidebar({
                 <p className="text-xs text-sidebar-foreground/50 truncate font-mono">{user?.email}</p>
               )}
             </div>
+            <NotificationDropdown />
             {onEditProfile && (
               <Button
                 variant="ghost"
