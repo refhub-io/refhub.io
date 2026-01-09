@@ -14,7 +14,7 @@ import {
   Lock,
   Users,
   Settings,
-  Pencil,
+  MoreVertical,
   Heart,
   Share2
 } from 'lucide-react';
@@ -25,7 +25,6 @@ import { Vault } from '@/types/database';
 import { ProfileAvatar } from '@/components/profile/ProfileAvatar';
 import { Profile } from '@/hooks/useProfile';
 import { useVaultFavorites } from '@/hooks/useVaultFavorites';
-import { NotificationDropdown } from '@/components/notifications/NotificationDropdown';
 
 interface SidebarProps {
   vaults: Vault[];
@@ -310,7 +309,7 @@ export function Sidebar({
 
         {/* User section */}
         <div className="p-4 border-t-2 border-sidebar-border">
-          <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-sidebar-accent/50 mb-3 group">
+          <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-sidebar-accent/50 mb-3">
             <ProfileAvatar
               name={profile?.display_name || user?.email?.split('@')[0] || 'User'}
               avatarUrl={profile?.avatar_url}
@@ -326,15 +325,14 @@ export function Sidebar({
                 <p className="text-xs text-sidebar-foreground/50 truncate font-mono">{user?.email}</p>
               )}
             </div>
-            <NotificationDropdown />
             {onEditProfile && (
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary"
+                className="h-8 w-8 text-muted-foreground hover:text-primary"
                 onClick={onEditProfile}
               >
-                <Pencil className="w-4 h-4" />
+                <MoreVertical className="w-4 h-4" />
               </Button>
             )}
           </div>

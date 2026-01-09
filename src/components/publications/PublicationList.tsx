@@ -3,6 +3,7 @@ import { Publication, Tag, Vault } from '@/types/database';
 import { PublicationCard } from './PublicationCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { NotificationDropdown } from '@/components/notifications/NotificationDropdown';
 import { 
   Plus, 
   Search, 
@@ -14,7 +15,8 @@ import {
   Sparkles,
   Command,
   Upload,
-  Network
+  Network,
+  Settings
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -37,6 +39,7 @@ interface PublicationListProps {
   onExportBibtex: (pubs: Publication[]) => void;
   onMobileMenuOpen: () => void;
   onOpenGraph: () => void;
+  onEditVault?: (vault: Vault) => void;
 }
 
 export function PublicationList({
@@ -53,6 +56,7 @@ export function PublicationList({
   onExportBibtex,
   onMobileMenuOpen,
   onOpenGraph,
+  onEditVault,
 }: PublicationListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -133,6 +137,17 @@ export function PublicationList({
                   </>
                 )}
               </h1>
+              {selectedVault && onEditVault && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-primary shrink-0"
+                  onClick={() => onEditVault(selectedVault)}
+                  title="Edit vault settings"
+                >
+                  <Settings className="w-4 h-4" />
+                </Button>
+              )}
             </div>
             <p className="text-sm text-muted-foreground mt-1 font-mono">
               {filteredPublications.length} item{filteredPublications.length !== 1 ? 's' : ''}
@@ -141,6 +156,8 @@ export function PublicationList({
               )}
             </p>
           </div>
+
+          <NotificationDropdown />
 
           <Button onClick={onOpenGraph} variant="outline" size="icon" className="shrink-0" title="View relationship graph">
             <Network className="w-4 h-4" />

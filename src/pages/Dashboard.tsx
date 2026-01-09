@@ -374,6 +374,10 @@ export default function Dashboard() {
         onExportBibtex={handleExportBibtex}
         onMobileMenuOpen={() => setIsMobileSidebarOpen(true)}
         onOpenGraph={() => setIsGraphOpen(true)}
+        onEditVault={(vault) => {
+          setEditingVault(vault);
+          setIsVaultDialogOpen(true);
+        }}
       />
 
       <PublicationDialog
