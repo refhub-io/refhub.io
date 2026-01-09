@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import { ProfileAvatar } from '@/components/profile/ProfileAvatar';
 import { 
   Users, 
   Globe, 
@@ -23,8 +24,18 @@ import {
   Copy, 
   Check,
   Link2,
-  Lock
+  Lock,
+  AtSign
 } from 'lucide-react';
+
+interface ShareUser {
+  id: string;
+  shared_with_email: string | null;
+  shared_with_user_id: string | null;
+  permission: string | null;
+  display_name?: string | null;
+  username?: string | null;
+}
 
 interface ShareVaultDialogProps {
   open: boolean;
@@ -36,8 +47,8 @@ interface ShareVaultDialogProps {
 export function ShareVaultDialog({ open, onOpenChange, vault, onUpdate }: ShareVaultDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [shares, setShares] = useState<VaultShare[]>([]);
-  const [email, setEmail] = useState('');
+  const [shares, setShares] = useState<ShareUser[]>([]);
+  const [shareInput, setShareInput] = useState('');
   const [isPublic, setIsPublic] = useState(false);
   const [publicSlug, setPublicSlug] = useState('');
   const [loading, setLoading] = useState(false);
@@ -64,31 +75,72 @@ export function ShareVaultDialog({ open, onOpenChange, vault, onUpdate }: ShareV
     
     const { data, error } = await supabase
       .from('vault_shares')
-      .select('*')
+      .select('id, shared_with_email, shared_with_user_id, permission')
       .eq('vault_id', vault.id);
 
     if (data && !error) {
-      setShares(data as VaultShare[]);
+      // Fetch profile info for user_id shares
+      const sharesWithProfiles: ShareUser[] = await Promise.all(
+        data.map(async (share) => {
+          if (share.shared_with_user_id) {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('display_name, username')
+              .eq('user_id', share.shared_with_user_id)
+              .single();
+            return { ...share, ...profile };
+          }
+          return share;
+        })
+      );
+      setShares(sharesWithProfiles);
     }
   };
 
   const handleShareWithUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!vault || !user || !email.trim()) return;
+    if (!vault || !user || !shareInput.trim()) return;
 
     setLoading(true);
     try {
-      const { error } = await supabase.from('vault_shares').insert({
+      const input = shareInput.trim();
+      const isUsername = input.startsWith('@');
+      
+      let shareData: any = {
         vault_id: vault.id,
-        shared_with_email: email.trim().toLowerCase(),
         shared_by: user.id,
         permission: 'read',
-      });
+      };
+
+      if (isUsername) {
+        // Look up user by username
+        const username = input.slice(1).toLowerCase();
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('user_id')
+          .eq('username', username)
+          .single();
+
+        if (profileError || !profile) {
+          throw new Error(`User @${username} not found`);
+        }
+
+        if (profile.user_id === user.id) {
+          throw new Error("You can't share with yourself");
+        }
+
+        shareData.shared_with_user_id = profile.user_id;
+      } else {
+        // Treat as email
+        shareData.shared_with_email = input.toLowerCase();
+      }
+
+      const { error } = await supabase.from('vault_shares').insert(shareData);
 
       if (error) throw error;
 
       toast({ title: 'Vault shared successfully ✨' });
-      setEmail('');
+      setShareInput('');
       fetchShares();
       onUpdate();
     } catch (error: any) {
@@ -282,16 +334,16 @@ export function ShareVaultDialog({ open, onOpenChange, vault, onUpdate }: ShareV
 
             <form onSubmit={handleShareWithUser} className="flex gap-2">
               <div className="relative flex-1">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="user@example.com"
+                  type="text"
+                  value={shareInput}
+                  onChange={(e) => setShareInput(e.target.value)}
+                  placeholder="@username or email"
                   className="pl-10 font-mono text-sm"
                 />
               </div>
-              <Button type="submit" variant="glow" disabled={loading || !email.trim()}>
+              <Button type="submit" variant="glow" disabled={loading || !shareInput.trim()}>
                 Share
               </Button>
             </form>
@@ -299,32 +351,43 @@ export function ShareVaultDialog({ open, onOpenChange, vault, onUpdate }: ShareV
             {/* Shared Users List */}
             {shares.length > 0 && (
               <div className="space-y-2">
-                {shares.map((share) => (
-                  <div
-                    key={share.id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center text-xs font-bold text-white">
-                        {share.shared_with_email.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">{share.shared_with_email}</p>
-                        <Badge variant="outline" className="text-xs">
-                          {share.permission}
-                        </Badge>
-                      </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleRemoveShare(share.id)}
-                      className="text-muted-foreground hover:text-destructive"
+                {shares.map((share) => {
+                  const displayName = share.username 
+                    ? `@${share.username}` 
+                    : share.shared_with_email || 'Unknown';
+                  const name = share.display_name || share.shared_with_email?.split('@')[0] || 'User';
+                  
+                  return (
+                    <div
+                      key={share.id}
+                      className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border"
                     >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ))}
+                      <div className="flex items-center gap-3">
+                        <ProfileAvatar name={name} size={32} />
+                        <div>
+                          <p className="text-sm font-medium">{share.display_name || displayName}</p>
+                          {share.username && (
+                            <p className="text-xs text-muted-foreground font-mono">@{share.username}</p>
+                          )}
+                          {!share.username && share.shared_with_email && (
+                            <p className="text-xs text-muted-foreground">{share.shared_with_email}</p>
+                          )}
+                          <Badge variant="outline" className="text-xs mt-1">
+                            {share.permission}
+                          </Badge>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveShare(share.id)}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  );
+                })}
               </div>
             )}
 

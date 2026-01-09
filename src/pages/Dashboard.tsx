@@ -36,6 +36,7 @@ export default function Dashboard() {
   const [tags, setTags] = useState<Tag[]>([]);
   const [publicationTags, setPublicationTags] = useState<PublicationTag[]>([]);
   const [publicationRelations, setPublicationRelations] = useState<PublicationRelation[]>([]);
+  const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [selectedVaultId, setSelectedVaultId] = useState<string | null>(null);
@@ -68,20 +69,41 @@ export default function Dashboard() {
     if (!user) return;
     setLoading(true);
     try {
-      // Only fetch vaults owned by the current user (not public vaults from others)
-      const [pubsRes, vaultsRes, tagsRes, pubTagsRes, relationsRes] = await Promise.all([
+      // Fetch owned vaults, shared vaults, and other data
+      const [pubsRes, ownedVaultsRes, sharedVaultsRes, tagsRes, pubTagsRes, relationsRes] = await Promise.all([
         supabase.from('publications').select('*').order('created_at', { ascending: false }),
         supabase.from('vaults').select('*').eq('user_id', user.id).order('name'),
+        // Fetch vaults shared with current user (via email or user_id)
+        supabase
+          .from('vault_shares')
+          .select('vault_id')
+          .or(`shared_with_email.eq.${user.email},shared_with_user_id.eq.${user.id}`),
         supabase.from('tags').select('*').order('name'),
         supabase.from('publication_tags').select('*'),
         supabase.from('publication_relations').select('*'),
       ]);
 
       if (pubsRes.data) setPublications(pubsRes.data as Publication[]);
-      if (vaultsRes.data) setVaults(vaultsRes.data as Vault[]);
+      if (ownedVaultsRes.data) setVaults(ownedVaultsRes.data as Vault[]);
       if (tagsRes.data) setTags(tagsRes.data as Tag[]);
       if (pubTagsRes.data) setPublicationTags(pubTagsRes.data as PublicationTag[]);
       if (relationsRes.data) setPublicationRelations(relationsRes.data as PublicationRelation[]);
+
+      // Fetch shared vault details
+      if (sharedVaultsRes.data && sharedVaultsRes.data.length > 0) {
+        const sharedVaultIds = sharedVaultsRes.data.map(s => s.vault_id);
+        const { data: sharedVaultDetails } = await supabase
+          .from('vaults')
+          .select('*')
+          .in('id', sharedVaultIds)
+          .neq('user_id', user.id); // Exclude own vaults
+        
+        if (sharedVaultDetails) {
+          setSharedVaults(sharedVaultDetails as Vault[]);
+        }
+      } else {
+        setSharedVaults([]);
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
       toast({
@@ -315,6 +337,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-background flex">
       <Sidebar
         vaults={vaults}
+        sharedVaults={sharedVaults}
         selectedVaultId={selectedVaultId}
         onSelectVault={setSelectedVaultId}
         onCreateVault={() => {

@@ -97,9 +97,21 @@ export interface Profile {
 export interface VaultShare {
   id: string;
   vault_id: string;
-  shared_with_email: string;
+  shared_with_email: string | null;
+  shared_with_user_id: string | null;
   shared_by: string;
-  permission: string;
+  permission: string | null;
+  created_at: string;
+}
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  type: 'vault_shared' | 'vault_forked' | 'vault_favorited';
+  title: string;
+  message: string | null;
+  data: Record<string, any> | null;
+  read: boolean;
   created_at: string;
 }
 

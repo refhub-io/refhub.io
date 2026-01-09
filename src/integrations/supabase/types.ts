@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      notifications: {
+        Row: {
+          created_at: string
+          data: Json | null
+          id: string
+          message: string | null
+          read: boolean
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          data?: Json | null
+          id?: string
+          message?: string | null
+          read?: boolean
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json | null
+          id?: string
+          message?: string | null
+          read?: boolean
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -306,7 +339,8 @@ export type Database = {
           id: string
           permission: string | null
           shared_by: string
-          shared_with_email: string
+          shared_with_email: string | null
+          shared_with_user_id: string | null
           vault_id: string
         }
         Insert: {
@@ -314,7 +348,8 @@ export type Database = {
           id?: string
           permission?: string | null
           shared_by: string
-          shared_with_email: string
+          shared_with_email?: string | null
+          shared_with_user_id?: string | null
           vault_id: string
         }
         Update: {
@@ -322,7 +357,8 @@ export type Database = {
           id?: string
           permission?: string | null
           shared_by?: string
-          shared_with_email?: string
+          shared_with_email?: string | null
+          shared_with_user_id?: string | null
           vault_id?: string
         }
         Relationships: [
