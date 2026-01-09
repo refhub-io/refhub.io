@@ -10,10 +10,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { NotificationDropdown } from '@/components/notifications/NotificationDropdown';
 import { 
   BookOpen,
   Search, 
-  Globe,
   FolderOpen,
   ArrowRight,
   Eye,
@@ -212,13 +212,8 @@ export default function TheCodex() {
             </span>
           </Link>
           <div className="flex items-center gap-3">
-            <Link to="/explore">
-              <Button variant="ghost" size="sm">
-                <Globe className="w-4 h-4 mr-2" />
-                Explore
-              </Button>
-            </Link>
-            <Link to="/dashboard">
+            {user && <NotificationDropdown />}
+            <Link to="/">
               <Button variant="outline" size="sm">
                 Dashboard
               </Button>

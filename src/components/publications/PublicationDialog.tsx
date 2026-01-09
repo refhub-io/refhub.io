@@ -156,7 +156,7 @@ export function PublicationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] p-0 border-2 bg-card/95 backdrop-blur-xl">
+      <DialogContent className="w-[95vw] max-w-2xl max-h-[85vh] p-0 border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col">
         <DialogHeader className="p-6 pb-0">
           <DialogTitle className="text-2xl font-bold">
             {publication ? (
@@ -167,8 +167,8 @@ export function PublicationDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[calc(90vh-8rem)]">
-          <form onSubmit={handleSubmit} className="p-6 pt-4 space-y-6">
+        <ScrollArea className="flex-1 overflow-auto">
+          <form onSubmit={handleSubmit} className="p-4 sm:p-6 pt-4 space-y-5">
             {/* Title */}
             <div className="space-y-2">
               <Label htmlFor="title" className="font-semibold">Title *</Label>

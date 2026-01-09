@@ -136,15 +136,16 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] border-2 bg-card/95 backdrop-blur-xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] max-w-[500px] border-2 bg-card/95 backdrop-blur-xl max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold">Edit Profile</DialogTitle>
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 overflow-y-auto px-1">
+            <div className="space-y-5 py-4">
             {/* Avatar Section */}
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
               <ProfileAvatar
                 name={displayName}
                 avatarUrl={watchedAvatarUrl}
@@ -275,7 +276,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
                 name="github_url"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="flex items-center gap-2">
+                    <FormLabel className="flex items-center gap-2 text-sm">
                       <Github className="w-4 h-4" />
                       GitHub
                     </FormLabel>
@@ -283,7 +284,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
                       <Input
                         placeholder="https://github.com/username"
                         {...field}
-                        className="border-2 focus:border-primary"
+                        className="border-2 focus:border-primary text-sm"
                       />
                     </FormControl>
                     <FormMessage />
@@ -296,7 +297,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
                 name="linkedin_url"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="flex items-center gap-2">
+                    <FormLabel className="flex items-center gap-2 text-sm">
                       <Linkedin className="w-4 h-4" />
                       LinkedIn
                     </FormLabel>
@@ -304,7 +305,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
                       <Input
                         placeholder="https://linkedin.com/in/username"
                         {...field}
-                        className="border-2 focus:border-primary"
+                        className="border-2 focus:border-primary text-sm"
                       />
                     </FormControl>
                     <FormMessage />
@@ -317,7 +318,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
                 name="bluesky_url"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="flex items-center gap-2">
+                    <FormLabel className="flex items-center gap-2 text-sm">
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M12 2C6.477 2 2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.879V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.989C18.343 21.129 22 16.99 22 12c0-5.523-4.477-10-10-10z" />
                       </svg>
@@ -327,7 +328,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
                       <Input
                         placeholder="https://bsky.app/profile/username"
                         {...field}
-                        className="border-2 focus:border-primary"
+                        className="border-2 focus:border-primary text-sm"
                       />
                     </FormControl>
                     <FormMessage />
@@ -335,8 +336,9 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
                 )}
               />
             </div>
+            </div>
 
-            <div className="flex justify-end gap-3 pt-4">
+            <div className="flex justify-end gap-3 py-4 border-t border-border bg-card sticky bottom-0">
               <Button
                 type="button"
                 variant="outline"

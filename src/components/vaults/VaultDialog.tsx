@@ -202,7 +202,7 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate }: Vau
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg border-2 bg-card/95 backdrop-blur-xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] max-w-lg border-2 bg-card/95 backdrop-blur-xl max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold">
             {vault ? (
@@ -213,7 +213,7 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate }: Vau
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-5 pt-4">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto space-y-5 pt-4 px-1">
           <div className="space-y-2">
             <Label htmlFor="name" className="font-semibold">Name *</Label>
             <Input
@@ -421,7 +421,7 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate }: Vau
             </p>
           )}
 
-          <div className="flex justify-end gap-3 pt-4 border-t-2 border-border">
+          <div className="flex justify-end gap-3 pt-4 pb-2 border-t-2 border-border sticky bottom-0 bg-card">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
