@@ -9,6 +9,7 @@ import { useVaultFavorites } from '@/hooks/useVaultFavorites';
 import { useVaultFork } from '@/hooks/useVaultFork';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { HierarchicalTagBadge } from '@/components/tags/HierarchicalTagBadge';
 import { Badge } from '@/components/ui/badge';
 import { 
   Sparkles, 
@@ -377,17 +378,13 @@ export default function PublicVault() {
                       {pubTags.length > 0 && (
                         <div className="flex flex-wrap gap-1.5 mb-3">
                           {pubTags.map((tag) => (
-                            <Badge
+                            <HierarchicalTagBadge
                               key={tag.id}
-                              variant="outline"
-                              style={{
-                                borderColor: tag.color,
-                                color: tag.color,
-                                backgroundColor: `${tag.color}15`,
-                              }}
-                            >
-                              {tag.name}
-                            </Badge>
+                              tag={tag}
+                              allTags={tags}
+                              size="sm"
+                              showHierarchy
+                            />
                           ))}
                         </div>
                       )}

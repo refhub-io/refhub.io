@@ -269,6 +269,7 @@ export function PublicationList({
                 <PublicationCard
                   publication={pub}
                   tags={getPublicationTags(pub.id)}
+                  allTags={tags}
                   relationsCount={relationsCountMap[pub.id] || 0}
                   isSelected={selectedIds.has(pub.id)}
                   onToggleSelect={() => toggleSelection(pub.id)}
