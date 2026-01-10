@@ -17,10 +17,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { X, Plus, Hash } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { RelatedPapersSection } from './RelatedPapersSection';
+import { HierarchicalTagSelector } from '@/components/tags/HierarchicalTagSelector';
 import { usePublicationRelations } from '@/hooks/usePublicationRelations';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -33,7 +32,7 @@ interface PublicationDialogProps {
   publicationTags: string[];
   allPublications: Publication[];
   onSave: (data: Partial<Publication>, tagIds: string[]) => Promise<void>;
-  onCreateTag: (name: string) => Promise<Tag | null>;
+  onCreateTag: (name: string, parentId?: string) => Promise<Tag | null>;
 }
 
 export function PublicationDialog({
@@ -73,7 +72,6 @@ export function PublicationDialog({
   });
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [authorsInput, setAuthorsInput] = useState('');
-  const [newTagName, setNewTagName] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -134,15 +132,6 @@ export function PublicationDialog({
       onOpenChange(false);
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleCreateTag = async () => {
-    if (!newTagName.trim()) return;
-    const tag = await onCreateTag(newTagName.trim());
-    if (tag) {
-      setSelectedTags([...selectedTags, tag.id]);
-      setNewTagName('');
     }
   };
 
@@ -338,47 +327,12 @@ export function PublicationDialog({
             </div>
 
             {/* Tags */}
-            <div className="space-y-3">
-              <Label className="font-semibold">Tags</Label>
-              <div className="flex flex-wrap gap-2">
-                {tags.map((tag) => (
-                  <Badge
-                    key={tag.id}
-                    variant={selectedTags.includes(tag.id) ? 'default' : 'outline'}
-                    className="cursor-pointer transition-all hover:scale-105 font-mono border-2"
-                    style={
-                      selectedTags.includes(tag.id)
-                        ? { backgroundColor: tag.color, borderColor: tag.color }
-                        : { borderColor: `${tag.color}60`, color: tag.color }
-                    }
-                    onClick={() => toggleTag(tag.id)}
-                  >
-                    <Hash className="w-3 h-3 mr-1" />
-                    {tag.name}
-                    {selectedTags.includes(tag.id) && (
-                      <X className="w-3 h-3 ml-1" />
-                    )}
-                  </Badge>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <Input
-                  value={newTagName}
-                  onChange={(e) => setNewTagName(e.target.value)}
-                  placeholder="new_tag_name"
-                  className="flex-1 font-mono"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleCreateTag();
-                    }
-                  }}
-                />
-                <Button type="button" variant="outline" size="icon" onClick={handleCreateTag}>
-                  <Plus className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
+            <HierarchicalTagSelector
+              tags={tags}
+              selectedTagIds={selectedTags}
+              onToggleTag={toggleTag}
+              onCreateTag={onCreateTag}
+            />
 
             {/* Abstract */}
             <div className="space-y-2">

@@ -245,25 +245,39 @@ export type Database = {
         Row: {
           color: string | null
           created_at: string
+          depth: number
           id: string
           name: string
+          parent_id: string | null
           user_id: string
         }
         Insert: {
           color?: string | null
           created_at?: string
+          depth?: number
           id?: string
           name: string
+          parent_id?: string | null
           user_id: string
         }
         Update: {
           color?: string | null
           created_at?: string
+          depth?: number
           id?: string
           name?: string
+          parent_id?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "tags_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vault_favorites: {
         Row: {

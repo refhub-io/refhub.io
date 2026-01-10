@@ -1,6 +1,5 @@
 import { Publication, Tag } from '@/types/database';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { 
@@ -11,7 +10,6 @@ import {
   Trash2, 
   Download,
   StickyNote,
-  Hash,
   Link2
 } from 'lucide-react';
 import {
@@ -22,10 +20,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { HierarchicalTagBadge } from '@/components/tags/HierarchicalTagBadge';
 
 interface PublicationCardProps {
   publication: Publication;
   tags: Tag[];
+  allTags: Tag[];
   relationsCount?: number;
   isSelected: boolean;
   onToggleSelect: () => void;
@@ -37,6 +37,7 @@ interface PublicationCardProps {
 export function PublicationCard({
   publication,
   tags,
+  allTags,
   relationsCount = 0,
   isSelected,
   onToggleSelect,
@@ -132,19 +133,13 @@ export function PublicationCard({
 
             <div className="flex flex-wrap items-center gap-2 mt-4">
               {tags.map((tag) => (
-                <Badge 
+                <HierarchicalTagBadge
                   key={tag.id}
-                  variant="outline"
-                  className="text-xs font-mono border-2 transition-all hover:scale-105"
-                  style={{ 
-                    backgroundColor: `${tag.color}15`,
-                    color: tag.color,
-                    borderColor: `${tag.color}40`
-                  }}
-                >
-                  <Hash className="w-3 h-3 mr-1" />
-                  {tag.name}
-                </Badge>
+                  tag={tag}
+                  allTags={allTags}
+                  size="sm"
+                  showHierarchy
+                />
               ))}
 
               <div className="flex items-center gap-2 ml-auto">

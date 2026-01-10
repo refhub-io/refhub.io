@@ -244,16 +244,24 @@ export default function Dashboard() {
     }
   };
 
-  const handleCreateTag = async (name: string): Promise<Tag | null> => {
+  const handleCreateTag = async (name: string, parentId?: string): Promise<Tag | null> => {
     if (!user) return null;
 
     try {
       const colors = ['#a855f7', '#ec4899', '#f43f5e', '#22c55e', '#06b6d4', '#3b82f6', '#f97316'];
-      const color = colors[Math.floor(Math.random() * colors.length)];
+      
+      // If parent exists, inherit parent's color for hue consistency
+      let color = colors[Math.floor(Math.random() * colors.length)];
+      if (parentId) {
+        const parentTag = tags.find(t => t.id === parentId);
+        if (parentTag) {
+          color = parentTag.color;
+        }
+      }
 
       const { data, error } = await supabase
         .from('tags')
-        .insert({ name, color, user_id: user.id })
+        .insert({ name, color, user_id: user.id, parent_id: parentId || null })
         .select()
         .single();
 
