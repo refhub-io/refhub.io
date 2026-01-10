@@ -17,7 +17,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { useNotifications, Notification } from '@/hooks/useNotifications';
 
@@ -59,13 +58,16 @@ export function NotificationDropdown() {
     }
   };
 
+  // Get the last 5 notifications
+  const displayedNotifications = notifications.slice(0, 5);
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="ghost"
           size="icon"
-          className="relative h-9 w-9 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+          className="relative h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-accent"
         >
           <Bell className="w-5 h-5" />
           {unreadCount > 0 && (
@@ -95,14 +97,14 @@ export function NotificationDropdown() {
           )}
         </div>
 
-        <ScrollArea className="max-h-80">
-          {notifications.length === 0 ? (
+        <div className="max-h-80 overflow-y-auto">
+          {displayedNotifications.length === 0 ? (
             <div className="p-6 text-center text-sm text-muted-foreground font-mono">
               // no notifications yet
             </div>
           ) : (
             <div className="divide-y divide-border">
-              {notifications.map((notification) => {
+              {displayedNotifications.map((notification) => {
                 const Icon = notificationIcons[notification.type] || Bell;
                 const iconColor = notificationColors[notification.type] || 'text-muted-foreground';
 
@@ -110,14 +112,18 @@ export function NotificationDropdown() {
                   <div
                     key={notification.id}
                     className={cn(
-                      'flex gap-3 p-3 hover:bg-muted/50 cursor-pointer transition-colors group',
+                      'flex gap-3 p-3 hover:bg-muted/50 cursor-pointer transition-colors group relative',
                       !notification.read && 'bg-primary/5'
                     )}
                     onClick={() => handleNotificationClick(notification)}
                   >
+                    {/* Unread indicator dot */}
+                    {!notification.read && (
+                      <div className="absolute left-1.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-primary" />
+                    )}
                     <div
                       className={cn(
-                        'w-8 h-8 rounded-lg flex items-center justify-center shrink-0',
+                        'w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ml-2',
                         notification.read ? 'bg-muted' : 'bg-primary/10'
                       )}
                     >
@@ -172,7 +178,15 @@ export function NotificationDropdown() {
               })}
             </div>
           )}
-        </ScrollArea>
+        </div>
+
+        {notifications.length > 5 && (
+          <div className="p-2 border-t border-border text-center">
+            <span className="text-xs text-muted-foreground">
+              +{notifications.length - 5} more notifications
+            </span>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );

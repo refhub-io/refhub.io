@@ -376,18 +376,21 @@ export default function TheCodex() {
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        {user && vault.user_id !== user.id && (
+                        {user && (
                           <>
                             <button
                               onClick={(e) => handleFavorite(e, vault.id)}
-                              className={`p-1.5 rounded-lg hover:bg-muted transition-colors ${isFavorite(vault.id) ? 'text-rose-500' : 'text-muted-foreground hover:text-rose-500'}`}
+                              disabled={vault.user_id === user.id}
+                              className={`p-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isFavorite(vault.id) ? 'text-rose-500' : 'text-muted-foreground hover:text-rose-500'}`}
+                              title={vault.user_id === user.id ? 'You own this vault' : undefined}
                             >
                               <Heart className={`w-4 h-4 ${isFavorite(vault.id) ? 'fill-rose-500' : ''}`} />
                             </button>
                             <button
                               onClick={(e) => handleFork(e, vault)}
-                              disabled={forkingId === vault.id}
-                              className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-muted transition-colors disabled:opacity-50"
+                              disabled={forkingId === vault.id || vault.user_id === user.id}
+                              className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              title={vault.user_id === user.id ? 'You own this vault' : undefined}
                             >
                               <GitFork className="w-4 h-4" />
                             </button>

@@ -276,29 +276,30 @@ export default function PublicVault() {
               </div>
             </div>
             
-            {/* Fork/Favorite buttons - only show if not owner */}
-            {!isOwner && (
-              <div className="flex gap-2 shrink-0">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleFavorite}
-                  className={vault && isFavorite(vault.id) ? 'text-rose-500 border-rose-500/30' : ''}
-                >
-                  <Heart className={`w-4 h-4 mr-1.5 ${vault && isFavorite(vault.id) ? 'fill-rose-500' : ''}`} />
-                  {vault && isFavorite(vault.id) ? 'Favorited' : 'Favorite'}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleFork}
-                  disabled={forking}
-                >
-                  <GitFork className="w-4 h-4 mr-1.5" />
-                  {forking ? 'Forking...' : 'Fork'}
-                </Button>
-              </div>
-            )}
+            {/* Fork/Favorite buttons - visible to all users */}
+            <div className="flex gap-2 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleFavorite}
+                disabled={isOwner}
+                className={vault && isFavorite(vault.id) ? 'text-rose-500 border-rose-500/30' : ''}
+                title={isOwner ? 'You own this vault' : undefined}
+              >
+                <Heart className={`w-4 h-4 mr-1.5 ${vault && isFavorite(vault.id) ? 'fill-rose-500' : ''}`} />
+                {vault && isFavorite(vault.id) ? 'Favorited' : 'Favorite'}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleFork}
+                disabled={forking || isOwner}
+                title={isOwner ? 'You own this vault' : undefined}
+              >
+                <GitFork className="w-4 h-4 mr-1.5" />
+                {forking ? 'Forking...' : 'Fork'}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
