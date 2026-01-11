@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { Publication, Tag, Vault } from '@/types/database';
 import { PublicationCard } from './PublicationCard';
+import { PublicationTable } from './PublicationTable';
+import { FilterBuilder, PublicationFilter, applyFilters } from './FilterBuilder';
+import { ViewSettings, ViewMode, VisibleColumns, DEFAULT_VISIBLE_COLUMNS } from './ViewSettings';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { NotificationDropdown } from '@/components/notifications/NotificationDropdown';
@@ -61,27 +64,36 @@ export function PublicationList({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<'title' | 'year' | 'created'>('created');
+  const [filters, setFilters] = useState<PublicationFilter[]>([]);
+  const [viewMode, setViewMode] = useState<ViewMode>('cards');
+  const [visibleColumns, setVisibleColumns] = useState<VisibleColumns>(DEFAULT_VISIBLE_COLUMNS);
 
-  const filteredPublications = publications
-    .filter((pub) => {
-      const searchLower = searchQuery.toLowerCase();
-      return (
-        pub.title.toLowerCase().includes(searchLower) ||
-        pub.authors.some((a) => a.toLowerCase().includes(searchLower)) ||
-        pub.journal?.toLowerCase().includes(searchLower)
-      );
-    })
-    .sort((a, b) => {
-      switch (sortBy) {
-        case 'title':
-          return a.title.localeCompare(b.title);
-        case 'year':
-          return (b.year || 0) - (a.year || 0);
-        case 'created':
-        default:
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      }
-    });
+  // Apply search filter
+  const searchFiltered = publications.filter((pub) => {
+    if (!searchQuery) return true;
+    const searchLower = searchQuery.toLowerCase();
+    return (
+      pub.title.toLowerCase().includes(searchLower) ||
+      pub.authors.some((a) => a.toLowerCase().includes(searchLower)) ||
+      pub.journal?.toLowerCase().includes(searchLower)
+    );
+  });
+
+  // Apply custom filters
+  const customFiltered = applyFilters(searchFiltered, filters, publicationTagsMap);
+
+  // Apply sorting
+  const filteredPublications = customFiltered.sort((a, b) => {
+    switch (sortBy) {
+      case 'title':
+        return a.title.localeCompare(b.title);
+      case 'year':
+        return (b.year || 0) - (a.year || 0);
+      case 'created':
+      default:
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    }
+  });
 
   const toggleSelection = (id: string) => {
     const newSelected = new Set(selectedIds);
@@ -151,6 +163,9 @@ export function PublicationList({
             </div>
             <p className="text-sm text-muted-foreground mt-1 font-mono">
               {filteredPublications.length} item{filteredPublications.length !== 1 ? 's' : ''}
+              {filters.length > 0 && (
+                <span className="text-primary"> • {filters.length} filter{filters.length !== 1 ? 's' : ''}</span>
+              )}
               {selectedIds.size > 0 && (
                 <span className="text-neon-green"> • {selectedIds.size} selected</span>
               )}
@@ -174,9 +189,9 @@ export function PublicationList({
           </Button>
         </div>
 
-        {/* Search and filters */}
-        <div className="flex items-center gap-3 mt-5">
-          <div className="relative flex-1">
+        {/* Search, filters and view settings */}
+        <div className="flex items-center gap-3 mt-5 flex-wrap">
+          <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               value={searchQuery}
@@ -190,9 +205,16 @@ export function PublicationList({
             </div>
           </div>
 
+          <FilterBuilder
+            filters={filters}
+            onFiltersChange={setFilters}
+            tags={tags}
+            vaults={vaults}
+          />
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon">
+              <Button variant="outline" size="icon" className="h-9 w-9">
                 <SortAsc className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -209,10 +231,18 @@ export function PublicationList({
             </DropdownMenuContent>
           </DropdownMenu>
 
+          <ViewSettings
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            visibleColumns={visibleColumns}
+            onVisibleColumnsChange={setVisibleColumns}
+          />
+
           {filteredPublications.length > 0 && (
             <Button
               variant="outline"
               size="icon"
+              className="h-9 w-9"
               onClick={selectAll}
               title={selectedIds.size === filteredPublications.length ? 'Deselect all' : 'Select all'}
             >
@@ -244,19 +274,35 @@ export function PublicationList({
               <Sparkles className="w-10 h-10 text-white" />
             </div>
             <h3 className="text-2xl font-bold mb-2">
-              {searchQuery ? 'No results found' : 'No papers yet'}
+              {searchQuery || filters.length > 0 ? 'No results found' : 'No papers yet'}
             </h3>
             <p className="text-muted-foreground max-w-sm mb-8 font-mono text-sm">
-              {searchQuery
-                ? '// try adjusting your search terms'
+              {searchQuery || filters.length > 0
+                ? '// try adjusting your search or filters'
                 : '// add your first paper to start building your library'}
             </p>
-            {!searchQuery && (
+            {!searchQuery && filters.length === 0 && (
               <Button onClick={onAddPublication} variant="glow">
                 <Plus className="w-4 h-4 mr-2" />
                 Add Your First Paper
               </Button>
             )}
+          </div>
+        ) : viewMode === 'table' ? (
+          <div className="max-w-full overflow-x-auto">
+            <PublicationTable
+              publications={filteredPublications}
+              tags={tags}
+              vaults={vaults}
+              publicationTagsMap={publicationTagsMap}
+              relationsCountMap={relationsCountMap}
+              selectedIds={selectedIds}
+              visibleColumns={visibleColumns}
+              onToggleSelect={toggleSelection}
+              onEdit={onEditPublication}
+              onDelete={onDeletePublication}
+              onExportBibtex={(pub) => onExportBibtex([pub])}
+            />
           </div>
         ) : (
           <div className="space-y-4 max-w-4xl mx-auto">
@@ -270,8 +316,10 @@ export function PublicationList({
                   publication={pub}
                   tags={getPublicationTags(pub.id)}
                   allTags={tags}
+                  vaults={vaults}
                   relationsCount={relationsCountMap[pub.id] || 0}
                   isSelected={selectedIds.has(pub.id)}
+                  visibleColumns={visibleColumns}
                   onToggleSelect={() => toggleSelection(pub.id)}
                   onEdit={() => onEditPublication(pub)}
                   onDelete={() => onDeletePublication(pub)}
