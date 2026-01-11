@@ -20,26 +20,32 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Badge } from '@/components/ui/badge';
 import { parseBibtex, fetchDOIMetadata } from '@/lib/bibtex';
-import { FileText, Link, Upload, Check, X, Loader2 } from 'lucide-react';
+import { FileText, Link, Upload, Check, X, Loader2, Library } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { ExistingPaperSelector } from './ExistingPaperSelector';
 
 interface ImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   vaults: Vault[];
+  allPublications: Publication[];
+  currentVaultId: string | null;
   onImport: (publications: Partial<Publication>[]) => Promise<void>;
+  onAddToVaults: (publicationId: string, vaultIds: string[]) => Promise<void>;
 }
 
 export function ImportDialog({
   open,
   onOpenChange,
   vaults,
+  allPublications,
+  currentVaultId,
   onImport,
+  onAddToVaults,
 }: ImportDialogProps) {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState('doi');
+  const [activeTab, setActiveTab] = useState('library');
   
   // DOI state
   const [doiInput, setDoiInput] = useState('');
@@ -211,25 +217,41 @@ export function ImportDialog({
       <DialogContent className="w-[95vw] max-w-3xl max-h-[85vh] p-0 border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col">
         <DialogHeader className="p-6 pb-0">
           <DialogTitle className="text-2xl font-bold">
-            <span>Import <span className="text-gradient">Papers</span></span>
+            <span>Add <span className="text-gradient">Papers</span></span>
           </DialogTitle>
           <DialogDescription className="font-mono text-sm text-muted-foreground">
-            // import from DOI or BibTeX
+            // add from library, DOI, or BibTeX
           </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="flex-1 overflow-auto">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="p-4 sm:p-6 pt-4">
-            <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsList className="grid w-full grid-cols-3 mb-4">
+              <TabsTrigger value="library" className="gap-2 text-xs sm:text-sm">
+                <Library className="w-4 h-4" />
+                <span className="hidden sm:inline">Library</span>
+              </TabsTrigger>
               <TabsTrigger value="doi" className="gap-2 text-xs sm:text-sm">
                 <Link className="w-4 h-4" />
-                <span className="hidden xs:inline">DOI</span> Lookup
+                <span className="hidden sm:inline">DOI</span>
               </TabsTrigger>
               <TabsTrigger value="bibtex" className="gap-2 text-xs sm:text-sm">
                 <FileText className="w-4 h-4" />
-                <span className="hidden xs:inline">BibTeX</span> Import
+                <span className="hidden sm:inline">BibTeX</span>
               </TabsTrigger>
             </TabsList>
+
+            <TabsContent value="library" className="space-y-4">
+              <ExistingPaperSelector
+                publications={allPublications}
+                vaults={vaults}
+                currentVaultId={currentVaultId}
+                onAddToVaults={async (pubId, vaultIds) => {
+                  await onAddToVaults(pubId, vaultIds);
+                  onOpenChange(false);
+                }}
+              />
+            </TabsContent>
 
             <TabsContent value="doi" className="space-y-4">
               <div className="space-y-2">
