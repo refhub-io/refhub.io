@@ -144,10 +144,12 @@ export default function Dashboard() {
 
     try {
       if (editingPublication) {
-        const { error } = await supabase
+        const { data: updatedPub, error } = await supabase
           .from('publications')
           .update(data)
-          .eq('id', editingPublication.id);
+          .eq('id', editingPublication.id)
+          .select()
+          .single();
 
         if (error) throw error;
 
@@ -161,6 +163,15 @@ export default function Dashboard() {
             }))
           );
         }
+
+        // Optimistic update
+        setPublications(prev => prev.map(p => 
+          p.id === editingPublication.id ? { ...p, ...updatedPub } as Publication : p
+        ));
+        setPublicationTags(prev => [
+          ...prev.filter(pt => pt.publication_id !== editingPublication.id),
+          ...tagIds.map(tagId => ({ id: crypto.randomUUID(), publication_id: editingPublication.id, tag_id: tagId }))
+        ]);
 
         toast({ title: 'Paper updated ✨' });
       } else {
@@ -181,10 +192,18 @@ export default function Dashboard() {
           );
         }
 
+        // Optimistic update
+        setPublications(prev => [newPub as Publication, ...prev]);
+        if (tagIds.length > 0 && newPub) {
+          setPublicationTags(prev => [
+            ...prev,
+            ...tagIds.map(tagId => ({ id: crypto.randomUUID(), publication_id: newPub.id, tag_id: tagId }))
+          ]);
+        }
+
         toast({ title: 'Paper added ✨' });
       }
 
-      fetchData();
       setEditingPublication(null);
     } catch (error: any) {
       console.error('Error saving publication:', error);
@@ -206,15 +225,76 @@ export default function Dashboard() {
         authors: pub.authors || [],
       }));
 
-      const { error } = await supabase
+      const { data: insertedPubs, error } = await supabase
         .from('publications')
-        .insert(pubsToInsert as any);
+        .insert(pubsToInsert as any)
+        .select();
 
       if (error) throw error;
 
-      fetchData();
+      // Optimistic update
+      if (insertedPubs) {
+        setPublications(prev => [...(insertedPubs as Publication[]), ...prev]);
+      }
     } catch (error: any) {
       console.error('Error importing publications:', error);
+      throw error;
+    }
+  };
+
+  const handleAddToVaults = async (publicationId: string, vaultIds: string[]) => {
+    if (!user) return;
+
+    try {
+      const publication = publications.find(p => p.id === publicationId);
+      if (!publication) throw new Error('Publication not found');
+
+      // For each vault, either update or duplicate the publication
+      for (const vaultId of vaultIds) {
+        // If this is the original publication's vault, skip
+        if (publication.vault_id === vaultId) continue;
+
+        // Create a copy of the publication in the new vault
+        const { title, authors, year, journal, volume, issue, pages, doi, url, abstract, pdf_url, bibtex_key, publication_type, notes } = publication;
+        const { data: newPub, error } = await supabase
+          .from('publications')
+          .insert({
+            title,
+            authors,
+            year,
+            journal,
+            volume,
+            issue,
+            pages,
+            doi,
+            url,
+            abstract,
+            pdf_url,
+            bibtex_key,
+            publication_type,
+            notes,
+            user_id: user.id,
+            vault_id: vaultId,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        // Optimistic update
+        if (newPub) {
+          setPublications(prev => [newPub as Publication, ...prev]);
+        }
+      }
+
+      toast({ title: `Added to ${vaultIds.length} vault${vaultIds.length > 1 ? 's' : ''} ✨` });
+    } catch (error: any) {
+      console.error('Error adding to vaults:', error);
+      toast({
+        title: 'Error adding paper',
+        description: error.message,
+        variant: 'destructive',
+      });
       throw error;
     }
   };
@@ -222,18 +302,25 @@ export default function Dashboard() {
   const handleDeletePublication = async () => {
     if (!deleteConfirmation) return;
 
+    const deletedId = deleteConfirmation.id;
+
     try {
+      // Optimistic update
+      setPublications(prev => prev.filter(p => p.id !== deletedId));
+      setPublicationTags(prev => prev.filter(pt => pt.publication_id !== deletedId));
+
       const { error } = await supabase
         .from('publications')
         .delete()
-        .eq('id', deleteConfirmation.id);
+        .eq('id', deletedId);
 
       if (error) throw error;
 
       toast({ title: 'Paper deleted' });
-      fetchData();
     } catch (error: any) {
       console.error('Error deleting publication:', error);
+      // Revert on error
+      fetchData();
       toast({
         title: 'Error deleting paper',
         description: error.message,
@@ -267,7 +354,7 @@ export default function Dashboard() {
 
       if (error) throw error;
 
-      setTags([...tags, data as Tag]);
+      setTags(prev => [...prev, data as Tag]);
       return data as Tag;
     } catch (error: any) {
       console.error('Error creating tag:', error);
@@ -285,23 +372,38 @@ export default function Dashboard() {
 
     try {
       if (editingVault) {
-        const { error } = await supabase
+        const { data: updatedVault, error } = await supabase
           .from('vaults')
           .update(data)
-          .eq('id', editingVault.id);
+          .eq('id', editingVault.id)
+          .select()
+          .single();
 
         if (error) throw error;
+        
+        // Optimistic update
+        setVaults(prev => prev.map(v => 
+          v.id === editingVault.id ? { ...v, ...updatedVault } as Vault : v
+        ));
+        
         toast({ title: 'Vault updated ✨' });
       } else {
-        const { error } = await supabase
+        const { data: newVault, error } = await supabase
           .from('vaults')
-          .insert([{ ...data, user_id: user.id } as any]);
+          .insert([{ ...data, user_id: user.id } as any])
+          .select()
+          .single();
 
         if (error) throw error;
+        
+        // Optimistic update
+        if (newVault) {
+          setVaults(prev => [...prev, newVault as Vault].sort((a, b) => a.name.localeCompare(b.name)));
+        }
+        
         toast({ title: 'Vault created ✨' });
       }
 
-      fetchData();
       setEditingVault(null);
     } catch (error: any) {
       console.error('Error saving vault:', error);
@@ -404,7 +506,10 @@ export default function Dashboard() {
         open={isImportDialogOpen}
         onOpenChange={setIsImportDialogOpen}
         vaults={vaults}
+        allPublications={publications}
+        currentVaultId={selectedVaultId}
         onImport={handleBulkImport}
+        onAddToVaults={handleAddToVaults}
       />
 
       <VaultDialog
