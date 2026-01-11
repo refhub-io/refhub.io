@@ -1,7 +1,8 @@
-import { Publication, Tag } from '@/types/database';
+import { Publication, Tag, Vault } from '@/types/database';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { VisibleColumns } from './ViewSettings';
 import { 
   FileText, 
   ExternalLink, 
@@ -26,8 +27,10 @@ interface PublicationCardProps {
   publication: Publication;
   tags: Tag[];
   allTags: Tag[];
+  vaults?: Vault[];
   relationsCount?: number;
   isSelected: boolean;
+  visibleColumns?: VisibleColumns;
   onToggleSelect: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -38,8 +41,10 @@ export function PublicationCard({
   publication,
   tags,
   allTags,
+  vaults = [],
   relationsCount = 0,
   isSelected,
+  visibleColumns,
   onToggleSelect,
   onEdit,
   onDelete,
@@ -50,6 +55,30 @@ export function PublicationCard({
     if (authors.length === 1) return authors[0];
     if (authors.length === 2) return authors.join(' & ');
     return `${authors[0]} et al.`;
+  };
+
+  const getVaultName = (vaultId: string | null): string | null => {
+    if (!vaultId) return null;
+    const vault = vaults.find((v) => v.id === vaultId);
+    return vault?.name || null;
+  };
+
+  const vaultName = getVaultName(publication.vault_id);
+
+  // Default all properties visible if no visibleColumns provided
+  const show = visibleColumns || {
+    title: true,
+    authors: true,
+    year: true,
+    journal: true,
+    tags: true,
+    vault: true,
+    doi: true,
+    notes: true,
+    type: true,
+    relations: true,
+    pdf: true,
+    abstract: false,
   };
 
   return (
@@ -83,12 +112,14 @@ export function PublicationCard({
                 <h3 className="font-bold text-lg text-foreground leading-tight line-clamp-2 group-hover:text-primary transition-colors">
                   {publication.title}
                 </h3>
-                <p className="text-sm text-muted-foreground mt-1.5 font-mono">
-                  {formatAuthors(publication.authors)}
-                  {publication.year && (
-                    <span className="text-neon-green"> • {publication.year}</span>
-                  )}
-                </p>
+                {show.authors && (
+                  <p className="text-sm text-muted-foreground mt-1.5 font-mono">
+                    {formatAuthors(publication.authors)}
+                    {show.year && publication.year && (
+                      <span className="text-neon-green"> • {publication.year}</span>
+                    )}
+                  </p>
+                )}
               </div>
 
               <DropdownMenu>
@@ -122,7 +153,7 @@ export function PublicationCard({
               </DropdownMenu>
             </div>
 
-            {publication.journal && (
+            {show.journal && publication.journal && (
               <p className="text-sm text-muted-foreground mt-2 italic font-light">
                 {publication.journal}
                 {publication.volume && `, vol. ${publication.volume}`}
@@ -131,8 +162,20 @@ export function PublicationCard({
               </p>
             )}
 
+            {show.vault && vaultName && (
+              <p className="text-xs text-muted-foreground mt-2 font-mono">
+                <span className="text-primary">vault:</span> {vaultName}
+              </p>
+            )}
+
+            {show.abstract && publication.abstract && (
+              <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
+                {publication.abstract}
+              </p>
+            )}
+
             <div className="flex flex-wrap items-center gap-2 mt-4">
-              {tags.map((tag) => (
+              {show.tags && tags.map((tag) => (
                 <HierarchicalTagBadge
                   key={tag.id}
                   tag={tag}
@@ -143,18 +186,18 @@ export function PublicationCard({
               ))}
 
               <div className="flex items-center gap-2 ml-auto">
-                {relationsCount > 0 && (
+                {show.relations && relationsCount > 0 && (
                   <div className="flex items-center gap-1 text-primary" title={`${relationsCount} related paper${relationsCount > 1 ? 's' : ''}`}>
                     <Link2 className="w-4 h-4" />
                     <span className="text-xs font-mono">{relationsCount}</span>
                   </div>
                 )}
-                {publication.notes && (
+                {show.notes && publication.notes && (
                   <div className="text-neon-orange" title="Has notes">
                     <StickyNote className="w-4 h-4" />
                   </div>
                 )}
-                {publication.pdf_url && (
+                {show.pdf && publication.pdf_url && (
                   <a
                     href={publication.pdf_url}
                     target="_blank"
@@ -166,7 +209,7 @@ export function PublicationCard({
                     <FileText className="w-4 h-4" />
                   </a>
                 )}
-                {publication.doi && (
+                {show.doi && publication.doi && (
                   <a
                     href={`https://doi.org/${publication.doi}`}
                     target="_blank"
