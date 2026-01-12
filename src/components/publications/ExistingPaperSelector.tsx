@@ -26,18 +26,21 @@ export function ExistingPaperSelector({
   const [selectedVaultIds, setSelectedVaultIds] = useState<Set<string>>(new Set());
   const [isAdding, setIsAdding] = useState(false);
 
-  // Filter publications based on search
+  // Filter publications based on search - show all if no query
   const filteredPublications = useMemo(() => {
-    if (!searchQuery.trim()) return [];
+    const query = searchQuery.toLowerCase().trim();
     
-    const query = searchQuery.toLowerCase();
-    return publications
-      .filter((pub) => {
+    let results = publications;
+    
+    if (query) {
+      results = publications.filter((pub) => {
         const titleMatch = pub.title.toLowerCase().includes(query);
         const authorMatch = pub.authors?.some(a => a.toLowerCase().includes(query));
         return titleMatch || authorMatch;
-      })
-      .slice(0, 10); // Limit results
+      });
+    }
+    
+    return results.slice(0, 20); // Limit results for performance
   }, [publications, searchQuery]);
 
   const handleSelectPublication = (pub: Publication) => {
@@ -101,11 +104,11 @@ export function ExistingPaperSelector({
           </div>
 
           {/* Search Results */}
-          {filteredPublications.length > 0 && (
-            <div className="border-2 rounded-lg max-h-60 overflow-hidden">
-              <ScrollArea className="h-full max-h-60">
-                <div className="p-2 space-y-1">
-                  {filteredPublications.map((pub) => (
+          <div className="border-2 rounded-lg max-h-60 overflow-hidden">
+            <ScrollArea className="h-full max-h-60">
+              <div className="p-2 space-y-1">
+                {filteredPublications.length > 0 ? (
+                  filteredPublications.map((pub) => (
                     <button
                       key={pub.id}
                       className={cn(
@@ -117,20 +120,21 @@ export function ExistingPaperSelector({
                     >
                       <p className="font-medium text-sm line-clamp-2">{pub.title}</p>
                       <p className="text-xs text-muted-foreground font-mono mt-1">
-                        {formatAuthors(pub.authors)} • {pub.year || 'n.d.'}
+                        {formatAuthors(pub.authors || [])} • {pub.year || 'n.d.'}
                       </p>
                     </button>
-                  ))}
-                </div>
-              </ScrollArea>
-            </div>
-          )}
-
-          {searchQuery.trim() && filteredPublications.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground font-mono text-sm">
-              // no papers found matching "{searchQuery}"
-            </div>
-          )}
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground font-mono text-sm">
+                    {searchQuery.trim() 
+                      ? `// no papers found matching "${searchQuery}"`
+                      : '// no papers in your library yet'
+                    }
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          </div>
         </>
       ) : (
         <>
