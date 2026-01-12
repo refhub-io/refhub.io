@@ -4,6 +4,7 @@ import { PublicationCard } from './PublicationCard';
 import { PublicationTable } from './PublicationTable';
 import { FilterBuilder, PublicationFilter, applyFilters } from './FilterBuilder';
 import { ViewSettings, ViewMode, VisibleColumns, DEFAULT_VISIBLE_COLUMNS } from './ViewSettings';
+import { QRCodePopover } from '@/components/vaults/QRCodePopover';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { NotificationDropdown } from '@/components/notifications/NotificationDropdown';
@@ -149,16 +150,21 @@ export function PublicationList({
                   </>
                 )}
               </h1>
-              {selectedVault && onEditVault && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-muted-foreground hover:text-primary shrink-0"
-                  onClick={() => onEditVault(selectedVault)}
-                  title="Edit vault settings"
-                >
-                  <Settings className="w-4 h-4" />
-                </Button>
+              {selectedVault && (
+                <>
+                  <QRCodePopover vault={selectedVault} />
+                  {onEditVault && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-primary shrink-0"
+                      onClick={() => onEditVault(selectedVault)}
+                      title="Edit vault settings"
+                    >
+                      <Settings className="w-4 h-4" />
+                    </Button>
+                  )}
+                </>
               )}
             </div>
             <p className="text-sm text-muted-foreground mt-1 font-mono">
