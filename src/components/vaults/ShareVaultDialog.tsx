@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Vault, VaultShare } from '@/types/database';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { QRCodeCanvas } from 'qrcode.react';
 import {
   Dialog,
   DialogContent,
@@ -25,7 +26,9 @@ import {
   Check,
   Link2,
   Lock,
-  AtSign
+  AtSign,
+  QrCode,
+  Download
 } from 'lucide-react';
 
 interface ShareUser {
@@ -53,6 +56,8 @@ export function ShareVaultDialog({ open, onOpenChange, vault, onUpdate }: ShareV
   const [publicSlug, setPublicSlug] = useState('');
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showQR, setShowQR] = useState(false);
+  const qrRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (vault && open) {
@@ -233,6 +238,7 @@ export function ShareVaultDialog({ open, onOpenChange, vault, onUpdate }: ShareV
     }
   };
 
+  const shareUrl = `${window.location.origin}/vault/${vault?.id}`;
   const publicUrl = `${window.location.origin}/public/${publicSlug}`;
 
   const copyPublicUrl = () => {
@@ -240,6 +246,25 @@ export function ShareVaultDialog({ open, onOpenChange, vault, onUpdate }: ShareV
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
     toast({ title: 'Link copied to clipboard' });
+  };
+
+  const copyShareUrl = () => {
+    navigator.clipboard.writeText(shareUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    toast({ title: 'Share link copied to clipboard' });
+  };
+
+  const downloadQR = () => {
+    if (!qrRef.current) return;
+    const canvas = qrRef.current.querySelector('canvas');
+    if (!canvas) return;
+    
+    const link = document.createElement('a');
+    link.download = `${vault?.name || 'vault'}-qr.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    toast({ title: 'QR code downloaded' });
   };
 
   if (!vault) return null;
@@ -324,6 +349,75 @@ export function ShareVaultDialog({ open, onOpenChange, vault, onUpdate }: ShareV
               </div>
             )}
           </div>
+
+          {/* QR Code Section for Protected Vaults */}
+          {!isPublic && (
+            <div className="p-4 rounded-xl border-2 border-border bg-muted/30 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <QrCode className="w-5 h-5 text-primary" />
+                  <div>
+                    <p className="font-semibold">QR Code Sharing</p>
+                    <p className="text-xs text-muted-foreground font-mono">
+                      // share vault access via QR code
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowQR(!showQR)}
+                  className="gap-2"
+                >
+                  <QrCode className="w-4 h-4" />
+                  {showQR ? 'Hide' : 'Show'}
+                </Button>
+              </div>
+
+              {showQR && (
+                <div className="space-y-4 pt-2 border-t border-border">
+                  <div className="flex flex-col items-center gap-4">
+                    <div 
+                      ref={qrRef}
+                      className="p-4 bg-white rounded-xl shadow-lg"
+                    >
+                      <QRCodeCanvas
+                        value={shareUrl}
+                        size={180}
+                        level="H"
+                        marginSize={2}
+                        bgColor="#ffffff"
+                        fgColor="#000000"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground font-mono text-center max-w-[200px]">
+                      // scan to access this vault
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={copyShareUrl}
+                        className="gap-2"
+                      >
+                        {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                        Copy Link
+                      </Button>
+                      <Button
+                        variant="glow"
+                        size="sm"
+                        onClick={downloadQR}
+                        className="gap-2"
+                      >
+                        <Download className="w-4 h-4" />
+                        Download
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Share with Users Section */}
           <div className="space-y-4">
