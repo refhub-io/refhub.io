@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Vault, VaultStats, VAULT_CATEGORIES } from '@/types/database';
 import { useAuth } from '@/hooks/useAuth';
+import { useProfile } from '@/hooks/useProfile';
 import { useVaultFavorites } from '@/hooks/useVaultFavorites';
 import { useVaultFork } from '@/hooks/useVaultFork';
 import { useToast } from '@/hooks/use-toast';
@@ -11,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { NotificationDropdown } from '@/components/notifications/NotificationDropdown';
+import { Sidebar } from '@/components/layout/Sidebar';
 import { 
   BookOpen,
   Search, 
@@ -47,20 +49,26 @@ interface CodexVault extends Vault {
 
 export default function TheCodex() {
   const { user } = useAuth();
+  const { profile } = useProfile();
   const { isFavorite, toggleFavorite } = useVaultFavorites();
   const { forkVault } = useVaultFork();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [vaults, setVaults] = useState<CodexVault[]>([]);
+  const [userVaults, setUserVaults] = useState<Vault[]>([]);
+  const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [forkingId, setForkingId] = useState<string | null>(null);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   useEffect(() => {
     fetchPublicVaults();
-  }, []);
+    if (user) {
+      fetchUserVaults();
+    }
+  }, [user]);
 
   const fetchPublicVaults = async () => {
     setLoading(true);
@@ -115,6 +123,44 @@ export default function TheCodex() {
       console.error('Error fetching public vaults:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchUserVaults = async () => {
+    if (!user) return;
+    
+    try {
+      // Fetch owned vaults
+      const { data: ownedVaultsData } = await supabase
+        .from('vaults')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('name');
+      
+      if (ownedVaultsData) {
+        setUserVaults(ownedVaultsData as Vault[]);
+      }
+
+      // Fetch shared vaults
+      const { data: sharedVaultsData } = await supabase
+        .from('vault_shares')
+        .select('vault_id')
+        .or(`shared_with_email.eq.${user.email},shared_with_user_id.eq.${user.id}`);
+      
+      if (sharedVaultsData && sharedVaultsData.length > 0) {
+        const sharedVaultIds = sharedVaultsData.map(s => s.vault_id);
+        const { data: sharedVaultDetails } = await supabase
+          .from('vaults')
+          .select('*')
+          .in('id', sharedVaultIds)
+          .neq('user_id', user.id);
+        
+        if (sharedVaultDetails) {
+          setSharedVaults(sharedVaultDetails as Vault[]);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching user vaults:', error);
     }
   };
 
@@ -202,107 +248,97 @@ export default function TheCodex() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b-2 border-border bg-card/50 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+    <div className="flex h-screen overflow-hidden bg-background">
+      {/* Sidebar */}
+      {user && (
+        <Sidebar
+          vaults={userVaults}
+          sharedVaults={sharedVaults}
+          selectedVaultId={null}
+          onSelectVault={(vaultId) => {
+            if (vaultId) {
+              navigate('/');
+            } else {
+              navigate('/');
+            }
+          }}
+          onCreateVault={() => navigate('/')}
+          isMobileOpen={isMobileSidebarOpen}
+          onMobileClose={() => setIsMobileSidebarOpen(false)}
+          profile={profile}
+        />
+      )}
+
+      {/* Main content */}
+      <div className="flex-1 flex flex-col overflow-hidden w-full">
+        {/* Scrollable content wrapper */}
+        <div className="flex-1 overflow-y-auto w-full">
+          {/* Mobile menu button - fixed position */}
+          {user && (
             <Button
               variant="ghost"
               size="icon"
-              className="lg:hidden"
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="lg:hidden fixed top-4 left-4 z-50 bg-card/80 backdrop-blur-sm border-2 border-border shadow-lg"
+              onClick={() => setIsMobileSidebarOpen(true)}
             >
               <Menu className="w-5 h-5" />
             </Button>
-            <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 via-orange-500 to-red-600 flex items-center justify-center shadow-lg">
-                <Scroll className="w-5 h-5 text-white" />
+          )}
+          {/* Hero */}
+          <div className="w-full border-b-2 border-border bg-gradient-to-b from-amber-500/5 via-orange-500/5 to-background">
+            <div className="px-4 lg:px-8 lg:pl-24 py-16 text-center">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 mb-6">
+                <Library className="w-4 h-4 text-amber-500" />
+                <span className="text-sm font-medium text-amber-500 font-mono">public_research_marketplace</span>
               </div>
-              <span className="font-bold text-lg font-mono">
+              <h1 className="text-4xl md:text-6xl font-bold mb-4 font-mono">
                 <span className="bg-gradient-to-r from-amber-400 via-orange-400 to-red-500 bg-clip-text text-transparent">the_codex</span>
-              </span>
-            </Link>
-          </div>
-          <div className="flex items-center gap-3">
-            <ThemeToggle />
-            {user && <NotificationDropdown />}
-            <Link to="/">
-              <Button variant="outline" size="sm" className="font-mono text-xs">
-                dashboard
-              </Button>
-            </Link>
-          </div>
-        </div>
-        
-        {/* Mobile menu */}
-        {isMobileMenuOpen && (
-          <div className="lg:hidden border-t border-border bg-card p-4 space-y-2">
-            <Link
-              to="/"
-              className="block px-4 py-3 rounded-xl hover:bg-muted font-mono text-sm"
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              dashboard
-            </Link>
-          </div>
-        )}
-      </header>
-
-      {/* Hero */}
-      <div className="border-b-2 border-border bg-gradient-to-b from-amber-500/5 via-orange-500/5 to-background">
-        <div className="max-w-7xl mx-auto px-4 py-16 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 mb-6">
-            <Library className="w-4 h-4 text-amber-500" />
-            <span className="text-sm font-medium text-amber-500 font-mono">public_research_marketplace</span>
-          </div>
-          <h1 className="text-4xl md:text-6xl font-bold mb-4 font-mono">
-            <span className="bg-gradient-to-r from-amber-400 via-orange-400 to-red-500 bg-clip-text text-transparent">the_codex</span>
-          </h1>
-          <p className="text-muted-foreground max-w-2xl mx-auto text-lg mb-2">
-            discover curated literature collections from researchers worldwide
-          </p>
-          <p className="text-muted-foreground/70 font-mono text-sm">
-            // browse • learn • cite
-          </p>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="border-b border-border bg-card/30">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
-            <div className="relative flex-1 max-w-md w-full">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="search_collections..."
-                className="pl-10 font-mono"
-              />
-            </div>
-            <div className="flex items-center gap-3">
-              <Filter className="w-4 h-4 text-muted-foreground" />
-              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="all_categories" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">all_categories</SelectItem>
-                  {uniqueCategories.map((category) => (
-                    <SelectItem key={category} value={category!}>
-                      {category}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              </h1>
+              <p className="text-muted-foreground max-w-2xl mx-auto text-lg mb-2">
+                discover curated literature collections from researchers worldwide
+              </p>
+              <p className="text-muted-foreground/70 font-mono text-sm">
+                // browse • learn • cite
+              </p>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Content */}
-      <main className="max-w-7xl mx-auto px-4 py-8">
+          {/* Filters */}
+          <div className="w-full border-b border-border bg-card/30">
+            <div className="px-4 lg:px-8 lg:pl-24 py-4">
+              <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
+                <div className="relative flex-1 max-w-2xl w-full">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="search_collections..."
+                    className="pl-10 font-mono"
+                  />
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Filter className="w-4 h-4 text-muted-foreground" />
+                  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                    <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="all_categories" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">all_categories</SelectItem>
+                      {uniqueCategories.map((category) => (
+                        <SelectItem key={category} value={category!}>
+                          {category}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Content */}
+          <main className="w-full">
+            <div className="px-4 lg:px-8 lg:pl-24 py-8">
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <div className="flex flex-col items-center gap-4">
@@ -435,14 +471,10 @@ export default function TheCodex() {
             </div>
           </>
         )}
-      </main>
-
-      {/* Footer */}
-      <footer className="border-t-2 border-border mt-16 py-8 text-center">
-        <p className="text-sm text-muted-foreground font-mono">
-          powered by <Link to="/" className="text-amber-500 hover:underline">refhub.io</Link>
-        </p>
-      </footer>
+            </div>
+          </main>
+        </div>
+      </div>
     </div>
   );
 }

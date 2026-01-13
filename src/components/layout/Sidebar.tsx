@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { 
   FolderOpen, 
   Plus, 
@@ -58,11 +58,14 @@ export function Sidebar({
   const { user, signOut } = useAuth();
   const { favoriteVaults } = useVaultFavorites();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
   };
+
+  const isCodexActive = location.pathname === '/codex';
 
   return (
     <>
@@ -112,16 +115,16 @@ export function Sidebar({
             }}
             className={cn(
               "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200",
-              selectedVaultId === null
+              selectedVaultId === null && !isCodexActive
                 ? "bg-sidebar-accent text-sidebar-primary border-2 border-sidebar-primary/30"
                 : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 border-2 border-transparent"
             )}
           >
             <div className={cn(
               "w-8 h-8 rounded-lg flex items-center justify-center",
-              selectedVaultId === null ? "bg-sidebar-primary/20" : "bg-sidebar-accent"
+              selectedVaultId === null && !isCodexActive ? "bg-sidebar-primary/20" : "bg-sidebar-accent"
             )}>
-              <Zap className={cn("w-4 h-4", selectedVaultId === null ? "text-sidebar-primary" : "text-sidebar-foreground/60")} />
+              <Zap className={cn("w-4 h-4", selectedVaultId === null && !isCodexActive ? "text-sidebar-primary" : "text-sidebar-foreground/60")} />
             </div>
             <span className="font-mono">all_papers</span>
           </button>
@@ -129,10 +132,18 @@ export function Sidebar({
           <Link
             to="/codex"
             onClick={onMobileClose}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 hover:bg-sidebar-accent/50 text-sidebar-foreground/80 border-2 border-transparent"
+            className={cn(
+              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border-2",
+              isCodexActive
+                ? "bg-gradient-to-br from-amber-500/10 to-orange-500/10 text-amber-500 border-amber-500/30"
+                : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 border-transparent"
+            )}
           >
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-gradient-to-br from-amber-500/20 to-orange-500/20">
-              <Scroll className="w-4 h-4 text-amber-500" />
+            <div className={cn(
+              "w-8 h-8 rounded-lg flex items-center justify-center",
+              isCodexActive ? "bg-gradient-to-br from-amber-500/30 to-orange-500/30" : "bg-gradient-to-br from-amber-500/20 to-orange-500/20"
+            )}>
+              <Scroll className={cn("w-4 h-4", isCodexActive ? "text-amber-400" : "text-amber-500")} />
             </div>
             <span className="font-mono">the_codex</span>
           </Link>
