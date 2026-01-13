@@ -10,7 +10,16 @@ import NotFound from "./pages/NotFound";
 import PublicVault from "./pages/PublicVault";
 import TheCodex from "./pages/TheCodex";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      retry: 1,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

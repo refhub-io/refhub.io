@@ -68,15 +68,15 @@ export function ExportDialog({ open, onOpenChange, publications, vaultName }: Ex
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-md max-h-[85vh] flex flex-col">
-        <DialogHeader>
+      <DialogContent className="w-full h-full sm:h-auto sm:w-[95vw] sm:max-w-lg sm:max-h-[90vh] flex flex-col border-2 bg-card/95 backdrop-blur-xl p-0">
+        <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle className="flex items-center gap-2 font-mono">
             <FileText className="w-5 h-5 text-primary" />
             export_to_bibtex
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground font-mono">
               // exporting <span className="font-semibold text-foreground">{publications.length}</span> publication{publications.length !== 1 ? 's' : ''}
@@ -123,15 +123,15 @@ export function ExportDialog({ open, onOpenChange, publications, vaultName }: Ex
           )}
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="font-mono">
+        <DialogFooter className="px-6 pb-6 pt-4 border-t flex-col-reverse sm:flex-row gap-3">
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="font-mono w-full sm:w-auto">
             cancel
           </Button>
           <Button
             variant="glow"
             onClick={handleExport}
             disabled={selectedFields.length === 0}
-            className="gap-2 font-mono"
+            className="gap-2 font-mono w-full sm:w-auto"
           >
             <Download className="w-4 h-4" />
             export_{publications.length}

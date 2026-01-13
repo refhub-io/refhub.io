@@ -38,6 +38,7 @@ export default function Dashboard() {
   const [publicationRelations, setPublicationRelations] = useState<PublicationRelation[]>([]);
   const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   const [selectedVaultId, setSelectedVaultId] = useState<string | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -54,6 +55,7 @@ export default function Dashboard() {
   const [exportPublications, setExportPublications] = useState<Publication[]>([]);
 
   const [deleteConfirmation, setDeleteConfirmation] = useState<Publication | null>(null);
+  const [deleteVaultConfirmation, setDeleteVaultConfirmation] = useState<Vault | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -69,7 +71,9 @@ export default function Dashboard() {
 
   const fetchData = async () => {
     if (!user) return;
-    setLoading(true);
+    if (isInitialLoad) {
+      setLoading(true);
+    }
     try {
       // Fetch owned vaults, shared vaults, and other data
       const [pubsRes, ownedVaultsRes, sharedVaultsRes, tagsRes, pubTagsRes, relationsRes] = await Promise.all([
@@ -115,6 +119,7 @@ export default function Dashboard() {
       });
     } finally {
       setLoading(false);
+      setIsInitialLoad(false);
     }
   };
 
@@ -333,6 +338,85 @@ export default function Dashboard() {
     }
   };
 
+  const handleDeleteVault = async () => {
+    if (!deleteVaultConfirmation) return;
+
+    const deletedId = deleteVaultConfirmation.id;
+
+    try {
+      // Check if vault has publications
+      const { data: pubs } = await supabase
+        .from('publications')
+        .select('id')
+        .eq('vault_id', deletedId);
+
+      if (pubs && pubs.length > 0) {
+        toast({
+          title: 'Cannot delete vault',
+          description: `This vault contains ${pubs.length} paper${pubs.length > 1 ? 's' : ''}. Remove them first.`,
+          variant: 'destructive',
+        });
+        setDeleteVaultConfirmation(null);
+        return;
+      }
+
+      // Check if vault has been forked
+      const { data: forks } = await supabase
+        .from('vault_forks')
+        .select('id')
+        .eq('original_vault_id', deletedId);
+
+      if (forks && forks.length > 0) {
+        toast({
+          title: 'Cannot delete vault',
+          description: `This vault has ${forks.length} fork${forks.length > 1 ? 's' : ''}. Public vaults with forks cannot be deleted.`,
+          variant: 'destructive',
+        });
+        setDeleteVaultConfirmation(null);
+        return;
+      }
+
+      // Delete vault shares first
+      await supabase
+        .from('vault_shares')
+        .delete()
+        .eq('vault_id', deletedId);
+
+      // Delete vault favorites first
+      await supabase
+        .from('vault_favorites')
+        .delete()
+        .eq('vault_id', deletedId);
+
+      // Optimistic update
+      setVaults(prev => prev.filter(v => v.id !== deletedId));
+      if (selectedVaultId === deletedId) {
+        setSelectedVaultId(null);
+      }
+
+      const { error } = await supabase
+        .from('vaults')
+        .delete()
+        .eq('id', deletedId);
+
+      if (error) throw error;
+
+      toast({ title: 'Vault deleted' });
+      setIsVaultDialogOpen(false);
+    } catch (error: any) {
+      console.error('Error deleting vault:', error);
+      // Revert on error
+      fetchData();
+      toast({
+        title: 'Error deleting vault',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setDeleteVaultConfirmation(null);
+    }
+  };
+
   const handleCreateTag = async (name: string, parentId?: string): Promise<Tag | null> => {
     if (!user) return null;
 
@@ -423,7 +507,7 @@ export default function Dashboard() {
     setIsExportDialogOpen(true);
   };
 
-  if (authLoading || loading) {
+  if (authLoading || (loading && isInitialLoad)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -457,7 +541,8 @@ export default function Dashboard() {
         onEditProfile={() => setIsProfileDialogOpen(true)}
       />
 
-      <PublicationList
+      <div className="flex-1 lg:pl-72">
+        <PublicationList
         publications={filteredPublications}
         tags={tags}
         vaults={vaults}
@@ -482,6 +567,7 @@ export default function Dashboard() {
           setIsVaultDialogOpen(true);
         }}
       />
+      </div>
 
       <PublicationDialog
         open={isPublicationDialogOpen}
@@ -511,6 +597,10 @@ export default function Dashboard() {
         vault={editingVault}
         onSave={handleSaveVault}
         onUpdate={fetchData}
+        onDelete={(vault) => {
+          setDeleteVaultConfirmation(vault);
+          setIsVaultDialogOpen(false);
+        }}
       />
 
       <ProfileDialog
@@ -550,6 +640,25 @@ export default function Dashboard() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeletePublication} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deleteVaultConfirmation} onOpenChange={() => setDeleteVaultConfirmation(null)}>
+        <AlertDialogContent className="border-2 bg-card/95 backdrop-blur-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-bold">Delete vault?</AlertDialogTitle>
+            <AlertDialogDescription className="font-mono text-sm">
+              // this will permanently delete "{deleteVaultConfirmation?.name}"
+              <br />
+              // make sure the vault is empty first
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteVault} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

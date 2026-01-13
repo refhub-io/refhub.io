@@ -214,7 +214,7 @@ export function ImportDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-3xl max-h-[85vh] p-0 border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col">
+      <DialogContent className="w-full h-full sm:h-auto sm:w-[95vw] sm:max-w-4xl sm:max-h-[90vh] p-0 border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col">
         <DialogHeader className="p-6 pb-0">
           <DialogTitle className="text-2xl font-bold">
             <span>Add <span className="text-gradient">Papers</span></span>

@@ -76,7 +76,7 @@ export function Sidebar({
 
       <aside 
         className={cn(
-          "fixed lg:static inset-y-0 left-0 z-50 w-72 bg-sidebar border-r-2 border-sidebar-border flex flex-col transition-transform duration-300 lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-50 lg:z-0 w-72 bg-sidebar border-r-2 border-sidebar-border flex flex-col h-screen transition-transform duration-300 lg:translate-x-0",
           isMobileOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -104,7 +104,7 @@ export function Sidebar({
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-2">
+        <nav className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-2 min-h-0">
           <button
             onClick={() => {
               onSelectVault(null);
@@ -309,44 +309,53 @@ export function Sidebar({
         </nav>
 
         {/* User section */}
-        <div className="p-4 border-t-2 border-sidebar-border">
-          <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-sidebar-accent/50 mb-3">
-            <ProfileAvatar
-              name={profile?.display_name || user?.email?.split('@')[0] || 'User'}
-              avatarUrl={profile?.avatar_url}
-              size={40}
-            />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold truncate text-sidebar-foreground">
-                {profile?.display_name || user?.email?.split('@')[0]}
-              </p>
-              {profile?.username ? (
-                <p className="text-xs text-sidebar-foreground/50 truncate font-mono">@{profile.username}</p>
-              ) : (
-                <p className="text-xs text-sidebar-foreground/50 truncate font-mono">{user?.email}</p>
+        <div className="shrink-0 border-t-2 border-sidebar-border">
+          <div className="p-4">
+            <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-sidebar-accent/50 mb-3">
+              <ProfileAvatar
+                name={profile?.display_name || user?.email?.split('@')[0] || 'User'}
+                avatarUrl={profile?.avatar_url}
+                size={40}
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate text-sidebar-foreground">
+                  {profile?.display_name || user?.email?.split('@')[0]}
+                </p>
+                {profile?.username ? (
+                  <p className="text-xs text-sidebar-foreground/50 truncate font-mono">@{profile.username}</p>
+                ) : (
+                  <p className="text-xs text-sidebar-foreground/50 truncate font-mono">{user?.email}</p>
+                )}
+              </div>
+              <ThemeToggle />
+              {onEditProfile && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-sidebar-foreground/50 hover:text-primary"
+                  onClick={onEditProfile}
+                >
+                  <MoreVertical className="w-4 h-4" />
+                </Button>
               )}
             </div>
-            <ThemeToggle />
-            {onEditProfile && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-sidebar-foreground/50 hover:text-primary"
-                onClick={onEditProfile}
-              >
-                <MoreVertical className="w-4 h-4" />
-              </Button>
-            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSignOut}
+              className="w-full justify-start text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent font-mono text-xs"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              sign_out()
+            </Button>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleSignOut}
-            className="w-full justify-start text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent font-mono text-xs"
-          >
-            <LogOut className="w-4 h-4 mr-2" />
-            sign_out()
-          </Button>
+          
+          {/* Footer */}
+          <div className="px-4 pb-4 pt-2 border-t border-sidebar-border/50">
+            <p className="text-xs text-sidebar-foreground/30 text-center font-mono">
+              © 2026 refhub.io
+            </p>
+          </div>
         </div>
       </aside>
     </>

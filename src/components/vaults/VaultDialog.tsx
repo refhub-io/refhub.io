@@ -45,9 +45,10 @@ interface VaultDialogProps {
   vault?: Vault | null;
   onSave: (data: Partial<Vault>) => Promise<void>;
   onUpdate?: () => void;
+  onDelete?: (vault: Vault) => void;
 }
 
-export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate }: VaultDialogProps) {
+export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDelete }: VaultDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   
@@ -202,8 +203,8 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate }: Vau
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-lg border-2 bg-card/95 backdrop-blur-xl max-h-[85vh] overflow-hidden flex flex-col">
-        <DialogHeader>
+      <DialogContent className="w-full h-full sm:h-auto sm:w-[95vw] sm:max-w-2xl border-2 bg-card/95 backdrop-blur-xl sm:max-h-[90vh] overflow-hidden flex flex-col p-0">
+        <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle className="text-2xl font-bold">
             {vault ? (
               <span>Vault <span className="text-gradient">Settings</span></span>
@@ -213,7 +214,7 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate }: Vau
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto space-y-5 pt-4 px-1">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto space-y-5 px-6 pb-6">
           <div className="space-y-2">
             <Label htmlFor="name" className="font-semibold">Name *</Label>
             <Input
@@ -421,13 +422,28 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate }: Vau
             </p>
           )}
 
-          <div className="flex justify-end gap-3 pt-4 pb-2 border-t-2 border-border sticky bottom-0 bg-card">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" variant="glow" disabled={saving || !name.trim()}>
-              {saving ? 'Saving...' : vault ? 'Save Changes' : 'Create Vault'}
-            </Button>
+          <div className="flex flex-col sm:flex-row justify-between gap-3 pt-6 mt-6 border-t-2 border-border">
+            {vault && onDelete ? (
+              <Button 
+                type="button" 
+                variant="ghost" 
+                onClick={() => onDelete(vault)}
+                className="text-destructive hover:text-destructive hover:bg-destructive/10 w-full sm:w-auto"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete Vault
+              </Button>
+            ) : (
+              <div className="hidden sm:block" />
+            )}
+            <div className="flex flex-col-reverse sm:flex-row gap-3 w-full sm:w-auto">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
+                Cancel
+              </Button>
+              <Button type="submit" variant="glow" disabled={saving || !name.trim()} className="w-full sm:w-auto">
+                {saving ? 'Saving...' : vault ? 'Save Changes' : 'Create Vault'}
+              </Button>
+            </div>
           </div>
         </form>
       </DialogContent>

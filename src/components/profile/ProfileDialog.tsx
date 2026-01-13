@@ -2,13 +2,23 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Github, Linkedin, AtSign, User, FileText, Camera } from 'lucide-react';
+import { Github, Linkedin, AtSign, User, FileText, Camera, Trash2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Form,
   FormControl,
@@ -49,10 +59,12 @@ interface ProfileDialogProps {
 }
 
 export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { profile, updateProfile, checkUsernameAvailable } = useProfile();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const form = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
@@ -132,18 +144,41 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    
+    setIsDeleting(true);
+    try {
+      const { supabase } = await import('@/integrations/supabase/client');
+      
+      // Call the database function to delete user and all data
+      const { error } = await supabase.rpc('delete_user');
+      
+      if (error) throw error;
+      
+      // Sign out and redirect
+      await signOut();
+      window.location.href = '/auth';
+    } catch (error: any) {
+      console.error('Error deleting account:', error);
+      alert('Error deleting account: ' + error.message);
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
   const displayName = form.watch('display_name') || user?.email?.split('@')[0] || 'User';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-[500px] border-2 bg-card/95 backdrop-blur-xl max-h-[85vh] overflow-hidden flex flex-col">
-        <DialogHeader>
+      <DialogContent className="w-full h-full sm:h-auto sm:w-[95vw] sm:max-w-xl sm:max-h-[90vh] border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col p-0">
+        <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle className="text-2xl font-bold">Edit Profile</DialogTitle>
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 overflow-y-auto px-1">
-            <div className="space-y-5 py-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 overflow-y-auto px-6">
+            <div className="space-y-5 pb-6">
             {/* Avatar Section */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
               <ProfileAvatar
@@ -338,26 +373,62 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
             </div>
             </div>
 
-            <div className="flex justify-end gap-3 py-4 border-t border-border bg-card sticky bottom-0">
+            <div className="flex flex-col sm:flex-row justify-between gap-3 py-4 border-t border-border">
               <Button
                 type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                className="border-2"
+                variant="ghost"
+                onClick={() => setShowDeleteConfirm(true)}
+                className="text-destructive hover:text-destructive hover:bg-destructive/10 w-full sm:w-auto"
               >
-                Cancel
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete Account
               </Button>
-              <Button
-                type="submit"
-                disabled={isSubmitting || usernameStatus === 'taken'}
-                className="bg-gradient-primary hover:opacity-90"
-              >
-                {isSubmitting ? 'Saving...' : 'Save Profile'}
-              </Button>
+              <div className="flex flex-col-reverse sm:flex-row gap-3 w-full sm:w-auto">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  className="border-2 w-full sm:w-auto"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isSubmitting || usernameStatus === 'taken'}
+                  className="bg-gradient-primary hover:opacity-90 w-full sm:w-auto"
+                >
+                  {isSubmitting ? 'Saving...' : 'Save Profile'}
+                </Button>
+              </div>
             </div>
           </form>
         </Form>
       </DialogContent>
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent className="border-2 bg-card/95 backdrop-blur-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-bold text-destructive">
+              Delete Account?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="font-mono text-sm space-y-2">
+              <p>// this will permanently delete your account</p>
+              <p>// all your vaults, papers, and data will be lost</p>
+              <p className="text-destructive font-semibold">// this action cannot be undone</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteAccount}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? 'Deleting...' : 'Delete Account'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
