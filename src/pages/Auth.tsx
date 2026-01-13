@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -6,8 +6,62 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Mail, Lock, User, ArrowRight, Sparkles } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Sparkles, Check, X } from 'lucide-react';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
+import { cn } from '@/lib/utils';
+
+interface PasswordStrength {
+  score: number;
+  label: string;
+  color: string;
+  checks: {
+    minLength: boolean;
+    hasUpperCase: boolean;
+    hasLowerCase: boolean;
+    hasNumber: boolean;
+    hasSpecialChar: boolean;
+  };
+}
+
+function calculatePasswordStrength(password: string): PasswordStrength {
+  const checks = {
+    minLength: password.length >= 8,
+    hasUpperCase: /[A-Z]/.test(password),
+    hasLowerCase: /[a-z]/.test(password),
+    hasNumber: /[0-9]/.test(password),
+    hasSpecialChar: /[!@#$%^&*(),.?":{}|<>]/.test(password),
+  };
+
+  const passedChecks = Object.values(checks).filter(Boolean).length;
+  
+  let score = 0;
+  let label = '';
+  let color = '';
+
+  if (password.length === 0) {
+    return { score: 0, label: '', color: '', checks };
+  }
+
+  if (passedChecks <= 2) {
+    score = 1;
+    label = 'weak';
+    color = 'bg-red-500';
+  } else if (passedChecks === 3) {
+    score = 2;
+    label = 'fair';
+    color = 'bg-orange-500';
+  } else if (passedChecks === 4) {
+    score = 3;
+    label = 'good';
+    color = 'bg-yellow-500';
+  } else {
+    score = 4;
+    label = 'strong';
+    color = 'bg-green-500';
+  }
+
+  return { score, label, color, checks };
+}
 
 export default function Auth() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -18,9 +72,31 @@ export default function Auth() {
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const passwordStrength = useMemo(() => calculatePasswordStrength(password), [password]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Password strength validation for sign up
+    if (isSignUp) {
+      if (password.length < 8) {
+        toast({
+          title: 'Weak password',
+          description: 'Password must be at least 8 characters long.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (passwordStrength.score < 3) {
+        toast({
+          title: 'Weak password',
+          description: 'Please create a stronger password with a mix of uppercase, lowercase, numbers, and special characters.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
@@ -150,10 +226,113 @@ export default function Auth() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    minLength={6}
+                    minLength={isSignUp ? 8 : 6}
                     className="pl-11"
                   />
                 </div>
+                
+                {/* Password strength indicator for sign up */}
+                {isSignUp && password.length > 0 && (
+                  <div className="space-y-3 pt-2">
+                    {/* Strength bar */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-mono text-muted-foreground">strength:</span>
+                        <span className={cn(
+                          "text-xs font-mono font-semibold",
+                          passwordStrength.score === 1 && "text-red-500",
+                          passwordStrength.score === 2 && "text-orange-500",
+                          passwordStrength.score === 3 && "text-yellow-500",
+                          passwordStrength.score === 4 && "text-green-500"
+                        )}>
+                          {passwordStrength.label}
+                        </span>
+                      </div>
+                      <div className="flex gap-1">
+                        {[1, 2, 3, 4].map((level) => (
+                          <div
+                            key={level}
+                            className={cn(
+                              "h-1 flex-1 rounded-full transition-all duration-300",
+                              level <= passwordStrength.score
+                                ? passwordStrength.color
+                                : "bg-muted"
+                            )}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Requirements checklist */}
+                    <div className="space-y-1.5 text-xs">
+                      <div className="flex items-center gap-2">
+                        {passwordStrength.checks.minLength ? (
+                          <Check className="w-3 h-3 text-green-500" />
+                        ) : (
+                          <X className="w-3 h-3 text-muted-foreground" />
+                        )}
+                        <span className={cn(
+                          "font-mono",
+                          passwordStrength.checks.minLength ? "text-green-500" : "text-muted-foreground"
+                        )}>
+                          at least 8 characters
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {passwordStrength.checks.hasUpperCase ? (
+                          <Check className="w-3 h-3 text-green-500" />
+                        ) : (
+                          <X className="w-3 h-3 text-muted-foreground" />
+                        )}
+                        <span className={cn(
+                          "font-mono",
+                          passwordStrength.checks.hasUpperCase ? "text-green-500" : "text-muted-foreground"
+                        )}>
+                          uppercase letter (A-Z)
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {passwordStrength.checks.hasLowerCase ? (
+                          <Check className="w-3 h-3 text-green-500" />
+                        ) : (
+                          <X className="w-3 h-3 text-muted-foreground" />
+                        )}
+                        <span className={cn(
+                          "font-mono",
+                          passwordStrength.checks.hasLowerCase ? "text-green-500" : "text-muted-foreground"
+                        )}>
+                          lowercase letter (a-z)
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {passwordStrength.checks.hasNumber ? (
+                          <Check className="w-3 h-3 text-green-500" />
+                        ) : (
+                          <X className="w-3 h-3 text-muted-foreground" />
+                        )}
+                        <span className={cn(
+                          "font-mono",
+                          passwordStrength.checks.hasNumber ? "text-green-500" : "text-muted-foreground"
+                        )}>
+                          number (0-9)
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {passwordStrength.checks.hasSpecialChar ? (
+                          <Check className="w-3 h-3 text-green-500" />
+                        ) : (
+                          <X className="w-3 h-3 text-muted-foreground" />
+                        )}
+                        <span className={cn(
+                          "font-mono",
+                          passwordStrength.checks.hasSpecialChar ? "text-green-500" : "text-muted-foreground"
+                        )}>
+                          special character (!@#$...)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <Button
