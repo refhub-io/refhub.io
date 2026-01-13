@@ -21,16 +21,16 @@ interface ExportDialogProps {
 }
 
 const BIBTEX_FIELDS: { key: BibtexField; label: string; description: string }[] = [
-  { key: 'title', label: 'Title', description: 'Publication title' },
-  { key: 'author', label: 'Authors', description: 'Author names' },
-  { key: 'year', label: 'Year', description: 'Publication year' },
-  { key: 'journal', label: 'Journal/Booktitle', description: 'Journal or conference name' },
-  { key: 'volume', label: 'Volume', description: 'Volume number' },
-  { key: 'number', label: 'Issue/Number', description: 'Issue or number' },
-  { key: 'pages', label: 'Pages', description: 'Page range' },
-  { key: 'doi', label: 'DOI', description: 'Digital Object Identifier' },
-  { key: 'url', label: 'URL', description: 'Web address' },
-  { key: 'abstract', label: 'Abstract', description: 'Paper abstract' },
+  { key: 'title', label: 'title', description: 'publication title' },
+  { key: 'author', label: 'authors', description: 'author names' },
+  { key: 'year', label: 'year', description: 'publication year' },
+  { key: 'journal', label: 'journal', description: 'journal or conference' },
+  { key: 'volume', label: 'volume', description: 'volume number' },
+  { key: 'number', label: 'issue', description: 'issue or number' },
+  { key: 'pages', label: 'pages', description: 'page range' },
+  { key: 'doi', label: 'doi', description: 'digital object identifier' },
+  { key: 'url', label: 'url', description: 'web address' },
+  { key: 'abstract', label: 'abstract', description: 'paper abstract' },
 ];
 
 const DEFAULT_SELECTED: BibtexField[] = ['title', 'author', 'year', 'journal', 'doi'];
@@ -70,29 +70,29 @@ export function ExportDialog({ open, onOpenChange, publications, vaultName }: Ex
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[95vw] max-w-md max-h-[85vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 font-mono">
             <FileText className="w-5 h-5 text-primary" />
-            Export to BibTeX
+            export_to_bibtex
           </DialogTitle>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto py-4 space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              Exporting <span className="font-semibold text-foreground">{publications.length}</span> publication{publications.length !== 1 ? 's' : ''}
+            <p className="text-sm text-muted-foreground font-mono">
+              // exporting <span className="font-semibold text-foreground">{publications.length}</span> publication{publications.length !== 1 ? 's' : ''}
               {vaultName && <span> from <span className="font-semibold text-foreground">{vaultName}</span></span>}
             </p>
           </div>
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium">Select fields to include:</Label>
+              <Label className="text-sm font-medium font-mono">select fields to include:</Label>
               <div className="flex gap-2">
-                <Button variant="ghost" size="sm" onClick={selectAll} className="text-xs h-7 px-2">
-                  All
+                <Button variant="ghost" size="sm" onClick={selectAll} className="text-xs h-7 px-2 font-mono">
+                  all
                 </Button>
-                <Button variant="ghost" size="sm" onClick={selectNone} className="text-xs h-7 px-2">
-                  None
+                <Button variant="ghost" size="sm" onClick={selectNone} className="text-xs h-7 px-2 font-mono">
+                  none
                 </Button>
               </div>
             </div>
@@ -117,24 +117,24 @@ export function ExportDialog({ open, onOpenChange, publications, vaultName }: Ex
           </div>
 
           {selectedFields.length === 0 && (
-            <p className="text-sm text-destructive text-center">
-              Please select at least one field to export
+            <p className="text-sm text-destructive text-center font-mono">
+              // please select at least one field
             </p>
           )}
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="font-mono">
+            cancel
           </Button>
           <Button
             variant="glow"
             onClick={handleExport}
             disabled={selectedFields.length === 0}
-            className="gap-2"
+            className="gap-2 font-mono"
           >
             <Download className="w-4 h-4" />
-            Export {publications.length} {publications.length === 1 ? 'Entry' : 'Entries'}
+            export_{publications.length}
           </Button>
         </DialogFooter>
       </DialogContent>

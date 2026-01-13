@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Mail, Lock, User, ArrowRight, Sparkles } from 'lucide-react';
+import { ThemeToggle } from '@/components/layout/ThemeToggle';
 
 export default function Auth() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -67,6 +68,11 @@ export default function Auth() {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Theme toggle */}
+      <div className="absolute top-4 right-4 z-20">
+        <ThemeToggle />
+      </div>
+      
       {/* Background effects */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-neon-purple/20 via-transparent to-transparent" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,_var(--tw-gradient-stops))] from-neon-green/10 via-transparent to-transparent" />
@@ -89,8 +95,8 @@ export default function Auth() {
 
         <Card className="border-2 border-border/50 bg-card/80 backdrop-blur-xl">
           <CardHeader className="space-y-1 pb-4">
-            <CardTitle className="text-2xl text-center">
-              {isSignUp ? 'Create an account' : 'Welcome back'}
+            <CardTitle className="text-2xl text-center font-mono">
+              {isSignUp ? 'create_account' : 'welcome_back'}
             </CardTitle>
             <CardDescription className="text-center font-mono text-xs">
               {isSignUp
@@ -102,13 +108,13 @@ export default function Auth() {
             <form onSubmit={handleSubmit} className="space-y-4">
               {isSignUp && (
                 <div className="space-y-2">
-                  <Label htmlFor="displayName" className="text-sm font-semibold">Display Name</Label>
+                  <Label htmlFor="displayName" className="text-sm font-semibold font-mono">display_name</Label>
                   <div className="relative">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
                       id="displayName"
                       type="text"
-                      placeholder="Your name"
+                      placeholder="your name"
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
                       className="pl-11"
@@ -118,7 +124,7 @@ export default function Auth() {
               )}
               
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-sm font-semibold">Email</Label>
+                <Label htmlFor="email" className="text-sm font-semibold font-mono">email</Label>
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
@@ -134,7 +140,7 @@ export default function Auth() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-sm font-semibold">Password</Label>
+                <Label htmlFor="password" className="text-sm font-semibold font-mono">password</Label>
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
@@ -153,17 +159,17 @@ export default function Auth() {
               <Button
                 type="submit"
                 variant="glow"
-                className="w-full"
+                className="w-full font-mono"
                 disabled={loading}
               >
                 {loading ? (
                   <span className="flex items-center gap-2">
                     <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    {isSignUp ? 'Creating...' : 'Signing in...'}
+                    {isSignUp ? 'creating...' : 'signing in...'}
                   </span>
                 ) : (
                   <span className="flex items-center gap-2">
-                    {isSignUp ? 'Create account' : 'Sign in'}
+                    {isSignUp ? 'create_account' : 'sign_in'}
                     <ArrowRight className="w-4 h-4" />
                   </span>
                 )}
@@ -177,15 +183,15 @@ export default function Auth() {
                 className="text-sm text-muted-foreground hover:text-primary transition-colors font-mono"
               >
                 {isSignUp
-                  ? '// already have an account? sign in'
-                  : "// don't have an account? sign up"}
+                  ? '// already have an account? sign_in'
+                  : "// don't have an account? sign_up"}
               </button>
             </div>
           </CardContent>
         </Card>
 
         <p className="text-center text-xs text-muted-foreground mt-6 font-mono">
-          Built for researchers, by researchers ✨
+          built for researchers, by researchers ✨
         </p>
       </div>
     </div>

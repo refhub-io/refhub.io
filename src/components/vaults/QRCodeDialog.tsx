@@ -60,7 +60,7 @@ export function QRCodeDialog({ vault }: QRCodeDialogProps) {
       </DialogTrigger>
       <DialogContent className="w-[95vw] max-w-sm">
         <DialogHeader>
-          <DialogTitle className="text-center">Share "{vault.name}"</DialogTitle>
+          <DialogTitle className="text-center font-mono">share "{vault.name}"</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col items-center gap-6 py-4">
           <div 
@@ -83,18 +83,18 @@ export function QRCodeDialog({ vault }: QRCodeDialogProps) {
             <Button
               variant="outline"
               onClick={copyShareUrl}
-              className="flex-1 gap-2"
+              className="flex-1 gap-2 font-mono"
             >
               {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-              Copy Link
+              copy_link
             </Button>
             <Button
               variant="glow"
               onClick={downloadQR}
-              className="flex-1 gap-2"
+              className="flex-1 gap-2 font-mono"
             >
               <Download className="w-4 h-4" />
-              Download
+              download
             </Button>
           </div>
         </div>

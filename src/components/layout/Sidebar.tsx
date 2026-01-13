@@ -25,6 +25,7 @@ import { Vault } from '@/types/database';
 import { ProfileAvatar } from '@/components/profile/ProfileAvatar';
 import { Profile } from '@/hooks/useProfile';
 import { useVaultFavorites } from '@/hooks/useVaultFavorites';
+import { ThemeToggle } from './ThemeToggle';
 
 interface SidebarProps {
   vaults: Vault[];
@@ -122,7 +123,7 @@ export function Sidebar({
             )}>
               <Zap className={cn("w-4 h-4", selectedVaultId === null ? "text-sidebar-primary" : "text-sidebar-foreground/60")} />
             </div>
-            All Papers
+            <span className="font-mono">all_papers</span>
           </button>
 
           <Link
@@ -133,7 +134,7 @@ export function Sidebar({
             <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-gradient-to-br from-amber-500/20 to-orange-500/20">
               <Scroll className="w-4 h-4 text-amber-500" />
             </div>
-            The Codex
+            <span className="font-mono">the_codex</span>
           </Link>
 
           <div className="pt-4">
@@ -143,7 +144,7 @@ export function Sidebar({
             >
               <span className="flex items-center gap-2">
                 <FolderOpen className="w-3.5 h-3.5" />
-                Vaults
+                vaults
               </span>
               {isVaultsExpanded ? (
                 <ChevronDown className="w-3.5 h-3.5" />
@@ -224,7 +225,7 @@ export function Sidebar({
               >
                 <span className="flex items-center gap-2">
                   <Share2 className="w-3.5 h-3.5" />
-                  Shared with me
+                  shared_with_me
                 </span>
                 {isSharedExpanded ? (
                   <ChevronDown className="w-3.5 h-3.5" />
@@ -275,7 +276,7 @@ export function Sidebar({
               >
                 <span className="flex items-center gap-2">
                   <Heart className="w-3.5 h-3.5" />
-                  Favorites
+                  favorites
                 </span>
                 {isFavoritesExpanded ? (
                   <ChevronDown className="w-3.5 h-3.5" />
@@ -325,11 +326,12 @@ export function Sidebar({
                 <p className="text-xs text-sidebar-foreground/50 truncate font-mono">{user?.email}</p>
               )}
             </div>
+            <ThemeToggle />
             {onEditProfile && (
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-primary"
+                className="h-8 w-8 text-sidebar-foreground/50 hover:text-primary"
                 onClick={onEditProfile}
               >
                 <MoreVertical className="w-4 h-4" />

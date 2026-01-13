@@ -23,7 +23,8 @@ import {
   Scroll,
   Library,
   Heart,
-  GitFork
+  GitFork,
+  Menu
 } from 'lucide-react';
 import {
   Select,
@@ -33,6 +34,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { formatDistanceToNow } from 'date-fns';
+import { ThemeToggle } from '@/components/layout/ThemeToggle';
 
 interface CodexVault extends Vault {
   publication_count?: number;
@@ -54,6 +56,7 @@ export default function TheCodex() {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [forkingId, setForkingId] = useState<string | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     fetchPublicVaults();
@@ -203,23 +206,47 @@ export default function TheCodex() {
       {/* Header */}
       <header className="border-b-2 border-border bg-card/50 backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 via-orange-500 to-red-600 flex items-center justify-center shadow-lg">
-              <Scroll className="w-5 h-5 text-white" />
-            </div>
-            <span className="font-bold text-lg">
-              <span className="bg-gradient-to-r from-amber-400 via-orange-400 to-red-500 bg-clip-text text-transparent">The Codex</span>
-            </span>
-          </Link>
           <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="lg:hidden"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            >
+              <Menu className="w-5 h-5" />
+            </Button>
+            <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 via-orange-500 to-red-600 flex items-center justify-center shadow-lg">
+                <Scroll className="w-5 h-5 text-white" />
+              </div>
+              <span className="font-bold text-lg font-mono">
+                <span className="bg-gradient-to-r from-amber-400 via-orange-400 to-red-500 bg-clip-text text-transparent">the_codex</span>
+              </span>
+            </Link>
+          </div>
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
             {user && <NotificationDropdown />}
             <Link to="/">
-              <Button variant="outline" size="sm">
-                Dashboard
+              <Button variant="outline" size="sm" className="font-mono text-xs">
+                dashboard
               </Button>
             </Link>
           </div>
         </div>
+        
+        {/* Mobile menu */}
+        {isMobileMenuOpen && (
+          <div className="lg:hidden border-t border-border bg-card p-4 space-y-2">
+            <Link
+              to="/"
+              className="block px-4 py-3 rounded-xl hover:bg-muted font-mono text-sm"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              dashboard
+            </Link>
+          </div>
+        )}
       </header>
 
       {/* Hero */}
@@ -227,13 +254,13 @@ export default function TheCodex() {
         <div className="max-w-7xl mx-auto px-4 py-16 text-center">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 mb-6">
             <Library className="w-4 h-4 text-amber-500" />
-            <span className="text-sm font-medium text-amber-500">Public Research Marketplace</span>
+            <span className="text-sm font-medium text-amber-500 font-mono">public_research_marketplace</span>
           </div>
-          <h1 className="text-4xl md:text-6xl font-bold mb-4">
-            <span className="bg-gradient-to-r from-amber-400 via-orange-400 to-red-500 bg-clip-text text-transparent">The Codex</span>
+          <h1 className="text-4xl md:text-6xl font-bold mb-4 font-mono">
+            <span className="bg-gradient-to-r from-amber-400 via-orange-400 to-red-500 bg-clip-text text-transparent">the_codex</span>
           </h1>
           <p className="text-muted-foreground max-w-2xl mx-auto text-lg mb-2">
-            Discover curated literature collections from researchers worldwide
+            discover curated literature collections from researchers worldwide
           </p>
           <p className="text-muted-foreground/70 font-mono text-sm">
             // browse • learn • cite
@@ -258,10 +285,10 @@ export default function TheCodex() {
               <Filter className="w-4 h-4 text-muted-foreground" />
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                 <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="All Categories" />
+                <SelectValue placeholder="all_categories" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
+                  <SelectItem value="all">all_categories</SelectItem>
                   {uniqueCategories.map((category) => (
                     <SelectItem key={category} value={category!}>
                       {category}
@@ -293,8 +320,8 @@ export default function TheCodex() {
                 ? '// no collections match your search' 
                 : '// the codex awaits its first entry'}
             </p>
-            <p className="text-muted-foreground/60 text-sm">
-              Publish your vault to share it with the world
+            <p className="text-muted-foreground/60 text-sm font-mono">
+              publish your vault to share it with the world
             </p>
           </div>
         ) : (
@@ -413,7 +440,7 @@ export default function TheCodex() {
       {/* Footer */}
       <footer className="border-t-2 border-border mt-16 py-8 text-center">
         <p className="text-sm text-muted-foreground font-mono">
-          Powered by <Link to="/" className="text-amber-500 hover:underline">refhub.io</Link>
+          powered by <Link to="/" className="text-amber-500 hover:underline">refhub.io</Link>
         </p>
       </footer>
     </div>
