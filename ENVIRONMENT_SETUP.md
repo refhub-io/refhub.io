@@ -6,12 +6,12 @@
 
 ## Local Development Setup
 
-### 1. Create your local `.env` file
+### 1. Create your local `.env.local` file
 
-Copy the example file and fill in your actual values:
+This file is used for local development only and is automatically ignored by git:
 
 ```bash
-cp .env.example .env
+cp .env.example .env.local
 ```
 
 ### 2. Get your Supabase credentials
@@ -27,19 +27,21 @@ cp .env.example .env
 
 ⚠️ **Use the `anon` key, NOT the `service_role` key!**
 
-### 3. Update your `.env` file
+### 3. Update your `.env.local` file
 
 ```env
-VITE_SUPABASE_PROJECT_ID="pgkxlykkbaecgqyfhzow"
+VITE_SUPABASE_PROJECT_ID="lngnmpblgybzwfyecbwu"
 VITE_SUPABASE_PUBLISHABLE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-VITE_SUPABASE_URL="https://pgkxlykkbaecgqyfhzow.supabase.co"
+VITE_SUPABASE_URL="https://lngnmpblgybzwfyecbwu.supabase.co"
 ```
 
-### 4. Restart your dev server
+### 4. Start your dev server
 
 ```bash
-bun run dev
+npm run dev
 ```
+
+Vite will automatically load variables from `.env.local` for local development.
 
 ## GitHub Pages Deployment
 
@@ -75,15 +77,17 @@ The GitHub Actions workflow (`.github/workflows/deploy.yml`) automatically injec
 
 ### Local Development
 
-After setting up your `.env` file, verify it's working:
+After setting up your `.env.local` file, verify it's working:
 
 ```bash
-# Check if environment variables are loaded
-bun run dev
+# Start dev server
+npm run dev
 
 # In browser console:
 console.log(import.meta.env.VITE_SUPABASE_URL)
 ```
+
+You should see your local Supabase URL. Vite loads `.env.local` automatically for development.
 
 ### GitHub Deployment
 
@@ -100,9 +104,10 @@ Check the Actions tab to see if the build succeeds.
 ### Problem: "Cannot connect to Supabase"
 
 **Solution:** 
-- Verify your `.env` file exists in the project root
+- Verify your `.env.local` file exists in the project root
 - Check that variable names match exactly (case-sensitive)
 - Restart your dev server after changes
+- Make sure you're using `.env.local` for development (not `.env`)
 
 ### Problem: "GitHub deployment fails"
 
@@ -119,27 +124,40 @@ Check the Actions tab to see if the build succeeds.
 - Check browser console for CORS errors (might need to add your domain to Supabase allowed origins)
 
 ## Files Overview
-
-- `.env` - Your local environment variables (ignored by git)
+.local` - Your local environment variables for development (ignored by git)
 - `.env.example` - Template file (committed to git)
-- `.gitignore` - Ensures `.env` is never committed
+- `.gitignore` - Ensures `.env.local` and other env files are never committed
+- `.github/workflows/deploy.yml` - Deployment workflow that uses GitHub
 - `.github/workflows/deploy.yml` - Deployment workflow that uses secrets
 
 ## Security Best Practices
 
 ✅ **DO:**
-- Use `.env` for local development
-- Use GitHub Secrets for deployment
+- Use `.env.local` for local development
+- Use GitHub Secrets for production deployment
 - Use the `anon/public` key in frontend code
-- Keep `.env` in `.gitignore`
+- Keep `.env.local` in `.gitignore`
 - Commit `.env.example` as a template
 
 ❌ **DON'T:**
-- Commit `.env` files to git
-- Share your `.env` file publicly
+- Commit `.env.local` or `.env` files to git
+- Share your `.env.local` file publicly
 - Use `service_role` key in frontend code
 - Hardcode credentials in source code
 - Push secrets to public repositories
+
+## Environment Loading Priority
+
+Vite loads environment variables in this order (later files override earlier ones):
+
+1. `.env` - Shared defaults (can be committed if no secrets)
+2. `.env.local` - Local overrides (always ignored by git) ← **Use this for development**
+3. `.env.production` - Production-specific (if needed)
+4. `.env.production.local` - Local production overrides
+
+For this project:
+- **Local development**: `.env.local` (contains your dev credentials)
+- **GitHub Pages**: GitHub Secrets (configured in repository settings)
 
 ## Additional Resources
 
