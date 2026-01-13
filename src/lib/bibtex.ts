@@ -11,47 +11,54 @@ export function generateBibtexKey(pub: Publication): string {
   return `${lastName}${year}${titleWord}`;
 }
 
-export function publicationToBibtex(pub: Publication): string {
+export type BibtexField = 'title' | 'author' | 'year' | 'journal' | 'volume' | 'number' | 'pages' | 'doi' | 'url' | 'abstract';
+
+const ALL_FIELDS: BibtexField[] = ['title', 'author', 'year', 'journal', 'volume', 'number', 'pages', 'doi', 'url', 'abstract'];
+
+export function publicationToBibtex(pub: Publication, includedFields?: BibtexField[]): string {
   const key = generateBibtexKey(pub);
   const type = pub.publication_type || 'article';
-  
   const fields: string[] = [];
   
-  fields.push(`  title = {${pub.title}}`);
+  const fieldsToInclude = includedFields || ALL_FIELDS;
   
-  if (pub.authors.length > 0) {
+  if (fieldsToInclude.includes('title')) {
+    fields.push(`  title = {${pub.title}}`);
+  }
+  
+  if (fieldsToInclude.includes('author') && pub.authors.length > 0) {
     fields.push(`  author = {${pub.authors.join(' and ')}}`);
   }
   
-  if (pub.year) {
+  if (fieldsToInclude.includes('year') && pub.year) {
     fields.push(`  year = {${pub.year}}`);
   }
   
-  if (pub.journal) {
+  if (fieldsToInclude.includes('journal') && pub.journal) {
     fields.push(`  journal = {${pub.journal}}`);
   }
   
-  if (pub.volume) {
+  if (fieldsToInclude.includes('volume') && pub.volume) {
     fields.push(`  volume = {${pub.volume}}`);
   }
   
-  if (pub.issue) {
+  if (fieldsToInclude.includes('number') && pub.issue) {
     fields.push(`  number = {${pub.issue}}`);
   }
   
-  if (pub.pages) {
+  if (fieldsToInclude.includes('pages') && pub.pages) {
     fields.push(`  pages = {${pub.pages}}`);
   }
   
-  if (pub.doi) {
+  if (fieldsToInclude.includes('doi') && pub.doi) {
     fields.push(`  doi = {${pub.doi}}`);
   }
   
-  if (pub.url) {
+  if (fieldsToInclude.includes('url') && pub.url) {
     fields.push(`  url = {${pub.url}}`);
   }
   
-  if (pub.abstract) {
+  if (fieldsToInclude.includes('abstract') && pub.abstract) {
     fields.push(`  abstract = {${pub.abstract}}`);
   }
   
@@ -59,7 +66,11 @@ export function publicationToBibtex(pub: Publication): string {
 }
 
 export function exportMultipleToBibtex(publications: Publication[]): string {
-  return publications.map(publicationToBibtex).join('\n\n');
+  return publications.map(pub => publicationToBibtex(pub)).join('\n\n');
+}
+
+export function exportMultipleToBibtexWithFields(publications: Publication[], fields: BibtexField[]): string {
+  return publications.map(pub => publicationToBibtex(pub, fields)).join('\n\n');
 }
 
 export function downloadBibtex(content: string, filename: string = 'references.bib') {

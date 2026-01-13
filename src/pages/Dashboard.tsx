@@ -11,7 +11,7 @@ import { ImportDialog } from '@/components/publications/ImportDialog';
 import { VaultDialog } from '@/components/vaults/VaultDialog';
 import { RelationshipGraph } from '@/components/publications/RelationshipGraph';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
-import { publicationToBibtex, exportMultipleToBibtex, downloadBibtex } from '@/lib/bibtex';
+import { ExportDialog } from '@/components/publications/ExportDialog';
 import { useToast } from '@/hooks/use-toast';
 import { Sparkles } from 'lucide-react';
 import {
@@ -50,6 +50,8 @@ export default function Dashboard() {
   const [editingVault, setEditingVault] = useState<Vault | null>(null);
   const [isGraphOpen, setIsGraphOpen] = useState(false);
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [exportPublications, setExportPublications] = useState<Publication[]>([]);
 
   const [deleteConfirmation, setDeleteConfirmation] = useState<Publication | null>(null);
 
@@ -417,17 +419,8 @@ export default function Dashboard() {
 
   const handleExportBibtex = (pubs: Publication[]) => {
     if (pubs.length === 0) return;
-
-    const filename = pubs.length === 1
-      ? `${pubs[0].bibtex_key || 'reference'}.bib`
-      : 'references.bib';
-
-    const content = pubs.length === 1
-      ? publicationToBibtex(pubs[0])
-      : exportMultipleToBibtex(pubs);
-
-    downloadBibtex(content, filename);
-    toast({ title: `Exported ${pubs.length} reference${pubs.length > 1 ? 's' : ''} 📄` });
+    setExportPublications(pubs);
+    setIsExportDialogOpen(true);
   };
 
   if (authLoading || loading) {
@@ -537,6 +530,13 @@ export default function Dashboard() {
           setEditingPublication(pub);
           setIsPublicationDialogOpen(true);
         }}
+      />
+
+      <ExportDialog
+        open={isExportDialogOpen}
+        onOpenChange={setIsExportDialogOpen}
+        publications={exportPublications}
+        vaultName={selectedVault?.name}
       />
 
       <AlertDialog open={!!deleteConfirmation} onOpenChange={() => setDeleteConfirmation(null)}>
