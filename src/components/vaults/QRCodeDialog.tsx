@@ -2,21 +2,24 @@ import { useRef } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Button } from '@/components/ui/button';
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { QrCode, Download, Copy, Check } from 'lucide-react';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Vault } from '@/types/database';
 
-interface QRCodePopoverProps {
+interface QRCodeDialogProps {
   vault: Vault;
 }
 
-export function QRCodePopover({ vault }: QRCodePopoverProps) {
+export function QRCodeDialog({ vault }: QRCodeDialogProps) {
   const [copied, setCopied] = useState(false);
+  const [open, setOpen] = useState(false);
   const qrRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -44,8 +47,8 @@ export function QRCodePopover({ vault }: QRCodePopoverProps) {
   };
 
   return (
-    <Popover>
-      <PopoverTrigger asChild>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
         <Button
           variant="ghost"
           size="icon"
@@ -54,17 +57,19 @@ export function QRCodePopover({ vault }: QRCodePopoverProps) {
         >
           <QrCode className="w-4 h-4" />
         </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-4" align="start">
-        <div className="flex flex-col items-center gap-4">
-          <p className="text-sm font-semibold text-center">Share "{vault.name}"</p>
+      </DialogTrigger>
+      <DialogContent className="w-[95vw] max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="text-center">Share "{vault.name}"</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col items-center gap-6 py-4">
           <div 
             ref={qrRef}
-            className="p-3 bg-white rounded-xl shadow-md"
+            className="p-4 bg-white rounded-xl shadow-md"
           >
             <QRCodeCanvas
               value={shareUrl}
-              size={140}
+              size={180}
               level="H"
               marginSize={2}
               bgColor="#ffffff"
@@ -74,28 +79,26 @@ export function QRCodePopover({ vault }: QRCodePopoverProps) {
           <p className="text-xs text-muted-foreground font-mono text-center">
             // scan to access vault
           </p>
-          <div className="flex gap-2">
+          <div className="flex gap-3 w-full">
             <Button
               variant="outline"
-              size="sm"
               onClick={copyShareUrl}
-              className="gap-1.5 text-xs"
+              className="flex-1 gap-2"
             >
-              {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-              Copy
+              {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              Copy Link
             </Button>
             <Button
               variant="glow"
-              size="sm"
               onClick={downloadQR}
-              className="gap-1.5 text-xs"
+              className="flex-1 gap-2"
             >
-              <Download className="w-3 h-3" />
+              <Download className="w-4 h-4" />
               Download
             </Button>
           </div>
         </div>
-      </PopoverContent>
-    </Popover>
+      </DialogContent>
+    </Dialog>
   );
 }
