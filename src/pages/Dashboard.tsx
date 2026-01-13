@@ -123,6 +123,22 @@ export default function Dashboard() {
     }
   };
 
+  const refetchVaults = async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('vaults')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('name');
+      
+      if (error) throw error;
+      if (data) setVaults(data as Vault[]);
+    } catch (error) {
+      console.error('Error refetching vaults:', error);
+    }
+  };
+
   const filteredPublications = selectedVaultId
     ? publications.filter((p) => p.vault_id === selectedVaultId)
     : publications;
@@ -566,6 +582,7 @@ export default function Dashboard() {
           setEditingVault(vault);
           setIsVaultDialogOpen(true);
         }}
+        onVaultUpdate={refetchVaults}
       />
       </div>
 

@@ -44,6 +44,7 @@ interface PublicationListProps {
   onMobileMenuOpen: () => void;
   onOpenGraph: () => void;
   onEditVault?: (vault: Vault) => void;
+  onVaultUpdate?: () => void;
 }
 
 export function PublicationList({
@@ -61,6 +62,7 @@ export function PublicationList({
   onMobileMenuOpen,
   onOpenGraph,
   onEditVault,
+  onVaultUpdate,
 }: PublicationListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -152,7 +154,7 @@ export function PublicationList({
               </h1>
               {selectedVault && (
                 <>
-                  <QRCodeDialog vault={selectedVault} />
+                  <QRCodeDialog vault={selectedVault} onVaultUpdate={onVaultUpdate} />
                   {onEditVault && (
                     <Button
                       variant="ghost"
