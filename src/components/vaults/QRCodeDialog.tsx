@@ -35,28 +35,19 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
   const [open, setOpen] = useState(false);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [upgrading, setUpgrading] = useState(false);
-  const [qrLoading, setQrLoading] = useState(true);
+  const [gradientColor, setGradientColor] = useState('#8b5cf6');
   const qrRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const { toast } = useToast();
 
   const isPrivate = !vault.is_public && !vault.is_shared;
   const canShare = vault.is_public || vault.is_shared;
 
-  // Generate random aesthetic gradient colors
-  const generateGradientColors = () => {
-    const hue1 = Math.random() * 360;
-    const hue2 = (hue1 + 30 + Math.random() * 60) % 360; // 30-90 degrees apart
-    const hue3 = (hue1 + 60 + Math.random() * 60) % 360; // 60-120 degrees apart
-    
-    const saturation = 70 + Math.random() * 25; // 70-95%
+  // Generate random aesthetic gradient color
+  const generateRandomColor = () => {
+    const hue = Math.random() * 360;
+    const saturation = 70 + Math.random() * 20; // 70-90%
     const lightness = 55 + Math.random() * 15; // 55-70%
-    
-    return [
-      `hsl(${hue1}, ${saturation}%, ${lightness}%)`,
-      `hsl(${hue2}, ${saturation}%, ${lightness}%)`,
-      `hsl(${hue3}, ${saturation}%, ${lightness}%)`,
-    ];
+    return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
   };
 
   const shareUrl = vault.is_public && vault.public_slug
@@ -76,7 +67,8 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
     } else {
       setOpen(newOpen);
       if (newOpen) {
-        setQrLoading(true);
+        // Generate new random color each time dialog opens
+        setGradientColor(generateRandomColor());
       }
     }
   };
@@ -106,93 +98,13 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
     }
   };
 
-  // Apply gradient to QR code after render
-  useEffect(() => {
-    if (!open) return;
-
-    const applyGradient = () => {
-      const canvas = canvasRef.current;
-      const qrCanvas = qrRef.current?.querySelector('canvas');
-      
-      if (!canvas || !qrCanvas) {
-        return false;
-      }
-
-      // Check if QR canvas has content
-      if (qrCanvas.width === 0 || qrCanvas.height === 0) {
-        return false;
-      }
-
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return false;
-
-      // Set canvas size
-      canvas.width = qrCanvas.width;
-      canvas.height = qrCanvas.height;
-
-      // Draw QR code
-      ctx.drawImage(qrCanvas, 0, 0);
-
-      // Apply gradient only to black pixels
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
-
-      // Create gradient with random aesthetic colors
-      const colors = generateGradientColors();
-      const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-      gradient.addColorStop(0, colors[0]);
-      gradient.addColorStop(0.5, colors[1]);
-      gradient.addColorStop(1, colors[2]);
-
-      ctx.fillStyle = gradient;
-
-      // Replace black pixels with gradient
-      for (let i = 0; i < data.length; i += 4) {
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-        
-        // If pixel is black (QR code module)
-        if (r < 128 && g < 128 && b < 128) {
-          const x = (i / 4) % canvas.width;
-          const y = Math.floor((i / 4) / canvas.width);
-          ctx.fillRect(x, y, 1, 1);
-        }
-      }
-
-      return true;
-    };
-
-    let attempts = 0;
-    const maxAttempts = 20;
-    
-    const tryApplyGradient = () => {
-      const success = applyGradient();
-      
-      if (success) {
-        setQrLoading(false);
-      } else if (attempts < maxAttempts) {
-        attempts++;
-        setTimeout(tryApplyGradient, 100);
-      } else {
-        // Fallback: stop showing loading
-        console.warn('QR gradient application timed out');
-        setQrLoading(false);
-      }
-    };
-
-    // Small initial delay to let DOM settle
-    const initTimer = setTimeout(tryApplyGradient, 50);
-    
-    return () => clearTimeout(initTimer);
-  }, [open]);
-
   const downloadQR = () => {
-    if (!canvasRef.current) return;
+    const canvas = qrRef.current?.querySelector('canvas');
+    if (!canvas) return;
     
     const link = document.createElement('a');
     link.download = `${vault.name || 'vault'}-qr.png`;
-    link.href = canvasRef.current.toDataURL('image/png');
+    link.href = canvas.toDataURL('image/png');
     link.click();
     toast({ title: 'qr_code_downloaded' });
   };
@@ -227,37 +139,25 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
               </DialogTitle>
             </DialogHeader>
             <div className="flex flex-col items-center gap-6 py-4">
-              {/* Hidden QR code for rendering - completely hidden from view */}
-              <div ref={qrRef} style={{ position: 'absolute', left: '-9999px', top: '-9999px', visibility: 'hidden' }}>
-                <QRCodeCanvas
-                  value={shareUrl}
-                  size={200}
-                  level="H"
-                  marginSize={2}
-                  bgColor="#ffffff"
-                  fgColor="#000000"
-                />
-              </div>
-              
-              {/* Gradient QR code display */}
+              {/* QR Code with gradient effect */}
               <div className="p-6 bg-gradient-to-br from-background via-background/95 to-sidebar-accent rounded-2xl shadow-xl border-2 border-border/50 glow-purple">
-                <div className="p-3 bg-white rounded-xl relative w-[200px] h-[200px] flex items-center justify-center overflow-hidden">
-                  {qrLoading ? (
-                    <div className="flex flex-col items-center gap-2">
-                      <div className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
-                      <span className="text-xs text-muted-foreground font-mono">generating...</span>
-                    </div>
-                  ) : (
-                    <canvas
-                      ref={canvasRef}
-                      width={200}
-                      height={200}
-                      style={{ 
-                        width: '200px',
-                        height: '200px'
-                      }}
+                <div className="p-4 bg-white rounded-xl relative">
+                  <div 
+                    ref={qrRef}
+                    className="relative"
+                    style={{
+                      filter: `drop-shadow(0 0 8px ${gradientColor}40)`,
+                    }}
+                  >
+                    <QRCodeCanvas
+                      value={shareUrl}
+                      size={200}
+                      level="H"
+                      marginSize={2}
+                      bgColor="#ffffff"
+                      fgColor={gradientColor}
                     />
-                  )}
+                  </div>
                 </div>
               </div>
               
@@ -355,7 +255,7 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
               {upgrading && (
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               )}
-              {upgrading ? 'upgrading...' : 'upgrade_to_protected'}
+              upgrade_to_protected
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
