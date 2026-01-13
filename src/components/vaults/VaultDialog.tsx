@@ -150,13 +150,13 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
 
       if (error) throw error;
 
-      toast({ title: 'User added ✨' });
+      toast({ title: 'user_added ✨' });
       setEmail('');
       fetchShares();
       onUpdate?.();
     } catch (error: any) {
       toast({
-        title: 'Error sharing vault',
+        title: 'error_sharing_vault',
         description: error.message,
         variant: 'destructive',
       });
@@ -174,12 +174,12 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
 
       if (error) throw error;
 
-      toast({ title: 'User removed' });
+      toast({ title: 'user_removed' });
       fetchShares();
       onUpdate?.();
     } catch (error: any) {
       toast({
-        title: 'Error removing user',
+        title: 'error_removing_user',
         description: error.message,
         variant: 'destructive',
       });
@@ -192,31 +192,31 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
     navigator.clipboard.writeText(publicUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-    toast({ title: 'Link copied to clipboard' });
+    toast({ title: 'link_copied' });
   };
 
   const visibilityOptions = [
-    { value: 'private' as const, label: 'Private', icon: Lock, description: 'Only you can access' },
-    { value: 'protected' as const, label: 'Protected', icon: Users, description: 'Shared with specific people' },
-    { value: 'public' as const, label: 'Public', icon: Globe, description: 'Listed in The Codex' },
+    { value: 'private' as const, label: 'private', icon: Lock, description: 'only_you_can_access' },
+    { value: 'protected' as const, label: 'protected', icon: Users, description: 'shared_with_specific_people' },
+    { value: 'public' as const, label: 'public', icon: Globe, description: 'listed_in_the_codex' },
   ];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-full h-full sm:h-auto sm:w-[95vw] sm:max-w-2xl border-2 bg-card/95 backdrop-blur-xl sm:max-h-[90vh] overflow-hidden flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4">
-          <DialogTitle className="text-2xl font-bold">
+          <DialogTitle className="text-2xl font-bold font-mono">
             {vault ? (
-              <span>Vault <span className="text-gradient">Settings</span></span>
+              <span>vault_<span className="text-gradient">settings</span></span>
             ) : (
-              <span>Create <span className="text-gradient">Vault</span></span>
+              <span>create_<span className="text-gradient">vault</span></span>
             )}
           </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto space-y-5 px-6 pb-6">
           <div className="space-y-2">
-            <Label htmlFor="name" className="font-semibold">Name *</Label>
+            <Label htmlFor="name" className="font-semibold font-mono">name</Label>
             <Input
               id="name"
               value={name}
@@ -228,10 +228,10 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="category" className="font-semibold">Category</Label>
+            <Label htmlFor="category" className="font-semibold font-mono">category</Label>
             <Select value={category} onValueChange={setCategory}>
               <SelectTrigger>
-                <SelectValue placeholder="Select a category" />
+                <SelectValue placeholder="select_category" />
               </SelectTrigger>
               <SelectContent>
                 {VAULT_CATEGORIES.map((cat) => (
@@ -244,33 +244,33 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description" className="font-semibold">Short Description</Label>
+            <Label htmlFor="description" className="font-semibold font-mono">description</Label>
             <Input
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="A brief tagline for your vault"
+              placeholder="brief_tagline_for_vault"
               className="font-mono text-sm"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="abstract" className="font-semibold">Abstract</Label>
+            <Label htmlFor="abstract" className="font-semibold font-mono">abstract</Label>
             <Textarea
               id="abstract"
               value={abstract}
               onChange={(e) => setAbstract(e.target.value)}
-              placeholder="Describe the contents and purpose of this collection..."
+              placeholder="describe_contents_and_purpose..."
               rows={3}
               className="text-sm"
             />
-            <p className="text-xs text-muted-foreground">
-              Shown on The Codex marketplace when published
+            <p className="text-xs text-muted-foreground font-mono">
+              // shown_on_the_codex_when_published
             </p>
           </div>
 
           <div className="space-y-3">
-            <Label className="font-semibold">Color</Label>
+            <Label className="font-semibold font-mono">color</Label>
             <div className="flex flex-wrap gap-3">
               {VAULT_COLORS.map((c) => (
                 <button
@@ -290,7 +290,7 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
           </div>
 
           <div className="space-y-3">
-            <Label className="font-semibold">Visibility</Label>
+            <Label className="font-semibold font-mono">visibility</Label>
             <div className="grid grid-cols-3 gap-2">
               {visibilityOptions.map((option) => {
                 const Icon = option.icon;
@@ -307,7 +307,7 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
                     )}
                   >
                     <Icon className="w-4 h-4" />
-                    <span className="text-xs font-semibold">{option.label}</span>
+                    <span className="text-xs font-semibold font-mono">{option.label}</span>
                   </button>
                 );
               })}
@@ -320,7 +320,7 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
           {/* Public URL Section */}
           {visibility === 'public' && (
             <div className="space-y-3 p-4 rounded-xl border-2 border-neon/30 bg-neon/5">
-              <Label className="text-xs font-mono text-muted-foreground">Public URL Slug</Label>
+              <Label className="text-xs font-mono text-muted-foreground">public_url_slug</Label>
               <Input
                 value={publicSlug}
                 onChange={(e) => setPublicSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
@@ -354,7 +354,7 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
             <div className="space-y-4 p-4 rounded-xl border-2 border-blue-400/30 bg-blue-400/5">
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-blue-400" />
-                <Label className="font-semibold">Share with Users</Label>
+                <Label className="font-semibold font-mono">share_with_users</Label>
               </div>
 
               <div className="flex gap-2">
@@ -373,8 +373,9 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
                   variant="outline" 
                   onClick={handleShareWithUser}
                   disabled={saving || !email.trim()}
+                  className="font-mono"
                 >
-                  Add
+                  add
                 </Button>
               </div>
 
@@ -428,20 +429,20 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
                 type="button" 
                 variant="ghost" 
                 onClick={() => onDelete(vault)}
-                className="text-destructive hover:text-destructive hover:bg-destructive/10 w-full sm:w-auto"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10 w-full sm:w-auto font-mono"
               >
                 <Trash2 className="w-4 h-4 mr-2" />
-                Delete Vault
+                delete_vault
               </Button>
             ) : (
               <div className="hidden sm:block" />
             )}
             <div className="flex flex-col-reverse sm:flex-row gap-3 w-full sm:w-auto">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
-                Cancel
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto font-mono">
+                cancel
               </Button>
-              <Button type="submit" variant="glow" disabled={saving || !name.trim()} className="w-full sm:w-auto">
-                {saving ? 'Saving...' : vault ? 'Save Changes' : 'Create Vault'}
+              <Button type="submit" variant="glow" disabled={saving || !name.trim()} className="w-full sm:w-auto font-mono">
+                {saving ? 'saving...' : vault ? 'save_changes' : 'create_vault'}
               </Button>
             </div>
           </div>

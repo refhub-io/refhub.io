@@ -155,7 +155,7 @@ export default function TheCodex() {
     
     if (!user) {
       toast({
-        title: 'Sign in required',
+        title: 'sign_in_required',
         description: 'Please sign in to favorite this vault.',
         variant: 'destructive',
       });
@@ -165,7 +165,7 @@ export default function TheCodex() {
     const success = await toggleFavorite(vaultId);
     if (success) {
       toast({
-        title: isFavorite(vaultId) ? 'Removed from favorites' : 'Added to favorites ❤️',
+        title: isFavorite(vaultId) ? 'removed_from_favorites' : 'added_to_favorites ❤️',
       });
     }
   };
@@ -176,7 +176,7 @@ export default function TheCodex() {
     
     if (!user) {
       toast({
-        title: 'Sign in required',
+        title: 'sign_in_required',
         description: 'Please sign in to fork this vault.',
         variant: 'destructive',
       });
@@ -186,7 +186,7 @@ export default function TheCodex() {
     // Don't allow forking own vaults
     if (vault.user_id === user.id) {
       toast({
-        title: 'Cannot fork own vault',
+        title: 'cannot_fork_own_vault',
         description: 'You already own this vault.',
       });
       return;
@@ -277,8 +277,8 @@ export default function TheCodex() {
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search collections..."
-                className="pl-10"
+                placeholder="search_collections..."
+                className="pl-10 font-mono"
               />
             </div>
             <div className="flex items-center gap-3">
@@ -409,7 +409,7 @@ export default function TheCodex() {
                               onClick={(e) => handleFavorite(e, vault.id)}
                               disabled={vault.user_id === user.id}
                               className={`p-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isFavorite(vault.id) ? 'text-rose-500' : 'text-muted-foreground hover:text-rose-500'}`}
-                              title={vault.user_id === user.id ? 'You own this vault' : undefined}
+                              title={vault.user_id === user.id ? 'you_own_this_vault' : undefined}
                             >
                               <Heart className={`w-4 h-4 ${isFavorite(vault.id) ? 'fill-rose-500' : ''}`} />
                             </button>
@@ -417,14 +417,14 @@ export default function TheCodex() {
                               onClick={(e) => handleFork(e, vault)}
                               disabled={forkingId === vault.id || vault.user_id === user.id}
                               className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                              title={vault.user_id === user.id ? 'You own this vault' : undefined}
+                              title={vault.user_id === user.id ? 'you_own_this_vault' : undefined}
                             >
                               <GitFork className="w-4 h-4" />
                             </button>
                           </>
                         )}
-                        <div className="flex items-center text-sm text-amber-500 font-semibold group-hover:gap-2 transition-all">
-                          View
+                        <div className="flex items-center text-sm text-amber-500 font-semibold group-hover:gap-2 transition-all font-mono">
+                          view
                           <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
                         </div>
                       </div>

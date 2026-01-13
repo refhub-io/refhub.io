@@ -113,7 +113,7 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Error fetching data:', error);
       toast({
-        title: 'Error loading data',
+        title: 'error_loading_data',
         description: 'Please try refreshing the page.',
         variant: 'destructive',
       });
@@ -180,7 +180,7 @@ export default function Dashboard() {
           ...tagIds.map(tagId => ({ id: crypto.randomUUID(), publication_id: editingPublication.id, tag_id: tagId }))
         ]);
 
-        toast({ title: 'Paper updated ✨' });
+        toast({ title: 'paper_updated ✨' });
       } else {
         const { data: newPub, error } = await supabase
           .from('publications')
@@ -208,14 +208,14 @@ export default function Dashboard() {
           ]);
         }
 
-        toast({ title: 'Paper added ✨' });
+        toast({ title: 'paper_added ✨' });
       }
 
       setEditingPublication(null);
     } catch (error: any) {
       console.error('Error saving publication:', error);
       toast({
-        title: 'Error saving paper',
+        title: 'error_saving_paper',
         description: error.message,
         variant: 'destructive',
       });
@@ -294,7 +294,7 @@ export default function Dashboard() {
         }
       }
 
-      toast({ title: `Added to ${vaultIds.length} vault${vaultIds.length > 1 ? 's' : ''} ✨` });
+      toast({ title: `added_to_${vaultIds.length}_vault${vaultIds.length > 1 ? 's' : ''} ✨` });
     } catch (error: any) {
       console.error('Error adding to vaults:', error);
       toast({
@@ -323,13 +323,13 @@ export default function Dashboard() {
 
       if (error) throw error;
 
-      toast({ title: 'Paper deleted' });
+      toast({ title: 'paper_deleted' });
     } catch (error: any) {
       console.error('Error deleting publication:', error);
       // Revert on error
       fetchData();
       toast({
-        title: 'Error deleting paper',
+        title: 'error_deleting_paper',
         description: error.message,
         variant: 'destructive',
       });
@@ -352,7 +352,7 @@ export default function Dashboard() {
 
       if (pubs && pubs.length > 0) {
         toast({
-          title: 'Cannot delete vault',
+          title: 'cannot_delete_vault',
           description: `This vault contains ${pubs.length} paper${pubs.length > 1 ? 's' : ''}. Remove them first.`,
           variant: 'destructive',
         });
@@ -368,7 +368,7 @@ export default function Dashboard() {
 
       if (forks && forks.length > 0) {
         toast({
-          title: 'Cannot delete vault',
+          title: 'cannot_delete_vault',
           description: `This vault has ${forks.length} fork${forks.length > 1 ? 's' : ''}. Public vaults with forks cannot be deleted.`,
           variant: 'destructive',
         });
@@ -401,14 +401,14 @@ export default function Dashboard() {
 
       if (error) throw error;
 
-      toast({ title: 'Vault deleted' });
+      toast({ title: 'vault_deleted' });
       setIsVaultDialogOpen(false);
     } catch (error: any) {
       console.error('Error deleting vault:', error);
       // Revert on error
       fetchData();
       toast({
-        title: 'Error deleting vault',
+        title: 'error_deleting_vault',
         description: error.message,
         variant: 'destructive',
       });
@@ -445,7 +445,7 @@ export default function Dashboard() {
     } catch (error: any) {
       console.error('Error creating tag:', error);
       toast({
-        title: 'Error creating tag',
+        title: 'error_creating_tag',
         description: error.message,
         variant: 'destructive',
       });
@@ -472,7 +472,7 @@ export default function Dashboard() {
           v.id === editingVault.id ? { ...v, ...updatedVault } as Vault : v
         ));
         
-        toast({ title: 'Vault updated ✨' });
+        toast({ title: 'vault_updated ✨' });
       } else {
         const { data: newVault, error } = await supabase
           .from('vaults')
@@ -487,14 +487,14 @@ export default function Dashboard() {
           setVaults(prev => [...prev, newVault as Vault].sort((a, b) => a.name.localeCompare(b.name)));
         }
         
-        toast({ title: 'Vault created ✨' });
+        toast({ title: 'vault_created ✨' });
       }
 
       setEditingVault(null);
     } catch (error: any) {
       console.error('Error saving vault:', error);
       toast({
-        title: 'Error saving vault',
+        title: 'error_adding_to_vaults',
         description: error.message,
         variant: 'destructive',
       });
@@ -632,15 +632,15 @@ export default function Dashboard() {
       <AlertDialog open={!!deleteConfirmation} onOpenChange={() => setDeleteConfirmation(null)}>
         <AlertDialogContent className="border-2 bg-card/95 backdrop-blur-xl">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-bold">Delete paper?</AlertDialogTitle>
+            <AlertDialogTitle className="text-xl font-bold font-mono">delete_paper?</AlertDialogTitle>
             <AlertDialogDescription className="font-mono text-sm">
-              // this will permanently delete "{deleteConfirmation?.title}"
+              // this_will_permanently_delete "{deleteConfirmation?.title}"
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeletePublication} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete
+            <AlertDialogCancel className="font-mono">cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeletePublication} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono">
+              delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -649,17 +649,17 @@ export default function Dashboard() {
       <AlertDialog open={!!deleteVaultConfirmation} onOpenChange={() => setDeleteVaultConfirmation(null)}>
         <AlertDialogContent className="border-2 bg-card/95 backdrop-blur-xl">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-bold">Delete vault?</AlertDialogTitle>
+            <AlertDialogTitle className="text-xl font-bold font-mono">delete_vault?</AlertDialogTitle>
             <AlertDialogDescription className="font-mono text-sm">
-              // this will permanently delete "{deleteVaultConfirmation?.name}"
+              // this_will_permanently_delete "{deleteVaultConfirmation?.name}"
               <br />
-              // make sure the vault is empty first
+              // make_sure_the_vault_is_empty_first
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteVault} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete
+            <AlertDialogCancel className="font-mono">cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteVault} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono">
+              delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

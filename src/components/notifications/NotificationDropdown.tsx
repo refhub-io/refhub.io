@@ -83,16 +83,16 @@ export function NotificationDropdown() {
         sideOffset={8}
       >
         <div className="flex items-center justify-between p-3 border-b border-border">
-          <h4 className="font-semibold">Notifications</h4>
+          <h4 className="font-semibold font-mono">notifications</h4>
           {unreadCount > 0 && (
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 text-xs gap-1"
+              className="h-7 text-xs gap-1 font-mono"
               onClick={markAllAsRead}
             >
               <CheckCheck className="w-3.5 h-3.5" />
-              Mark all read
+              mark_all_read
             </Button>
           )}
         </div>

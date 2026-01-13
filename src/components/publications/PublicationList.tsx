@@ -143,10 +143,10 @@ export function PublicationList({
                   style={{ backgroundColor: selectedVault.color }}
                 />
               )}
-              <h1 className="text-2xl lg:text-3xl font-bold truncate">
+              <h1 className="text-2xl lg:text-3xl font-bold truncate font-mono">
                 {selectedVault ? selectedVault.name : (
                   <>
-                    <span className="text-gradient">All Papers</span>
+                    <span className="text-gradient">all_papers</span>
                   </>
                 )}
               </h1>
@@ -184,14 +184,14 @@ export function PublicationList({
             <Network className="w-4 h-4" />
           </Button>
 
-          <Button onClick={onImportPublications} variant="outline" className="shrink-0">
+          <Button onClick={onImportPublications} variant="outline" className="shrink-0 font-mono">
             <Upload className="w-4 h-4 lg:mr-2" />
-            <span className="hidden lg:inline">Import</span>
+            <span className="hidden lg:inline">import</span>
           </Button>
 
-          <Button onClick={onAddPublication} variant="glow" className="shrink-0">
+          <Button onClick={onAddPublication} variant="glow" className="shrink-0 font-mono">
             <Plus className="w-4 h-4 lg:mr-2" />
-            <span className="hidden lg:inline">Add Paper</span>
+            <span className="hidden lg:inline">add_paper</span>
           </Button>
         </div>
 
@@ -202,7 +202,7 @@ export function PublicationList({
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search papers..."
+              placeholder="search_papers..."
               className="pl-11 font-mono"
             />
             <div className="absolute right-3 top-1/2 -translate-y-1/2 hidden lg:flex items-center gap-1 text-xs text-muted-foreground border border-border rounded-md px-1.5 py-0.5">
@@ -250,7 +250,7 @@ export function PublicationList({
               size="icon"
               className="h-9 w-9"
               onClick={selectAll}
-              title={selectedIds.size === filteredPublications.length ? 'Deselect all' : 'Select all'}
+              title={selectedIds.size === filteredPublications.length ? 'deselect_all' : 'select_all'}
             >
               {selectedIds.size === filteredPublications.length ? (
                 <CheckSquare className="w-4 h-4 text-neon-green" />
@@ -279,18 +279,18 @@ export function PublicationList({
             <div className="w-20 h-20 rounded-3xl bg-gradient-primary flex items-center justify-center mb-6 shadow-lg glow-purple">
               <Sparkles className="w-10 h-10 text-white" />
             </div>
-            <h3 className="text-2xl font-bold mb-2">
-              {searchQuery || filters.length > 0 ? 'No results found' : 'No papers yet'}
+            <h3 className="text-2xl font-bold mb-2 font-mono">
+              {searchQuery || filters.length > 0 ? 'no_results_found' : 'no_papers_yet'}
             </h3>
             <p className="text-muted-foreground max-w-sm mb-8 font-mono text-sm">
               {searchQuery || filters.length > 0
-                ? '// try adjusting your search or filters'
-                : '// add your first paper to start building your library'}
+                ? '// try_adjusting_your_search_or_filters'
+                : '// add_your_first_paper_to_start_building_your_library'}
             </p>
             {!searchQuery && filters.length === 0 && (
-              <Button onClick={onAddPublication} variant="glow">
+              <Button onClick={onAddPublication} variant="glow" className="font-mono">
                 <Plus className="w-4 h-4 mr-2" />
-                Add Your First Paper
+                add_your_first_paper
               </Button>
             )}
           </div>

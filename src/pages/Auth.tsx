@@ -81,7 +81,7 @@ export default function Auth() {
     if (isSignUp) {
       if (password.length < 8) {
         toast({
-          title: 'Weak password',
+          title: 'weak_password',
           description: 'Password must be at least 8 characters long.',
           variant: 'destructive',
         });
@@ -89,7 +89,7 @@ export default function Auth() {
       }
       if (passwordStrength.score < 3) {
         toast({
-          title: 'Weak password',
+          title: 'weak_password',
           description: 'Please create a stronger password with a mix of uppercase, lowercase, numbers, and special characters.',
           variant: 'destructive',
         });
@@ -105,7 +105,7 @@ export default function Auth() {
         if (error) {
           if (error.message.includes('already registered')) {
             toast({
-              title: 'Account exists',
+              title: 'account_exists',
               description: 'This email is already registered. Please sign in instead.',
               variant: 'destructive',
             });
@@ -114,7 +114,7 @@ export default function Auth() {
           }
         } else {
           toast({
-            title: 'Welcome to refhub.io!',
+            title: 'welcome_to_refhub.io!',
             description: 'Your account has been created successfully.',
           });
           navigate('/');
@@ -123,7 +123,7 @@ export default function Auth() {
         const { error } = await signIn(email, password);
         if (error) {
           toast({
-            title: 'Sign in failed',
+            title: 'sign_in_failed',
             description: 'Invalid email or password. Please try again.',
             variant: 'destructive',
           });
@@ -133,7 +133,7 @@ export default function Auth() {
       }
     } catch (error: any) {
       toast({
-        title: 'Error',
+        title: 'error',
         description: error.message || 'An unexpected error occurred.',
         variant: 'destructive',
       });
@@ -275,7 +275,7 @@ export default function Auth() {
                           "font-mono",
                           passwordStrength.checks.minLength ? "text-green-500" : "text-muted-foreground"
                         )}>
-                          at least 8 characters
+                          at_least_8_characters
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -288,7 +288,7 @@ export default function Auth() {
                           "font-mono",
                           passwordStrength.checks.hasUpperCase ? "text-green-500" : "text-muted-foreground"
                         )}>
-                          uppercase letter (A-Z)
+                          uppercase_letter_(a-z)
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -301,7 +301,7 @@ export default function Auth() {
                           "font-mono",
                           passwordStrength.checks.hasLowerCase ? "text-green-500" : "text-muted-foreground"
                         )}>
-                          lowercase letter (a-z)
+                          lowercase_letter_(a-z)
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -314,7 +314,7 @@ export default function Auth() {
                           "font-mono",
                           passwordStrength.checks.hasNumber ? "text-green-500" : "text-muted-foreground"
                         )}>
-                          number (0-9)
+                          number_(0-9)
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -327,7 +327,7 @@ export default function Auth() {
                           "font-mono",
                           passwordStrength.checks.hasSpecialChar ? "text-green-500" : "text-muted-foreground"
                         )}>
-                          special character (!@#$...)
+                          special_character_(!@#$...)
                         </span>
                       </div>
                     </div>

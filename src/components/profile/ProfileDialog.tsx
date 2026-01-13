@@ -36,7 +36,7 @@ import { useProfile, Profile } from '@/hooks/useProfile';
 import { useAuth } from '@/hooks/useAuth';
 
 const profileSchema = z.object({
-  display_name: z.string().min(1, 'Display name is required').max(100),
+  display_name: z.string().min(1, 'display_name_required').max(100),
   username: z
     .string()
     .min(3, 'Username must be at least 3 characters')
@@ -173,7 +173,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-full h-full sm:h-auto sm:w-[95vw] sm:max-w-xl sm:max-h-[90vh] border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4">
-          <DialogTitle className="text-2xl font-bold">Edit Profile</DialogTitle>
+          <DialogTitle className="text-2xl font-bold font-mono">edit_profile</DialogTitle>
         </DialogHeader>
 
         <Form {...form}>
@@ -192,19 +192,19 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
                 name="avatar_url"
                 render={({ field }) => (
                   <FormItem className="flex-1">
-                    <FormLabel className="flex items-center gap-2">
+                    <FormLabel className="flex items-center gap-2 font-mono">
                       <Camera className="w-4 h-4" />
-                      Avatar URL
+                      avatar_url
                     </FormLabel>
                     <FormControl>
                       <Input
                         placeholder="https://example.com/avatar.jpg"
                         {...field}
-                        className="border-2 focus:border-primary"
+                        className="border-2 focus:border-primary font-mono"
                       />
                     </FormControl>
-                    <FormDescription className="text-xs">
-                      Leave empty for a generated avatar
+                    <FormDescription className="text-xs font-mono">
+                      // leave_empty_for_generated_avatar
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -218,15 +218,15 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
               name="display_name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="flex items-center gap-2">
+                  <FormLabel className="flex items-center gap-2 font-mono">
                     <User className="w-4 h-4" />
-                    Display Name
+                    display_name
                   </FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="Your name"
+                      placeholder="your_name"
                       {...field}
-                      className="border-2 focus:border-primary"
+                      className="border-2 focus:border-primary font-mono"
                     />
                   </FormControl>
                   <FormMessage />
@@ -240,9 +240,9 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
               name="username"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="flex items-center gap-2">
+                  <FormLabel className="flex items-center gap-2 font-mono">
                     <AtSign className="w-4 h-4" />
-                    Username
+                    username
                   </FormLabel>
                   <FormControl>
                     <div className="relative">
@@ -255,15 +255,15 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
                         className="border-2 focus:border-primary pl-8"
                       />
                       {usernameStatus !== 'idle' && (
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs">
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono">
                           {usernameStatus === 'checking' && (
-                            <span className="text-muted-foreground">Checking...</span>
+                            <span className="text-muted-foreground">checking...</span>
                           )}
                           {usernameStatus === 'available' && (
-                            <span className="text-green-500">Available</span>
+                            <span className="text-green-500">available</span>
                           )}
                           {usernameStatus === 'taken' && (
-                            <span className="text-destructive">Taken</span>
+                            <span className="text-destructive">taken</span>
                           )}
                         </span>
                       )}
@@ -283,15 +283,15 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
               name="bio"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="flex items-center gap-2">
+                  <FormLabel className="flex items-center gap-2 font-mono">
                     <FileText className="w-4 h-4" />
-                    Bio
+                    bio
                   </FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="A few words about yourself..."
+                      placeholder="few_words_about_yourself..."
                       {...field}
-                      className="border-2 focus:border-primary resize-none"
+                      className="border-2 focus:border-primary resize-none font-mono"
                       rows={3}
                     />
                   </FormControl>
@@ -302,8 +302,8 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
 
             {/* Social Links */}
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-                Socials
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider font-mono">
+                socials
               </h3>
 
               <FormField
@@ -311,9 +311,9 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
                 name="github_url"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="flex items-center gap-2 text-sm">
+                    <FormLabel className="flex items-center gap-2 text-sm font-mono">
                       <Github className="w-4 h-4" />
-                      GitHub
+                      github
                     </FormLabel>
                     <FormControl>
                       <Input
@@ -332,9 +332,9 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
                 name="linkedin_url"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="flex items-center gap-2 text-sm">
+                    <FormLabel className="flex items-center gap-2 text-sm font-mono">
                       <Linkedin className="w-4 h-4" />
-                      LinkedIn
+                      linkedin
                     </FormLabel>
                     <FormControl>
                       <Input
@@ -353,11 +353,11 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
                 name="bluesky_url"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="flex items-center gap-2 text-sm">
+                    <FormLabel className="flex items-center gap-2 text-sm font-mono">
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M12 2C6.477 2 2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.879V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.989C18.343 21.129 22 16.99 22 12c0-5.523-4.477-10-10-10z" />
                       </svg>
-                      Bluesky
+                      bluesky
                     </FormLabel>
                     <FormControl>
                       <Input
@@ -378,26 +378,26 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
                 type="button"
                 variant="ghost"
                 onClick={() => setShowDeleteConfirm(true)}
-                className="text-destructive hover:text-destructive hover:bg-destructive/10 w-full sm:w-auto"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10 w-full sm:w-auto font-mono"
               >
                 <Trash2 className="w-4 h-4 mr-2" />
-                Delete Account
+                delete_account
               </Button>
               <div className="flex flex-col-reverse sm:flex-row gap-3 w-full sm:w-auto">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => onOpenChange(false)}
-                  className="border-2 w-full sm:w-auto"
+                  className="border-2 w-full sm:w-auto font-mono"
                 >
-                  Cancel
+                  cancel
                 </Button>
                 <Button
                   type="submit"
                   disabled={isSubmitting || usernameStatus === 'taken'}
-                  className="bg-gradient-primary hover:opacity-90 w-full sm:w-auto"
+                  className="bg-gradient-primary hover:opacity-90 w-full sm:w-auto font-mono"
                 >
-                  {isSubmitting ? 'Saving...' : 'Save Profile'}
+                  {isSubmitting ? 'saving...' : 'save_profile'}
                 </Button>
               </div>
             </div>
@@ -408,23 +408,23 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <AlertDialogContent className="border-2 bg-card/95 backdrop-blur-xl">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-bold text-destructive">
-              Delete Account?
+            <AlertDialogTitle className="text-xl font-bold text-destructive font-mono">
+              delete_account?
             </AlertDialogTitle>
             <AlertDialogDescription className="font-mono text-sm space-y-2">
-              <p>// this will permanently delete your account</p>
-              <p>// all your vaults, papers, and data will be lost</p>
-              <p className="text-destructive font-semibold">// this action cannot be undone</p>
+              <p>// this_will_permanently_delete_your_account</p>
+              <p>// all_your_vaults_papers_and_data_will_be_lost</p>
+              <p className="text-destructive font-semibold">// this_action_cannot_be_undone</p>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting} className="font-mono">cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteAccount}
               disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono"
             >
-              {isDeleting ? 'Deleting...' : 'Delete Account'}
+              {isDeleting ? 'deleting...' : 'delete_account'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -87,10 +87,10 @@ export function ImportDialog({
       setSelectedIndices(new Set([...selectedIndices, parsedPublications.length]));
       setDoiInput('');
       
-      toast({ title: 'DOI resolved ✨', description: metadata.title });
+      toast({ title: 'doi_resolved ✨', description: metadata.title });
     } catch (error: any) {
       toast({
-        title: 'DOI lookup failed',
+        title: 'doi_lookup_failed',
         description: error.message || 'Could not resolve DOI',
         variant: 'destructive',
       });
@@ -107,7 +107,7 @@ export function ImportDialog({
       
       if (parsed.length === 0) {
         toast({
-          title: 'No entries found',
+          title: 'no_entries_found',
           description: 'Could not parse any BibTeX entries',
           variant: 'destructive',
         });
@@ -123,10 +123,10 @@ export function ImportDialog({
       setSelectedIndices(newIndices);
       
       setBibtexInput('');
-      toast({ title: `Parsed ${parsed.length} entries ✨` });
+      toast({ title: `parsed_${parsed.length}_entries ✨` });
     } catch (error: any) {
       toast({
-        title: 'Parse error',
+        title: 'parse_error',
         description: error.message || 'Could not parse BibTeX',
         variant: 'destructive',
       });
@@ -175,7 +175,7 @@ export function ImportDialog({
     
     if (toImport.length === 0) {
       toast({
-        title: 'No papers selected',
+        title: 'no_papers_selected',
         description: 'Select at least one paper to import',
         variant: 'destructive',
       });
@@ -185,7 +185,7 @@ export function ImportDialog({
     setImporting(true);
     try {
       await onImport(toImport);
-      toast({ title: `Imported ${toImport.length} papers ✨` });
+      toast({ title: `imported_${toImport.length}_papers ✨` });
       
       // Reset state
       setParsedPublications([]);
@@ -195,7 +195,7 @@ export function ImportDialog({
       onOpenChange(false);
     } catch (error: any) {
       toast({
-        title: 'Import failed',
+        title: 'import_failed',
         description: error.message,
         variant: 'destructive',
       });
@@ -255,7 +255,7 @@ export function ImportDialog({
 
             <TabsContent value="doi" className="space-y-4">
               <div className="space-y-2">
-                <Label className="font-semibold">Enter DOI</Label>
+                <Label className="font-semibold font-mono">enter_doi</Label>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <Input
                     value={doiInput}
@@ -273,12 +273,12 @@ export function ImportDialog({
                     onClick={handleDOILookup} 
                     disabled={doiLoading || !doiInput.trim()}
                     variant="glow"
-                    className="w-full sm:w-auto"
+                    className="w-full sm:w-auto font-mono"
                   >
                     {doiLoading ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
-                      'Lookup'
+                      'lookup'
                     )}
                   </Button>
                 </div>
@@ -291,15 +291,15 @@ export function ImportDialog({
             <TabsContent value="bibtex" className="space-y-4">
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
-                  <Label className="font-semibold">BibTeX Content</Label>
+                  <Label className="font-semibold font-mono">bibtex_content</Label>
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    className="gap-2 text-xs sm:text-sm"
+                    className="gap-2 text-xs sm:text-sm font-mono"
                     onClick={() => document.getElementById('bib-file-input')?.click()}
                   >
                     <Upload className="w-4 h-4" />
-                    <span className="hidden sm:inline">Upload</span> .bib
+                    <span className="hidden sm:inline">upload</span> .bib
                   </Button>
                   <input
                     id="bib-file-input"
@@ -325,9 +325,9 @@ export function ImportDialog({
                   onClick={handleBibtexParse} 
                   disabled={!bibtexInput.trim()}
                   variant="glow"
-                  className="w-full"
+                  className="w-full font-mono"
                 >
-                  Parse BibTeX
+                  parse_bibtex
                 </Button>
               </div>
             </TabsContent>
@@ -337,15 +337,15 @@ export function ImportDialog({
           {parsedPublications.length > 0 && (
             <div className="px-4 sm:px-6 pb-6 space-y-4">
               <div className="flex items-center justify-between gap-2">
-                <Label className="font-semibold text-sm">
-                  Parsed ({selectedIndices.size}/{parsedPublications.length})
+                <Label className="font-semibold text-sm font-mono">
+                  parsed ({selectedIndices.size}/{parsedPublications.length})
                 </Label>
                 <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" onClick={selectAll} className="text-xs px-2">
-                    All
+                  <Button variant="ghost" size="sm" onClick={selectAll} className="text-xs px-2 font-mono">
+                    all
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={selectNone} className="text-xs px-2">
-                    None
+                  <Button variant="ghost" size="sm" onClick={selectNone} className="text-xs px-2 font-mono">
+                    none
                   </Button>
                 </div>
               </div>
@@ -391,16 +391,16 @@ export function ImportDialog({
 
               {/* Import Options */}
               <div className="space-y-2">
-                <Label className="font-semibold text-sm">Import to Vault</Label>
+                <Label className="font-semibold text-sm font-mono">import_to_vault</Label>
                 <Select
                   value={targetVaultId || 'none'}
                   onValueChange={(value) => setTargetVaultId(value === 'none' ? null : value)}
                 >
                   <SelectTrigger className="text-sm">
-                    <SelectValue placeholder="Select a vault" />
+                    <SelectValue placeholder="select_vault" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">No vault</SelectItem>
+                    <SelectItem value="none">no_vault</SelectItem>
                     {vaults.map((vault) => (
                       <SelectItem key={vault.id} value={vault.id}>
                         <div className="flex items-center gap-2">
@@ -418,22 +418,22 @@ export function ImportDialog({
 
               {/* Import Button */}
               <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t-2 border-border">
-                <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
-                  Cancel
+                <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto font-mono">
+                  cancel
                 </Button>
                 <Button 
                   variant="glow" 
                   onClick={handleImport}
                   disabled={importing || selectedIndices.size === 0}
-                  className="w-full sm:w-auto"
+                  className="w-full sm:w-auto font-mono"
                 >
                   {importing ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Importing...
+                      importing...
                     </>
                   ) : (
-                    `Import ${selectedIndices.size} Paper${selectedIndices.size !== 1 ? 's' : ''}`
+                    `import_${selectedIndices.size}_paper${selectedIndices.size !== 1 ? 's' : ''}`
                   )}
                 </Button>
               </div>

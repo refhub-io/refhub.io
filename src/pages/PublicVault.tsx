@@ -148,19 +148,19 @@ export default function PublicVault() {
     
     const content = exportMultipleToBibtex(filteredPublications);
     downloadBibtex(content, `${vault.name || 'references'}.bib`);
-    toast({ title: `Exported ${filteredPublications.length} references 📄` });
+    toast({ title: `exported_${filteredPublications.length}_references 📄` });
   };
 
   const handleExportSingle = (pub: Publication) => {
     const content = publicationToBibtex(pub);
     downloadBibtex(content, `${pub.bibtex_key || 'reference'}.bib`);
-    toast({ title: 'Reference exported 📄' });
+    toast({ title: 'reference_exported 📄' });
   };
 
   const handleFavorite = async () => {
     if (!user) {
       toast({
-        title: 'Sign in required',
+        title: 'sign_in_required',
         description: 'Please sign in to favorite this vault.',
         variant: 'destructive',
       });
@@ -171,7 +171,7 @@ export default function PublicVault() {
     const success = await toggleFavorite(vault.id);
     if (success) {
       toast({
-        title: isFavorite(vault.id) ? 'Removed from favorites' : 'Added to favorites ❤️',
+        title: isFavorite(vault.id) ? 'removed_from_favorites' : 'added_to_favorites ❤️',
       });
     }
   };
@@ -179,7 +179,7 @@ export default function PublicVault() {
   const handleFork = async () => {
     if (!user) {
       toast({
-        title: 'Sign in required',
+        title: 'sign_in_required',
         description: 'Please sign in to fork this vault.',
         variant: 'destructive',
       });
@@ -217,15 +217,15 @@ export default function PublicVault() {
             <Globe className="w-10 h-10 text-muted-foreground" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold mb-2">Vault Not Found</h1>
+            <h1 className="text-2xl font-bold mb-2 font-mono">vault_not_found</h1>
             <p className="text-muted-foreground font-mono text-sm">
-              // this vault doesn't exist or isn't public
+              // this_vault_doesnt_exist_or_isnt_public
             </p>
           </div>
           <Link to="/">
-            <Button variant="glow">
+            <Button variant="glow" className="font-mono">
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Go Home
+              back_to_home
             </Button>
           </Link>
         </div>
@@ -247,9 +247,9 @@ export default function PublicVault() {
               <span className="text-foreground/60">.io</span>
             </span>
           </Link>
-          <Badge variant="neon" className="gap-1">
+          <Badge variant="neon" className="gap-1 font-mono">
             <Globe className="w-3 h-3" />
-            Public Vault
+            public_vault
           </Badge>
         </div>
       </header>
@@ -284,21 +284,22 @@ export default function PublicVault() {
                 size="sm"
                 onClick={handleFavorite}
                 disabled={isOwner}
-                className={vault && isFavorite(vault.id) ? 'text-rose-500 border-rose-500/30' : ''}
-                title={isOwner ? 'You own this vault' : undefined}
+                className={`font-mono ${vault && isFavorite(vault.id) ? 'text-rose-500 border-rose-500/30' : ''}`}
+                title={isOwner ? 'you_own_this_vault' : undefined}
               >
                 <Heart className={`w-4 h-4 mr-1.5 ${vault && isFavorite(vault.id) ? 'fill-rose-500' : ''}`} />
-                {vault && isFavorite(vault.id) ? 'Favorited' : 'Favorite'}
+                {vault && isFavorite(vault.id) ? 'favorited' : 'favorite'}
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleFork}
                 disabled={forking || isOwner}
-                title={isOwner ? 'You own this vault' : undefined}
+                title={isOwner ? 'you_own_this_vault' : undefined}
+                className="font-mono"
               >
                 <GitFork className="w-4 h-4 mr-1.5" />
-                {forking ? 'Forking...' : 'Fork'}
+                {forking ? 'forking...' : 'fork'}
               </Button>
             </div>
           </div>
@@ -314,17 +315,18 @@ export default function PublicVault() {
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search papers..."
-              className="pl-10"
+              placeholder="search_papers..."
+              className="pl-10 font-mono"
             />
           </div>
           <Button 
             variant="outline" 
             onClick={handleExportAll}
             disabled={filteredPublications.length === 0}
+            className="font-mono"
           >
             <Download className="w-4 h-4 mr-2" />
-            Export All BibTeX
+            export_all_bibtex
           </Button>
         </div>
 

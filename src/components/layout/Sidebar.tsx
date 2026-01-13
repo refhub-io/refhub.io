@@ -144,7 +144,7 @@ export function Sidebar({
             >
               <span className="flex items-center gap-2">
                 <FolderOpen className="w-3.5 h-3.5" />
-                vaults
+                my_vaults
               </span>
               {isVaultsExpanded ? (
                 <ChevronDown className="w-3.5 h-3.5" />
