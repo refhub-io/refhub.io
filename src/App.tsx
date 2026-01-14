@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import PublicVault from "./pages/PublicVault";
 import TheCodex from "./pages/TheCodex";
+import SharedVault from "./pages/SharedVault";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,6 +34,7 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/codex" element={<TheCodex />} />
             <Route path="/public/:slug" element={<PublicVault />} />
+            <Route path="/vault/:id" element={<SharedVault />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

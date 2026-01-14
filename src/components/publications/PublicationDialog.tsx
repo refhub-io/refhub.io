@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Publication, Vault, Tag, PUBLICATION_TYPES } from '@/types/database';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
   Dialog,
   DialogContent,
@@ -10,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -73,6 +76,7 @@ export function PublicationDialog({
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [authorsInput, setAuthorsInput] = useState('');
   const [saving, setSaving] = useState(false);
+  const [notesTab, setNotesTab] = useState<'write' | 'preview'>('write');
 
   useEffect(() => {
     if (publication) {
@@ -352,14 +356,35 @@ export function PublicationDialog({
             {/* Notes */}
             <div className="space-y-2">
               <Label htmlFor="notes" className="font-semibold font-mono">notes <span className="text-muted-foreground font-mono text-xs">(markdown_supported)</span></Label>
-              <Textarea
-                id="notes"
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                placeholder="// your_personal_notes..."
-                rows={3}
-                className="font-mono text-sm"
-              />
+              <Tabs value={notesTab} onValueChange={(v) => setNotesTab(v as 'write' | 'preview')} className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="write" className="font-mono text-xs">write</TabsTrigger>
+                  <TabsTrigger value="preview" className="font-mono text-xs">preview</TabsTrigger>
+                </TabsList>
+                <TabsContent value="write" className="mt-2">
+                  <Textarea
+                    id="notes"
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    placeholder="// your_personal_notes...\n\n**Bold text**, *italic*, `code`, [links](url)\n\n- bullet points\n- supported"
+                    rows={6}
+                    className="font-mono text-sm"
+                  />
+                </TabsContent>
+                <TabsContent value="preview" className="mt-2">
+                  <div className="min-h-[150px] p-4 rounded-md border border-input bg-muted/30">
+                    {formData.notes ? (
+                      <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {formData.notes}
+                        </ReactMarkdown>
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground text-sm font-mono">// no_notes_yet</p>
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
             </div>
 
             {/* BibTeX Key */}

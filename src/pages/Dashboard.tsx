@@ -523,7 +523,8 @@ export default function Dashboard() {
     setIsExportDialogOpen(true);
   };
 
-  if (authLoading || (loading && isInitialLoad)) {
+  // Only show full loading screen on auth loading, not on data loading
+  if (authLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">

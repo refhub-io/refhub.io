@@ -3,6 +3,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { VisibleColumns } from './ViewSettings';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { useState } from 'react';
 import { 
   FileText, 
   ExternalLink, 
@@ -11,7 +14,8 @@ import {
   Trash2, 
   Download,
   StickyNote,
-  Link2
+  Link2,
+  ChevronDown
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -50,6 +54,8 @@ export function PublicationCard({
   onDelete,
   onExportBibtex,
 }: PublicationCardProps) {
+  const [notesExpanded, setNotesExpanded] = useState(false);
+  
   const formatAuthors = (authors: string[]) => {
     if (authors.length === 0) return 'Unknown author';
     if (authors.length === 1) return authors[0];
@@ -193,9 +199,17 @@ export function PublicationCard({
                   </div>
                 )}
                 {show.notes && publication.notes && (
-                  <div className="text-neon-orange" title="Has notes">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setNotesExpanded(!notesExpanded);
+                    }}
+                    className="flex items-center gap-1 text-neon-orange hover:text-neon-orange/80 transition-colors"
+                    title="Toggle notes preview"
+                  >
                     <StickyNote className="w-4 h-4" />
-                  </div>
+                    <ChevronDown className={cn("w-3 h-3 transition-transform", notesExpanded && "rotate-180")} />
+                  </button>
                 )}
                 {show.pdf && publication.pdf_url && (
                   <a
@@ -223,6 +237,21 @@ export function PublicationCard({
                 )}
               </div>
             </div>
+
+            {/* Collapsible Notes Preview */}
+            {show.notes && publication.notes && notesExpanded && (
+              <div className="mt-4 pt-4 border-t border-border/50" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-2 mb-2">
+                  <StickyNote className="w-3.5 h-3.5 text-neon-orange" />
+                  <span className="text-xs font-mono text-muted-foreground">// notes</span>
+                </div>
+                <div className="prose prose-sm dark:prose-invert max-w-none p-3 rounded-md bg-muted/30 border border-border/50">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {publication.notes}
+                  </ReactMarkdown>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </CardContent>

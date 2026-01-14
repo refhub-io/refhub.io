@@ -90,7 +90,7 @@ CREATE TABLE public.vault_shares (
   shared_with_email TEXT,
   shared_with_user_id UUID REFERENCES auth.users(id),
   shared_by UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  permission TEXT DEFAULT 'read',
+  permission TEXT DEFAULT 'viewer' CHECK (permission IN ('viewer', 'editor')),
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
@@ -282,20 +282,47 @@ USING (
   ))
 );
 
-CREATE POLICY "Users can insert own publications" 
+CREATE POLICY "Users can insert own publications or into shared vaults with editor permission" 
 ON public.publications 
 FOR INSERT 
-WITH CHECK (auth.uid() = user_id);
+WITH CHECK (
+  (auth.uid() = user_id) 
+  OR (EXISTS (
+    SELECT 1 FROM vaults
+    JOIN vault_shares ON vault_shares.vault_id = vaults.id
+    WHERE vaults.id = publications.vault_id 
+    AND (vault_shares.shared_with_email = auth.email() OR vault_shares.shared_with_user_id = auth.uid())
+    AND vault_shares.permission = 'editor'
+  ))
+);
 
-CREATE POLICY "Users can update own publications" 
+CREATE POLICY "Users can update own publications or shared vaults with editor permission" 
 ON public.publications 
 FOR UPDATE 
-USING (auth.uid() = user_id);
+USING (
+  (auth.uid() = user_id) 
+  OR (EXISTS (
+    SELECT 1 FROM vaults
+    JOIN vault_shares ON vault_shares.vault_id = vaults.id
+    WHERE vaults.id = publications.vault_id 
+    AND (vault_shares.shared_with_email = auth.email() OR vault_shares.shared_with_user_id = auth.uid())
+    AND vault_shares.permission = 'editor'
+  ))
+);
 
-CREATE POLICY "Users can delete own publications" 
+CREATE POLICY "Users can delete own publications or from shared vaults with editor permission" 
 ON public.publications 
 FOR DELETE 
-USING (auth.uid() = user_id);
+USING (
+  (auth.uid() = user_id) 
+  OR (EXISTS (
+    SELECT 1 FROM vaults
+    JOIN vault_shares ON vault_shares.vault_id = vaults.id
+    WHERE vaults.id = publications.vault_id 
+    AND (vault_shares.shared_with_email = auth.email() OR vault_shares.shared_with_user_id = auth.uid())
+    AND vault_shares.permission = 'editor'
+  ))
+);
 
 -- ============================================================================
 -- RLS POLICIES - TAGS
@@ -366,15 +393,45 @@ USING (
   )
 );
 
-CREATE POLICY "Users can insert own publication tags" 
+CREATE POLICY "Users can insert publication tags for own publications or shared vaults with editor permission" 
 ON public.publication_tags 
 FOR INSERT 
-WITH CHECK (EXISTS (SELECT 1 FROM public.publications WHERE id = publication_id AND user_id = auth.uid()));
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM public.publications 
+    WHERE id = publication_id 
+    AND (
+      user_id = auth.uid()
+      OR EXISTS (
+        SELECT 1 FROM vaults
+        JOIN vault_shares ON vault_shares.vault_id = vaults.id
+        WHERE vaults.id = publications.vault_id 
+        AND (vault_shares.shared_with_email = auth.email() OR vault_shares.shared_with_user_id = auth.uid())
+        AND vault_shares.permission = 'editor'
+      )
+    )
+  )
+);
 
-CREATE POLICY "Users can delete own publication tags" 
+CREATE POLICY "Users can delete publication tags from own publications or shared vaults with editor permission" 
 ON public.publication_tags 
 FOR DELETE 
-USING (EXISTS (SELECT 1 FROM public.publications WHERE id = publication_id AND user_id = auth.uid()));
+USING (
+  EXISTS (
+    SELECT 1 FROM public.publications 
+    WHERE id = publication_id 
+    AND (
+      user_id = auth.uid()
+      OR EXISTS (
+        SELECT 1 FROM vaults
+        JOIN vault_shares ON vault_shares.vault_id = vaults.id
+        WHERE vaults.id = publications.vault_id 
+        AND (vault_shares.shared_with_email = auth.email() OR vault_shares.shared_with_user_id = auth.uid())
+        AND vault_shares.permission = 'editor'
+      )
+    )
+  )
+);
 
 -- ============================================================================
 -- RLS POLICIES - VAULT_SHARES
@@ -393,6 +450,12 @@ CREATE POLICY "Users can share own vaults"
 ON public.vault_shares 
 FOR INSERT 
 WITH CHECK (EXISTS (SELECT 1 FROM public.vaults WHERE id = vault_id AND user_id = auth.uid()));
+
+CREATE POLICY "Users can update shares for own vaults"
+ON public.vault_shares
+FOR UPDATE
+USING (shared_by = auth.uid())
+WITH CHECK (shared_by = auth.uid());
 
 CREATE POLICY "Users can delete shares from own vaults" 
 ON public.vault_shares 

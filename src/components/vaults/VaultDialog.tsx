@@ -63,6 +63,7 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
   // Sharing state
   const [shares, setShares] = useState<VaultShare[]>([]);
   const [email, setEmail] = useState('');
+  const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('viewer');
   const [publicSlug, setPublicSlug] = useState('');
   const [copied, setCopied] = useState(false);
 
@@ -139,19 +140,30 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
     e.preventDefault();
     if (!vault || !user || !email.trim()) return;
 
+    // Prevent self-sharing
+    if (user.email?.toLowerCase() === email.trim().toLowerCase()) {
+      toast({
+        title: 'Cannot share with yourself',
+        description: 'You already own this vault',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setSaving(true);
     try {
       const { error } = await supabase.from('vault_shares').insert({
         vault_id: vault.id,
         shared_with_email: email.trim().toLowerCase(),
         shared_by: user.id,
-        permission: 'read',
+        permission: sharePermission,
       });
 
       if (error) throw error;
 
       toast({ title: 'user_added ✨' });
       setEmail('');
+      setSharePermission('viewer');
       fetchShares();
       onUpdate?.();
     } catch (error: any) {
@@ -180,6 +192,27 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
     } catch (error: any) {
       toast({
         title: 'error_removing_user',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleUpdatePermission = async (shareId: string, newPermission: string) => {
+    try {
+      const { error } = await supabase
+        .from('vault_shares')
+        .update({ permission: newPermission })
+        .eq('id', shareId);
+
+      if (error) throw error;
+
+      toast({ title: 'permission_updated' });
+      fetchShares();
+      onUpdate?.();
+    } catch (error: any) {
+      toast({
+        title: 'error_updating_permission',
         description: error.message,
         variant: 'destructive',
       });
@@ -357,26 +390,44 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
                 <Label className="font-semibold font-mono">share_with_users</Label>
               </div>
 
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="user@example.com"
-                    className="pl-10 font-mono text-sm"
-                  />
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="user@example.com"
+                      className="pl-10 font-mono text-sm"
+                    />
+                  </div>
+                  <Select value={sharePermission} onValueChange={(value: 'viewer' | 'editor') => setSharePermission(value)}>
+                    <SelectTrigger className="w-[130px] font-mono text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="viewer" className="font-mono text-sm">
+                        👁️ viewer
+                      </SelectItem>
+                      <SelectItem value="editor" className="font-mono text-sm">
+                        ✏️ editor
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={handleShareWithUser}
+                    disabled={saving || !email.trim()}
+                    className="font-mono"
+                  >
+                    add
+                  </Button>
                 </div>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={handleShareWithUser}
-                  disabled={saving || !email.trim()}
-                  className="font-mono"
-                >
-                  add
-                </Button>
+                <p className="text-xs text-muted-foreground font-mono">
+                  // {sharePermission === 'viewer' ? 'can_view_publications' : 'can_view_and_edit_publications'}
+                </p>
               </div>
 
               {shares.length > 0 && (
@@ -391,19 +442,34 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
                           {share.shared_with_email.charAt(0).toUpperCase()}
                         </div>
                         <span className="text-sm font-mono">{share.shared_with_email}</span>
-                        <Badge variant="outline" className="text-xs">
-                          {share.permission}
-                        </Badge>
                       </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleRemoveShare(share.id)}
-                        className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Select
+                          value={share.permission || 'viewer'}
+                          onValueChange={(value) => handleUpdatePermission(share.id, value)}
+                        >
+                          <SelectTrigger className="w-[110px] h-7 font-mono text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="viewer" className="font-mono text-xs">
+                              👁️ viewer
+                            </SelectItem>
+                            <SelectItem value="editor" className="font-mono text-xs">
+                              ✏️ editor
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveShare(share.id)}
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>

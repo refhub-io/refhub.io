@@ -3,21 +3,23 @@ import { Button } from '@/components/ui/button';
 import { useEffect, useState } from 'react';
 
 export function ThemeToggle() {
-  const [isDark, setIsDark] = useState(true);
+  // Initialize state from localStorage to avoid hydration mismatch
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('theme');
+      return stored ? stored === 'dark' : true; // default to dark if no preference
+    }
+    return true;
+  });
 
   useEffect(() => {
-    // Check if user has a preference stored
-    const stored = localStorage.getItem('theme');
-    if (stored) {
-      setIsDark(stored === 'dark');
-      document.documentElement.classList.toggle('dark', stored === 'dark');
-    }
-  }, []);
+    // Apply theme class on mount and when it changes
+    document.documentElement.classList.toggle('dark', isDark);
+  }, [isDark]);
 
   const toggleTheme = () => {
     const newIsDark = !isDark;
     setIsDark(newIsDark);
-    document.documentElement.classList.toggle('dark', newIsDark);
     localStorage.setItem('theme', newIsDark ? 'dark' : 'light');
   };
 

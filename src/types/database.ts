@@ -102,7 +102,7 @@ export interface VaultShare {
   shared_with_email: string | null;
   shared_with_user_id: string | null;
   shared_by: string;
-  permission: string | null;
+  permission: 'viewer' | 'editor' | null;
   created_at: string;
 }
 
