@@ -38,6 +38,13 @@
         if (theme === 'dark') {
           document.documentElement.classList.add('dark');
         }
+        
+        // Handle GitHub Pages 404 redirect
+        const redirect = sessionStorage.getItem('redirect');
+        if (redirect) {
+          sessionStorage.removeItem('redirect');
+          history.replaceState(null, '', redirect);
+        }
       })();
     </script>
   </head>
