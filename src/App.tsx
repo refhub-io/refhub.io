@@ -10,6 +10,7 @@ import NotFound from "./pages/NotFound";
 import PublicVault from "./pages/PublicVault";
 import TheCodex from "./pages/TheCodex";
 import SharedVault from "./pages/SharedVault";
+import OpenGraphPreview from "./pages/OpenGraphPreview";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -35,6 +36,7 @@ const App = () => (
             <Route path="/codex" element={<TheCodex />} />
             <Route path="/public/:slug" element={<PublicVault />} />
             <Route path="/vault/:id" element={<SharedVault />} />
+            <Route path="/opengraphpreview" element={<OpenGraphPreview />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
