@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
+import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
 import PublicVault from "./pages/PublicVault";
 import TheCodex from "./pages/TheCodex";
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/codex" element={<TheCodex />} />
             <Route path="/users" element={<Users />} />
             <Route path="/public/:slug" element={<PublicVault />} />

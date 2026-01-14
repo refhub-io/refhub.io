@@ -108,7 +108,8 @@ export function Sidebar({
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-2 min-h-0">
-          <button
+          <Link
+            to="/dashboard"
             onClick={() => {
               onSelectVault(null);
               onMobileClose();
@@ -127,7 +128,7 @@ export function Sidebar({
               <Zap className={cn("w-4 h-4", selectedVaultId === null && !isCodexActive ? "text-sidebar-primary" : "text-sidebar-foreground/60")} />
             </div>
             <span className="font-mono">all_papers</span>
-          </button>
+          </Link>
 
           <Link
             to="/codex"
