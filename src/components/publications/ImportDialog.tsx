@@ -216,28 +216,28 @@ export function ImportDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-full h-full sm:h-auto sm:w-[95vw] sm:max-w-4xl sm:max-h-[90vh] p-0 border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col">
         <DialogHeader className="p-6 pb-0">
-          <DialogTitle className="text-2xl font-bold">
-            <span>Add <span className="text-gradient">Papers</span></span>
+          <DialogTitle className="text-2xl font-bold font-mono">
+            // add_<span className="text-gradient">papers</span>
           </DialogTitle>
           <DialogDescription className="font-mono text-sm text-muted-foreground">
-            // add from library, DOI, or BibTeX
+            // from_library • doi • bibtex
           </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="flex-1 overflow-auto">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="p-4 sm:p-6 pt-4">
             <TabsList className="grid w-full grid-cols-3 mb-4">
-              <TabsTrigger value="library" className="gap-2 text-xs sm:text-sm">
+              <TabsTrigger value="library" className="gap-2 text-xs sm:text-sm font-mono">
                 <Library className="w-4 h-4" />
-                <span className="hidden sm:inline">Library</span>
+                <span className="hidden sm:inline">library</span>
               </TabsTrigger>
-              <TabsTrigger value="doi" className="gap-2 text-xs sm:text-sm">
+              <TabsTrigger value="doi" className="gap-2 text-xs sm:text-sm font-mono">
                 <Link className="w-4 h-4" />
-                <span className="hidden sm:inline">DOI</span>
+                <span className="hidden sm:inline">doi</span>
               </TabsTrigger>
-              <TabsTrigger value="bibtex" className="gap-2 text-xs sm:text-sm">
+              <TabsTrigger value="bibtex" className="gap-2 text-xs sm:text-sm font-mono">
                 <FileText className="w-4 h-4" />
-                <span className="hidden sm:inline">BibTeX</span>
+                <span className="hidden sm:inline">bibtex</span>
               </TabsTrigger>
             </TabsList>
 

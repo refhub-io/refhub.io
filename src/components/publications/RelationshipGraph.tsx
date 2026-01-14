@@ -175,10 +175,10 @@ export function RelationshipGraph({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl h-[80vh] flex flex-col bg-card/95 backdrop-blur-xl border-2">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold flex items-center gap-2">
-            Paper Relationship Graph
+          <DialogTitle className="text-xl font-bold flex items-center gap-2 font-mono">
+            // paper_relationship_graph
             <Badge variant="outline" className="font-mono text-xs">
-              {graphData.nodes.length} papers • {graphData.links.length} links
+              {graphData.nodes.length}_papers • {graphData.links.length}_links
             </Badge>
           </DialogTitle>
         </DialogHeader>
@@ -191,7 +191,7 @@ export function RelationshipGraph({
                 className="w-3 h-0.5 rounded-full"
                 style={{ backgroundColor: RELATION_COLORS[type.value] }}
               />
-              <span className="text-xs text-muted-foreground">{type.label}</span>
+              <span className="text-xs text-muted-foreground font-mono">{type.label.toLowerCase().replace(/ /g, '_')}</span>
             </div>
           ))}
         </div>
