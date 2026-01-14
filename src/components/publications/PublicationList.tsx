@@ -1,3 +1,4 @@
+import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
 import { useState, useEffect, useRef } from 'react';
 import { Publication, Tag, Vault } from '@/types/database';
 import { PublicationCard } from './PublicationCard';
@@ -12,7 +13,6 @@ import {
   Plus, 
   Search, 
   Download, 
-  Menu, 
   SortAsc,
   CheckSquare,
   Square,
@@ -20,7 +20,8 @@ import {
   Command,
   Upload,
   Network,
-  Settings
+  Settings,
+  MoreVertical
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -140,26 +141,22 @@ export function PublicationList({
   return (
     <div className="flex-1 flex flex-col min-h-0">
       {/* Header */}
-      <header className="bg-card/50 backdrop-blur-xl border-b-2 border-border px-4 lg:px-8 py-5 shrink-0 sticky top-0 z-10">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="lg:hidden shrink-0"
+      <header className="bg-card/50 backdrop-blur-xl border-b-2 border-border px-4 lg:px-8 py-4 shrink-0 sticky top-0 z-10">
+        <div className="flex items-center gap-3">
+          <MobileMenuButton 
             onClick={onMobileMenuOpen}
-          >
-            <Menu className="w-5 h-5" />
-          </Button>
+            className="shrink-0"
+          />
 
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               {selectedVault && (
                 <div 
                   className="w-4 h-4 rounded-md shrink-0 shadow-sm"
                   style={{ backgroundColor: selectedVault.color }}
                 />
               )}
-              <h1 className="text-2xl lg:text-3xl font-bold truncate font-mono">
+              <h1 className="text-lg sm:text-xl lg:text-2xl font-bold truncate font-mono leading-none">
                 {selectedVault ? selectedVault.name : (
                   <>
                     <span className="text-gradient">all_papers</span>
@@ -167,23 +164,10 @@ export function PublicationList({
                 )}
               </h1>
               {selectedVault && (
-                <>
-                  <QRCodeDialog vault={selectedVault} onVaultUpdate={onVaultUpdate} />
-                  {onEditVault && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-primary shrink-0"
-                      onClick={() => onEditVault(selectedVault)}
-                      title="Edit vault settings"
-                    >
-                      <Settings className="w-4 h-4" />
-                    </Button>
-                  )}
-                </>
+                <QRCodeDialog vault={selectedVault} onVaultUpdate={onVaultUpdate} />
               )}
             </div>
-            <p className="text-sm text-muted-foreground mt-1 font-mono">
+            <p className="text-xs text-muted-foreground mt-1 font-mono truncate leading-none">
               {filteredPublications.length} item{filteredPublications.length !== 1 ? 's' : ''}
               {filters.length > 0 && (
                 <span className="text-primary"> • {filters.length} filter{filters.length !== 1 ? 's' : ''}</span>
@@ -194,21 +178,39 @@ export function PublicationList({
             </p>
           </div>
 
-          <NotificationDropdown />
+          <div className="flex items-center gap-2 shrink-0">
+            <NotificationDropdown />
 
-          <Button onClick={onOpenGraph} variant="outline" size="icon" className="shrink-0" title="View relationship graph">
-            <Network className="w-4 h-4" />
-          </Button>
+            {/* Actions Dropdown - Groups Settings, Network Graph, and Import */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" className="h-9 w-9" title="More actions">
+                  <MoreVertical className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="font-mono">
+                <DropdownMenuItem onClick={onOpenGraph}>
+                  <Network className="w-4 h-4 mr-2" />
+                  relationship_graph
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onImportPublications}>
+                  <Upload className="w-4 h-4 mr-2" />
+                  import_bibtex
+                </DropdownMenuItem>
+                {selectedVault && onEditVault && (
+                  <DropdownMenuItem onClick={() => onEditVault(selectedVault)}>
+                    <Settings className="w-4 h-4 mr-2" />
+                    vault_settings
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-          <Button onClick={onImportPublications} variant="outline" className="shrink-0 font-mono">
-            <Upload className="w-4 h-4 lg:mr-2" />
-            <span className="hidden lg:inline">import</span>
-          </Button>
-
-          <Button onClick={onAddPublication} variant="glow" className="shrink-0 font-mono">
-            <Plus className="w-4 h-4 lg:mr-2" />
-            <span className="hidden lg:inline">add_paper</span>
-          </Button>
+            <Button onClick={onAddPublication} variant="glow" className="h-9 font-mono">
+              <Plus className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">add_paper</span>
+            </Button>
+          </div>
         </div>
 
         {/* Search, filters and view settings */}

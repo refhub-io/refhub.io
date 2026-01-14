@@ -322,14 +322,14 @@ export default function SharedVault() {
 
       {/* Vault Header */}
       <div className="border-b-2 border-border bg-gradient-to-b from-card/80 to-background">
-        <div className="max-w-6xl mx-auto px-4 py-12">
-          <div className="flex items-start gap-4">
+        <div className="max-w-6xl mx-auto px-4 py-8 sm:py-12">
+          <div className="flex flex-col sm:flex-row sm:items-start gap-4">
             <div 
-              className="w-16 h-16 rounded-2xl shrink-0 shadow-lg"
+              className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl shrink-0 shadow-lg"
               style={{ backgroundColor: vault?.color }}
             />
             <div className="flex-1 min-w-0">
-              <h1 className="text-3xl md:text-4xl font-bold mb-2">{vault?.name}</h1>
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2">{vault?.name}</h1>
               {vault?.description && (
                 <p className="text-muted-foreground font-mono text-sm mb-4">
                   // {vault.description}
@@ -344,7 +344,7 @@ export default function SharedVault() {
             </div>
             
             {/* Fork/Favorite buttons */}
-            <div className="flex gap-2 shrink-0">
+            <div className="flex gap-2 shrink-0 w-full sm:w-auto">
               {user && (
                 <>
                   <Button
@@ -356,9 +356,9 @@ export default function SharedVault() {
                     title={isOwner ? 'you_own_this_vault' : undefined}
                   >
                     <Heart 
-                      className={`w-4 h-4 mr-1.5 ${vault && isFavorite(vault.id) ? 'fill-rose-500' : ''}`}
+                      className={`w-4 h-4 sm:mr-1.5 ${vault && isFavorite(vault.id) ? 'fill-rose-500' : ''}`}
                     />
-                    {vault && isFavorite(vault.id) ? 'favorited' : 'favorite'}
+                    <span className="hidden sm:inline">{vault && isFavorite(vault.id) ? 'favorited' : 'favorite'}</span>
                   </Button>
                   {!isOwner && (
                     <Button
@@ -368,8 +368,8 @@ export default function SharedVault() {
                       disabled={forking}
                       className="font-mono"
                     >
-                      <GitFork className="w-4 h-4 mr-1.5" />
-                      {forking ? 'forking...' : 'fork'}
+                      <GitFork className="w-4 h-4 sm:mr-1.5" />
+                      <span className="hidden sm:inline">{forking ? 'forking...' : 'fork'}</span>
                     </Button>
                   )}
                 </>
@@ -381,7 +381,8 @@ export default function SharedVault() {
                   size="sm"
                   className="font-mono"
                 >
-                  sign_in_to_interact
+                  <span className="hidden xs:inline">sign_in_to_interact</span>
+                  <span className="xs:hidden">sign_in</span>
                 </Button>
               )}
             </div>

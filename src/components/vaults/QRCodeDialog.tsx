@@ -132,16 +132,16 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
           </Button>
         </DialogTrigger>
         {canShare && (
-          <DialogContent className="w-[95vw] max-w-sm">
+          <DialogContent className="sm:max-w-sm">
             <DialogHeader>
               <DialogTitle className="text-center font-mono">
                 share "{vault.name}"
               </DialogTitle>
             </DialogHeader>
-            <div className="flex flex-col items-center gap-6 py-4">
+            <div className="flex flex-col items-center gap-4 sm:gap-6 py-2 sm:py-4">
               {/* QR Code with gradient effect */}
-              <div className="p-6 bg-gradient-to-br from-background via-background/95 to-sidebar-accent rounded-2xl shadow-xl border-2 border-border/50 glow-purple">
-                <div className="p-4 bg-white rounded-xl relative">
+              <div className="p-4 sm:p-6 bg-gradient-to-br from-background via-background/95 to-sidebar-accent rounded-2xl shadow-xl border-2 border-border/50 glow-purple">
+                <div className="p-3 sm:p-4 bg-white rounded-xl relative">
                   <div 
                     ref={qrRef}
                     className="relative"
@@ -151,7 +151,7 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
                   >
                     <QRCodeCanvas
                       value={shareUrl}
-                      size={200}
+                      size={window.innerWidth < 640 ? 180 : 200}
                       level="H"
                       marginSize={2}
                       bgColor="#ffffff"
@@ -180,22 +180,24 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
                 </div>
               </div>
               
-              <div className="flex gap-3 w-full">
+              <div className="flex gap-2 sm:gap-3 w-full">
                 <Button
                   variant="outline"
                   onClick={copyShareUrl}
-                  className="flex-1 gap-2 font-mono"
+                  className="flex-1 gap-1.5 sm:gap-2 font-mono text-xs sm:text-sm"
                 >
-                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  copy_link
+                  {copied ? <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+                  <span className="hidden xs:inline">copy_link</span>
+                  <span className="xs:hidden">copy</span>
                 </Button>
                 <Button
                   variant="glow"
                   onClick={downloadQR}
-                  className="flex-1 gap-2 font-mono"
+                  className="flex-1 gap-1.5 sm:gap-2 font-mono text-xs sm:text-sm"
                 >
-                  <Download className="w-4 h-4" />
-                  download
+                  <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <span className="hidden xs:inline">download</span>
+                  <span className="xs:hidden">save</span>
                 </Button>
               </div>
             </div>

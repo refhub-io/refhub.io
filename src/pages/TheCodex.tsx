@@ -1,3 +1,4 @@
+import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -275,15 +276,11 @@ export default function TheCodex() {
       <div className={`flex-1 ${user ? 'lg:pl-72' : ''}`}>
         <div className="min-h-screen flex flex-col">
           {/* Mobile menu button - fixed position */}
-          {user && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="lg:hidden fixed top-4 left-4 z-50 bg-card/80 backdrop-blur-sm border-2 border-border shadow-lg"
+          {user && !isMobileSidebarOpen && (
+            <MobileMenuButton 
               onClick={() => setIsMobileSidebarOpen(true)}
-            >
-              <Menu className="w-5 h-5" />
-            </Button>
+              className="fixed top-4 left-4 z-50"
+            />
           )}
           {/* Hero */}
           <div className="w-full border-b-2 border-border bg-gradient-to-b from-amber-500/5 via-orange-500/5 to-background">
