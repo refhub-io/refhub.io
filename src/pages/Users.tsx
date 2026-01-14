@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile, Profile } from '@/hooks/useProfile';
+import { Vault } from '@/types/database';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
@@ -32,6 +33,8 @@ export default function Users() {
   const { profile, refetch: refetchProfile } = useProfile();
   const navigate = useNavigate();
   const [users, setUsers] = useState<UserWithStats[]>([]);
+  const [vaults, setVaults] = useState<Vault[]>([]);
+  const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -46,8 +49,36 @@ export default function Users() {
   useEffect(() => {
     if (user) {
       fetchUsers();
+      fetchVaults();
     }
   }, [user]);
+
+  const fetchVaults = async () => {
+    if (!user) return;
+    try {
+      const [ownedVaultsRes, sharedVaultsRes] = await Promise.all([
+        supabase.from('vaults').select('*').eq('user_id', user.id).order('name'),
+        supabase
+          .from('vault_shares')
+          .select('vault_id')
+          .or(`shared_with_email.eq."${user.email}",shared_with_user_id.eq.${user.id}`),
+      ]);
+
+      if (ownedVaultsRes.data) setVaults(ownedVaultsRes.data as Vault[]);
+
+      // Fetch shared vault details
+      if (sharedVaultsRes.data && sharedVaultsRes.data.length > 0) {
+        const sharedVaultIds = sharedVaultsRes.data.map(s => s.vault_id);
+        const { data: sharedVaultsData } = await supabase
+          .from('vaults')
+          .select('*')
+          .in('id', sharedVaultIds);
+        if (sharedVaultsData) setSharedVaults(sharedVaultsData as Vault[]);
+      }
+    } catch (error) {
+      console.error('Error fetching vaults:', error);
+    }
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -142,10 +173,14 @@ export default function Users() {
     <div className="min-h-screen bg-background flex">
       {user && (
         <Sidebar
-          vaults={[]}
-          sharedVaults={[]}
+          vaults={vaults}
+          sharedVaults={sharedVaults}
           selectedVaultId={null}
-          onSelectVault={() => navigate('/dashboard')}
+          onSelectVault={(vaultId) => {
+            if (vaultId) {
+              navigate('/dashboard');
+            }
+          }}
           onCreateVault={() => navigate('/dashboard')}
           isMobileOpen={isMobileSidebarOpen}
           onMobileClose={() => setIsMobileSidebarOpen(false)}
