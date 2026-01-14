@@ -87,10 +87,10 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
       setShowUpgradeDialog(false);
       setOpen(true);
       onVaultUpdate?.();
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'error_upgrading_vault',
-        description: error.message,
+        description: (error as Error).message,
         variant: 'destructive',
       });
     } finally {

@@ -82,11 +82,11 @@ export function useVaultFork() {
       });
 
       return newVault as Vault;
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error forking vault:', error);
       toast({
         title: 'Error forking vault',
-        description: error.message,
+        description: (error as Error).message,
         variant: 'destructive',
       });
       return null;

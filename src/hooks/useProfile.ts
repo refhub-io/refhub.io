@@ -42,7 +42,7 @@ export function useProfile() {
       }
 
       setProfile(data as Profile | null);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error fetching profile:', error);
     } finally {
       setLoading(false);
@@ -72,11 +72,11 @@ export function useProfile() {
       setProfile(data as Profile);
       toast({ title: 'Profile updated ✨' });
       return { error: null };
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error updating profile:', error);
       toast({
         title: 'Error updating profile',
-        description: error.message,
+        description: (error as Error).message,
         variant: 'destructive',
       });
       return { error };

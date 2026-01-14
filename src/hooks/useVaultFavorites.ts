@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { VaultFavorite, Vault } from '@/types/database';
@@ -17,7 +17,7 @@ export function useVaultFavorites() {
   const [favoriteVaults, setFavoriteVaults] = useState<FavoriteVault[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchFavorites = async () => {
+  const fetchFavorites = useCallback(async () => {
     if (!user) {
       setFavorites([]);
       setFavoriteVaults([]);
@@ -76,11 +76,11 @@ export function useVaultFavorites() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     fetchFavorites();
-  }, [user]);
+  }, [fetchFavorites]);
 
   const isFavorite = (vaultId: string) => {
     return favorites.some(f => f.vault_id === vaultId);

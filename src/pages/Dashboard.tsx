@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
@@ -63,13 +63,7 @@ export default function Dashboard() {
     }
   }, [user, authLoading, navigate]);
 
-  useEffect(() => {
-    if (user) {
-      fetchData();
-    }
-  }, [user]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!user) return;
     if (isInitialLoad) {
       setLoading(true);
@@ -121,7 +115,14 @@ export default function Dashboard() {
       setLoading(false);
       setIsInitialLoad(false);
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, isInitialLoad]);
+
+  useEffect(() => {
+    if (user) {
+      fetchData();
+    }
+  }, [user, fetchData]);
 
   const refetchVaults = async () => {
     if (!user) return;
@@ -200,7 +201,7 @@ export default function Dashboard() {
       } else {
         const { data: newPub, error } = await supabase
           .from('publications')
-          .insert([{ ...data, user_id: user.id } as any])
+          .insert([{ ...data, user_id: user.id }])
           .select()
           .single();
 
@@ -228,11 +229,11 @@ export default function Dashboard() {
       }
 
       setEditingPublication(null);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error saving publication:', error);
       toast({
         title: 'error_saving_paper',
-        description: error.message,
+        description: (error as Error).message,
         variant: 'destructive',
       });
     }
@@ -250,7 +251,7 @@ export default function Dashboard() {
 
       const { data: insertedPubs, error } = await supabase
         .from('publications')
-        .insert(pubsToInsert as any)
+        .insert(pubsToInsert)
         .select();
 
       if (error) throw error;
@@ -259,7 +260,7 @@ export default function Dashboard() {
       if (insertedPubs) {
         setPublications(prev => [...(insertedPubs as Publication[]), ...prev]);
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error importing publications:', error);
       throw error;
     }
@@ -311,11 +312,11 @@ export default function Dashboard() {
       }
 
       toast({ title: `added_to_${vaultIds.length}_vault${vaultIds.length > 1 ? 's' : ''} ✨` });
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error adding to vaults:', error);
       toast({
         title: 'Error adding paper',
-        description: error.message,
+        description: (error as Error).message,
         variant: 'destructive',
       });
       throw error;
@@ -340,13 +341,13 @@ export default function Dashboard() {
       if (error) throw error;
 
       toast({ title: 'paper_deleted' });
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error deleting publication:', error);
       // Revert on error
       fetchData();
       toast({
         title: 'error_deleting_paper',
-        description: error.message,
+        description: (error as Error).message,
         variant: 'destructive',
       });
     } finally {
@@ -419,13 +420,13 @@ export default function Dashboard() {
 
       toast({ title: 'vault_deleted' });
       setIsVaultDialogOpen(false);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error deleting vault:', error);
       // Revert on error
       fetchData();
       toast({
         title: 'error_deleting_vault',
-        description: error.message,
+        description: (error as Error).message,
         variant: 'destructive',
       });
     } finally {
@@ -458,11 +459,11 @@ export default function Dashboard() {
 
       setTags(prev => [...prev, data as Tag]);
       return data as Tag;
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error creating tag:', error);
       toast({
         title: 'error_creating_tag',
-        description: error.message,
+        description: (error as Error).message,
         variant: 'destructive',
       });
       return null;
@@ -492,7 +493,7 @@ export default function Dashboard() {
       } else {
         const { data: newVault, error } = await supabase
           .from('vaults')
-          .insert([{ ...data, user_id: user.id } as any])
+          .insert([{ ...data, user_id: user.id }])
           .select()
           .single();
 
@@ -507,11 +508,11 @@ export default function Dashboard() {
       }
 
       setEditingVault(null);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error saving vault:', error);
       toast({
         title: 'error_adding_to_vaults',
-        description: error.message,
+        description: (error as Error).message,
         variant: 'destructive',
       });
     }

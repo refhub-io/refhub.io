@@ -88,10 +88,10 @@ export function ImportDialog({
       setDoiInput('');
       
       toast({ title: 'doi_resolved ✨', description: metadata.title });
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'doi_lookup_failed',
-        description: error.message || 'Could not resolve DOI',
+        description: (error as Error).message || 'Could not resolve DOI',
         variant: 'destructive',
       });
     } finally {
@@ -124,10 +124,10 @@ export function ImportDialog({
       
       setBibtexInput('');
       toast({ title: `parsed_${parsed.length}_entries ✨` });
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'parse_error',
-        description: error.message || 'Could not parse BibTeX',
+        description: (error as Error).message || 'Could not parse BibTeX',
         variant: 'destructive',
       });
     }
@@ -193,10 +193,10 @@ export function ImportDialog({
       setDoiInput('');
       setBibtexInput('');
       onOpenChange(false);
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'import_failed',
-        description: error.message,
+        description: (error as Error).message,
         variant: 'destructive',
       });
     } finally {

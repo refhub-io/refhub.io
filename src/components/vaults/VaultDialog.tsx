@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Vault, VaultShare, VAULT_CATEGORIES } from '@/types/database';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -81,6 +81,19 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
       .slice(0, 50);
   };
 
+  const fetchShares = useCallback(async () => {
+    if (!vault) return;
+    
+    const { data, error } = await supabase
+      .from('vault_shares')
+      .select('*')
+      .eq('vault_id', vault.id);
+
+    if (data && !error) {
+      setShares(data as VaultShare[]);
+    }
+  }, [vault]);
+
   useEffect(() => {
     if (vault) {
       setName(vault.name);
@@ -101,20 +114,13 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
       setPublicSlug('');
       setShares([]);
     }
-  }, [vault, open]);
+  }, [vault, open, fetchShares]);
 
-  const fetchShares = async () => {
-    if (!vault) return;
-    
-    const { data, error } = await supabase
-      .from('vault_shares')
-      .select('*')
-      .eq('vault_id', vault.id);
-
-    if (data && !error) {
-      setShares(data as VaultShare[]);
+  useEffect(() => {
+    if (vault && open) {
+      fetchShares();
     }
-  };
+  }, [vault, open, fetchShares]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -166,10 +172,10 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
       setSharePermission('viewer');
       fetchShares();
       onUpdate?.();
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'error_sharing_vault',
-        description: error.message,
+        description: (error as Error).message,
         variant: 'destructive',
       });
     } finally {
@@ -189,10 +195,10 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
       toast({ title: 'user_removed' });
       fetchShares();
       onUpdate?.();
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'error_removing_user',
-        description: error.message,
+        description: (error as Error).message,
         variant: 'destructive',
       });
     }
@@ -210,10 +216,10 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
       toast({ title: 'permission_updated' });
       fetchShares();
       onUpdate?.();
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'error_updating_permission',
-        description: error.message,
+        description: (error as Error).message,
         variant: 'destructive',
       });
     }

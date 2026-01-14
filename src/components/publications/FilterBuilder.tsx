@@ -333,18 +333,19 @@ export function FilterBuilder({ filters, onFiltersChange, tags, vaults }: Filter
 }
 
 // Utility function to apply filters to publications
+// eslint-disable-next-line react-refresh/only-export-components
 export function applyFilters(
-  publications: any[],
+  publications: Publication[],
   filters: PublicationFilter[],
   publicationTagsMap: Record<string, string[]>
-): any[] {
+): Publication[] {
   if (filters.length === 0) return publications;
 
   return publications.filter((pub) => {
     return filters.every((filter) => {
       const { field, operator, value } = filter;
 
-      let fieldValue: any;
+      let fieldValue: string | number | string[] | null | undefined;
       switch (field) {
         case 'title':
           fieldValue = pub.title || '';

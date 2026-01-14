@@ -336,7 +336,7 @@ async function fetchFromCrossRef(cleanDoi: string): Promise<DOIMetadata | null> 
     const data = await response.json();
     const work = data.message;
     
-    const authors = (work.author || []).map((a: any) => {
+    const authors = (work.author || []).map((a: { given?: string; family?: string; name?: string }) => {
       if (a.given && a.family) return `${a.given} ${a.family}`;
       return a.name || 'Unknown Author';
     });
@@ -389,7 +389,7 @@ async function fetchFromOpenAlex(cleanDoi: string): Promise<DOIMetadata | null> 
     
     const work = await response.json();
     
-    const authors = (work.authorships || []).map((a: any) => 
+    const authors = (work.authorships || []).map((a: { author?: { display_name?: string } }) => 
       a.author?.display_name || 'Unknown Author'
     );
     
@@ -452,7 +452,7 @@ async function fetchFromSemanticScholar(cleanDoi: string): Promise<DOIMetadata |
     
     const work = await response.json();
     
-    const authors = (work.authors || []).map((a: any) => a.name || 'Unknown Author');
+    const authors = (work.authors || []).map((a: { name?: string }) => a.name || 'Unknown Author');
     
     let publicationType = 'article';
     const types = work.publicationTypes || [];

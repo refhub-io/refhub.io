@@ -49,6 +49,7 @@ const COLUMN_OPTIONS: { key: keyof VisibleColumns; label: string }[] = [
   { key: 'abstract', label: 'Abstract' },
 ];
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const DEFAULT_VISIBLE_COLUMNS: VisibleColumns = {
   title: true,
   authors: true,

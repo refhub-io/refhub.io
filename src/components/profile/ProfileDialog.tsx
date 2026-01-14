@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Github, Linkedin, AtSign, User, FileText, Camera, Trash2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import {
   Dialog,
   DialogContent,
@@ -149,8 +150,6 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
     
     setIsDeleting(true);
     try {
-      const { supabase } = await import('@/integrations/supabase/client');
-      
       // Call the database function to delete user and all data
       const { error } = await supabase.rpc('delete_user');
       
@@ -159,9 +158,9 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
       // Sign out and redirect
       await signOut();
       window.location.href = '/auth';
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error deleting account:', error);
-      alert('Error deleting account: ' + error.message);
+      alert('Error deleting account: ' + (error as Error).message);
       setIsDeleting(false);
       setShowDeleteConfirm(false);
     }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag } from '@/types/database';
@@ -54,14 +54,7 @@ export default function SharedVault() {
   const [isOwner, setIsOwner] = useState(false);
   const [forking, setForking] = useState(false);
 
-  useEffect(() => {
-    // Wait for auth to load before fetching vault
-    if (id && !authLoading) {
-      fetchVault();
-    }
-  }, [id, user, authLoading]);
-
-  const fetchVault = async () => {
+  const fetchVault = useCallback(async () => {
     setLoading(true);
     setNotFound(false);
     setAccessDenied(false);
@@ -151,7 +144,14 @@ export default function SharedVault() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, user]);
+
+  useEffect(() => {
+    // Wait for auth to load before fetching vault
+    if (id && !authLoading) {
+      fetchVault();
+    }
+  }, [id, authLoading, fetchVault]);
 
   const handleFork = async () => {
     if (!vault) return;

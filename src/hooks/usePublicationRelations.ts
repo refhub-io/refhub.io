@@ -35,7 +35,7 @@ export function usePublicationRelations(publicationId: string | null, userId: st
       }
 
       // Get IDs of related publications
-      const relatedIds = relationsData.map((r: any) =>
+      const relatedIds = relationsData.map((r: { publication_id: string; related_publication_id: string }) =>
         r.publication_id === publicationId ? r.related_publication_id : r.publication_id
       );
 
@@ -48,8 +48,8 @@ export function usePublicationRelations(publicationId: string | null, userId: st
       if (pubsError) throw pubsError;
 
       // Map publications with their relation info
-      const relatedPubs: RelatedPublication[] = (pubsData || []).map((pub: any) => {
-        const relation = relationsData.find((r: any) =>
+      const relatedPubs: RelatedPublication[] = (pubsData || []).map((pub: Publication) => {
+        const relation = relationsData.find((r: { id: string; publication_id: string; related_publication_id: string; relation_type: string }) =>
           (r.publication_id === publicationId && r.related_publication_id === pub.id) ||
           (r.related_publication_id === publicationId && r.publication_id === pub.id)
         );
@@ -61,7 +61,7 @@ export function usePublicationRelations(publicationId: string | null, userId: st
       });
 
       setRelations(relatedPubs);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error fetching relations:', error);
     } finally {
       setLoading(false);
@@ -101,11 +101,11 @@ export function usePublicationRelations(publicationId: string | null, userId: st
       await fetchRelations();
       toast({ title: 'Papers linked ✨' });
       return true;
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error adding relation:', error);
       toast({
         title: 'Error linking papers',
-        description: error.message,
+        description: (error as Error).message,
         variant: 'destructive',
       });
       return false;
@@ -124,11 +124,11 @@ export function usePublicationRelations(publicationId: string | null, userId: st
       await fetchRelations();
       toast({ title: 'Link removed' });
       return true;
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error removing relation:', error);
       toast({
         title: 'Error removing link',
-        description: error.message,
+        description: (error as Error).message,
         variant: 'destructive',
       });
       return false;

@@ -1,5 +1,5 @@
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Vault, VaultStats, VAULT_CATEGORIES } from '@/types/database';
@@ -66,13 +66,6 @@ export default function TheCodex() {
   const [forkingId, setForkingId] = useState<string | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  useEffect(() => {
-    fetchPublicVaults();
-    if (user) {
-      fetchUserVaults();
-    }
-  }, [user]);
-
   const fetchPublicVaults = async () => {
     setLoading(true);
     try {
@@ -129,7 +122,7 @@ export default function TheCodex() {
     }
   };
 
-  const fetchUserVaults = async () => {
+  const fetchUserVaults = useCallback(async () => {
     if (!user) return;
     
     try {
@@ -165,7 +158,14 @@ export default function TheCodex() {
     } catch (error) {
       console.error('Error fetching user vaults:', error);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    fetchPublicVaults();
+    if (user) {
+      fetchUserVaults();
+    }
+  }, [user, fetchUserVaults]);
 
   const filteredVaults = vaults.filter((vault) => {
     const query = searchQuery.toLowerCase();

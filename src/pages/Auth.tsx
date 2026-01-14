@@ -131,10 +131,10 @@ export default function Auth() {
           navigate('/');
         }
       }
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'error',
-        description: error.message || 'An unexpected error occurred.',
+        description: (error as Error).message || 'An unexpected error occurred.',
         variant: 'destructive',
       });
     } finally {

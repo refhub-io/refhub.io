@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag } from '@/types/database';
@@ -43,13 +43,7 @@ export default function PublicVault() {
   const [isOwner, setIsOwner] = useState(false);
   const [forking, setForking] = useState(false);
 
-  useEffect(() => {
-    if (slug) {
-      fetchPublicVault();
-    }
-  }, [slug]);
-
-  const fetchPublicVault = async () => {
+  const fetchPublicVault = useCallback(async () => {
     setLoading(true);
     try {
       // Fetch the vault by slug
@@ -116,7 +110,13 @@ export default function PublicVault() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [slug, user]);
+
+  useEffect(() => {
+    if (slug) {
+      fetchPublicVault();
+    }
+  }, [slug, fetchPublicVault]);
 
   const filteredPublications = publications.filter((pub) => {
     const query = searchQuery.toLowerCase();

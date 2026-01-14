@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -46,14 +46,7 @@ export default function Users() {
     }
   }, [user, authLoading, navigate]);
 
-  useEffect(() => {
-    if (user) {
-      fetchUsers();
-      fetchVaults();
-    }
-  }, [user]);
-
-  const fetchVaults = async () => {
+  const fetchVaults = useCallback(async () => {
     if (!user) return;
     try {
       const [ownedVaultsRes, sharedVaultsRes] = await Promise.all([
@@ -78,7 +71,14 @@ export default function Users() {
     } catch (error) {
       console.error('Error fetching vaults:', error);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      fetchUsers();
+      fetchVaults();
+    }
+  }, [user, fetchVaults]);
 
   const fetchUsers = async () => {
     setLoading(true);

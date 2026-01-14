@@ -8,7 +8,7 @@ export interface Notification {
   type: 'vault_shared' | 'vault_forked' | 'vault_favorited';
   title: string;
   message: string | null;
-  data: Record<string, any> | null;
+  data: Record<string, unknown> | null;
   read: boolean;
   created_at: string;
 }

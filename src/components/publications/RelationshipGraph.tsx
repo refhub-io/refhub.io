@@ -100,7 +100,7 @@ export function RelationshipGraph({
   );
 
   const nodeCanvasObject = useCallback(
-    (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+    (node: { name: string; x: number; y: number }, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const label = node.name;
       const fontSize = Math.max(12 / globalScale, 3);
       ctx.font = `${fontSize}px "SF Mono", Monaco, monospace`;
@@ -137,7 +137,7 @@ export function RelationshipGraph({
   );
 
   const linkCanvasObject = useCallback(
-    (link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+    (link: { source: { x: number; y: number }; target: { x: number; y: number }; color: string }, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const start = link.source;
       const end = link.target;
 
