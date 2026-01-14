@@ -148,6 +148,25 @@ export function Sidebar({
             <span className="font-mono">the_codex</span>
           </Link>
 
+          <Link
+            to="/users"
+            onClick={onMobileClose}
+            className={cn(
+              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border-2",
+              location.pathname === '/users'
+                ? "bg-gradient-to-br from-primary/10 to-primary/5 text-primary border-primary/30"
+                : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 border-transparent"
+            )}
+          >
+            <div className={cn(
+              "w-8 h-8 rounded-lg flex items-center justify-center",
+              location.pathname === '/users' ? "bg-primary/20" : "bg-sidebar-accent"
+            )}>
+              <Users className={cn("w-4 h-4", location.pathname === '/users' ? "text-primary" : "text-sidebar-foreground/60")} />
+            </div>
+            <span className="font-mono">researchers</span>
+          </Link>
+
           <div className="pt-4">
             <button
               onClick={() => setIsVaultsExpanded(!isVaultsExpanded)}
