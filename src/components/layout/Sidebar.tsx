@@ -66,6 +66,8 @@ export function Sidebar({
   };
 
   const isCodexActive = location.pathname === '/codex';
+  const isUsersActive = location.pathname === '/users';
+  const isDashboardActive = location.pathname === '/dashboard' || (location.pathname === '/' && selectedVaultId === null);
 
   return (
     <>
@@ -116,16 +118,16 @@ export function Sidebar({
             }}
             className={cn(
               "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200",
-              selectedVaultId === null && !isCodexActive
+              isDashboardActive && !isCodexActive && !isUsersActive
                 ? "bg-sidebar-accent text-sidebar-primary border-2 border-sidebar-primary/30"
                 : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 border-2 border-transparent"
             )}
           >
             <div className={cn(
               "w-8 h-8 rounded-lg flex items-center justify-center",
-              selectedVaultId === null && !isCodexActive ? "bg-sidebar-primary/20" : "bg-sidebar-accent"
+              isDashboardActive && !isCodexActive && !isUsersActive ? "bg-sidebar-primary/20" : "bg-sidebar-accent"
             )}>
-              <Zap className={cn("w-4 h-4", selectedVaultId === null && !isCodexActive ? "text-sidebar-primary" : "text-sidebar-foreground/60")} />
+              <Zap className={cn("w-4 h-4", isDashboardActive && !isCodexActive && !isUsersActive ? "text-sidebar-primary" : "text-sidebar-foreground/60")} />
             </div>
             <span className="font-mono">all_papers</span>
           </Link>

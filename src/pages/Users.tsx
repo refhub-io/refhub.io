@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Profile } from '@/hooks/useProfile';
+import { useProfile, Profile } from '@/hooks/useProfile';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
+import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -28,11 +29,13 @@ interface UserWithStats extends Profile {
 
 export default function Users() {
   const { user, loading: authLoading } = useAuth();
+  const { profile, refetch: refetchProfile } = useProfile();
   const navigate = useNavigate();
   const [users, setUsers] = useState<UserWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -146,6 +149,8 @@ export default function Users() {
           onCreateVault={() => navigate('/dashboard')}
           isMobileOpen={isMobileSidebarOpen}
           onMobileClose={() => setIsMobileSidebarOpen(false)}
+          profile={profile}
+          onEditProfile={() => setIsProfileDialogOpen(true)}
         />
       )}
 
@@ -309,6 +314,16 @@ export default function Users() {
           </main>
         </div>
       </div>
+
+      {/* Profile Dialog */}
+      {user && (
+        <ProfileDialog
+          open={isProfileDialogOpen}
+          onOpenChange={setIsProfileDialogOpen}
+          profile={profile}
+          onSave={refetchProfile}
+        />
+      )}
     </div>
   );
 }
