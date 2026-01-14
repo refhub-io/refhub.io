@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
 import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag, PublicationRelation } from '@/types/database';
+import { generateBibtexKey } from '@/lib/bibtex';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationDialog } from '@/components/publications/PublicationDialog';
@@ -140,6 +141,20 @@ export default function Dashboard() {
     }
   };
 
+  const refetchRelations = async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('publication_relations')
+        .select('*');
+      
+      if (error) throw error;
+      if (data) setPublicationRelations(data as PublicationRelation[]);
+    } catch (error) {
+      console.error('Error refetching relations:', error);
+    }
+  };
+
   const filteredPublications = selectedVaultId
     ? publications.filter((p) => p.vault_id === selectedVaultId)
     : publications;
@@ -163,14 +178,20 @@ export default function Dashboard() {
     relationsCountMap[rel.related_publication_id] = (relationsCountMap[rel.related_publication_id] || 0) + 1;
   });
 
-  const handleSavePublication = async (data: Partial<Publication>, tagIds: string[]) => {
+  const handleSavePublication = async (data: Partial<Publication>, tagIds: string[], isAutoSave = false) => {
     if (!user) return;
 
     try {
       if (editingPublication) {
+        // Auto-generate bibkey if empty
+        const dataToSave = {
+          ...data,
+          bibtex_key: data.bibtex_key || generateBibtexKey({ ...editingPublication, ...data } as Publication)
+        };
+        
         const { data: updatedPub, error } = await supabase
           .from('publications')
-          .update(data)
+          .update(dataToSave)
           .eq('id', editingPublication.id)
           .select()
           .single();
@@ -197,11 +218,25 @@ export default function Dashboard() {
           ...tagIds.map(tagId => ({ id: crypto.randomUUID(), publication_id: editingPublication.id, tag_id: tagId }))
         ]);
 
-        toast({ title: 'paper_updated ✨' });
+        // Update editingPublication with new data so dialog stays in sync
+        if (isAutoSave) {
+          setEditingPublication({ ...editingPublication, ...updatedPub } as Publication);
+        }
+
+        if (!isAutoSave) {
+          toast({ title: 'paper_updated ✨' });
+        }
       } else {
+        // Auto-generate bibkey if empty
+        const dataToSave = {
+          ...data,
+          user_id: user.id,
+          bibtex_key: data.bibtex_key || generateBibtexKey(data as Publication)
+        };
+        
         const { data: newPub, error } = await supabase
           .from('publications')
-          .insert([{ ...data, user_id: user.id }])
+          .insert([dataToSave])
           .select()
           .single();
 
@@ -228,7 +263,10 @@ export default function Dashboard() {
         toast({ title: 'paper_added ✨' });
       }
 
-      setEditingPublication(null);
+      // Only clear editing publication on manual save, not auto-save
+      if (!isAutoSave) {
+        setEditingPublication(null);
+      }
     } catch (error) {
       console.error('Error saving publication:', error);
       toast({
@@ -590,7 +628,13 @@ export default function Dashboard() {
 
       <PublicationDialog
         open={isPublicationDialogOpen}
-        onOpenChange={setIsPublicationDialogOpen}
+        onOpenChange={(open) => {
+          setIsPublicationDialogOpen(open);
+          if (!open) {
+            setEditingPublication(null);
+            refetchRelations();
+          }
+        }}
         publication={editingPublication}
         vaults={vaults}
         tags={tags}

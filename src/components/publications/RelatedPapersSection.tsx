@@ -51,7 +51,7 @@ export function RelatedPapersSection({
 }: RelatedPapersSectionProps) {
   const [isAddingRelation, setIsAddingRelation] = useState(false);
   const [selectedPublicationId, setSelectedPublicationId] = useState<string>('');
-  const [selectedRelationType, setSelectedRelationType] = useState<string>('related');
+  const [selectedRelationType, setSelectedRelationType] = useState<string>('cites');
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -75,7 +75,7 @@ export function RelatedPapersSection({
     const success = await onAddRelation(selectedPublicationId, selectedRelationType);
     if (success) {
       setSelectedPublicationId('');
-      setSelectedRelationType('related');
+      setSelectedRelationType('cites');
       setIsAddingRelation(false);
     }
   };
@@ -86,15 +86,13 @@ export function RelatedPapersSection({
 
   const getRelationColor = (type: string): string => {
     const colors: Record<string, string> = {
-      related: '#6366f1',
       cites: '#22c55e',
       extends: '#3b82f6',
       contradicts: '#ef4444',
       reviews: '#f97316',
       builds_on: '#8b5cf6',
-      supersedes: '#ec4899',
     };
-    return colors[type] || '#6366f1';
+    return colors[type] || '#22c55e';
   };
 
   if (!currentPublicationId) {
@@ -177,25 +175,26 @@ export function RelatedPapersSection({
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full justify-start text-left font-normal"
+                    className="w-full justify-start text-left font-normal focus-visible:ring-0 focus-visible:ring-offset-0"
                     disabled={availablePublications.length === 0}
                   >
                     <Search className="w-4 h-4 mr-2 shrink-0" />
-                    <span className="truncate">
-                      {selectedPublication?.title || 'Search papers...'}
+                    <span className="truncate text-muted-foreground">
+                      {selectedPublication?.title || 'search by title or author...'}
                     </span>
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-80 p-0" align="start">
+                <PopoverContent className="w-96 p-0" align="start">
                   <Command>
                     <CommandInput
-                      placeholder="Search by title or author..."
+                      placeholder="type to search..."
                       value={searchQuery}
                       onValueChange={setSearchQuery}
+                      className="h-12 border-b focus-visible:ring-0"
                     />
                     <CommandList>
-                      <CommandEmpty>No papers found.</CommandEmpty>
-                      <CommandGroup>
+                      <CommandEmpty className="py-6 text-center text-sm">No papers found.</CommandEmpty>
+                      <CommandGroup className="p-2">
                         {filteredPublications.slice(0, 10).map((pub) => (
                           <CommandItem
                             key={pub.id}
@@ -205,9 +204,10 @@ export function RelatedPapersSection({
                               setSearchOpen(false);
                               setSearchQuery('');
                             }}
+                            className="px-3 py-3 cursor-pointer data-[selected=true]:bg-accent/50 data-[selected=true]:text-accent-foreground hover:bg-accent/50 aria-selected:bg-transparent"
                           >
-                            <div className="flex flex-col">
-                              <span className="text-sm line-clamp-1">{pub.title}</span>
+                            <div className="flex flex-col gap-1">
+                              <span className="text-sm line-clamp-2 leading-snug">{pub.title}</span>
                               <span className="text-xs text-muted-foreground font-mono">
                                 {pub.authors[0] || 'Unknown'} {pub.year ? `• ${pub.year}` : ''}
                               </span>

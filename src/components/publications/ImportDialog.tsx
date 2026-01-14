@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { parseBibtex, fetchDOIMetadata } from '@/lib/bibtex';
+import { parseBibtex, fetchDOIMetadata, generateBibtexKey } from '@/lib/bibtex';
 import { FileText, Link, Upload, Check, X, Loader2, Library } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { ExistingPaperSelector } from './ExistingPaperSelector';
@@ -82,6 +82,9 @@ export function ImportDialog({
         abstract: metadata.abstract,
         publication_type: metadata.type || 'article',
       };
+      
+      // Generate bibkey for the imported paper
+      pub.bibtex_key = generateBibtexKey(pub as Publication);
       
       setParsedPublications([...parsedPublications, pub]);
       setSelectedIndices(new Set([...selectedIndices, parsedPublications.length]));

@@ -28,13 +28,11 @@ interface RelationshipGraphProps {
 }
 
 const RELATION_COLORS: Record<string, string> = {
-  related: '#6366f1',
   cites: '#22c55e',
   extends: '#3b82f6',
   contradicts: '#ef4444',
   reviews: '#f97316',
   builds_on: '#8b5cf6',
-  supersedes: '#ec4899',
 };
 
 export function RelationshipGraph({
@@ -46,6 +44,7 @@ export function RelationshipGraph({
 }: RelationshipGraphProps) {
   const graphRef = useRef<ForceGraphMethods>();
   const containerRef = useRef<HTMLDivElement>(null);
+  const hasZoomedRef = useRef(false);
 
   // Build graph data
   const graphData = useMemo(() => {
@@ -59,10 +58,10 @@ export function RelationshipGraph({
     // Filter publications to only those with connections
     const connectedPubs = publications.filter((pub) => connectedIds.has(pub.id));
 
-    // Build nodes
+    // Build nodes - prefer bibkey for labels, fallback to shortened title
     const nodes: GraphNode[] = connectedPubs.map((pub) => ({
       id: pub.id,
-      name: pub.title.length > 40 ? pub.title.slice(0, 40) + '...' : pub.title,
+      name: pub.bibtex_key || (pub.title.length > 20 ? pub.title.slice(0, 20) + '...' : pub.title),
       year: pub.year,
       authors: pub.authors,
       val: 1,
@@ -73,20 +72,26 @@ export function RelationshipGraph({
       source: rel.publication_id,
       target: rel.related_publication_id,
       type: rel.relation_type,
-      color: RELATION_COLORS[rel.relation_type] || RELATION_COLORS.related,
+      color: RELATION_COLORS[rel.relation_type] || RELATION_COLORS.cites,
     }));
 
     return { nodes, links };
   }, [publications, relations]);
 
-  // Fit graph to view on load
+  // Center graph after it loads
   useEffect(() => {
-    if (open && graphRef.current && graphData.nodes.length > 0) {
-      setTimeout(() => {
-        graphRef.current?.zoomToFit(400, 50);
-      }, 300);
+    if (open && graphData.nodes.length > 0) {
+      hasZoomedRef.current = false;
     }
   }, [open, graphData.nodes.length]);
+
+  // Handle zoom to fit when engine stops - primary centering method
+  const handleEngineStop = useCallback(() => {
+    if (!hasZoomedRef.current && graphRef.current) {
+      hasZoomedRef.current = true;
+      graphRef.current.zoomToFit(400, 80);
+    }
+  }, []);
 
   const handleNodeClick = useCallback(
     (node: GraphNode) => {
@@ -102,17 +107,17 @@ export function RelationshipGraph({
   const nodeCanvasObject = useCallback(
     (node: { name: string; x: number; y: number }, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const label = node.name;
-      const fontSize = Math.max(12 / globalScale, 3);
+      const fontSize = Math.max(10 / globalScale, 3);
       ctx.font = `${fontSize}px "SF Mono", Monaco, monospace`;
       
-      // Node circle
-      const nodeRadius = 6;
+      // Node circle - smaller
+      const nodeRadius = 4;
       ctx.beginPath();
       ctx.arc(node.x, node.y, nodeRadius, 0, 2 * Math.PI);
       ctx.fillStyle = 'hsl(260, 80%, 60%)';
       ctx.fill();
       ctx.strokeStyle = 'hsl(260, 80%, 80%)';
-      ctx.lineWidth = 1.5 / globalScale;
+      ctx.lineWidth = 1.2 / globalScale;
       ctx.stroke();
 
       // Label background
@@ -205,6 +210,8 @@ export function RelationshipGraph({
             <ForceGraph2D
               ref={graphRef}
               graphData={graphData}
+              width={containerRef.current?.clientWidth || 1000}
+              height={containerRef.current?.clientHeight || 600}
               nodeCanvasObject={nodeCanvasObject}
               linkCanvasObject={linkCanvasObject}
               onNodeClick={handleNodeClick}
@@ -214,14 +221,20 @@ export function RelationshipGraph({
                 ctx.fillStyle = color;
                 ctx.fill();
               }}
-              cooldownTicks={100}
-              linkDirectionalParticles={0}
+              onEngineStop={handleEngineStop}
+              warmupTicks={100}
+              cooldownTicks={200}
+              d3AlphaDecay={0.01}
+              d3VelocityDecay={0.2}
+              linkDistance={300}
+              chargeStrength={-400}
+              linkDirectionalArrowLength={4}
+              linkDirectionalArrowRelPos={1}
+              linkDirectionalArrowColor={(link: GraphLink) => link.color}
               enableNodeDrag={true}
               enableZoomInteraction={true}
               enablePanInteraction={true}
               backgroundColor="transparent"
-              width={containerRef.current?.clientWidth || 800}
-              height={(containerRef.current?.clientHeight || 500) - 20}
             />
           )}
         </div>

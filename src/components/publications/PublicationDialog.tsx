@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Publication, Vault, Tag, PUBLICATION_TYPES } from '@/types/database';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -34,7 +34,7 @@ interface PublicationDialogProps {
   tags: Tag[];
   publicationTags: string[];
   allPublications: Publication[];
-  onSave: (data: Partial<Publication>, tagIds: string[]) => Promise<void>;
+  onSave: (data: Partial<Publication>, tagIds: string[], isAutoSave?: boolean) => Promise<void>;
   onCreateTag: (name: string, parentId?: string) => Promise<Tag | null>;
 }
 
@@ -77,8 +77,28 @@ export function PublicationDialog({
   const [authorsInput, setAuthorsInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [notesTab, setNotesTab] = useState<'write' | 'preview'>('write');
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialLoadRef = useRef(true);
+  const publicationRef = useRef(publication);
+  const openRef = useRef(open);
+  const formDataRef = useRef(formData);
+  const authorsInputRef = useRef(authorsInput);
+  const selectedTagsRef = useRef(selectedTags);
+  const lastPublicationIdRef = useRef<string | null>(null);
 
   useEffect(() => {
+    // Only reset form data if dialog is opening or switching to a different publication
+    const publicationId = publication?.id || null;
+    const isOpeningDialog = open && !publicationRef.current;
+    const isSwitchingPublication = publicationId !== lastPublicationIdRef.current;
+    
+    if (!isOpeningDialog && !isSwitchingPublication) {
+      return; // Don't reset form if just updating the same publication
+    }
+    
+    isInitialLoadRef.current = true; // Reset on dialog open
+    lastPublicationIdRef.current = publicationId;
+    
     if (publication) {
       setFormData({
         title: publication.title,
@@ -121,6 +141,67 @@ export function PublicationDialog({
       setSelectedTags([]);
     }
   }, [publication, publicationTags, open]);
+
+  // Reset auto-save flag when dialog opens
+  useEffect(() => {
+    publicationRef.current = publication;
+    openRef.current = open;
+    if (open && publication) {
+      isInitialLoadRef.current = true;
+    }
+  }, [open, publication]);
+
+  // Update refs when form data changes
+  useEffect(() => {
+    formDataRef.current = formData;
+    authorsInputRef.current = authorsInput;
+    selectedTagsRef.current = selectedTags;
+  }, [formData, authorsInput, selectedTags]);
+
+  // Auto-save for edit mode only (debounced) - only triggers on formData changes
+  useEffect(() => {
+    if (!publicationRef.current || !openRef.current) return; // Only auto-save when editing an existing publication
+    
+    // Skip auto-save on initial load
+    if (isInitialLoadRef.current) {
+      isInitialLoadRef.current = false;
+      return;
+    }
+    
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+
+    autoSaveTimeoutRef.current = setTimeout(async () => {
+      // Get latest values from refs
+      const currentFormData = formDataRef.current;
+      const currentAuthorsInput = authorsInputRef.current;
+      const currentSelectedTags = selectedTagsRef.current;
+      
+      const authors = currentAuthorsInput
+        .split(',')
+        .map((a) => a.trim())
+        .filter((a) => a.length > 0);
+      
+      if (currentFormData.title && authors.length > 0) {
+        setSaving(true);
+        try {
+          await onSave({ ...currentFormData, authors }, currentSelectedTags, true); // true = isAutoSave
+        } catch (error) {
+          console.error('Auto-save failed:', error);
+        } finally {
+          setSaving(false);
+        }
+      }
+    }, 3000); // 3 second debounce
+
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData, authorsInput, selectedTags]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

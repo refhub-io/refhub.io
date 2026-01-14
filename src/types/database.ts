@@ -142,13 +142,11 @@ export interface VaultFork {
 }
 
 export const RELATION_TYPES = [
-  { value: 'related', label: 'Related' },
   { value: 'cites', label: 'Cites' },
   { value: 'extends', label: 'Extends' },
+  { value: 'builds_on', label: 'Builds On' },
   { value: 'contradicts', label: 'Contradicts' },
   { value: 'reviews', label: 'Reviews' },
-  { value: 'builds_on', label: 'Builds On' },
-  { value: 'supersedes', label: 'Supersedes' },
 ] as const;
 
 export type RelationType = typeof RELATION_TYPES[number]['value'];

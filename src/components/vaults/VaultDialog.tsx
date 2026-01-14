@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Vault, VaultShare, VAULT_CATEGORIES } from '@/types/database';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -66,6 +66,10 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
   const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('viewer');
   const [publicSlug, setPublicSlug] = useState('');
   const [copied, setCopied] = useState(false);
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialLoadRef = useRef(true);
+  const vaultRef = useRef(vault);
+  const openRef = useRef(open);
 
   const getVisibility = (v: Vault): VaultVisibility => {
     if (v.is_public) return 'public';
@@ -95,6 +99,7 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
   }, [vault]);
 
   useEffect(() => {
+    isInitialLoadRef.current = true; // Reset on dialog open
     if (vault) {
       setName(vault.name);
       setDescription(vault.description || '');
@@ -121,6 +126,60 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
       fetchShares();
     }
   }, [vault, open, fetchShares]);
+
+  // Reset auto-save flag when dialog opens
+  useEffect(() => {
+    vaultRef.current = vault;
+    openRef.current = open;
+    if (open && vault) {
+      isInitialLoadRef.current = true;
+    }
+  }, [open, vault]);
+
+  // Auto-save for edit mode only (debounced) - only triggers on data changes
+  useEffect(() => {
+    if (!vaultRef.current || !openRef.current) return; // Only auto-save when editing an existing vault
+    
+    // Skip auto-save on initial load
+    if (isInitialLoadRef.current) {
+      isInitialLoadRef.current = false;
+      return;
+    }
+    
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+
+    autoSaveTimeoutRef.current = setTimeout(async () => {
+      if (name.trim()) {
+        setSaving(true);
+        try {
+          await onSave({ 
+            name, 
+            description, 
+            color, 
+            category: category || null,
+            abstract: abstract || null,
+            is_public: visibility === 'public',
+            is_shared: visibility === 'protected' || visibility === 'public',
+            public_slug: visibility === 'public' ? (publicSlug || generateSlug(name)) : null,
+          });
+          if (onUpdate) onUpdate();
+        } catch (error) {
+          console.error('Auto-save failed:', error);
+        } finally {
+          setSaving(false);
+        }
+      }
+    }, 3000); // 3 second debounce
+
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name, description, color, category, abstract, visibility, publicSlug]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

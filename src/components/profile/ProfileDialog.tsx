@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -81,6 +81,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
   });
 
   useEffect(() => {
+    isInitialLoadRef.current = true; // Reset on dialog open
     if (profile && open) {
       form.reset({
         display_name: profile.display_name || '',
@@ -97,6 +98,58 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
 
   const watchedUsername = form.watch('username');
   const watchedAvatarUrl = form.watch('avatar_url');
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialLoadRef = useRef(true);
+  const profileRef = useRef(profile);
+  const openRef = useRef(open);
+  const formValues = form.watch();
+
+  // Reset auto-save flag when dialog opens
+  useEffect(() => {
+    profileRef.current = profile;
+    openRef.current = open;
+    if (open && profile) {
+      isInitialLoadRef.current = true;
+    }
+  }, [open, profile]);
+
+  // Auto-save profile changes (debounced) - only triggers on form value changes
+  useEffect(() => {
+    if (!profileRef.current || !openRef.current) return;
+    
+    // Skip auto-save on initial load
+    if (isInitialLoadRef.current) {
+      isInitialLoadRef.current = false;
+      return;
+    }
+    
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+
+    autoSaveTimeoutRef.current = setTimeout(async () => {
+      if (form.formState.isDirty && !form.formState.errors.display_name) {
+        const values = form.getValues();
+        if (values.display_name) {
+          setIsSubmitting(true);
+          try {
+            await updateProfile(values as Profile);
+          } catch (error) {
+            console.error('Auto-save failed:', error);
+          } finally {
+            setIsSubmitting(false);
+          }
+        }
+      }
+    }, 3000); // 3 second debounce
+
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formValues]);
 
   useEffect(() => {
     if (!watchedUsername || watchedUsername.length < 3) {
