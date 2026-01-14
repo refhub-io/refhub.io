@@ -414,7 +414,7 @@ export default function PublicVault() {
                           asChild
                         >
                           <a
-                            href={`https://doi.org/${pub.doi}`}
+                            href={`https://doi.org/${encodeURIComponent(pub.doi)}`}
                             target="_blank"
                             rel="noopener noreferrer"
                           >

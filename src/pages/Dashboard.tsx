@@ -83,7 +83,7 @@ export default function Dashboard() {
         supabase
           .from('vault_shares')
           .select('vault_id')
-          .or(`shared_with_email.eq.${user.email},shared_with_user_id.eq.${user.id}`),
+          .or(`shared_with_email.eq."${user.email}",shared_with_user_id.eq.${user.id}`),
         supabase.from('tags').select('*').order('name'),
         supabase.from('publication_tags').select('*'),
         supabase.from('publication_relations').select('*'),

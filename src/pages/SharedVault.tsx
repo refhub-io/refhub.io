@@ -517,7 +517,7 @@ export default function SharedVault() {
                             className="h-8 w-8 p-0"
                           >
                             <a
-                              href={`https://doi.org/${pub.doi}`}
+                              href={`https://doi.org/${encodeURIComponent(pub.doi)}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               title="View DOI"
@@ -574,7 +574,7 @@ export default function SharedVault() {
                               <div className="text-sm">
                                 <span className="font-mono text-xs text-muted-foreground/70">doi:</span>{' '}
                                 <a
-                                  href={`https://doi.org/${pub.doi}`}
+                                  href={`https://doi.org/${encodeURIComponent(pub.doi)}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="text-primary hover:underline font-mono text-xs"
@@ -610,7 +610,7 @@ export default function SharedVault() {
                             asChild
                           >
                             <a
-                              href={`https://doi.org/${pub.doi}`}
+                              href={`https://doi.org/${encodeURIComponent(pub.doi)}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="font-mono"

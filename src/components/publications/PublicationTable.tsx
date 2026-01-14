@@ -232,7 +232,7 @@ export function PublicationTable({
                   <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                     {pub.doi ? (
                       <a
-                        href={`https://doi.org/${pub.doi}`}
+                        href={`https://doi.org/${encodeURIComponent(pub.doi)}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-muted-foreground hover:text-cyber-blue transition-colors"

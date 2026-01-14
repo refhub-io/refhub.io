@@ -148,7 +148,7 @@ export default function TheCodex() {
       const { data: sharedVaultsData } = await supabase
         .from('vault_shares')
         .select('vault_id')
-        .or(`shared_with_email.eq.${user.email},shared_with_user_id.eq.${user.id}`);
+        .or(`shared_with_email.eq."${user.email}",shared_with_user_id.eq.${user.id}`);
       
       if (sharedVaultsData && sharedVaultsData.length > 0) {
         const sharedVaultIds = sharedVaultsData.map(s => s.vault_id);

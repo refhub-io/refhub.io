@@ -225,7 +225,7 @@ export function PublicationCard({
                 )}
                 {show.doi && publication.doi && (
                   <a
-                    href={`https://doi.org/${publication.doi}`}
+                    href={`https://doi.org/${encodeURIComponent(publication.doi)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
