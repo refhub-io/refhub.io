@@ -100,11 +100,11 @@ export function RelatedPapersSection({
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
+    <div className="space-y-3 min-w-0">
+      <div className="flex items-center justify-between gap-2">
         <Label className="font-semibold flex items-center gap-2">
-          <Link2 className="w-4 h-4" />
-          Related Papers
+          <Link2 className="w-4 h-4 shrink-0" />
+          <span className="truncate">Related Papers</span>
         </Label>
         {!isAddingRelation && (
           <Button
@@ -112,7 +112,7 @@ export function RelatedPapersSection({
             variant="outline"
             size="sm"
             onClick={() => setIsAddingRelation(true)}
-            className="h-7 text-xs"
+            className="h-7 text-xs shrink-0"
           >
             <Plus className="w-3 h-3 mr-1" />
             Link Paper
@@ -122,11 +122,11 @@ export function RelatedPapersSection({
 
       {/* Existing relations */}
       {relations.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-2 min-w-0">
           {relations.map((rel) => (
             <div
               key={rel.relation_id}
-              className="flex items-center gap-2 p-2 rounded-lg border bg-muted/30 group"
+              className="flex items-center gap-2 p-2 rounded-lg border bg-muted/30 group min-w-0"
             >
               <Badge
                 variant="outline"
@@ -167,15 +167,15 @@ export function RelatedPapersSection({
 
       {/* Add new relation */}
       {isAddingRelation && (
-        <div className="space-y-3 p-3 rounded-lg border-2 border-dashed bg-muted/20">
-          <div className="grid grid-cols-3 gap-2">
-            <div className="col-span-2">
+        <div className="space-y-3 p-3 rounded-lg border-2 border-dashed bg-muted/20 min-w-0">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 min-w-0">
+            <div className="sm:col-span-2 min-w-0">
               <Popover open={searchOpen} onOpenChange={setSearchOpen}>
                 <PopoverTrigger asChild>
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full justify-start text-left font-normal focus-visible:ring-0 focus-visible:ring-offset-0"
+                    className="w-full justify-start text-left font-normal focus-visible:ring-0 focus-visible:ring-offset-0 min-w-0 text-xs sm:text-sm"
                     disabled={availablePublications.length === 0}
                   >
                     <Search className="w-4 h-4 mr-2 shrink-0" />
@@ -184,7 +184,7 @@ export function RelatedPapersSection({
                     </span>
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-96 p-0" align="start">
+                <PopoverContent className="w-[calc(100vw-2rem)] sm:w-96 p-0" align="start">
                   <Command>
                     <CommandInput
                       placeholder="type to search..."

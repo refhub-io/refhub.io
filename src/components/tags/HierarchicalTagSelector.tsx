@@ -88,12 +88,12 @@ export function HierarchicalTagSelector({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 min-w-0">
       <Label className="font-semibold">Tags</Label>
       
       {/* Selected tags display */}
       {selectedTagIds.length > 0 && (
-        <div className="flex flex-wrap gap-2 p-3 bg-muted/30 rounded-lg border border-border">
+        <div className="flex flex-wrap gap-2 p-3 bg-muted/30 rounded-lg border border-border min-w-0 overflow-x-auto">
           {selectedTagIds.map(tagId => {
             const tag = tags.find(t => t.id === tagId);
             if (!tag) return null;
@@ -112,7 +112,7 @@ export function HierarchicalTagSelector({
       )}
       
       {/* Tag tree selection */}
-      <div className="space-y-3 max-h-48 overflow-y-auto p-2 bg-card/50 rounded-lg border border-border">
+      <div className="space-y-3 max-h-48 overflow-y-auto p-2 bg-card/50 rounded-lg border border-border min-w-0 overflow-x-hidden">
         {tree.length === 0 ? (
           <p className="text-sm text-muted-foreground font-mono text-center py-4">
             // no tags yet
@@ -123,13 +123,13 @@ export function HierarchicalTagSelector({
       </div>
       
       {/* Create new tag */}
-      <div className="space-y-2">
-        <div className="flex gap-2">
+      <div className="space-y-2 min-w-0">
+        <div className="flex gap-2 min-w-0">
           <Input
             value={newTagName}
             onChange={(e) => setNewTagName(e.target.value)}
             placeholder="new_tag_name"
-            className="flex-1 font-mono"
+            className="flex-1 font-mono text-sm min-w-0"
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();

@@ -217,12 +217,12 @@ export function ImportDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full h-full sm:h-auto sm:w-[95vw] sm:max-w-4xl sm:max-h-[90vh] p-0 border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col">
-        <DialogHeader className="p-6 pb-0">
-          <DialogTitle className="text-2xl font-bold font-mono">
+      <DialogContent className="w-full max-w-[100vw] h-full sm:h-auto sm:w-[95vw] sm:max-w-4xl sm:max-h-[90vh] p-0 border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col">
+        <DialogHeader className="p-4 sm:p-6 pb-0">
+          <DialogTitle className="text-xl sm:text-2xl font-bold font-mono">
             // add_<span className="text-gradient">papers</span>
           </DialogTitle>
-          <DialogDescription className="font-mono text-sm text-muted-foreground">
+          <DialogDescription className="font-mono text-xs sm:text-sm text-muted-foreground">
             // from_library • doi • bibtex
           </DialogDescription>
         </DialogHeader>
@@ -256,15 +256,15 @@ export function ImportDialog({
               />
             </TabsContent>
 
-            <TabsContent value="doi" className="space-y-4">
-              <div className="space-y-2">
+            <TabsContent value="doi" className="space-y-4 min-w-0">
+              <div className="space-y-2 min-w-0">
                 <Label className="font-semibold font-mono">enter_doi</Label>
-                <div className="flex flex-col sm:flex-row gap-2">
+                <div className="flex flex-col sm:flex-row gap-2 min-w-0">
                   <Input
                     value={doiInput}
                     onChange={(e) => setDoiInput(e.target.value)}
                     placeholder="10.1000/xyz123 or https://doi.org/..."
-                    className="font-mono flex-1 text-sm"
+                    className="font-mono flex-1 text-sm w-full min-w-0"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
@@ -291,8 +291,8 @@ export function ImportDialog({
               </div>
             </TabsContent>
 
-            <TabsContent value="bibtex" className="space-y-4">
-              <div className="space-y-2">
+            <TabsContent value="bibtex" className="space-y-4 min-w-0">
+              <div className="space-y-2 min-w-0">
                 <div className="flex items-center justify-between gap-2">
                   <Label className="font-semibold font-mono">bibtex_content</Label>
                   <Button 
@@ -322,7 +322,7 @@ export function ImportDialog({
   ...
 }"
                   rows={6}
-                  className="font-mono text-sm"
+                  className="font-mono text-sm w-full min-w-0"
                 />
                 <Button 
                   onClick={handleBibtexParse} 

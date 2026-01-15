@@ -68,25 +68,25 @@ export function ExportDialog({ open, onOpenChange, publications, vaultName }: Ex
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full h-full sm:h-auto sm:w-[95vw] sm:max-w-lg sm:max-h-[90vh] flex flex-col border-2 bg-card/95 backdrop-blur-xl p-0">
-        <DialogHeader className="px-6 pt-6 pb-4">
-          <DialogTitle className="flex items-center gap-2 font-mono">
+      <DialogContent className="w-full max-w-[100vw] h-full sm:h-auto sm:w-[95vw] sm:max-w-lg sm:max-h-[90vh] flex flex-col border-2 bg-card/95 backdrop-blur-xl p-0">
+        <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-4">
+          <DialogTitle className="flex items-center gap-2 font-mono text-lg sm:text-xl">
             <FileText className="w-5 h-5 text-primary" />
             export_to_bibtex
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground font-mono">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-4 sm:pb-6 space-y-4 min-w-0">
+          <div className="flex items-center justify-between min-w-0">
+            <p className="text-xs sm:text-sm text-muted-foreground font-mono">
               // exporting <span className="font-semibold text-foreground">{publications.length}</span> publication{publications.length !== 1 ? 's' : ''}
-              {vaultName && <span> from <span className="font-semibold text-foreground">{vaultName}</span></span>}
+              {vaultName && <span> from <span className="font-semibold text-foreground truncate">{vaultName}</span></span>}
             </p>
           </div>
 
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium font-mono">select fields to include:</Label>
+          <div className="space-y-2 min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-xs sm:text-sm font-medium font-mono">select fields to include:</Label>
               <div className="flex gap-2">
                 <Button variant="ghost" size="sm" onClick={selectAll} className="text-xs h-7 px-2 font-mono">
                   all
@@ -97,17 +97,18 @@ export function ExportDialog({ open, onOpenChange, publications, vaultName }: Ex
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 p-3 bg-muted/50 rounded-lg border border-border">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 bg-muted/50 rounded-lg border border-border min-w-0">
               {BIBTEX_FIELDS.map(field => (
                 <label
                   key={field.key}
-                  className="flex items-center gap-2 p-2 rounded-md hover:bg-muted cursor-pointer transition-colors"
+                  className="flex items-center gap-2 p-2 rounded-md hover:bg-muted cursor-pointer transition-colors min-w-0"
                 >
                   <Checkbox
                     checked={selectedFields.includes(field.key)}
                     onCheckedChange={() => toggleField(field.key)}
+                    className="shrink-0"
                   />
-                  <div className="flex flex-col">
+                  <div className="flex flex-col min-w-0">
                     <span className="text-sm font-medium">{field.label}</span>
                     <span className="text-xs text-muted-foreground">{field.description}</span>
                   </div>
@@ -123,7 +124,7 @@ export function ExportDialog({ open, onOpenChange, publications, vaultName }: Ex
           )}
         </div>
 
-        <DialogFooter className="px-6 pb-6 pt-4 border-t flex-col-reverse sm:flex-row gap-3">
+        <DialogFooter className="px-4 sm:px-6 pb-4 sm:pb-6 pt-4 border-t flex-col-reverse sm:flex-row gap-3">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="font-mono w-full sm:w-auto">
             cancel
           </Button>
