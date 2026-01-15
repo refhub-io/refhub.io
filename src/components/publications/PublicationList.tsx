@@ -159,7 +159,7 @@ export function PublicationList({
               <h1 className="text-lg sm:text-xl lg:text-2xl font-bold truncate font-mono leading-none">
                 {selectedVault ? selectedVault.name : (
                   <>
-                    <span className="text-gradient">all_papers</span>
+                    // <span className="text-gradient">all_papers</span>
                   </>
                 )}
               </h1>

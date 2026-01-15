@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -8,6 +8,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18,8 +19,16 @@ import {
   Users as UsersIcon,
   Globe,
   Github,
-  Linkedin
+  Linkedin,
+  Command,
+  SortAsc
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
 interface UserWithStats extends Profile {
@@ -37,14 +46,29 @@ export default function Users() {
   const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'name' | 'publications' | 'vaults' | 'joined'>('joined');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
       navigate('/auth');
     }
   }, [user, authLoading, navigate]);
+
+  // Keyboard shortcut to focus search (Ctrl+K or Cmd+K)
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'k' && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const fetchVaults = useCallback(async () => {
     if (!user) return;
@@ -131,7 +155,8 @@ export default function Users() {
     }
   };
 
-  const filteredUsers = users.filter((u) => {
+  // Apply search filter
+  const searchFiltered = users.filter((u) => {
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
     return (
@@ -139,6 +164,23 @@ export default function Users() {
       u.username?.toLowerCase().includes(query) ||
       u.bio?.toLowerCase().includes(query)
     );
+  });
+
+  // Apply sorting
+  const filteredUsers = searchFiltered.sort((a, b) => {
+    switch (sortBy) {
+      case 'name':
+        const nameA = a.display_name || a.username || '';
+        const nameB = b.display_name || b.username || '';
+        return nameA.localeCompare(nameB);
+      case 'publications':
+        return b.publication_count - a.publication_count;
+      case 'vaults':
+        return b.vault_count - a.vault_count;
+      case 'joined':
+      default:
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    }
   });
 
   const getInitials = (user: UserWithStats) => {
@@ -191,17 +233,14 @@ export default function Users() {
 
       <div className={`flex-1 ${user ? 'lg:pl-72' : ''}`}>
         <div className="min-h-screen flex flex-col">
-          {/* Mobile menu button */}
-          {user && !isMobileSidebarOpen && (
-            <MobileMenuButton 
-              onClick={() => setIsMobileSidebarOpen(true)}
-              className="fixed top-4 left-4 z-50"
-            />
-          )}
-
           {/* Header */}
-          <header className="bg-card/50 backdrop-blur-xl border-b-2 border-border px-4 lg:px-8 py-4 shrink-0">
-            <div className="flex items-center gap-4">
+          <header className="bg-card/50 backdrop-blur-xl border-b-2 border-border px-4 lg:px-8 py-4 shrink-0 sticky top-0 z-10">
+            <div className="flex items-center gap-3">
+              <MobileMenuButton 
+                onClick={() => setIsMobileSidebarOpen(true)}
+                className="shrink-0"
+              />
+
               <div className="flex-1 min-w-0">
                 <h1 className="text-lg sm:text-xl lg:text-2xl font-bold truncate font-mono leading-none">
                   // <span className="text-gradient">researchers</span>
@@ -211,23 +250,50 @@ export default function Users() {
                 </p>
               </div>
             </div>
+
+            {/* Search and filters */}
+            <div className="flex items-center gap-3 mt-5 flex-wrap">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  ref={searchInputRef}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="search_researchers..."
+                  className="pl-11 font-mono"
+                />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 hidden lg:flex items-center gap-1 text-xs text-muted-foreground border border-border rounded-md px-1.5 py-0.5">
+                  <Command className="w-3 h-3" />
+                  <span>K</span>
+                </div>
+              </div>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-9 w-9">
+                    <SortAsc className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="font-mono">
+                  <DropdownMenuItem onClick={() => setSortBy('joined')}>
+                    recently_joined
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSortBy('name')}>
+                    name_asc
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSortBy('publications')}>
+                    most_publications
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSortBy('vaults')}>
+                    most_vaults
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </header>
 
           {/* Content */}
           <main className="flex-1 px-4 lg:px-8 py-8">
-            {/* Search */}
-            <div className="max-w-4xl mx-auto mb-8">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="search_researchers..."
-                  className="pl-10 font-mono"
-                />
-              </div>
-            </div>
-
             {/* Users Grid */}
             {loading ? (
               <div className="flex items-center justify-center py-16">
