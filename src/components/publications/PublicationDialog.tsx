@@ -469,7 +469,7 @@ export function PublicationDialog({
                             h1: ({ node, ...props }) => <h1 className="text-xl font-bold mt-4 mb-2" {...props} />,
                             h2: ({ node, ...props }) => <h2 className="text-lg font-bold mt-3 mb-2" {...props} />,
                             h3: ({ node, ...props }) => <h3 className="text-base font-bold mt-2 mb-1" {...props} />,
-                            code: ({ node, inline, ...props }: any) => 
+                            code: ({ node, inline, ...props }: { node: unknown; inline?: boolean; [key: string]: unknown }) => 
                               inline ? <code className="bg-muted px-1 py-0.5 rounded text-sm" {...props} /> : <code {...props} />,
                             blockquote: ({ node, ...props }) => <blockquote className="border-l-4 border-primary pl-4 italic my-2" {...props} />,
                           }}

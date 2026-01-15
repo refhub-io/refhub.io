@@ -169,10 +169,11 @@ export default function Users() {
   // Apply sorting
   const filteredUsers = searchFiltered.sort((a, b) => {
     switch (sortBy) {
-      case 'name':
+      case 'name': {
         const nameA = a.display_name || a.username || '';
         const nameB = b.display_name || b.username || '';
         return nameA.localeCompare(nameB);
+      }
       case 'publications':
         return b.publication_count - a.publication_count;
       case 'vaults':
