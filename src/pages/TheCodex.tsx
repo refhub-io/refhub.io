@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { SpinnerLoader } from '@/components/ui/loader';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { NotificationDropdown } from '@/components/notifications/NotificationDropdown';
 import { Sidebar } from '@/components/layout/Sidebar';
@@ -340,9 +341,7 @@ export default function TheCodex() {
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <div className="flex flex-col items-center gap-4">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500 via-orange-500 to-red-600 flex items-center justify-center shadow-lg animate-pulse">
-                <Scroll className="w-8 h-8 text-white" />
-              </div>
+              <SpinnerLoader className="w-12 h-12" />
               <p className="text-muted-foreground font-mono text-sm">// loading the codex...</p>
             </div>
           </div>

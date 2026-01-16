@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { Loader, SpinnerLoader } from '@/components/ui/loader';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
   Search, 
@@ -202,12 +203,7 @@ export default function Users() {
   if (authLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-lg glow-purple animate-glow-pulse">
-            <Sparkles className="w-8 h-8 text-white" />
-          </div>
-          <p className="text-muted-foreground font-mono text-sm">// loading...</p>
-        </div>
+        <Loader message="loading_researchers" />
       </div>
     );
   }

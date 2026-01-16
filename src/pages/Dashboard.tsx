@@ -13,6 +13,7 @@ import { VaultDialog } from '@/components/vaults/VaultDialog';
 import { RelationshipGraph } from '@/components/publications/RelationshipGraph';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { ExportDialog } from '@/components/publications/ExportDialog';
+import { Loader } from '@/components/ui/loader';
 import { useToast } from '@/hooks/use-toast';
 import { Sparkles } from 'lucide-react';
 import {
@@ -40,6 +41,8 @@ export default function Dashboard() {
   const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
   const [loading, setLoading] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [showLoader, setShowLoader] = useState(true);
+  const [hasShownInitialLoader, setHasShownInitialLoader] = useState(false);
 
   const [selectedVaultId, setSelectedVaultId] = useState<string | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -57,6 +60,18 @@ export default function Dashboard() {
 
   const [deleteConfirmation, setDeleteConfirmation] = useState<Publication | null>(null);
   const [deleteVaultConfirmation, setDeleteVaultConfirmation] = useState<Vault | null>(null);
+
+  // Ensure loader shows for at least 3 seconds on initial load
+  useEffect(() => {
+    if (!hasShownInitialLoader) {
+      setShowLoader(true);
+      const timer = setTimeout(() => {
+        setShowLoader(false);
+        setHasShownInitialLoader(true);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [hasShownInitialLoader]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -599,15 +614,11 @@ export default function Dashboard() {
   };
 
   // Only show full loading screen on auth loading, not on data loading
-  if (authLoading) {
+  // Show loader for minimum 3 seconds on first load
+  if (authLoading || showLoader) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-lg glow-purple animate-glow-pulse">
-            <Sparkles className="w-8 h-8 text-white" />
-          </div>
-          <p className="text-muted-foreground font-mono text-sm">// loading your library...</p>
-        </div>
+        <Loader message="loading_your_library" />
       </div>
     );
   }
