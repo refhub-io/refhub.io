@@ -406,8 +406,16 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="flex items-center gap-2 text-sm font-mono">
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 2C6.477 2 2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.879V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.989C18.343 21.129 22 16.99 22 12c0-5.523-4.477-10-10-10z" />
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M 11 12 C11 10 9 2 2 2" />
+                        <path d="M 12 12 C2 14 2 22 8 22" />
+                        <path d="M 12 12 C22 14 22 22 16 22" />
+                        <path d="M 12 12 L 12 12" />
+                        <path d="M 13 12 C13 10 15 2 22 2" />
+                        <path d="M 16 22 C10 22 13 14 13 12" />
+                        <path d="M 2 2 C-4 2 -2.5 14.5 12 12" />
+                        <path d="M 22 2 C28 2 28 14.5 12 12" />
+                        <path d="M 8 22 C14 22 11 14 11 12" />
                       </svg>
                       bluesky
                     </FormLabel>

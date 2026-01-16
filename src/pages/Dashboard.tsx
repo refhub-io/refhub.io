@@ -41,8 +41,10 @@ export default function Dashboard() {
   const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
   const [loading, setLoading] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [showLoader, setShowLoader] = useState(true);
-  const [hasShownInitialLoader, setHasShownInitialLoader] = useState(false);
+  const [showLoader, setShowLoader] = useState(() => {
+    // Check if loader has already been shown this session
+    return !sessionStorage.getItem('loaderShown');
+  });
 
   const [selectedVaultId, setSelectedVaultId] = useState<string | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -61,17 +63,18 @@ export default function Dashboard() {
   const [deleteConfirmation, setDeleteConfirmation] = useState<Publication | null>(null);
   const [deleteVaultConfirmation, setDeleteVaultConfirmation] = useState<Vault | null>(null);
 
-  // Ensure loader shows for at least 3 seconds on initial load
+  // Ensure loader shows for at least 3 seconds on initial session load only
   useEffect(() => {
-    if (!hasShownInitialLoader) {
+    const loaderShown = sessionStorage.getItem('loaderShown');
+    if (!loaderShown) {
       setShowLoader(true);
       const timer = setTimeout(() => {
         setShowLoader(false);
-        setHasShownInitialLoader(true);
+        sessionStorage.setItem('loaderShown', 'true');
       }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [hasShownInitialLoader]);
+  }, []);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -285,7 +288,7 @@ export default function Dashboard() {
         
         const { data: newPub, error } = await supabase
           .from('publications')
-          .insert([dataToSave])
+          .insert([dataToSave as Omit<Publication, 'id' | 'created_at' | 'updated_at'>])
           .select()
           .single();
 
@@ -347,7 +350,7 @@ export default function Dashboard() {
 
       const { data: insertedPubs, error } = await supabase
         .from('publications')
-        .insert(pubsToInsert)
+        .insert(pubsToInsert as Omit<Publication, 'id' | 'created_at' | 'updated_at'>[])
         .select();
 
       if (error) throw error;
@@ -582,7 +585,7 @@ export default function Dashboard() {
       } else {
         const { data: newVault, error } = await supabase
           .from('vaults')
-          .insert([{ ...data, user_id: user.id }])
+          .insert([{ ...data, user_id: user.id } as Omit<Vault, 'id' | 'created_at' | 'updated_at'>])
           .select()
           .single();
 
