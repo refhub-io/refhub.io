@@ -63,6 +63,9 @@ export function ImportDialog({
   const [targetVaultId, setTargetVaultId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
 
+  // Don't reset state when dialog opens/closes to preserve user input
+  // State is only cleared after successful import
+
   // Duplicate checker helper
   const checkForDuplicate = (newPub: Partial<Publication>) => {
     return allPublications.find(pub => {
@@ -282,7 +285,7 @@ export function ImportDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full max-w-[100vw] h-full sm:h-auto sm:w-[95vw] sm:max-w-4xl sm:max-h-[90vh] p-0 border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col">
+      <DialogContent forceMount className="w-full max-w-[100vw] h-full sm:h-auto sm:w-[95vw] sm:max-w-4xl sm:max-h-[90vh] p-0 border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col data-[state=closed]:hidden">
         <DialogHeader className="p-4 sm:p-6 pb-0">
           <DialogTitle className="text-xl sm:text-2xl font-bold font-mono">
             // add_<span className="text-gradient">papers</span>

@@ -80,7 +80,9 @@ export function PublicationDialog({
   const [authorsInput, setAuthorsInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [notesTab, setNotesTab] = useState<'write' | 'preview'>('write');
+  const [duplicateWarning, setDuplicateWarning] = useState<Publication | null>(null);
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const duplicateCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadRef = useRef(true);
   const publicationRef = useRef(publication);
   const openRef = useRef(open);
@@ -89,17 +91,47 @@ export function PublicationDialog({
   const selectedTagsRef = useRef(selectedTags);
   const lastPublicationIdRef = useRef<string | null>(null);
 
+  // Duplicate checker helper
+  const checkForDuplicate = (checkData: Partial<Publication>) => {
+    // Don't check against the publication being edited
+    const editingId = publication?.id;
+    
+    return allPublications.find(pub => {
+      if (editingId && pub.id === editingId) return false;
+      
+      // Check DOI match (if DOI exists on both)
+      if (checkData.doi && pub.doi && checkData.doi.toLowerCase().trim() === pub.doi.toLowerCase().trim()) {
+        return true;
+      }
+      
+      // Check title match (normalize for comparison)
+      if (checkData.title && pub.title) {
+        const normalizeTitle = (title: string) => title.toLowerCase().trim().replace(/\s+/g, ' ');
+        if (normalizeTitle(checkData.title) === normalizeTitle(pub.title)) {
+          return true;
+        }
+      }
+      
+      return false;
+    });
+  };
+
   useEffect(() => {
-    // Only reset form data if dialog is opening or switching to a different publication
+    // Only reset form data if dialog is opening with a different publication or opening fresh
     const publicationId = publication?.id || null;
-    const isOpeningDialog = open && !publicationRef.current;
+    const wasClosedBefore = !openRef.current;
+    const isNowOpening = open && wasClosedBefore;
     const isSwitchingPublication = publicationId !== lastPublicationIdRef.current;
     
-    if (!isOpeningDialog && !isSwitchingPublication) {
-      return; // Don't reset form if just updating the same publication
+    // Update the open ref
+    openRef.current = open;
+    
+    // Only reset if opening fresh or switching publications, not on close or while staying open
+    if (!isNowOpening && !isSwitchingPublication) {
+      return;
     }
     
-    isInitialLoadRef.current = true; // Reset on dialog open
+    isInitialLoadRef.current = true;
     lastPublicationIdRef.current = publicationId;
     
     if (publication) {
@@ -144,6 +176,38 @@ export function PublicationDialog({
       setSelectedTags([]);
     }
   }, [publication, publicationTags, open]);
+
+  // Debounced duplicate check
+  useEffect(() => {
+    // Only check for duplicates when adding new paper (not editing)
+    if (publication) {
+      setDuplicateWarning(null);
+      return;
+    }
+
+    // Clear any existing timeout
+    if (duplicateCheckTimeoutRef.current) {
+      clearTimeout(duplicateCheckTimeoutRef.current);
+    }
+
+    // Only check if there's meaningful data to check
+    if (!formData.title && !formData.doi) {
+      setDuplicateWarning(null);
+      return;
+    }
+
+    // Debounce the check by 500ms
+    duplicateCheckTimeoutRef.current = setTimeout(() => {
+      const duplicate = checkForDuplicate(formData);
+      setDuplicateWarning(duplicate || null);
+    }, 500);
+
+    return () => {
+      if (duplicateCheckTimeoutRef.current) {
+        clearTimeout(duplicateCheckTimeoutRef.current);
+      }
+    };
+  }, [formData.title, formData.doi, publication, allPublications]);
 
   // Reset auto-save flag when dialog opens
   useEffect(() => {
@@ -244,11 +308,27 @@ export function PublicationDialog({
           </DialogTitle>
         </DialogHeader>
 
+        {duplicateWarning && (
+          <div className="mx-2 sm:mx-6 mb-2 bg-orange-500/10 border border-orange-500/30 rounded-md px-3 py-2">
+            <p className="text-xs font-mono text-orange-600 dark:text-orange-400">
+              <span className="text-orange-500 font-bold">&gt;&gt;</span> warning: possible duplicate detected
+            </p>
+            <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+              Similar to: "{duplicateWarning.title}"
+            </p>
+          </div>
+        )}
+
         <ScrollArea className="flex-1 overflow-auto w-full min-w-0">
           <form onSubmit={handleSubmit} className="px-2 py-3 sm:p-6 sm:pt-4 space-y-3 sm:space-y-5 w-full min-w-full box-border overflow-x-hidden">
             {/* Title */}
             <div className="space-y-1 sm:space-y-2 w-full box-border overflow-hidden">
-              <Label htmlFor="title" className="font-semibold font-mono text-sm block">title</Label>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="title" className="font-semibold font-mono text-sm block">title</Label>
+                {duplicateWarning && (
+                  <span className="text-[11px] px-2 py-1 rounded bg-orange-500 text-white font-mono font-bold shadow-md">DUPE</span>
+                )}
+              </div>
               <Input
                 id="title"
                 value={formData.title}
