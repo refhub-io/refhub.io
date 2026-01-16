@@ -597,7 +597,7 @@ export default function Dashboard() {
         onEditProfile={() => setIsProfileDialogOpen(true)}
       />
 
-      <div className="flex-1 lg:pl-72">
+      <div className="flex-1 lg:pl-72 min-w-0">
         <PublicationList
         publications={filteredPublications}
         tags={tags}

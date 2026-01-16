@@ -82,8 +82,8 @@ export function PublicationTable({
   };
 
   return (
-    <div className="border border-border rounded-lg overflow-hidden">
-      <Table>
+    <div className="w-full border border-border rounded-lg overflow-x-auto">
+      <Table className="min-w-max">
         <TableHeader>
           <TableRow className="bg-muted/30 hover:bg-muted/30">
             <TableHead className="w-10">

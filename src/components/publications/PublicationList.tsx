@@ -139,7 +139,7 @@ export function PublicationList({
   const selectedPublications = publications.filter((p) => selectedIds.has(p.id));
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div className="flex-1 flex flex-col min-h-0 overflow-x-hidden">
       {/* Header */}
       <header className="bg-card/50 backdrop-blur-xl border-b-2 border-border px-4 lg:px-8 py-4 shrink-0 sticky top-0 z-10">
         <div className="flex items-center gap-3">
@@ -292,7 +292,7 @@ export function PublicationList({
       </header>
 
       {/* Publication list */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 lg:p-8">
+      <div className="flex-1 overflow-y-auto scrollbar-thin overflow-x-hidden p-4 lg:p-8">
         {filteredPublications.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-20 h-20 rounded-3xl bg-gradient-primary flex items-center justify-center mb-6 shadow-lg glow-purple">
@@ -314,21 +314,19 @@ export function PublicationList({
             )}
           </div>
         ) : viewMode === 'table' ? (
-          <div className="max-w-full overflow-x-auto">
-            <PublicationTable
-              publications={filteredPublications}
-              tags={tags}
-              vaults={vaults}
-              publicationTagsMap={publicationTagsMap}
-              relationsCountMap={relationsCountMap}
-              selectedIds={selectedIds}
-              visibleColumns={visibleColumns}
-              onToggleSelect={toggleSelection}
-              onEdit={onEditPublication}
-              onDelete={onDeletePublication}
-              onExportBibtex={(pub) => onExportBibtex([pub])}
-            />
-          </div>
+          <PublicationTable
+            publications={filteredPublications}
+            tags={tags}
+            vaults={vaults}
+            publicationTagsMap={publicationTagsMap}
+            relationsCountMap={relationsCountMap}
+            selectedIds={selectedIds}
+            visibleColumns={visibleColumns}
+            onToggleSelect={toggleSelection}
+            onEdit={onEditPublication}
+            onDelete={onDeletePublication}
+            onExportBibtex={(pub) => onExportBibtex([pub])}
+          />
         ) : (
           <div className="space-y-4 max-w-4xl mx-auto">
             {filteredPublications.map((pub, index) => (
