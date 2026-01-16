@@ -142,4 +142,3 @@ for questions or feedback, please open an issue on github.
 ```
 © 2026 refhub.io
 ```
-© 2026 refhub.io
