@@ -180,7 +180,7 @@ export function RelationshipGraph({
   );
 
   const linkCanvasObject = useCallback(
-    (link: { source: { x: number; y: number }; target: { x: number; y: number }; color: string }, ctx: CanvasRenderingContext2D, globalScale: number) => {
+    (link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const start = link.source;
       const end = link.target;
 
@@ -269,8 +269,6 @@ export function RelationshipGraph({
               cooldownTicks={200}
               d3AlphaDecay={0.01}
               d3VelocityDecay={0.2}
-              linkDistance={dimensions.width < 640 ? 150 : 300}
-              chargeStrength={dimensions.width < 640 ? -200 : -400}
               linkDirectionalArrowLength={4}
               linkDirectionalArrowRelPos={1}
               linkDirectionalArrowColor={(link: GraphLink) => link.color}
