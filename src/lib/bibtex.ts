@@ -11,9 +11,13 @@ export function generateBibtexKey(pub: Publication): string {
   return `${lastName}${year}${titleWord}`;
 }
 
-export type BibtexField = 'title' | 'author' | 'year' | 'journal' | 'volume' | 'number' | 'pages' | 'doi' | 'url' | 'abstract';
+export type BibtexField = 'title' | 'author' | 'year' | 'journal' | 'volume' | 'number' | 'pages' | 'doi' | 'url' | 'abstract' | 
+  'booktitle' | 'chapter' | 'edition' | 'editor' | 'howpublished' | 'institution' | 'organization' | 'publisher' | 'school' | 
+  'series' | 'type' | 'eid' | 'isbn' | 'issn' | 'keywords';
 
-const ALL_FIELDS: BibtexField[] = ['title', 'author', 'year', 'journal', 'volume', 'number', 'pages', 'doi', 'url', 'abstract'];
+const ALL_FIELDS: BibtexField[] = ['title', 'author', 'year', 'journal', 'volume', 'number', 'pages', 'doi', 'url', 'abstract',
+  'booktitle', 'chapter', 'edition', 'editor', 'howpublished', 'institution', 'organization', 'publisher', 'school',
+  'series', 'type', 'eid', 'isbn', 'issn', 'keywords'];
 
 export function publicationToBibtex(pub: Publication, includedFields?: BibtexField[]): string {
   const key = generateBibtexKey(pub);
@@ -60,6 +64,67 @@ export function publicationToBibtex(pub: Publication, includedFields?: BibtexFie
   
   if (fieldsToInclude.includes('abstract') && pub.abstract) {
     fields.push(`  abstract = {${pub.abstract}}`);
+  }
+
+  // Additional BibTeX fields
+  if (fieldsToInclude.includes('booktitle') && pub.booktitle) {
+    fields.push(`  booktitle = {${pub.booktitle}}`);
+  }
+
+  if (fieldsToInclude.includes('chapter') && pub.chapter) {
+    fields.push(`  chapter = {${pub.chapter}}`);
+  }
+
+  if (fieldsToInclude.includes('edition') && pub.edition) {
+    fields.push(`  edition = {${pub.edition}}`);
+  }
+
+  if (fieldsToInclude.includes('editor') && pub.editor && pub.editor.length > 0) {
+    fields.push(`  editor = {${pub.editor.join(' and ')}}`);
+  }
+
+  if (fieldsToInclude.includes('howpublished') && pub.howpublished) {
+    fields.push(`  howpublished = {${pub.howpublished}}`);
+  }
+
+  if (fieldsToInclude.includes('institution') && pub.institution) {
+    fields.push(`  institution = {${pub.institution}}`);
+  }
+
+  if (fieldsToInclude.includes('organization') && pub.organization) {
+    fields.push(`  organization = {${pub.organization}}`);
+  }
+
+  if (fieldsToInclude.includes('publisher') && pub.publisher) {
+    fields.push(`  publisher = {${pub.publisher}}`);
+  }
+
+  if (fieldsToInclude.includes('school') && pub.school) {
+    fields.push(`  school = {${pub.school}}`);
+  }
+
+  if (fieldsToInclude.includes('series') && pub.series) {
+    fields.push(`  series = {${pub.series}}`);
+  }
+
+  if (fieldsToInclude.includes('type') && pub.type) {
+    fields.push(`  type = {${pub.type}}`);
+  }
+
+  if (fieldsToInclude.includes('eid') && pub.eid) {
+    fields.push(`  eid = {${pub.eid}}`);
+  }
+
+  if (fieldsToInclude.includes('isbn') && pub.isbn) {
+    fields.push(`  isbn = {${pub.isbn}}`);
+  }
+
+  if (fieldsToInclude.includes('issn') && pub.issn) {
+    fields.push(`  issn = {${pub.issn}}`);
+  }
+
+  if (fieldsToInclude.includes('keywords') && pub.keywords && pub.keywords.length > 0) {
+    fields.push(`  keywords = {${pub.keywords.join(', ')}}`);
   }
   
   return `@${type}{${key},\n${fields.join(',\n')}\n}`;
@@ -231,27 +296,28 @@ export function parseBibtex(bibtexContent: string): Partial<Publication>[] {
     const authors = fields.author
       ? fields.author.split(/\s+and\s+/i).map(a => a.trim())
       : [];
+
+    // Parse editors - split by " and "
+    const editor = fields.editor
+      ? fields.editor.split(/\s+and\s+/i).map(e => e.trim())
+      : [];
+
+    // Parse keywords - split by comma
+    const keywords = fields.keywords
+      ? fields.keywords.split(',').map(k => k.trim())
+      : [];
     
     // Parse year
     const year = fields.year ? parseInt(fields.year, 10) : undefined;
     
-    // Map BibTeX type to our types
-    let publicationType = type;
-    if (type === 'inproceedings' || type === 'conference') {
-      publicationType = 'inproceedings';
-    } else if (type === 'phdthesis' || type === 'mastersthesis') {
-      publicationType = 'thesis';
-    } else if (type === 'techreport') {
-      publicationType = 'report';
-    } else if (!['article', 'book', 'thesis', 'report', 'misc'].includes(type)) {
-      publicationType = 'misc';
-    }
+    // Keep publication type as-is from the BibTeX entry
+    const publicationType = type;
     
     publications.push({
       title: fields.title?.trim() || 'Untitled',
       authors,
       year: isNaN(year!) ? undefined : year,
-      journal: fields.journal || fields.booktitle || undefined,
+      journal: fields.journal || undefined,
       volume: fields.volume || undefined,
       issue: fields.number || undefined,
       pages: fields.pages || undefined,
@@ -260,6 +326,23 @@ export function parseBibtex(bibtexContent: string): Partial<Publication>[] {
       abstract: fields.abstract || undefined,
       bibtex_key: key,
       publication_type: publicationType,
+      // Additional BibTeX fields
+      booktitle: fields.booktitle || undefined,
+      chapter: fields.chapter || undefined,
+      edition: fields.edition || undefined,
+      editor: editor.length > 0 ? editor : undefined,
+      howpublished: fields.howpublished || undefined,
+      institution: fields.institution || undefined,
+      number: fields.number || undefined,
+      organization: fields.organization || undefined,
+      publisher: fields.publisher || undefined,
+      school: fields.school || undefined,
+      series: fields.series || undefined,
+      type: fields.type || undefined,
+      eid: fields.eid || undefined,
+      isbn: fields.isbn || undefined,
+      issn: fields.issn || undefined,
+      keywords: keywords.length > 0 ? keywords : undefined,
     });
   }
   

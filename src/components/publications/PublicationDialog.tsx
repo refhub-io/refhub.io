@@ -75,9 +75,28 @@ export function PublicationDialog({
     publication_type: 'article',
     notes: '',
     vault_id: null,
+    // Additional BibTeX fields
+    booktitle: '',
+    chapter: '',
+    edition: '',
+    editor: [],
+    howpublished: '',
+    institution: '',
+    number: '',
+    organization: '',
+    publisher: '',
+    school: '',
+    series: '',
+    type: '',
+    eid: '',
+    isbn: '',
+    issn: '',
+    keywords: [],
   });
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [authorsInput, setAuthorsInput] = useState('');
+  const [editorInput, setEditorInput] = useState('');
+  const [keywordsInput, setKeywordsInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [notesTab, setNotesTab] = useState<'write' | 'preview'>('write');
   const [duplicateWarning, setDuplicateWarning] = useState<Publication | null>(null);
@@ -151,8 +170,27 @@ export function PublicationDialog({
         publication_type: publication.publication_type || 'article',
         notes: publication.notes || '',
         vault_id: publication.vault_id,
+        // Additional BibTeX fields
+        booktitle: publication.booktitle || '',
+        chapter: publication.chapter || '',
+        edition: publication.edition || '',
+        editor: publication.editor || [],
+        howpublished: publication.howpublished || '',
+        institution: publication.institution || '',
+        number: publication.number || '',
+        organization: publication.organization || '',
+        publisher: publication.publisher || '',
+        school: publication.school || '',
+        series: publication.series || '',
+        type: publication.type || '',
+        eid: publication.eid || '',
+        isbn: publication.isbn || '',
+        issn: publication.issn || '',
+        keywords: publication.keywords || [],
       });
       setAuthorsInput(publication.authors.join(', '));
+      setEditorInput((publication.editor || []).join(', '));
+      setKeywordsInput((publication.keywords || []).join(', '));
       setSelectedTags(publicationTags);
     } else {
       setFormData({
@@ -171,8 +209,27 @@ export function PublicationDialog({
         publication_type: 'article',
         notes: '',
         vault_id: null,
+        // Additional BibTeX fields
+        booktitle: '',
+        chapter: '',
+        edition: '',
+        editor: [],
+        howpublished: '',
+        institution: '',
+        number: '',
+        organization: '',
+        publisher: '',
+        school: '',
+        series: '',
+        type: '',
+        eid: '',
+        isbn: '',
+        issn: '',
+        keywords: [],
       });
       setAuthorsInput('');
+      setEditorInput('');
+      setKeywordsInput('');
       setSelectedTags([]);
     }
   }, [publication, publicationTags, open]);
@@ -225,6 +282,14 @@ export function PublicationDialog({
     selectedTagsRef.current = selectedTags;
   }, [formData, authorsInput, selectedTags]);
 
+  const editorInputRef = useRef(editorInput);
+  const keywordsInputRef = useRef(keywordsInput);
+
+  useEffect(() => {
+    editorInputRef.current = editorInput;
+    keywordsInputRef.current = keywordsInput;
+  }, [editorInput, keywordsInput]);
+
   // Auto-save for edit mode only (debounced) - only triggers on formData changes
   useEffect(() => {
     if (!publicationRef.current || !openRef.current) return; // Only auto-save when editing an existing publication
@@ -244,16 +309,28 @@ export function PublicationDialog({
       const currentFormData = formDataRef.current;
       const currentAuthorsInput = authorsInputRef.current;
       const currentSelectedTags = selectedTagsRef.current;
+      const currentEditorInput = editorInputRef.current;
+      const currentKeywordsInput = keywordsInputRef.current;
       
       const authors = currentAuthorsInput
         .split(',')
         .map((a) => a.trim())
         .filter((a) => a.length > 0);
+
+      const editor = currentEditorInput
+        .split(',')
+        .map((e) => e.trim())
+        .filter((e) => e.length > 0);
+
+      const keywords = currentKeywordsInput
+        .split(',')
+        .map((k) => k.trim())
+        .filter((k) => k.length > 0);
       
       if (currentFormData.title && authors.length > 0) {
         setSaving(true);
         try {
-          await onSave({ ...currentFormData, authors }, currentSelectedTags, true); // true = isAutoSave
+          await onSave({ ...currentFormData, authors, editor, keywords }, currentSelectedTags, true); // true = isAutoSave
         } catch (error) {
           console.error('Auto-save failed:', error);
         } finally {
@@ -279,8 +356,18 @@ export function PublicationDialog({
       .map((a) => a.trim())
       .filter((a) => a.length > 0);
 
+    const editor = editorInput
+      .split(',')
+      .map((e) => e.trim())
+      .filter((e) => e.length > 0);
+
+    const keywords = keywordsInput
+      .split(',')
+      .map((k) => k.trim())
+      .filter((k) => k.length > 0);
+
     try {
-      await onSave({ ...formData, authors }, selectedTags);
+      await onSave({ ...formData, authors, editor, keywords }, selectedTags);
       onOpenChange(false);
     } finally {
       setSaving(false);
@@ -324,7 +411,7 @@ export function PublicationDialog({
             {/* Title */}
             <div className="space-y-1 sm:space-y-2 w-full box-border overflow-hidden">
               <div className="flex items-center gap-2">
-                <Label htmlFor="title" className="font-semibold font-mono text-sm block">title</Label>
+                <Label htmlFor="title" className="font-semibold font-mono text-sm block">title<span className="text-red-500 ml-1">*</span></Label>
                 {duplicateWarning && (
                   <span className="text-[11px] px-2 py-1 rounded bg-orange-500 text-white font-mono font-bold shadow-md">DUPE</span>
                 )}
@@ -341,7 +428,7 @@ export function PublicationDialog({
 
             {/* Authors */}
             <div className="space-y-1 sm:space-y-2 w-full box-border overflow-hidden">
-              <Label htmlFor="authors" className="font-semibold font-mono text-sm block">authors <span className="text-muted-foreground font-mono text-xs">(comma-separated)</span></Label>
+              <Label htmlFor="authors" className="font-semibold font-mono text-sm block">authors<span className="text-red-500 ml-1">*</span> <span className="text-muted-foreground font-mono text-xs">(comma-separated)</span></Label>
               <Input
                 id="authors"
                 value={authorsInput}
@@ -354,7 +441,7 @@ export function PublicationDialog({
             {/* Year and Type */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 w-full box-border overflow-hidden">
               <div className="space-y-1 sm:space-y-2 w-full overflow-hidden">
-                <Label htmlFor="year" className="font-semibold font-mono text-sm block">year</Label>
+                <Label htmlFor="year" className="font-semibold font-mono text-sm block">year<span className="text-red-500 ml-1">*</span></Label>
                 <Input
                   id="year"
                   type="number"
@@ -464,6 +551,214 @@ export function PublicationDialog({
                 onChange={(e) => setFormData({ ...formData, pdf_url: e.target.value })}
                 placeholder="link_to_pdf"
                 className="font-mono text-xs sm:text-sm w-full break-all h-9 sm:h-10 box-border"
+              />
+            </div>
+
+            {/* Additional BibTeX Fields - shown conditionally based on publication type */}
+            
+            {/* Editor (for books, collections, proceedings) */}
+            {['book', 'inbook', 'incollection', 'proceedings'].includes(formData.publication_type || '') && (
+              <div className="space-y-1 sm:space-y-2 w-full box-border overflow-hidden">
+                <Label htmlFor="editor" className="font-semibold font-mono text-sm block">editor <span className="text-muted-foreground font-mono text-xs">(comma-separated)</span></Label>
+                <Input
+                  id="editor"
+                  value={editorInput}
+                  onChange={(e) => setEditorInput(e.target.value)}
+                  placeholder="editor_name_1, editor_name_2"
+                  className="font-mono w-full text-xs sm:text-sm break-words h-9 sm:h-10 box-border"
+                />
+              </div>
+            )}
+
+            {/* Publisher (for books, proceedings, manuals) */}
+            {['book', 'booklet', 'inbook', 'incollection', 'proceedings', 'manual'].includes(formData.publication_type || '') && (
+              <div className="space-y-1 sm:space-y-2 w-full box-border overflow-hidden">
+                <Label htmlFor="publisher" className="font-semibold font-mono text-sm block">publisher</Label>
+                <Input
+                  id="publisher"
+                  value={formData.publisher}
+                  onChange={(e) => setFormData({ ...formData, publisher: e.target.value })}
+                  placeholder="publisher_name"
+                  className="font-mono w-full text-xs sm:text-sm break-words h-9 sm:h-10 box-border"
+                />
+              </div>
+            )}
+
+            {/* Booktitle (for inbook, incollection, inproceedings) */}
+            {['inbook', 'incollection', 'inproceedings', 'conference'].includes(formData.publication_type || '') && (
+              <div className="space-y-1 sm:space-y-2 w-full box-border overflow-hidden">
+                <Label htmlFor="booktitle" className="font-semibold font-mono text-sm block">booktitle</Label>
+                <Input
+                  id="booktitle"
+                  value={formData.booktitle}
+                  onChange={(e) => setFormData({ ...formData, booktitle: e.target.value })}
+                  placeholder="title_of_book_or_proceedings"
+                  className="font-mono w-full text-xs sm:text-sm break-words h-9 sm:h-10 box-border"
+                />
+              </div>
+            )}
+
+            {/* Series (for books, inbooks, proceedings) */}
+            {['book', 'inbook', 'incollection', 'proceedings'].includes(formData.publication_type || '') && (
+              <div className="space-y-1 sm:space-y-2 w-full box-border overflow-hidden">
+                <Label htmlFor="series" className="font-semibold font-mono text-sm block">series</Label>
+                <Input
+                  id="series"
+                  value={formData.series}
+                  onChange={(e) => setFormData({ ...formData, series: e.target.value })}
+                  placeholder="series_name"
+                  className="font-mono w-full text-xs sm:text-sm break-words h-9 sm:h-10 box-border"
+                />
+              </div>
+            )}
+
+            {/* Edition (for books) */}
+            {['book', 'inbook', 'manual'].includes(formData.publication_type || '') && (
+              <div className="space-y-1 sm:space-y-2 w-full box-border overflow-hidden">
+                <Label htmlFor="edition" className="font-semibold font-mono text-sm block">edition</Label>
+                <Input
+                  id="edition"
+                  value={formData.edition}
+                  onChange={(e) => setFormData({ ...formData, edition: e.target.value })}
+                  placeholder="Second, Third, etc."
+                  className="font-mono w-full text-xs sm:text-sm break-words h-9 sm:h-10 box-border"
+                />
+              </div>
+            )}
+
+            {/* Chapter (for inbook) */}
+            {formData.publication_type === 'inbook' && (
+              <div className="space-y-1 sm:space-y-2 w-full box-border overflow-hidden">
+                <Label htmlFor="chapter" className="font-semibold font-mono text-sm block">chapter</Label>
+                <Input
+                  id="chapter"
+                  value={formData.chapter}
+                  onChange={(e) => setFormData({ ...formData, chapter: e.target.value })}
+                  placeholder="3"
+                  className="font-mono w-full text-xs sm:text-sm break-words h-9 sm:h-10 box-border"
+                />
+              </div>
+            )}
+
+            {/* School (for theses) */}
+            {['mastersthesis', 'phdthesis'].includes(formData.publication_type || '') && (
+              <div className="space-y-1 sm:space-y-2 w-full box-border overflow-hidden">
+                <Label htmlFor="school" className="font-semibold font-mono text-sm block">school</Label>
+                <Input
+                  id="school"
+                  value={formData.school}
+                  onChange={(e) => setFormData({ ...formData, school: e.target.value })}
+                  placeholder="university_name"
+                  className="font-mono w-full text-xs sm:text-sm break-words h-9 sm:h-10 box-border"
+                />
+              </div>
+            )}
+
+            {/* Institution (for techreport) */}
+            {formData.publication_type === 'techreport' && (
+              <div className="space-y-1 sm:space-y-2 w-full box-border overflow-hidden">
+                <Label htmlFor="institution" className="font-semibold font-mono text-sm block">institution</Label>
+                <Input
+                  id="institution"
+                  value={formData.institution}
+                  onChange={(e) => setFormData({ ...formData, institution: e.target.value })}
+                  placeholder="institution_name"
+                  className="font-mono w-full text-xs sm:text-sm break-words h-9 sm:h-10 box-border"
+                />
+              </div>
+            )}
+
+            {/* Organization (for manuals, proceedings) */}
+            {['manual', 'proceedings'].includes(formData.publication_type || '') && (
+              <div className="space-y-1 sm:space-y-2 w-full box-border overflow-hidden">
+                <Label htmlFor="organization" className="font-semibold font-mono text-sm block">organization</Label>
+                <Input
+                  id="organization"
+                  value={formData.organization}
+                  onChange={(e) => setFormData({ ...formData, organization: e.target.value })}
+                  placeholder="organization_name"
+                  className="font-mono w-full text-xs sm:text-sm break-words h-9 sm:h-10 box-border"
+                />
+              </div>
+            )}
+
+            {/* How Published (for booklet, misc) */}
+            {['booklet', 'misc'].includes(formData.publication_type || '') && (
+              <div className="space-y-1 sm:space-y-2 w-full box-border overflow-hidden">
+                <Label htmlFor="howpublished" className="font-semibold font-mono text-sm block">howpublished</Label>
+                <Input
+                  id="howpublished"
+                  value={formData.howpublished}
+                  onChange={(e) => setFormData({ ...formData, howpublished: e.target.value })}
+                  placeholder="how_it_was_published"
+                  className="font-mono w-full text-xs sm:text-sm break-words h-9 sm:h-10 box-border"
+                />
+              </div>
+            )}
+
+            {/* Type field (for theses, techreport) */}
+            {['mastersthesis', 'phdthesis', 'techreport'].includes(formData.publication_type || '') && (
+              <div className="space-y-1 sm:space-y-2 w-full box-border overflow-hidden">
+                <Label htmlFor="type_field" className="font-semibold font-mono text-sm block">type <span className="text-muted-foreground font-mono text-xs">(e.g., PhD_dissertation, Research_Note)</span></Label>
+                <Input
+                  id="type_field"
+                  value={formData.type}
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                  placeholder="type_description"
+                  className="font-mono w-full text-xs sm:text-sm break-words h-9 sm:h-10 box-border"
+                />
+              </div>
+            )}
+
+            {/* ISBN for books */}
+            {['book', 'inbook', 'incollection', 'proceedings', 'manual'].includes(formData.publication_type || '') && (
+              <div className="space-y-1 sm:space-y-2 w-full box-border overflow-hidden">
+                <Label htmlFor="isbn" className="font-semibold text-sm font-mono block">isbn</Label>
+                <Input
+                  id="isbn"
+                  value={formData.isbn}
+                  onChange={(e) => setFormData({ ...formData, isbn: e.target.value })}
+                  placeholder="978-3-16-148410-0"
+                  className="font-mono w-full text-xs sm:text-sm h-9 sm:h-10 box-border"
+                />
+              </div>
+            )}
+
+            {/* ISSN and EID for articles */}
+            {formData.publication_type === 'article' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 w-full box-border overflow-hidden">
+                <div className="space-y-1 sm:space-y-2 w-full overflow-hidden">
+                  <Label htmlFor="issn" className="font-semibold text-sm font-mono block">issn</Label>
+                  <Input
+                    id="issn"
+                    value={formData.issn}
+                    onChange={(e) => setFormData({ ...formData, issn: e.target.value })}
+                    placeholder="1234-5678"
+                    className="font-mono w-full text-xs sm:text-sm h-9 sm:h-10 box-border"
+                  />
+                </div>
+                <div className="space-y-1 sm:space-y-2 w-full overflow-hidden">
+                  <Label htmlFor="eid" className="font-semibold text-sm font-mono block">eid</Label>
+                  <Input
+                    id="eid"
+                    value={formData.eid}
+                    onChange={(e) => setFormData({ ...formData, eid: e.target.value })}
+                    placeholder="electronic_id"
+                    className="font-mono w-full text-xs sm:text-sm h-9 sm:h-10 box-border"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Keywords */}
+            <div className="space-y-1 sm:space-y-2 w-full box-border overflow-hidden">
+              <Label htmlFor="keywords" className="font-semibold font-mono text-sm block">keywords <span className="text-muted-foreground font-mono text-xs">(comma-separated)</span></Label>
+              <Input
+                id="keywords"
+                value={keywordsInput}
+                onChange={(e) => setKeywordsInput(e.target.value)}
+                placeholder="machine_learning, neural_networks, deep_learning"
+                className="font-mono w-full text-xs sm:text-sm break-words h-9 sm:h-10 box-border"
               />
             </div>
 

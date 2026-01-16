@@ -16,6 +16,23 @@ export interface Publication {
   bibtex_key: string | null;
   publication_type: string;
   notes: string | null;
+  // Additional BibTeX fields
+  booktitle: string | null;
+  chapter: string | null;
+  edition: string | null;
+  editor: string[] | null;
+  howpublished: string | null;
+  institution: string | null;
+  number: string | null;
+  organization: string | null;
+  publisher: string | null;
+  school: string | null;
+  series: string | null;
+  type: string | null;
+  eid: string | null;
+  isbn: string | null;
+  issn: string | null;
+  keywords: string[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -154,18 +171,32 @@ export type RelationType = typeof RELATION_TYPES[number]['value'];
 export type PublicationType = 
   | 'article'
   | 'book'
-  | 'inproceedings'
+  | 'booklet'
   | 'conference'
-  | 'thesis'
-  | 'report'
-  | 'misc';
+  | 'inbook'
+  | 'incollection'
+  | 'inproceedings'
+  | 'manual'
+  | 'mastersthesis'
+  | 'misc'
+  | 'phdthesis'
+  | 'proceedings'
+  | 'techreport'
+  | 'unpublished';
 
 export const PUBLICATION_TYPES: { value: PublicationType; label: string }[] = [
-  { value: 'article', label: 'Journal Article' },
+  { value: 'article', label: 'Article' },
   { value: 'book', label: 'Book' },
-  { value: 'inproceedings', label: 'Conference Paper' },
+  { value: 'booklet', label: 'Booklet' },
   { value: 'conference', label: 'Conference' },
-  { value: 'thesis', label: 'Thesis' },
-  { value: 'report', label: 'Technical Report' },
+  { value: 'inbook', label: 'In Book' },
+  { value: 'incollection', label: 'In Collection' },
+  { value: 'inproceedings', label: 'In Proceedings' },
+  { value: 'manual', label: 'Manual' },
+  { value: 'mastersthesis', label: 'Master\'s Thesis' },
   { value: 'misc', label: 'Miscellaneous' },
+  { value: 'phdthesis', label: 'PhD Thesis' },
+  { value: 'proceedings', label: 'Proceedings' },
+  { value: 'techreport', label: 'Technical Report' },
+  { value: 'unpublished', label: 'Unpublished' },
 ];

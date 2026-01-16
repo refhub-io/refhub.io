@@ -359,25 +359,18 @@ export default function Dashboard() {
         // If this is the original publication's vault, skip
         if (publication.vault_id === vaultId) continue;
 
-        // Create a copy of the publication in the new vault
-        const { title, authors, year, journal, volume, issue, pages, doi, url, abstract, pdf_url, bibtex_key, publication_type, notes } = publication;
+        // Create a copy of the publication in the new vault - include all fields
+        const { 
+          title, authors, year, journal, volume, issue, pages, doi, url, abstract, pdf_url, bibtex_key, publication_type, notes,
+          booktitle, chapter, edition, editor, howpublished, institution, number, organization, publisher, school, series, type,
+          eid, isbn, issn, keywords
+        } = publication;
         const { data: newPub, error } = await supabase
           .from('publications')
           .insert({
-            title,
-            authors,
-            year,
-            journal,
-            volume,
-            issue,
-            pages,
-            doi,
-            url,
-            abstract,
-            pdf_url,
-            bibtex_key,
-            publication_type,
-            notes,
+            title, authors, year, journal, volume, issue, pages, doi, url, abstract, pdf_url, bibtex_key, publication_type, notes,
+            booktitle, chapter, edition, editor, howpublished, institution, number, organization, publisher, school, series, type,
+            eid, isbn, issn, keywords,
             user_id: user.id,
             vault_id: vaultId,
           })
