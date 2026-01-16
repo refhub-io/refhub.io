@@ -19,6 +19,14 @@ interface GraphLink {
   color: string;
 }
 
+// Type for link object after it's been transformed by the force graph library
+interface TransformedGraphLink {
+  source: { x: number; y: number };
+  target: { x: number; y: number };
+  type: string;
+  color: string;
+}
+
 interface RelationshipGraphProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -180,7 +188,7 @@ export function RelationshipGraph({
   );
 
   const linkCanvasObject = useCallback(
-    (link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+    (link: TransformedGraphLink, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const start = link.source;
       const end = link.target;
 
