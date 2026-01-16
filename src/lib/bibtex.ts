@@ -120,82 +120,55 @@ function parseBibtexEntry(entry: string): ParsedEntry | null {
   
   const fields: Record<string, string> = {};
   
-  // Parse fields - handle nested braces
-  let currentField = '';
-  let currentValue = '';
-  let braceDepth = 0;
-  let inValue = false;
-  let inQuotes = false;
-  let waitingForValue = false;
+  // Use a more robust field extraction with regex
+  // Match: fieldname = {value} or fieldname = "value"
+  const fieldPattern = /(\w+)\s*=\s*(["{])/g;
+  let match;
+  const fieldStarts: Array<{ field: string; pos: number; delimiter: string }> = [];
   
-  for (let i = 0; i < content.length; i++) {
-    const char = content[i];
-    
-    if (!inValue) {
-      if (char === '=') {
-        waitingForValue = true;
-        currentField = currentField.trim().toLowerCase();
-      } else if (waitingForValue) {
-        // Look for start of value (brace or quote)
-        if (char === '{') {
-          inValue = true;
-          waitingForValue = false;
-          braceDepth = 1;
-        } else if (char === '"') {
-          inValue = true;
-          waitingForValue = false;
-          inQuotes = true;
-        } else if (!char.match(/\s/)) {
-          // Bare value (number or string without braces)
-          inValue = true;
-          waitingForValue = false;
-          currentValue += char;
-        }
-      } else {
-        currentField += char;
-      }
-    } else {
-      if (char === '{' && !inQuotes) {
-        braceDepth++;
-        if (braceDepth > 1) currentValue += char;
-      } else if (char === '}' && !inQuotes) {
-        braceDepth--;
-        if (braceDepth > 0) {
-          currentValue += char;
-        } else if (braceDepth === 0) {
-          fields[currentField] = parseField(currentValue);
-          currentField = '';
-          currentValue = '';
-          inValue = false;
-        }
-      } else if (char === '"' && braceDepth === 0) {
-        if (inQuotes) {
-          inQuotes = false;
-          fields[currentField] = parseField(currentValue);
-          currentField = '';
-          currentValue = '';
-          inValue = false;
-        } else {
-          currentValue += char;
-        }
-      } else if (char === ',' && braceDepth === 0 && !inQuotes) {
-        if (currentValue.trim()) {
-          fields[currentField] = parseField(currentValue);
-        }
-        currentField = '';
-        currentValue = '';
-        inValue = false;
-      } else if (braceDepth > 0 || inQuotes) {
-        currentValue += char;
-      } else if (char.trim()) {
-        currentValue += char;
-      }
-    }
+  while ((match = fieldPattern.exec(content)) !== null) {
+    fieldStarts.push({
+      field: match[1].toLowerCase(),
+      pos: match.index + match[0].length - 1, // Position of opening delimiter
+      delimiter: match[2]
+    });
   }
   
-  // Handle last field if any
-  if (currentField && currentValue.trim()) {
-    fields[currentField] = parseField(currentValue);
+  // Extract value for each field
+  for (let i = 0; i < fieldStarts.length; i++) {
+    const { field, pos, delimiter } = fieldStarts[i];
+    const nextFieldPos = i + 1 < fieldStarts.length ? fieldStarts[i + 1].pos : content.length;
+    
+    let value = '';
+    let depth = 0;
+    let j = pos + 1; // Start after opening delimiter
+    
+    if (delimiter === '{') {
+      // Handle brace-delimited value
+      depth = 1;
+      while (j < nextFieldPos && depth > 0) {
+        if (content[j] === '{') depth++;
+        else if (content[j] === '}') depth--;
+        
+        if (depth > 0) {
+          value += content[j];
+        }
+        j++;
+      }
+    } else {
+      // Handle quote-delimited value
+      while (j < nextFieldPos) {
+        if (content[j] === '"' && (j === pos + 1 || content[j - 1] !== '\\')) {
+          break; // Found closing quote (not escaped)
+        }
+        value += content[j];
+        j++;
+      }
+    }
+    
+    if (value.trim()) {
+      fields[field] = parseField(value);
+    }
   }
   
   return { type, key, fields };
@@ -275,7 +248,7 @@ export function parseBibtex(bibtexContent: string): Partial<Publication>[] {
     }
     
     publications.push({
-      title: fields.title || 'Untitled',
+      title: fields.title?.trim() || 'Untitled',
       authors,
       year: isNaN(year!) ? undefined : year,
       journal: fields.journal || fields.booktitle || undefined,

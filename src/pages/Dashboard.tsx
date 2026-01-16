@@ -178,6 +178,29 @@ export default function Dashboard() {
     relationsCountMap[rel.related_publication_id] = (relationsCountMap[rel.related_publication_id] || 0) + 1;
   });
 
+  const checkForDuplicate = (newPub: Partial<Publication>, existingPubs: Publication[], excludeId?: string) => {
+    const duplicate = existingPubs.find(pub => {
+      if (excludeId && pub.id === excludeId) return false;
+      
+      // Check DOI match (if DOI exists on both)
+      if (newPub.doi && pub.doi && newPub.doi.toLowerCase().trim() === pub.doi.toLowerCase().trim()) {
+        return true;
+      }
+      
+      // Check title match (normalize for comparison)
+      if (newPub.title && pub.title) {
+        const normalizeTitle = (title: string) => title.toLowerCase().trim().replace(/\s+/g, ' ');
+        if (normalizeTitle(newPub.title) === normalizeTitle(pub.title)) {
+          return true;
+        }
+      }
+      
+      return false;
+    });
+    
+    return duplicate;
+  };
+
   const handleSavePublication = async (data: Partial<Publication>, tagIds: string[], isAutoSave = false) => {
     if (!user) return;
 
@@ -227,6 +250,17 @@ export default function Dashboard() {
           toast({ title: 'paper_updated ✨' });
         }
       } else {
+        // Check for duplicates before adding
+        const duplicate = checkForDuplicate(data, publications);
+        if (duplicate) {
+          toast({
+            title: 'duplicate_detected',
+            description: `Paper already exists: "${duplicate.title.substring(0, 50)}..."`,
+            variant: 'destructive',
+          });
+          return;
+        }
+
         // Auto-generate bibkey if empty
         const dataToSave = {
           ...data,
@@ -277,15 +311,24 @@ export default function Dashboard() {
     }
   };
 
-  const handleBulkImport = async (publications: Partial<Publication>[]) => {
+  const handleBulkImport = async (publicationsToImport: Partial<Publication>[]) => {
     if (!user) return;
 
     try {
-      const pubsToInsert = publications.map(pub => ({
+      const pubsToInsert = publicationsToImport.map(pub => ({
         ...pub,
         user_id: user.id,
         authors: pub.authors || [],
       }));
+
+      if (pubsToInsert.length === 0) {
+        toast({
+          title: 'no_papers_to_import',
+          description: 'All papers were duplicates',
+          variant: 'destructive',
+        });
+        return;
+      }
 
       const { data: insertedPubs, error } = await supabase
         .from('publications')

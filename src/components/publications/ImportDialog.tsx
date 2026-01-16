@@ -57,10 +57,31 @@ export function ImportDialog({
   // Parsed publications
   const [parsedPublications, setParsedPublications] = useState<Partial<Publication>[]>([]);
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
+  const [duplicateIndices, setDuplicateIndices] = useState<Set<number>>(new Set());
   
   // Import options
   const [targetVaultId, setTargetVaultId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+
+  // Duplicate checker helper
+  const checkForDuplicate = (newPub: Partial<Publication>) => {
+    return allPublications.find(pub => {
+      // Check DOI match (if DOI exists on both)
+      if (newPub.doi && pub.doi && newPub.doi.toLowerCase().trim() === pub.doi.toLowerCase().trim()) {
+        return true;
+      }
+      
+      // Check title match (normalize for comparison)
+      if (newPub.title && pub.title) {
+        const normalizeTitle = (title: string) => title.toLowerCase().trim().replace(/\s+/g, ' ');
+        if (normalizeTitle(newPub.title) === normalizeTitle(pub.title)) {
+          return true;
+        }
+      }
+      
+      return false;
+    });
+  };
 
   const handleDOILookup = async () => {
     if (!doiInput.trim()) return;
@@ -86,11 +107,24 @@ export function ImportDialog({
       // Generate bibkey for the imported paper
       pub.bibtex_key = generateBibtexKey(pub as Publication);
       
-      setParsedPublications([...parsedPublications, pub]);
-      setSelectedIndices(new Set([...selectedIndices, parsedPublications.length]));
-      setDoiInput('');
+      const isDuplicate = checkForDuplicate(pub);
+      const newIndex = parsedPublications.length;
       
-      toast({ title: 'doi_resolved ✨', description: metadata.title });
+      setParsedPublications([...parsedPublications, pub]);
+      setSelectedIndices(new Set([...selectedIndices, newIndex]));
+      
+      if (isDuplicate) {
+        setDuplicateIndices(new Set([...duplicateIndices, newIndex]));
+        toast({ 
+          title: '⚠️ possible_duplicate', 
+          description: `"${metadata.title}" may already exist in your library`,
+          variant: 'destructive'
+        });
+      } else {
+        toast({ title: 'doi_resolved ✨', description: metadata.title });
+      }
+      
+      setDoiInput('');
     } catch (error) {
       toast({
         title: 'doi_lookup_failed',
@@ -120,13 +154,34 @@ export function ImportDialog({
       const startIdx = parsedPublications.length;
       setParsedPublications([...parsedPublications, ...parsed]);
       
-      // Select all newly parsed entries
+      // Check for duplicates and select all newly parsed entries
       const newIndices = new Set(selectedIndices);
-      parsed.forEach((_, i) => newIndices.add(startIdx + i));
+      const newDuplicates = new Set(duplicateIndices);
+      let duplicateCount = 0;
+      
+      parsed.forEach((pub, i) => {
+        const idx = startIdx + i;
+        newIndices.add(idx);
+        
+        if (checkForDuplicate(pub)) {
+          newDuplicates.add(idx);
+          duplicateCount++;
+        }
+      });
+      
       setSelectedIndices(newIndices);
+      setDuplicateIndices(newDuplicates);
       
       setBibtexInput('');
-      toast({ title: `parsed_${parsed.length}_entries ✨` });
+      
+      if (duplicateCount > 0) {
+        toast({ 
+          title: `parsed_${parsed.length}_entries (${duplicateCount} duplicates)`,
+          description: 'Duplicates are marked in preview',
+        });
+      } else {
+        toast({ title: `parsed_${parsed.length}_entries ✨` });
+      }
     } catch (error) {
       toast({
         title: 'parse_error',
@@ -160,12 +215,22 @@ export function ImportDialog({
 
   const removePublication = (index: number) => {
     setParsedPublications(parsedPublications.filter((_, i) => i !== index));
+    
+    // Update selectedIndices
     const newSet = new Set<number>();
     selectedIndices.forEach(i => {
       if (i < index) newSet.add(i);
       else if (i > index) newSet.add(i - 1);
     });
     setSelectedIndices(newSet);
+    
+    // Update duplicateIndices
+    const newDuplicates = new Set<number>();
+    duplicateIndices.forEach(i => {
+      if (i < index) newDuplicates.add(i);
+      else if (i > index) newDuplicates.add(i - 1);
+    });
+    setDuplicateIndices(newDuplicates);
   };
 
   const handleImport = async () => {
@@ -353,25 +418,40 @@ export function ImportDialog({
                 </div>
               </div>
 
+              {duplicateIndices.size > 0 && (
+                <div className="bg-orange-500/10 border border-orange-500/30 rounded-md px-3 py-2">
+                  <p className="text-xs font-mono text-orange-600 dark:text-orange-400">
+                    <span className="text-orange-500 font-bold">&gt;&gt;</span> warning: {duplicateIndices.size} duplicate{duplicateIndices.size > 1 ? 's' : ''} detected in library
+                  </p>
+                </div>
+              )}
+
               <div className="border-2 rounded-lg max-h-40 overflow-y-auto">
                 <div className="p-2 space-y-2">
-                  {parsedPublications.map((pub, index) => (
+                  {parsedPublications.map((pub, index) => {
+                    const isDuplicate = duplicateIndices.has(index);
+                    return (
                     <div
                       key={index}
-                      className={`flex items-start gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg border transition-colors cursor-pointer ${
-                        selectedIndices.has(index)
+                      className={`relative flex items-start gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg border transition-colors cursor-pointer ${
+                        isDuplicate
+                          ? 'bg-orange-500/10 border-orange-500/50'
+                          : selectedIndices.has(index)
                           ? 'bg-primary/10 border-primary/50'
                           : 'bg-muted/30 border-transparent hover:border-border'
                       }`}
                       onClick={() => toggleSelection(index)}
                     >
+                      {isDuplicate && (
+                        <span className="absolute -top-2 left-10 text-[12px] px-2 py-0 rounded bg-orange-500 text-white font-mono font-bold shadow-md z-10">DUPE</span>
+                      )}
                       <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
                         selectedIndices.has(index) ? 'bg-primary border-primary' : 'border-muted-foreground'
                       }`}>
                         {selectedIndices.has(index) && <Check className="w-3 h-3 text-primary-foreground" />}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-xs sm:text-sm line-clamp-2">{pub.title}</p>
+                        <p className="font-medium text-xs sm:text-sm line-clamp-2">{pub.title || 'Untitled'}</p>
                         <p className="text-xs text-muted-foreground font-mono truncate">
                           {pub.authors?.slice(0, 2).join(', ')}{pub.authors && pub.authors.length > 2 ? '...' : ''} • {pub.year || 'n.d.'}
                         </p>
@@ -388,7 +468,8 @@ export function ImportDialog({
                         <X className="w-4 h-4" />
                       </Button>
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
               </div>
 
