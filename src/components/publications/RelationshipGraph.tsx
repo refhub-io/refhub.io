@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useMemo } from 'react';
+import { useRef, useEffect, useCallback, useMemo, useState, useLayoutEffect } from 'react';
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
 import { Publication, PublicationRelation, RELATION_TYPES } from '@/types/database';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -46,6 +46,42 @@ export function RelationshipGraph({
   const containerRef = useRef<HTMLDivElement>(null);
   const hasZoomedRef = useRef(false);
 
+  // Track container dimensions
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [isReady, setIsReady] = useState(false);
+
+  // Measure container after layout
+  useLayoutEffect(() => {
+    if (!open) {
+      setIsReady(false);
+      setDimensions({ width: 0, height: 0 });
+      return;
+    }
+
+    const updateDimensions = () => {
+      if (!containerRef.current) return;
+      const { width, height } = containerRef.current.getBoundingClientRect();
+      if (width > 0 && height > 0) {
+        setDimensions({ width, height });
+        setIsReady(true);
+      }
+    };
+
+    // Measure after a brief delay to ensure dialog is fully rendered
+    const timeoutId = setTimeout(updateDimensions, 100);
+
+    // Also set up resize observer for window resizes
+    const resizeObserver = new ResizeObserver(updateDimensions);
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+
+    return () => {
+      clearTimeout(timeoutId);
+      resizeObserver.disconnect();
+    };
+  }, [open]);
+
   // Build graph data
   const graphData = useMemo(() => {
     // Get all publication IDs that have relations
@@ -89,9 +125,11 @@ export function RelationshipGraph({
   const handleEngineStop = useCallback(() => {
     if (!hasZoomedRef.current && graphRef.current) {
       hasZoomedRef.current = true;
-      graphRef.current.zoomToFit(400, 80);
+      // Use more padding on mobile to prevent label clipping in constrained width
+      const padding = dimensions.width < 640 ? 100 : 120;
+      graphRef.current.zoomToFit(400, padding);
     }
-  }, []);
+  }, [dimensions.width]);
 
   const handleNodeClick = useCallback(
     (node: GraphNode) => {
@@ -178,18 +216,18 @@ export function RelationshipGraph({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl h-[80vh] flex flex-col bg-card/95 backdrop-blur-xl border-2">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-bold flex items-center gap-2 font-mono">
-            // paper_relationship_graph
-            <Badge variant="outline" className="font-mono text-xs">
+      <DialogContent className="max-w-6xl w-[95vw] h-[85vh] sm:h-[90vh] flex flex-col bg-card/95 backdrop-blur-xl border-2 p-3 sm:p-6">
+        <DialogHeader className="pb-2">
+          <DialogTitle className="text-lg sm:text-xl font-bold flex flex-col sm:flex-row items-start sm:items-center gap-2 font-mono">
+            <span className="whitespace-nowrap">// graph</span>
+            <Badge variant="outline" className="font-mono text-xs whitespace-nowrap">
               {graphData.nodes.length}_papers • {graphData.links.length}_links
             </Badge>
           </DialogTitle>
         </DialogHeader>
 
         {/* Legend */}
-        <div className="flex flex-wrap gap-2 px-1">
+        <div className="flex flex-wrap gap-2 px-1 pb-2">
           {RELATION_TYPES.map((type) => (
             <div key={type.value} className="flex items-center gap-1.5">
               <div
@@ -201,17 +239,22 @@ export function RelationshipGraph({
           ))}
         </div>
 
-        <div ref={containerRef} className="flex-1 rounded-lg overflow-hidden bg-background/50 border">
+        <div ref={containerRef} className="flex-1 min-h-0 w-full rounded-lg overflow-hidden bg-background/50 border">
           {graphData.nodes.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-muted-foreground font-mono text-sm">
+            <div className="w-full h-full flex items-center justify-center text-muted-foreground font-mono text-sm">
               // no paper relationships to visualize yet
+            </div>
+          ) : !isReady || dimensions.width === 0 || dimensions.height === 0 ? (
+            <div className="w-full h-full flex items-center justify-center text-muted-foreground font-mono text-sm">
+              // loading graph...
             </div>
           ) : (
             <ForceGraph2D
+              key={`graph-${dimensions.width}-${dimensions.height}`}
               ref={graphRef}
               graphData={graphData}
-              width={containerRef.current?.clientWidth || 1000}
-              height={containerRef.current?.clientHeight || 600}
+              width={dimensions.width}
+              height={dimensions.height}
               nodeCanvasObject={nodeCanvasObject}
               linkCanvasObject={linkCanvasObject}
               onNodeClick={handleNodeClick}
@@ -226,8 +269,8 @@ export function RelationshipGraph({
               cooldownTicks={200}
               d3AlphaDecay={0.01}
               d3VelocityDecay={0.2}
-              linkDistance={300}
-              chargeStrength={-400}
+              linkDistance={dimensions.width < 640 ? 150 : 300}
+              chargeStrength={dimensions.width < 640 ? -200 : -400}
               linkDirectionalArrowLength={4}
               linkDirectionalArrowRelPos={1}
               linkDirectionalArrowColor={(link: GraphLink) => link.color}
