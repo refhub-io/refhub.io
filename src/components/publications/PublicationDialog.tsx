@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Publication, Vault, Tag, PUBLICATION_TYPES } from '@/types/database';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -110,8 +110,8 @@ export function PublicationDialog({
   const selectedTagsRef = useRef(selectedTags);
   const lastPublicationIdRef = useRef<string | null>(null);
 
-  // Duplicate checker helper
-  const checkForDuplicate = (checkData: Partial<Publication>) => {
+  // Duplicate checker helper wrapped in useCallback
+  const checkForDuplicate = useCallback((checkData: Partial<Publication>) => {
     // Don't check against the publication being edited
     const editingId = publication?.id;
     
@@ -133,7 +133,7 @@ export function PublicationDialog({
       
       return false;
     });
-  };
+  }, [publication, allPublications]);
 
   useEffect(() => {
     // Only reset form data if dialog is opening with a different publication or opening fresh
@@ -264,7 +264,7 @@ export function PublicationDialog({
         clearTimeout(duplicateCheckTimeoutRef.current);
       }
     };
-  }, [formData.title, formData.doi, publication, allPublications]);
+  }, [formData.title, formData.doi, formData, publication, allPublications, checkForDuplicate]);
 
   // Reset auto-save flag when dialog opens
   useEffect(() => {

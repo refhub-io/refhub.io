@@ -181,10 +181,40 @@ export function PublicationList({
           <div className="flex items-center gap-2 shrink-0">
             <NotificationDropdown />
 
-            {/* Actions Dropdown - Groups Settings, Network Graph, and Import */}
+            {/* Visible buttons on larger screens */}
+            <Button 
+              onClick={onOpenGraph} 
+              variant="outline" 
+              className="h-9 font-mono hidden lg:flex"
+            >
+              <Network className="w-4 h-4 mr-2" />
+              relationship_graph
+            </Button>
+
+            <Button 
+              onClick={onImportPublications} 
+              variant="outline" 
+              className="h-9 font-mono hidden lg:flex"
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              import_bibtex
+            </Button>
+
+            {selectedVault && onEditVault && (
+              <Button 
+                onClick={() => onEditVault(selectedVault)} 
+                variant="outline" 
+                className="h-9 font-mono hidden lg:flex"
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                vault_settings
+              </Button>
+            )}
+
+            {/* Mobile dropdown with gradient styling */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" className="h-9 w-9" title="More actions">
+                <Button variant="glow" size="icon" className="h-9 w-9 lg:hidden" title="More actions">
                   <MoreVertical className="w-4 h-4" />
                 </Button>
               </DropdownMenuTrigger>
