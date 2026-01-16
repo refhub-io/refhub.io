@@ -470,6 +470,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      delete_user: {
+        Args: Record<string, never>
+        Returns: undefined
+      }
       increment_vault_downloads: {
         Args: { vault_uuid: string }
         Returns: undefined

@@ -427,8 +427,6 @@ export default function Users() {
         <ProfileDialog
           open={isProfileDialogOpen}
           onOpenChange={setIsProfileDialogOpen}
-          profile={profile}
-          onSave={refetchProfile}
         />
       )}
     </div>
