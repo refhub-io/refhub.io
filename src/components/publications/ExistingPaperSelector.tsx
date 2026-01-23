@@ -104,7 +104,7 @@ export function ExistingPaperSelector({
           </div>
 
           {/* Search Results */}
-          <div className="border-2 rounded-lg max-h-60 overflow-hidden">
+          <div className="border-2 rounded-lg max-h-60 overflow-y-auto">
             <ScrollArea className="h-full max-h-60">
               <div className="p-2 space-y-1">
                 {filteredPublications.length > 0 ? (
