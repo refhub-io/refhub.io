@@ -10,14 +10,13 @@ const Index = () => {
   const { profile, loading: profileLoading } = useProfile();
   const navigate = useNavigate();
 
+  // All hooks must be called unconditionally at the top
   useEffect(() => {
     if (!loading && !user) {
       navigate('/auth');
-    }
-  }, [user, loading, navigate]);
-
-  useEffect(() => {
-    if (!loading && user && !profileLoading && profile && profile.is_setup === false) {
+    } else if (!loading && user && !profileLoading && profile && profile.is_setup === false) {
+      navigate('/profile-edit');
+    } else if (!loading && user && !profileLoading && !profile) {
       navigate('/profile-edit');
     }
   }, [user, loading, profile, profileLoading, navigate]);
@@ -38,10 +37,6 @@ const Index = () => {
   }
 
   if (!profile) {
-    // If profile is missing, redirect to profile creation and avoid blank screen
-    useEffect(() => {
-      navigate('/profile-edit');
-    }, [navigate]);
     return null;
   }
 
