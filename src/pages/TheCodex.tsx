@@ -292,7 +292,7 @@ export default function TheCodex() {
               <h1 className="text-4xl md:text-6xl font-bold mb-4 font-mono">
                 <span className="bg-gradient-to-r from-amber-400 via-orange-400 to-red-500 bg-clip-text text-transparent">the_codex</span>
               </h1>
-              <p className="text-muted-foreground max-w-2xl mx-auto text-lg mb-2">
+              <p className="text-muted-foreground font-mono max-w-2xl mx-auto text-lg mb-2">
                 discover curated literature collections from researchers worldwide
               </p>
               <p className="text-muted-foreground/70 font-mono text-sm">
