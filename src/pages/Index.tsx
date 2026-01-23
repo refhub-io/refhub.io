@@ -1,10 +1,12 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useProfile } from '@/hooks/useProfile';
 import Dashboard from './Dashboard';
 
 const Index = () => {
   const { user, loading } = useAuth();
+  const { profile, loading: profileLoading } = useProfile();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -13,7 +15,13 @@ const Index = () => {
     }
   }, [user, loading, navigate]);
 
-  if (loading) {
+  useEffect(() => {
+    if (!loading && user && !profileLoading && profile && profile.is_setup === false) {
+      navigate('/profile-edit');
+    }
+  }, [user, loading, profile, profileLoading, navigate]);
+
+  if (loading || profileLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -24,7 +32,7 @@ const Index = () => {
     );
   }
 
-  if (!user) {
+  if (!user || !profile) {
     return null;
   }
 

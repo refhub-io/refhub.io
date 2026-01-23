@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Mail, Lock, User, ArrowRight, Sparkles, Check, X } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { cn } from '@/lib/utils';
 
@@ -69,6 +70,7 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -117,7 +119,7 @@ export default function Auth() {
             title: 'welcome_to_refhub.io!',
             description: 'Your account has been created successfully.',
           });
-          navigate('/');
+          navigate('/signup-next-steps');
         }
       } else {
         const { error } = await signIn(email, password);
@@ -128,7 +130,8 @@ export default function Auth() {
             variant: 'destructive',
           });
         } else {
-          navigate('/');
+          // Check if profile is incomplete (stub: always redirect for now)
+          navigate('/profile-edit');
         }
       }
     } catch (error) {
@@ -221,14 +224,27 @@ export default function Auth() {
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     id="password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     minLength={isSignUp ? 8 : 6}
-                    className="pl-11"
+                    className="pl-11 pr-11"
                   />
+                  <button
+                    type="button"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
+                    tabIndex={0}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-5 h-5" />
+                    ) : (
+                      <Eye className="w-5 h-5" />
+                    )}
+                  </button>
                 </div>
                 
                 {/* Password strength indicator for sign up */}

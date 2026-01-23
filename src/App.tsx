@@ -14,6 +14,8 @@ import TheCodex from "./pages/TheCodex";
 import SharedVault from "./pages/SharedVault";
 import OpenGraphPreview from "./pages/OpenGraphPreview";
 import Users from "./pages/Users";
+import ProfileEdit from "./pages/ProfileEdit";
+import SignupNextSteps from "./pages/SignupNextSteps";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -43,6 +45,8 @@ const App = () => (
             <Route path="/public/:slug" element={<PublicVault />} />
             <Route path="/vault/:id" element={<SharedVault />} />
             <Route path="/opengraphpreview" element={<OpenGraphPreview />} />
+            <Route path="/profile-edit" element={<ProfileEdit />} />
+            <Route path="/signup-next-steps" element={<SignupNextSteps />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

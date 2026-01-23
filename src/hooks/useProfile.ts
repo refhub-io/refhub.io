@@ -14,6 +14,7 @@ export interface Profile {
   github_url: string | null;
   linkedin_url: string | null;
   bluesky_url: string | null;
+  is_setup: boolean;
   created_at: string;
   updated_at: string;
 }
