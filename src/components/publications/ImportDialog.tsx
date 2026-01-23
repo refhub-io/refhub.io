@@ -288,7 +288,7 @@ export function ImportDialog({
       <DialogContent forceMount className="w-full max-w-[100vw] h-full sm:h-auto sm:w-[95vw] sm:max-w-4xl sm:max-h-[90vh] p-0 border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col data-[state=closed]:hidden">
         <DialogHeader className="p-4 sm:p-6 pb-0">
           <DialogTitle className="text-xl sm:text-2xl font-bold font-mono">
-            // add_<span className="text-gradient">papers</span>
+            // import_<span className="text-gradient">papers</span>
           </DialogTitle>
           <DialogDescription className="font-mono text-xs sm:text-sm text-muted-foreground">
             // from_library • doi • bibtex
