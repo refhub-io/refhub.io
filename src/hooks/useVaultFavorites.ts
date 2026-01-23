@@ -72,6 +72,7 @@ export function useVaultFavorites() {
         }
       }
     } catch (error) {
+      console.error('Error fetching vault favorites:', error);
     } finally {
       setLoading(false);
     }

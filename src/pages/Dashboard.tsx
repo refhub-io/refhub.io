@@ -154,6 +154,7 @@ export default function Dashboard() {
       if (error) throw error;
       if (data) setVaults(data as Vault[]);
     } catch (error) {
+      console.error('Error refetching vaults:', error);
     }
   };
 
@@ -167,6 +168,7 @@ export default function Dashboard() {
       if (error) throw error;
       if (data) setPublicationRelations(data as PublicationRelation[]);
     } catch (error) {
+      console.error('Error refetching publication relations:', error);
     }
   };
 
@@ -328,35 +330,31 @@ export default function Dashboard() {
   const handleBulkImport = async (publicationsToImport: Partial<Publication>[]) => {
     if (!user) return;
 
-    try {
-      const pubsToInsert = publicationsToImport.map(pub => ({
-        ...pub,
-        user_id: user.id,
-        authors: pub.authors || [],
-      }));
+    const pubsToInsert = publicationsToImport.map(pub => ({
+      ...pub,
+      user_id: user.id,
+      authors: pub.authors || [],
+    }));
 
-      if (pubsToInsert.length === 0) {
-        toast({
-          title: 'no_papers_to_import',
-          description: 'All papers were duplicates',
-          variant: 'destructive',
-        });
-        return;
-      }
+    if (pubsToInsert.length === 0) {
+      toast({
+        title: 'no_papers_to_import',
+        description: 'All papers were duplicates',
+        variant: 'destructive',
+      });
+      return;
+    }
 
-      const { data: insertedPubs, error } = await supabase
-        .from('publications')
-        .insert(pubsToInsert as Omit<Publication, 'id' | 'created_at' | 'updated_at'>[])
-        .select();
+    const { data: insertedPubs, error } = await supabase
+      .from('publications')
+      .insert(pubsToInsert as Omit<Publication, 'id' | 'created_at' | 'updated_at'>[])
+      .select();
 
-      if (error) throw error;
+    if (error) throw error;
 
-      // Optimistic update
-      if (insertedPubs) {
-        setPublications(prev => [...(insertedPubs as Publication[]), ...prev]);
-      }
-    } catch (error) {
-      throw error;
+    // Optimistic update
+    if (insertedPubs) {
+      setPublications(prev => [...(insertedPubs as Publication[]), ...prev]);
     }
   };
 

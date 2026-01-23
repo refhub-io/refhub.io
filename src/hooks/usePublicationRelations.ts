@@ -62,6 +62,7 @@ export function usePublicationRelations(publicationId: string | null, userId: st
 
       setRelations(relatedPubs);
     } catch (error) {
+      console.error('Error fetching publication relations:', error);
     } finally {
       setLoading(false);
     }

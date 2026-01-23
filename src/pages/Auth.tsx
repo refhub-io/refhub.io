@@ -11,6 +11,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import type { Profile } from '@/types/database';
 
 interface PasswordStrength {
   score: number;
@@ -145,7 +146,7 @@ export default function Auth() {
             .from('profiles')
             .select('*')
             .eq('user_id', user.id)
-            .single();
+            .single<Profile>();
           if (profileError) {
             // fallback: go to root
             navigate('/');

@@ -166,6 +166,7 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
           });
           if (onUpdate) onUpdate();
         } catch (error) {
+          /* intentionally empty */
         } finally {
           setSaving(false);
         }

@@ -116,6 +116,7 @@ export default function TheCodex() {
 
       setVaults(vaultsWithData);
     } catch (error) {
+      console.error('Error fetching public vaults:', error);
     } finally {
       setLoading(false);
     }
@@ -155,6 +156,7 @@ export default function TheCodex() {
         }
       }
     } catch (error) {
+      console.error('Error fetching user vaults:', error);
     }
   }, [user]);
 

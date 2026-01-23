@@ -41,10 +41,9 @@ export function useProfile() {
       if (error && error.code !== 'PGRST116') {
         throw error;
       }
-      if (!data) {
-      }
       setProfile(data as Profile | null);
     } catch (error) {
+      // handle error if needed
     } finally {
       setLoading(false);
     }

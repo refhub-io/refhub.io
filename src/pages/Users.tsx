@@ -10,13 +10,10 @@ import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { Loader, SpinnerLoader } from '@/components/ui/loader';
+import { Loader } from '@/components/ui/loader';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
   Search, 
-  BookOpen, 
-  Sparkles, 
   Users as UsersIcon,
   Github,
   Linkedin,
@@ -93,6 +90,7 @@ export default function Users() {
         if (sharedVaultsData) setSharedVaults(sharedVaultsData as Vault[]);
       }
     } catch (error) {
+      console.error('Error fetching vaults:', error);
     }
   }, [user]);
 
@@ -148,6 +146,7 @@ export default function Users() {
 
       setUsers(usersWithStats);
     } catch (error) {
+      console.error('Error fetching users:', error);
     } finally {
       setLoading(false);
     }

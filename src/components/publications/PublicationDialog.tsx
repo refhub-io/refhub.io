@@ -332,6 +332,7 @@ export function PublicationDialog({
         try {
           await onSave({ ...currentFormData, authors, editor, keywords }, currentSelectedTags, true); // true = isAutoSave
         } catch (error) {
+          /* intentionally empty */
         } finally {
           setSaving(false);
         }

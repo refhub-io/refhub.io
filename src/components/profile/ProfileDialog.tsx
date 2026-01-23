@@ -135,6 +135,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
           try {
             await updateProfile(values as Profile);
           } catch (error) {
+            /* intentionally empty */
           } finally {
             setIsSubmitting(false);
           }
