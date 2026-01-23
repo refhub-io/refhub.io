@@ -369,8 +369,8 @@ export default function Auth() {
                   </span>
                 )}
               </Button>
-            </form>
 
+            </form>
             <div className="mt-6 text-center">
               <button
                 type="button"
@@ -380,6 +380,16 @@ export default function Auth() {
                 {isSignUp
                   ? '// already have an account? sign_in'
                   : "// don't have an account? sign_up"}
+              </button>
+            </div>
+            <div className="mt-4 text-center">
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-primary transition-colors font-mono bold"
+                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                onClick={() => navigate('/reset-password')}
+              >
+                forgot_my_password();
               </button>
             </div>
           </CardContent>

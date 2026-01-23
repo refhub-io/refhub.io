@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
 import Dashboard from './Dashboard';
+import Auth from './Auth';
 
 const Index = () => {
   const { user, loading } = useAuth();
@@ -32,7 +33,11 @@ const Index = () => {
     );
   }
 
-  if (!user || !profile) {
+  if (!user) {
+    return <Auth />;
+  }
+
+  if (!profile) {
     return null;
   }
 

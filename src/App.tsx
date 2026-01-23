@@ -16,6 +16,7 @@ import OpenGraphPreview from "./pages/OpenGraphPreview";
 import Users from "./pages/Users";
 import ProfileEdit from "./pages/ProfileEdit";
 import SignupNextSteps from "./pages/SignupNextSteps";
+import ResetPassword from "./pages/ResetPassword";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -47,6 +48,7 @@ const App = () => (
             <Route path="/opengraphpreview" element={<OpenGraphPreview />} />
             <Route path="/profile-edit" element={<ProfileEdit />} />
             <Route path="/signup-next-steps" element={<SignupNextSteps />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
