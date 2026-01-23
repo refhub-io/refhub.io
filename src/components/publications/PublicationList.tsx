@@ -197,7 +197,7 @@ export function PublicationList({
               className="h-9 font-mono hidden lg:flex"
             >
               <Upload className="w-4 h-4 mr-2" />
-              import_bibtex
+              import_papers
             </Button>
 
             {selectedVault && onEditVault && (
@@ -225,7 +225,7 @@ export function PublicationList({
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={onImportPublications}>
                   <Upload className="w-4 h-4 mr-2" />
-                  import_bibtex
+                  import_papers
                 </DropdownMenuItem>
                 {selectedVault && onEditVault && (
                   <DropdownMenuItem onClick={() => onEditVault(selectedVault)}>
