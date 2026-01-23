@@ -385,8 +385,7 @@ export default function Auth() {
             <div className="mt-4 text-center">
               <button
                 type="button"
-                className="text-xs text-muted-foreground hover:text-primary transition-colors font-mono bold"
-                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                className="text-xs text-muted-foreground hover:text-primary transition-colors font-mono font-bold bg-transparent border-0 p-0 cursor-pointer"
                 onClick={() => navigate('/reset-password')}
               >
                 forgot_my_password();

@@ -38,6 +38,10 @@ const Index = () => {
   }
 
   if (!profile) {
+    // If profile is missing, redirect to profile creation and avoid blank screen
+    useEffect(() => {
+      navigate('/profile-edit');
+    }, [navigate]);
     return null;
   }
 
