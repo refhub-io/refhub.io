@@ -84,7 +84,7 @@ export function ExistingPaperSelector({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 flex flex-col min-h-[320px] sm:min-h-0 h-full">
       {!selectedPublication ? (
         <>
           <div className="space-y-2">
@@ -104,8 +104,8 @@ export function ExistingPaperSelector({
           </div>
 
           {/* Search Results */}
-          <div className="border-2 rounded-lg max-h-60">
-            <ScrollArea className="max-h-60">
+          <div className="border-2 rounded-lg flex-1 min-h-0">
+            <ScrollArea className="h-full max-h-full min-h-0">
               <div className="p-2 space-y-1">
                 {filteredPublications.length > 0 ? (
                   filteredPublications.map((pub) => (
@@ -171,7 +171,7 @@ export function ExistingPaperSelector({
               // select one or more vaults to add this paper
             </p>
             <div className="border-2 rounded-lg max-h-48">
-              <ScrollArea className="max-h-48">
+              <ScrollArea className="max-h-48 min-h-[120px] sm:min-h-0 sm:max-h-48 overflow-y-auto">
                 <div className="p-2 space-y-1">
                   {vaults.map((vault) => {
                     const isSelected = selectedVaultIds.has(vault.id);
