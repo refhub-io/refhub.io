@@ -124,7 +124,6 @@ export default function Dashboard() {
         setSharedVaults([]);
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
       toast({
         title: 'error_loading_data',
         description: 'Please try refreshing the page.',
@@ -155,7 +154,6 @@ export default function Dashboard() {
       if (error) throw error;
       if (data) setVaults(data as Vault[]);
     } catch (error) {
-      console.error('Error refetching vaults:', error);
     }
   };
 
@@ -169,7 +167,6 @@ export default function Dashboard() {
       if (error) throw error;
       if (data) setPublicationRelations(data as PublicationRelation[]);
     } catch (error) {
-      console.error('Error refetching relations:', error);
     }
   };
 
@@ -320,7 +317,6 @@ export default function Dashboard() {
         setEditingPublication(null);
       }
     } catch (error) {
-      console.error('Error saving publication:', error);
       toast({
         title: 'error_saving_paper',
         description: (error as Error).message,
@@ -360,7 +356,6 @@ export default function Dashboard() {
         setPublications(prev => [...(insertedPubs as Publication[]), ...prev]);
       }
     } catch (error) {
-      console.error('Error importing publications:', error);
       throw error;
     }
   };
@@ -405,7 +400,6 @@ export default function Dashboard() {
 
       toast({ title: `added_to_${vaultIds.length}_vault${vaultIds.length > 1 ? 's' : ''} ✨` });
     } catch (error) {
-      console.error('Error adding to vaults:', error);
       toast({
         title: 'Error adding paper',
         description: (error as Error).message,
@@ -434,7 +428,6 @@ export default function Dashboard() {
 
       toast({ title: 'paper_deleted' });
     } catch (error) {
-      console.error('Error deleting publication:', error);
       // Revert on error
       fetchData();
       toast({
@@ -513,7 +506,6 @@ export default function Dashboard() {
       toast({ title: 'vault_deleted' });
       setIsVaultDialogOpen(false);
     } catch (error) {
-      console.error('Error deleting vault:', error);
       // Revert on error
       fetchData();
       toast({
@@ -552,7 +544,6 @@ export default function Dashboard() {
       setTags(prev => [...prev, data as Tag]);
       return data as Tag;
     } catch (error) {
-      console.error('Error creating tag:', error);
       toast({
         title: 'error_creating_tag',
         description: (error as Error).message,
@@ -601,7 +592,6 @@ export default function Dashboard() {
 
       setEditingVault(null);
     } catch (error) {
-      console.error('Error saving vault:', error);
       toast({
         title: 'error_adding_to_vaults',
         description: (error as Error).message,

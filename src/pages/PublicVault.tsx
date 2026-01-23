@@ -105,7 +105,6 @@ export default function PublicVault() {
         }
       }
     } catch (error) {
-      console.error('Error fetching public vault:', error);
       setNotFound(true);
     } finally {
       setLoading(false);

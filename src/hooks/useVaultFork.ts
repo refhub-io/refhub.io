@@ -83,7 +83,6 @@ export function useVaultFork() {
 
       return newVault as Vault;
     } catch (error) {
-      console.error('Error forking vault:', error);
       toast({
         title: 'Error forking vault',
         description: (error as Error).message,
@@ -111,7 +110,6 @@ export function useVaultFork() {
 
       return vaultData as Vault | null;
     } catch (error) {
-      console.error('Error getting fork origin:', error);
       return null;
     }
   };
@@ -125,7 +123,6 @@ export function useVaultFork() {
 
       return count || 0;
     } catch (error) {
-      console.error('Error getting fork count:', error);
       return 0;
     }
   };

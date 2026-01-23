@@ -135,7 +135,6 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
           try {
             await updateProfile(values as Profile);
           } catch (error) {
-            console.error('Auto-save failed:', error);
           } finally {
             setIsSubmitting(false);
           }
@@ -212,7 +211,6 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
       await signOut();
       window.location.href = '/auth';
     } catch (error) {
-      console.error('Error deleting account:', error);
       alert('Error deleting account: ' + (error as Error).message);
       setIsDeleting(false);
       setShowDeleteConfirm(false);

@@ -27,54 +27,57 @@ export function useProfile() {
 
   const fetchProfile = useCallback(async () => {
     if (!user) {
+      setProfile(null);
       setLoading(false);
       return;
     }
-
+    setLoading(true);
     try {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('user_id', user.id)
         .single();
-
       if (error && error.code !== 'PGRST116') {
         throw error;
       }
-
+      if (!data) {
+      }
       setProfile(data as Profile | null);
     } catch (error) {
-      console.error('Error fetching profile:', error);
     } finally {
       setLoading(false);
     }
   }, [user]);
 
+  // Always refetch profile when user changes (login/logout)
   useEffect(() => {
     fetchProfile();
-  }, [fetchProfile]);
+    // Reset profile state if user logs out
+    if (!user) {
+      setProfile(null);
+    }
+  }, [user, fetchProfile]);
 
   const updateProfile = async (updates: Partial<Profile>) => {
     if (!user) return { error: new Error('Not authenticated') };
 
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('profiles')
         .update({
           ...updates,
           updated_at: new Date().toISOString(),
         })
-        .eq('user_id', user.id)
-        .select()
-        .single();
+        .eq('user_id', user.id);
 
       if (error) throw error;
 
-      setProfile(data as Profile);
+      // Always fetch the latest profile from Supabase after update
+      await fetchProfile();
       toast({ title: 'Profile updated ✨' });
       return { error: null };
     } catch (error) {
-      console.error('Error updating profile:', error);
       toast({
         title: 'Error updating profile',
         description: (error as Error).message,
@@ -98,7 +101,6 @@ export function useProfile() {
       if (error) throw error;
       return data === null;
     } catch (error) {
-      console.error('Error checking username:', error);
       return false;
     }
   };

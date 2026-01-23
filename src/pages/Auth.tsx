@@ -10,6 +10,7 @@ import { Mail, Lock, User, ArrowRight, Sparkles, Check, X } from 'lucide-react';
 import { Eye, EyeOff } from 'lucide-react';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 
 interface PasswordStrength {
   score: number;
@@ -130,8 +131,29 @@ export default function Auth() {
             variant: 'destructive',
           });
         } else {
-          // Check if profile is incomplete (stub: always redirect for now)
-          navigate('/profile-edit');
+          // Get current user from Supabase Auth
+          const {
+            data: { user },
+            error: userError
+          } = await supabase.auth.getUser();
+          if (userError || !user) {
+            navigate('/');
+            return;
+          }
+          // Fetch profile by user_id
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_id', user.id)
+            .single();
+          if (profileError) {
+            // fallback: go to root
+            navigate('/');
+          } else if (profile && profile.is_setup === false) {
+            navigate('/profile-edit');
+          } else {
+            navigate('/');
+          }
         }
       }
     } catch (error) {

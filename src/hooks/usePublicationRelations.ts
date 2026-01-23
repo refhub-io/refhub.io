@@ -62,7 +62,6 @@ export function usePublicationRelations(publicationId: string | null, userId: st
 
       setRelations(relatedPubs);
     } catch (error) {
-      console.error('Error fetching relations:', error);
     } finally {
       setLoading(false);
     }
@@ -102,7 +101,6 @@ export function usePublicationRelations(publicationId: string | null, userId: st
       toast({ title: 'Papers linked ✨' });
       return true;
     } catch (error) {
-      console.error('Error adding relation:', error);
       toast({
         title: 'Error linking papers',
         description: (error as Error).message,
@@ -125,7 +123,6 @@ export function usePublicationRelations(publicationId: string | null, userId: st
       toast({ title: 'Link removed' });
       return true;
     } catch (error) {
-      console.error('Error removing relation:', error);
       toast({
         title: 'Error removing link',
         description: (error as Error).message,

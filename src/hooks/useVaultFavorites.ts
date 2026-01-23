@@ -72,7 +72,6 @@ export function useVaultFavorites() {
         }
       }
     } catch (error) {
-      console.error('Error fetching favorites:', error);
     } finally {
       setLoading(false);
     }
@@ -98,7 +97,6 @@ export function useVaultFavorites() {
       await fetchFavorites();
       return true;
     } catch (error) {
-      console.error('Error adding favorite:', error);
       return false;
     }
   };
@@ -117,7 +115,6 @@ export function useVaultFavorites() {
       await fetchFavorites();
       return true;
     } catch (error) {
-      console.error('Error removing favorite:', error);
       return false;
     }
   };

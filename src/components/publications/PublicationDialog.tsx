@@ -332,7 +332,6 @@ export function PublicationDialog({
         try {
           await onSave({ ...currentFormData, authors, editor, keywords }, currentSelectedTags, true); // true = isAutoSave
         } catch (error) {
-          console.error('Auto-save failed:', error);
         } finally {
           setSaving(false);
         }

@@ -142,7 +142,6 @@ export default function SharedVault() {
         }
       }
     } catch (error) {
-      console.error('Error fetching vault:', error);
       setNotFound(true);
     } finally {
       setLoading(false);

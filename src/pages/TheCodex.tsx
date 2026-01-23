@@ -78,7 +78,6 @@ export default function TheCodex() {
         .order('updated_at', { ascending: false });
 
       if (vaultsError || !vaultsData) {
-        console.error('Error fetching vaults:', vaultsError);
         setLoading(false);
         return;
       }
@@ -117,7 +116,6 @@ export default function TheCodex() {
 
       setVaults(vaultsWithData);
     } catch (error) {
-      console.error('Error fetching public vaults:', error);
     } finally {
       setLoading(false);
     }
@@ -157,7 +155,6 @@ export default function TheCodex() {
         }
       }
     } catch (error) {
-      console.error('Error fetching user vaults:', error);
     }
   }, [user]);
 

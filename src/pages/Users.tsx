@@ -93,7 +93,6 @@ export default function Users() {
         if (sharedVaultsData) setSharedVaults(sharedVaultsData as Vault[]);
       }
     } catch (error) {
-      console.error('Error fetching vaults:', error);
     }
   }, [user]);
 
@@ -149,7 +148,6 @@ export default function Users() {
 
       setUsers(usersWithStats);
     } catch (error) {
-      console.error('Error fetching users:', error);
     } finally {
       setLoading(false);
     }

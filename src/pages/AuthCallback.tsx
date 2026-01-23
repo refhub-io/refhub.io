@@ -32,7 +32,6 @@ export default function AuthCallback() {
           navigate('/auth');
         }
       } catch (error) {
-        console.error('Auth callback error:', error);
         navigate('/auth');
       }
     };
