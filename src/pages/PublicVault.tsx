@@ -29,6 +29,17 @@ import {
   GitFork
 } from 'lucide-react';
 
+// Cooldown warning component
+const CooldownWarning = () => (
+  <div className="mb-2">
+    <div className="bg-orange-500/10 border border-orange-500/30 rounded-md px-3 py-2">
+      <p className="text-xs font-mono text-orange-600 dark:text-orange-400">
+        <span className="text-orange-500 font-bold">&gt;&gt;</span> warning: you recently sent an access request, please wait before requesting again
+      </p>
+    </div>
+  </div>
+);
+
 export default function PublicVault() {
   const { slug } = useParams();
   const { toast } = useToast();
@@ -107,6 +118,8 @@ export default function PublicVault() {
 
   // Whether the current user/email already has a pending request (used to show inline warning)
   const [existingPending, setExistingPending] = useState(false);
+  // Whether the current user is on cooldown (recent request sent)
+  const [onCooldown, setOnCooldown] = useState(false);
 
   // On load, if we have a signed-in user, check for existing pending request and show inline warning
   useEffect(() => {
@@ -115,6 +128,7 @@ export default function PublicVault() {
       if (!id) return;
       if (!user) {
         setExistingPending(false);
+        setOnCooldown(false);
         return;
       }
       try {
@@ -123,6 +137,7 @@ export default function PublicVault() {
         const requesterEmail = profile?.email ?? user.email;
         const exists = await checkExistingPending(id, requesterId, requesterEmail);
         setExistingPending(Boolean(exists));
+        setOnCooldown(isOnCooldown(id));
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error('[PublicVault] initial existing pending check failed', err);
@@ -148,6 +163,7 @@ export default function PublicVault() {
       }
       if (isOnCooldown(vaultId)) {
         setRequesting(false);
+        setOnCooldown(true);
         toast({ title: 'request_already_sent_recently' });
         return;
       }
@@ -469,6 +485,7 @@ export default function PublicVault() {
         }
         if (isOnCooldown(slug!)) {
           setRequesting(false);
+          setOnCooldown(true);
           setCooldown(slug!);
           return;
         }
@@ -521,11 +538,12 @@ export default function PublicVault() {
                   </div>
                   <div className="space-y-2">
                     <Label className="font-mono">your_email</Label>
-                    <Input value={requesterEmail} onBlur={async () => {
-                      if (!slug || !requesterEmail) return;
-                      const exists = await checkExistingPending(slug, null, requesterEmail);
-                      setExistingPending(Boolean(exists));
-                    }} onChange={(e) => setRequesterEmail(e.target.value)} placeholder="Your email (required)" />
+<Input value={requesterEmail} onBlur={async () => {
+                        if (!slug || !requesterEmail) return;
+                        const exists = await checkExistingPending(slug, null, requesterEmail);
+                        setExistingPending(Boolean(exists));
+                        setOnCooldown(isOnCooldown(slug));
+                      }} onChange={(e) => setRequesterEmail(e.target.value)} placeholder="Your email (required)" />
                   </div>
                   <div className="space-y-2">
                     <Label className="font-mono">message</Label>
@@ -535,14 +553,15 @@ export default function PublicVault() {
                   {/* Inline warning for people who already have a pending request */}
                   {existingPending && (
                     <div className="mb-2">
-                      <div className="bg-orange-500/10 border border-orange-500/30 rounded-md px-3 py-2 text-sm text-orange-700 font-mono flex items-start gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 mt-0.5 text-orange-500 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
-                        <div>You already have a pending access request for this vault.</div>
+                      <div className="bg-orange-500/10 border border-orange-500/30 rounded-md px-3 py-2">
+                        <p className="text-xs font-mono text-orange-600 dark:text-orange-400">
+                          <span className="text-orange-500 font-bold">&gt;&gt;</span> warning: you already have a pending access request for this vault
+                        </p>
                       </div>
                     </div>
                   )}
 
-                  <Button type="submit" className="font-mono" variant="glow" disabled={requesting || existingPending}>
+                  <Button type="submit" className="font-mono" variant="glow" disabled={requesting || existingPending || onCooldown}>
                     {requesting ? 'Requesting...' : 'Request Access'}
                   </Button>
                 </form>
@@ -550,13 +569,16 @@ export default function PublicVault() {
                 <div>
                   {existingPending && (
                     <div className="mb-2">
-                      <div className="bg-orange-500/10 border border-orange-500/30 rounded-md px-3 py-2 text-sm text-orange-700 font-mono flex items-start gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 mt-0.5 text-orange-500 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
-                        <div>You already have a pending access request for this vault.</div>
+                      <div className="bg-orange-500/10 border border-orange-500/30 rounded-md px-3 py-2">
+                        <p className="text-xs font-mono text-orange-600 dark:text-orange-400">
+                          <span className="text-orange-500 font-bold">&gt;&gt;</span> warning: you already have a pending access request for this vault
+                        </p>
                       </div>
                     </div>
                   )}
-                  <Button onClick={handleRequestAccess} className="font-mono" variant="glow" disabled={requesting || existingPending}>
+
+                  {onCooldown && !existingPending && <CooldownWarning />}
+                  <Button onClick={handleRequestAccess} className="font-mono" variant="glow" disabled={requesting || existingPending || onCooldown}>
                     {requesting ? 'Requesting...' : 'Request Access'}
                   </Button>
                 </div>
@@ -665,6 +687,21 @@ export default function PublicVault() {
         if (profile?.email) payload.requester_email = profile.email; else payload.requester_email = user.email;
         if (profile?.display_name) payload.requester_name = profile.display_name;
 
+        // Prevent duplicates & spam: check for existing pending request and a short client cooldown
+        const already = await checkExistingPending(vault.id, payload.requester_id, payload.requester_email);
+        if (already) {
+          setRequesting(false);
+          setExistingPending(true);
+          setRequestSent(true);
+          return;
+        }
+        if (isOnCooldown(vault.id)) {
+          setRequesting(false);
+          setOnCooldown(true);
+          setCooldown(vault.id);
+          return;
+        }
+
         const { error } = await supabase
           .schema('public')
           .from('vault_access_requests')
@@ -716,6 +753,7 @@ export default function PublicVault() {
                       if (!vault || !requesterEmail) return;
                       const exists = await checkExistingPending(vault.id, null, requesterEmail);
                       setExistingPending(Boolean(exists));
+                      setOnCooldown(isOnCooldown(vault.id));
                     }} onChange={(e) => setRequesterEmail(e.target.value)} placeholder="Your email (required)" />
                   </div>
                   <div className="space-y-2">
@@ -726,14 +764,15 @@ export default function PublicVault() {
                   {/* Inline warning for people who already have a pending request */}
                   {existingPending && (
                     <div className="mb-2">
-                      <div className="bg-orange-500/10 border border-orange-500/30 rounded-md px-3 py-2 text-sm text-orange-700 font-mono flex items-start gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 mt-0.5 text-orange-500 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
-                        <div>You already have a pending access request for this vault.</div>
+                      <div className="bg-orange-500/10 border border-orange-500/30 rounded-md px-3 py-2">
+                        <p className="text-xs font-mono text-orange-600 dark:text-orange-400">
+                          <span className="text-orange-500 font-bold">&gt;&gt;</span> warning: you already have a pending access request for this vault
+                        </p>
                       </div>
                     </div>
                   )}
 
-                  <Button type="submit" className="font-mono" variant="glow" disabled={requesting || existingPending}>
+                  <Button type="submit" className="font-mono" variant="glow" disabled={requesting || existingPending || onCooldown}>
                     {requesting ? 'Requesting...' : 'Request Access'}
                   </Button>
                 </form>
@@ -741,15 +780,18 @@ export default function PublicVault() {
                 <div>
                   {existingPending && (
                     <div className="mb-2">
-                      <div className="bg-orange-500/10 border border-orange-500/30 rounded-md px-3 py-2 text-sm text-orange-700 font-mono flex items-start gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 mt-0.5 text-orange-500 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
-                        <div>You already have a pending access request for this vault.</div>
+                      <div className="bg-orange-500/10 border border-orange-500/30 rounded-md px-3 py-2">
+                        <p className="text-xs font-mono text-orange-600 dark:text-orange-400">
+                          <span className="text-orange-500 font-bold">&gt;&gt;</span> warning: you already have a pending access request for this vault
+                        </p>
                       </div>
                     </div>
-                  )}
-                  <Button onClick={async () => {
-                    if (existingPending) return; await handleRequestAccess();
-                  }} className="font-mono" variant="glow" disabled={requesting || existingPending}>
+)}
+
+                  {onCooldown && !existingPending && <CooldownWarning />}
+                   <Button onClick={async () => {
+                     if (existingPending) return; await handleRequestAccess();
+                   }} className="font-mono" variant="glow" disabled={requesting || existingPending || onCooldown}>
                     {requesting ? 'Requesting...' : 'Request Access'}
                   </Button>
                 </div>
