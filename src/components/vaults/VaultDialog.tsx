@@ -410,8 +410,26 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     if (!vault || !user) return;
     try {
       const insertObj: any = { vault_id: vault.id, shared_by: user.id, permission };
-      if (req.requester_id) insertObj.shared_with_user_id = req.requester_id;
-      else if (req.requester_email) insertObj.shared_with_email = req.requester_email;
+
+      if (req.requester_id) {
+        // requester_id is often profiles.id; resolve to profiles.user_id (auth.users.id)
+        const { data: profile, error: profileError } = await supabase.from('profiles').select('user_id').eq('id', req.requester_id).maybeSingle();
+        if (profileError) throw profileError;
+
+        if (profile?.user_id) {
+          // Use the auth user id for the FK
+          insertObj.shared_with_user_id = profile.user_id;
+        } else if (req.requester_email) {
+          // If we can't resolve to an auth user, fallback to email-based sharing
+          insertObj.shared_with_email = req.requester_email;
+        } else {
+          // Can't approve this request because we don't have a valid auth user or email
+          toast({ title: 'Error approving request', description: 'Cannot resolve requester to a user account; please ask requester to sign up or provide an email', variant: 'destructive' });
+          return;
+        }
+      } else if (req.requester_email) {
+        insertObj.shared_with_email = req.requester_email;
+      }
 
       const { error: shareError } = await supabase.from('vault_shares').insert(insertObj);
       if (shareError) throw shareError;
