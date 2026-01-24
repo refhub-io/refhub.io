@@ -385,6 +385,50 @@ export type Database = {
           },
         ]
       }
+      vault_access_requests: {
+        Row: {
+          created_at: string
+          id: string
+          note: string | null
+          requester_email: string | null
+          requester_id: string | null
+          requester_name: string | null
+          status: string
+          updated_at: string
+          vault_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          requester_email?: string | null
+          requester_id?: string | null
+          requester_name?: string | null
+          status?: string
+          updated_at?: string
+          vault_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          requester_email?: string | null
+          requester_id?: string | null
+          requester_name?: string | null
+          status?: string
+          updated_at?: string
+          vault_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vault_access_requests_vault_id_fkey"
+            columns: ["vault_id"]
+            isOneToOne: false
+            referencedRelation: "vaults"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vault_stats: {
         Row: {
           created_at: string | null
