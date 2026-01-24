@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
 import { supabase } from '@/integrations/supabase/client';
@@ -55,9 +55,12 @@ export default function Dashboard() {
 
   const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
   const [editingVault, setEditingVault] = useState<Vault | null>(null);
+  const [initialRequestId, setInitialRequestId] = useState<string | null>(null);
   const [isGraphOpen, setIsGraphOpen] = useState(false);
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+
+  const [searchParams] = useSearchParams();
   const [exportPublications, setExportPublications] = useState<Publication[]>([]);
 
   const [deleteConfirmation, setDeleteConfirmation] = useState<Publication | null>(null);
@@ -141,6 +144,22 @@ export default function Dashboard() {
       fetchData();
     }
   }, [user, fetchData]);
+
+  // Open vault settings if URL contains openVault param (e.g., from a notification)
+  useEffect(() => {
+    const openVaultId = searchParams.get('openVault');
+    const requestId = searchParams.get('request');
+    if (openVaultId && vaults.length > 0) {
+      const found = vaults.find((v) => v.id === openVaultId);
+      if (found) {
+        setEditingVault(found);
+        setInitialRequestId(requestId);
+        setIsVaultDialogOpen(true);
+        // Clean up URL to remove params
+        navigate('/dashboard', { replace: true });
+      }
+    }
+  }, [searchParams, vaults, navigate]);
 
   const refetchVaults = async () => {
     if (!user) return;
@@ -694,8 +713,12 @@ export default function Dashboard() {
 
       <VaultDialog
         open={isVaultDialogOpen}
-        onOpenChange={setIsVaultDialogOpen}
+        onOpenChange={(open) => {
+          setIsVaultDialogOpen(open);
+          if (!open) setInitialRequestId(null);
+        }}
         vault={editingVault}
+        initialRequestId={initialRequestId || undefined}
         onSave={handleSaveVault}
         onUpdate={fetchData}
         onDelete={(vault) => {
