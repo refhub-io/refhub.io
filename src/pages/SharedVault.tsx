@@ -39,6 +39,7 @@ import {
   StickyNote
 } from 'lucide-react';
 
+// Enhanced SharedVault for protected vault access with comprehensive logic
 export default function SharedVault() {
   const { id } = useParams();
   const { toast } = useToast();
@@ -51,16 +52,35 @@ export default function SharedVault() {
   const [tags, setTags] = useState<Tag[]>([]);
   const [publicationTags, setPublicationTags] = useState<PublicationTag[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Debug: Log component state and user info
+  useEffect(() => {
+    console.log('[SharedVault] Component mounted with loading:', loading);
+    console.log('[SharedVault] Current user:', user);
+    console.log('[SharedVault] Current vault:', vault);
+  }, []);
   const [searchQuery, setSearchQuery] = useState('');
   const [notFound, setNotFound] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
-  const [forking, setForking] = useState(false);
+const [forking, setForking] = useState(false);
+ 
+  // Debug: Log component state and user info
+  useEffect(() => {
+    console.log('[SharedVault] Component mounted with loading:', loading);
+    console.log('[SharedVault] Current user:', user);
+    console.log('[SharedVault] Current vault:', vault);
+  }, []);
 
   const fetchVault = useCallback(async () => {
     setLoading(true);
     setNotFound(false);
     setAccessDenied(false);
+    
+    // Early return if no user
+    if (!user) {
+      return;
+    }
     
     try {
       // Fetch the vault by ID
@@ -79,9 +99,10 @@ export default function SharedVault() {
       const isOwnerUser = user && vaultData.user_id === user.id;
       const isPublicVault = vaultData.is_public;
       
-      // Check if user has share access
-      let hasShareAccess = false;
+      // Check if user has share access or approved request
+      let hasAccess = false;
       if (user && !isOwnerUser) {
+        // First check for existing share
         const { data: shareData } = await supabase
           .from('vault_shares')
           .select('id')
@@ -89,11 +110,39 @@ export default function SharedVault() {
           .eq('shared_with_user_id', user.id)
           .single();
         
-        hasShareAccess = !!shareData;
+        if (shareData) {
+          hasAccess = true;
+        } else {
+          // Fallback: Check for approved access request if no share found
+          try {
+            const { data: profile } = await supabase.from('profiles').select('id').eq('user_id', user.id).single();
+            if (profile?.id) {
+              const { data: approvedRequest } = await supabase
+                .from('vault_access_requests')
+                .select('id')
+                .eq('vault_id', id)
+                .eq('requester_id', profile.id)
+                .eq('status', 'approved')
+                .single();
+              hasAccess = !!approvedRequest;
+            } else {
+              const { data: approvedRequest } = await supabase
+                .from('vault_access_requests')
+                .select('id')
+                .eq('vault_id', id)
+                .eq('requester_email', user.email)
+                .eq('status', 'approved')
+                .single();
+              hasAccess = !!approvedRequest;
+            }
+          } catch (err) {
+            console.error('[SharedVault] access check failed', err);
+          }
+        }
       }
 
-      // If not owner, not public, and no share access, deny access
-      if (!isOwnerUser && !isPublicVault && !hasShareAccess) {
+      // If not owner, not public, and no access, deny access
+      if (!isOwnerUser && !isPublicVault && !hasAccess) {
         setAccessDenied(true);
         return;
       }
@@ -263,23 +312,32 @@ export default function SharedVault() {
   }
 
   if (accessDenied) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      {!user ? (
+        // Redirect to auth page if not authenticated
         <div className="text-center space-y-6 p-8">
           <div className="w-20 h-20 rounded-2xl bg-muted flex items-center justify-center mx-auto">
-            <Lock className="w-10 h-10 text-muted-foreground" />
+            <div className="w-10 h-10 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
           </div>
-          <div>
-            <h1 className="text-2xl font-bold mb-2 font-mono">access_denied</h1>
-            <p className="text-muted-foreground font-mono text-sm">
-              // this_vault_is_private_you_need_permission
-            </p>
+          <p className="text-muted-foreground font-mono text-sm">// authenticating...</p>
+        </div>
+      </div>
+      ) : loading ? (
+        // Show loading spinner
+        <div className="text-center space-y-6 p-8">
+          <div className="w-20 h-20 rounded-2xl bg-muted flex items-center justify-center mx-auto">
+            <div className="w-10 h-10 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
           </div>
-          {!user && (
-            <Button onClick={() => navigate('/auth')} variant="glow" className="font-mono gap-2">
-              sign_in_to_view
-            </Button>
-          )}
+          <p className="text-muted-foreground font-mono text-sm">// loading vault...</p>
+        </div>
+      </div>
+      ) : (
+        // Show vault content
+        {children}
+      )}
+    </div>
+  );
           <Button variant="outline" onClick={() => navigate('/')} className="font-mono gap-2">
             <ArrowLeft className="w-4 h-4" />
             back_to_home

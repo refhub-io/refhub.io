@@ -10,6 +10,7 @@ import AuthCallback from "./pages/AuthCallback";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
 import PublicVault from "./pages/PublicVault";
+import SharedVault from "./pages/SharedVault";
 import TheCodex from "./pages/TheCodex";
 import OpenGraphPreview from "./pages/OpenGraphPreview";
 import Users from "./pages/Users";
@@ -43,7 +44,7 @@ const App = () => (
             <Route path="/codex" element={<TheCodex />} />
             <Route path="/users" element={<Users />} />
             <Route path="/public/:slug" element={<PublicVault />} />
-            <Route path="/vault/:slug" element={<PublicVault />} />
+            <Route path="/vault/:slug" element={<SharedVault />} />
             <Route path="/opengraphpreview" element={<OpenGraphPreview />} />
             <Route path="/profile-edit" element={<ProfileEdit />} />
             <Route path="/signup-next-steps" element={<SignupNextSteps />} />
