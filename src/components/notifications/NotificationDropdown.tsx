@@ -8,6 +8,7 @@ import {
   GitFork,
   Heart,
   Share2,
+  Mail,
   Trash2,
   X,
 } from 'lucide-react';
@@ -24,12 +25,14 @@ const notificationIcons: Record<string, React.ComponentType<{ className?: string
   vault_shared: Share2,
   vault_forked: GitFork,
   vault_favorited: Heart,
+  vault_access_requested: Mail,
 };
 
 const notificationColors: Record<string, string> = {
   vault_shared: 'text-blue-400',
   vault_forked: 'text-purple-400',
   vault_favorited: 'text-pink-400',
+  vault_access_requested: 'text-yellow-400',
 };
 
 export function NotificationDropdown() {
@@ -54,6 +57,15 @@ export function NotificationDropdown() {
       if (notification.type === 'vault_shared') {
         setOpen(false);
         navigate('/');
+      }
+
+      // For access requests, open the owner's dashboard and open the vault settings (show requests)
+      if (notification.type === 'vault_access_requested') {
+        setOpen(false);
+        const vaultId = (notification.data as any).vault_id;
+        const requestId = (notification.data as any).request_id;
+        // Navigate to dashboard and open vault dialog for this vault + request
+        navigate(`/dashboard?openVault=${vaultId}${requestId ? `&request=${requestId}` : ''}`);
       }
     }
   };
