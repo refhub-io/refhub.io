@@ -220,3 +220,15 @@ export const PUBLICATION_TYPES: { value: PublicationType; label: string }[] = [
   { value: 'techreport', label: 'Technical Report' },
   { value: 'unpublished', label: 'Unpublished' },
 ];
+
+export interface VaultAccessRequest {
+  id: string;
+  vault_id: string;
+  requester_id: string | null;
+  requester_email: string | null;
+  requester_name: string | null;
+  note: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+  updated_at: string;
+}
