@@ -43,12 +43,13 @@ interface VaultDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   vault?: Vault | null;
+  initialRequestId?: string;
   onSave: (data: Partial<Vault>) => Promise<void>;
   onUpdate?: () => void;
   onDelete?: (vault: Vault) => void;
-}
+} 
 
-export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDelete }: VaultDialogProps) {
+export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSave, onUpdate, onDelete }: VaultDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   
@@ -62,7 +63,11 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
   
   // Sharing state
   const [shares, setShares] = useState<VaultShare[]>([]);
+  const [accessRequests, setAccessRequests] = useState<any[]>([]);
+  const [requestPermissions, setRequestPermissions] = useState<Record<string, 'viewer' | 'editor'>>({});
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [email, setEmail] = useState('');
+  const [diagResult, setDiagResult] = useState<{ data?: any; error?: any; count?: number } | null>(null);
   const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('viewer');
   const [publicSlug, setPublicSlug] = useState('');
   const [copied, setCopied] = useState(false);
@@ -70,6 +75,123 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
   const isInitialLoadRef = useRef(true);
   const vaultRef = useRef(vault);
   const openRef = useRef(open);
+
+  // Fetch access requests for owners and enrich with display names when possible
+  async function fetchAccessRequests() {
+    if (!vault) return;
+    // Debug: log current auth user id to help diagnose RLS/visibility issues
+    // eslint-disable-next-line no-console
+    console.debug('[VaultDialog] current auth user', { userId: user?.id });
+    const { data, error } = await supabase
+      .from('vault_access_requests')
+      .select('*')
+      .eq('vault_id', vault.id)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      // eslint-disable-next-line no-console
+      console.error('[VaultDialog] error fetching vault_access_requests', error);
+      return;
+    }
+
+    if (data) {
+      const requesterIds = Array.from(new Set(data.filter((d: any) => d.requester_id).map((d: any) => d.requester_id)));
+      let profiles: any[] = [];
+
+      if (requesterIds.length > 0) {
+        const { data: byId } = await supabase
+          .from('profiles')
+          .select('id, user_id, display_name, email, username')
+          .in('id', requesterIds);
+        if (byId) profiles = profiles.concat(byId);
+
+        const { data: byUserId } = await supabase
+          .from('profiles')
+          .select('id, user_id, display_name, email, username')
+          .in('user_id', requesterIds);
+        if (byUserId) profiles = profiles.concat(byUserId);
+      }
+
+      const profilesByKey = Object.fromEntries(
+        profiles.map((p: any) => [[p.id, p.user_id].find(Boolean) as string, p])
+      );
+
+      const enriched = (data as any[]).map((r) => {
+        const profile = profilesByKey[r.requester_id] || null;
+        const displayName = r.requester_name || (profile ? (profile.display_name || profile.username || profile.email) : null) || r.requester_email || 'Someone';
+        return { ...r, display_name: displayName, requester_profile: profile || null };
+      });
+
+      setAccessRequests(enriched);
+
+      // Initialize per-request permission selections (default viewer)
+      const perms: Record<string, 'viewer' | 'editor'> = {};
+      enriched.forEach((r) => { perms[r.id] = 'viewer'; });
+      setRequestPermissions(perms);
+
+      // Debug: log fetched count and a summary to help diagnose missing requests
+      // eslint-disable-next-line no-console
+      console.debug('[VaultDialog] fetched access requests', { count: enriched.length, example: enriched[0] || null });
+
+      // extra debug: raw fetch for owner diagnostics
+      const raw = await supabase.from('vault_access_requests').select('*').eq('vault_id', vault.id);
+      // eslint-disable-next-line no-console
+      console.debug('[VaultDialog] raw vault_access_requests query', raw);
+      // expose diagnostic result to UI for owner troubleshooting
+      setDiagResult({ data: raw.data ?? undefined, error: raw.error ?? undefined });
+
+      if (initialRequestId) {
+        setSelectedRequestId(initialRequestId);
+        setTimeout(() => {
+          const el = document.getElementById(`access_req_${initialRequestId}`);
+          if (el && 'scrollIntoView' in el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 150);
+      }
+    }
+  }
+
+  useEffect(() => {
+    if (vault && open) {
+      fetchAccessRequests().catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error('[VaultDialog] fetchAccessRequests failed', err);
+      });
+    }
+
+    // Subscribe to realtime inserts for access requests so owners see them immediately
+    if (!vault || !open) return;
+    const channel = supabase
+      .channel(`vault-access-requests-${vault.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'vault_access_requests',
+          filter: `vault_id=eq.${vault.id}`,
+        },
+        (payload) => {
+          // eslint-disable-next-line no-console
+          console.debug('[VaultDialog] realtime access request received', payload);
+          fetchAccessRequests().catch((err) => {
+            // eslint-disable-next-line no-console
+            console.error('[VaultDialog] fetchAccessRequests failed after realtime event', err);
+          });
+          // show a small toast to the owner when viewing the dialog
+          try {
+            toast({ title: 'New access request received' });
+          } catch (_) {
+            /* noop */
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [vault, open, initialRequestId]);
 
   const getVisibility = (v: Vault): VaultVisibility => {
     if (v.is_public) return 'public';
@@ -283,6 +405,40 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
       });
     }
   };
+
+  const handleApproveRequest = async (req: any, permission: 'viewer' | 'editor' = 'viewer') => {
+    if (!vault || !user) return;
+    try {
+      const insertObj: any = { vault_id: vault.id, shared_by: user.id, permission };
+      if (req.requester_id) insertObj.shared_with_user_id = req.requester_id;
+      else if (req.requester_email) insertObj.shared_with_email = req.requester_email;
+
+      const { error: shareError } = await supabase.from('vault_shares').insert(insertObj);
+      if (shareError) throw shareError;
+
+      const { error: updateError } = await supabase.from('vault_access_requests').update({ status: 'approved' }).eq('id', req.id);
+      if (updateError) throw updateError;
+
+      toast({ title: 'Request approved' });
+      fetchAccessRequests();
+      fetchShares();
+      onUpdate?.();
+    } catch (error) {
+      toast({ title: 'Error', description: (error as Error).message, variant: 'destructive' });
+    }
+  };
+
+  const handleRejectRequest = async (req: any) => {
+    if (!vault) return;
+    try {
+      const { error } = await supabase.from('vault_access_requests').update({ status: 'rejected' }).eq('id', req.id);
+      if (error) throw error;
+      toast({ title: 'Request rejected' });
+      fetchAccessRequests();
+    } catch (error) {
+      toast({ title: 'Error', description: (error as Error).message, variant: 'destructive' });
+    }
+  }; 
 
   const publicUrl = `${window.location.origin}/public/${publicSlug}`;
 
@@ -537,8 +693,63 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
                       </div>
                     </div>
                   ))}
+
+
+
                 </div>
               )}
+
+              {/* Access requests block for owners (moved inside protected sharing section) */}
+              <div className="space-y-2 mt-4">
+                <div className="flex items-center justify-between">
+                  <Label className="font-semibold font-mono">access_requests</Label>
+                  <div>
+                    <Button size="sm" variant="ghost" onClick={() => fetchAccessRequests()} className="font-mono mr-2">refresh</Button>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  {accessRequests.length === 0 ? (
+                    <div className="text-sm text-muted-foreground">no_requests</div>
+                  ) : (
+                    accessRequests.map((r) => (
+                      <div
+                        id={`access_req_${r.id}`}
+                        key={r.id}
+                        className={`flex items-center justify-between gap-4 p-2 rounded-lg border ${selectedRequestId === r.id ? 'ring-2 ring-primary ring-offset-2' : 'bg-background/50'}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center">
+                            <Mail className="w-4 h-4" />
+                          </div>
+                          <div className="text-sm">
+                            <div className="font-semibold">{r.display_name}</div>
+                            <div className="text-xs text-muted-foreground">{r.requester_email || r.requester_profile?.email || r.requester_profile?.username || ''}</div>
+                            <div className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString()}</div>
+                            {r.note && <div className="text-xs mt-1">{r.note}</div>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Select
+                            value={requestPermissions[r.id] || 'viewer'}
+                            onValueChange={(val) => setRequestPermissions((prev) => ({ ...prev, [r.id]: val as 'viewer' | 'editor' }))}
+                          >
+                            <SelectTrigger className="w-[110px] h-7 font-mono text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="viewer" className="font-mono text-xs">👁️ read (viewer)</SelectItem>
+                              <SelectItem value="editor" className="font-mono text-xs">✏️ write (editor)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Button size="sm" onClick={() => handleApproveRequest(r, requestPermissions[r.id] || 'viewer')}><Check /></Button>
+                          <Button size="sm" variant="destructive" onClick={() => handleRejectRequest(r)}><Trash2 /></Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
 
               {shares.length === 0 && (
                 <p className="text-center text-xs text-muted-foreground py-2 font-mono">
@@ -546,6 +757,8 @@ export function VaultDialog({ open, onOpenChange, vault, onSave, onUpdate, onDel
                 </p>
               )}
             </div>
+
+
           )}
 
           {visibility === 'protected' && !vault && (
