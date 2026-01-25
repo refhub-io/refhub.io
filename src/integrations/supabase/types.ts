@@ -7,10 +7,30 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.1"
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
@@ -57,6 +77,7 @@ export type Database = {
           email: string | null
           github_url: string | null
           id: string
+          is_setup: boolean
           linkedin_url: string | null
           updated_at: string
           user_id: string
@@ -71,6 +92,7 @@ export type Database = {
           email?: string | null
           github_url?: string | null
           id?: string
+          is_setup?: boolean
           linkedin_url?: string | null
           updated_at?: string
           user_id: string
@@ -85,6 +107,7 @@ export type Database = {
           email?: string | null
           github_url?: string | null
           id?: string
+          is_setup?: boolean
           linkedin_url?: string | null
           updated_at?: string
           user_id?: string
@@ -172,16 +195,32 @@ export type Database = {
           abstract: string | null
           authors: string[] | null
           bibtex_key: string | null
+          booktitle: string | null
+          chapter: string | null
           created_at: string
           doi: string | null
+          edition: string | null
+          editor: string[] | null
+          eid: string | null
+          howpublished: string | null
           id: string
+          institution: string | null
+          isbn: string | null
+          issn: string | null
           issue: string | null
           journal: string | null
+          keywords: string[] | null
           notes: string | null
+          number: string | null
+          organization: string | null
           pages: string | null
           pdf_url: string | null
           publication_type: string | null
+          publisher: string | null
+          school: string | null
+          series: string | null
           title: string
+          type: string | null
           updated_at: string
           url: string | null
           user_id: string
@@ -193,16 +232,32 @@ export type Database = {
           abstract?: string | null
           authors?: string[] | null
           bibtex_key?: string | null
+          booktitle?: string | null
+          chapter?: string | null
           created_at?: string
           doi?: string | null
+          edition?: string | null
+          editor?: string[] | null
+          eid?: string | null
+          howpublished?: string | null
           id?: string
+          institution?: string | null
+          isbn?: string | null
+          issn?: string | null
           issue?: string | null
           journal?: string | null
+          keywords?: string[] | null
           notes?: string | null
+          number?: string | null
+          organization?: string | null
           pages?: string | null
           pdf_url?: string | null
           publication_type?: string | null
+          publisher?: string | null
+          school?: string | null
+          series?: string | null
           title: string
+          type?: string | null
           updated_at?: string
           url?: string | null
           user_id: string
@@ -214,16 +269,32 @@ export type Database = {
           abstract?: string | null
           authors?: string[] | null
           bibtex_key?: string | null
+          booktitle?: string | null
+          chapter?: string | null
           created_at?: string
           doi?: string | null
+          edition?: string | null
+          editor?: string[] | null
+          eid?: string | null
+          howpublished?: string | null
           id?: string
+          institution?: string | null
+          isbn?: string | null
+          issn?: string | null
           issue?: string | null
           journal?: string | null
+          keywords?: string[] | null
           notes?: string | null
+          number?: string | null
+          organization?: string | null
           pages?: string | null
           pdf_url?: string | null
           publication_type?: string | null
+          publisher?: string | null
+          school?: string | null
+          series?: string | null
           title?: string
+          type?: string | null
           updated_at?: string
           url?: string | null
           user_id?: string
@@ -275,6 +346,50 @@ export type Database = {
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vault_access_requests: {
+        Row: {
+          created_at: string | null
+          id: string
+          note: string | null
+          requester_email: string | null
+          requester_id: string
+          requester_name: string | null
+          status: string
+          updated_at: string | null
+          vault_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          note?: string | null
+          requester_email?: string | null
+          requester_id: string
+          requester_name?: string | null
+          status?: string
+          updated_at?: string | null
+          vault_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          note?: string | null
+          requester_email?: string | null
+          requester_id?: string
+          requester_name?: string | null
+          status?: string
+          updated_at?: string | null
+          vault_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vault_access_requests_vault_id_fkey"
+            columns: ["vault_id"]
+            isOneToOne: false
+            referencedRelation: "vaults"
             referencedColumns: ["id"]
           },
         ]
@@ -385,50 +500,6 @@ export type Database = {
           },
         ]
       }
-      vault_access_requests: {
-        Row: {
-          created_at: string
-          id: string
-          note: string | null
-          requester_email: string | null
-          requester_id: string | null
-          requester_name: string | null
-          status: string
-          updated_at: string
-          vault_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          note?: string | null
-          requester_email?: string | null
-          requester_id?: string | null
-          requester_name?: string | null
-          status?: string
-          updated_at?: string
-          vault_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          note?: string | null
-          requester_email?: string | null
-          requester_id?: string | null
-          requester_name?: string | null
-          status?: string
-          updated_at?: string
-          vault_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "vault_access_requests_vault_id_fkey"
-            columns: ["vault_id"]
-            isOneToOne: false
-            referencedRelation: "vaults"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       vault_stats: {
         Row: {
           created_at: string | null
@@ -514,10 +585,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      delete_user: {
-        Args: Record<string, never>
-        Returns: undefined
-      }
+      delete_user: { Args: never; Returns: undefined }
       increment_vault_downloads: {
         Args: { vault_uuid: string }
         Returns: undefined
@@ -654,7 +722,11 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
 } as const
+
