@@ -30,5 +30,13 @@ dist-ssr
 *.sln
 *.sw?
 
-# Claude AI
+# AI
 .claude
+.opencode
+.plans
+
+# supabase
+.supabase
+supabase/.temp
+supabase/migrations
+supabase/.branches
