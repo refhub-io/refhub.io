@@ -279,7 +279,8 @@ export function Sidebar({
                           : "hover:bg-sidebar-accent/50 text-sidebar-foreground/70 border-2 border-transparent"
                       )}
                     >
-                      <button
+                      <Link
+                        to={`/vault/${vault.id}`}
                         onClick={() => {
                           onSelectVault(vault.id);
                           onMobileClose();
@@ -292,7 +293,7 @@ export function Sidebar({
                         />
                         <span className="truncate font-medium">{vault.name}</span>
                         <Share2 className="w-3 h-3 text-blue-400 shrink-0" />
-                      </button>
+                      </Link>
                     </div>
                   ))}
                 </div>
