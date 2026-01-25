@@ -22,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { parseBibtex, fetchDOIMetadata, generateBibtexKey } from '@/lib/bibtex';
 import { FileText, Link, Upload, Check, X, Loader2, Library } from 'lucide-react';
+import { LoadingSpinner } from '@/components/ui/loading';
 import { useToast } from '@/hooks/use-toast';
 import { ExistingPaperSelector } from './ExistingPaperSelector';
 
@@ -347,7 +348,7 @@ export function ImportDialog({
                     className="w-full sm:w-auto font-mono"
                   >
                     {doiLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <LoadingSpinner size="xs" />
                     ) : (
                       'lookup'
                     )}
@@ -516,7 +517,7 @@ export function ImportDialog({
                 >
                   {importing ? (
                     <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      <LoadingSpinner size="xs" className="mr-2" />
                       importing...
                     </>
                   ) : (

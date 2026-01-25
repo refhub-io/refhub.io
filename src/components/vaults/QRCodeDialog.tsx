@@ -19,6 +19,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { QrCode, Download, Copy, Check, Lock, Globe, Users, AlertTriangle } from 'lucide-react';
+import { LoadingSpinner } from '@/components/ui/loading';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Vault } from '@/types/database';
@@ -255,7 +256,7 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
               className="font-mono bg-gradient-primary hover:opacity-90 gap-2"
             >
               {upgrading && (
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <LoadingSpinner size="xs" variant="inverted" />
               )}
               upgrade_to_protected
             </AlertDialogAction>

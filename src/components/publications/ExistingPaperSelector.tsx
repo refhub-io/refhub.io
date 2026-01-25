@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Search, Check, Loader2 } from 'lucide-react';
+import { LoadingSpinner } from '@/components/ui/loading';
 import { cn } from '@/lib/utils';
 
 interface ExistingPaperSelectorProps {
@@ -225,7 +226,7 @@ export function ExistingPaperSelector({
             >
               {isAdding ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <LoadingSpinner size="xs" className="mr-2" />
                   Adding...
                 </>
               ) : (

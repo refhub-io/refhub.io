@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { LoadingSpinner } from '@/components/ui/loading';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -380,12 +381,12 @@ export default function Auth() {
                 className="w-full font-mono"
                 disabled={loading}
               >
-                {loading ? (
-                  <span className="flex items-center gap-2">
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    {isSignUp ? 'creating...' : 'signing in...'}
-                  </span>
-                ) : (
+                  {loading ? (
+                    <span className="flex items-center gap-2">
+                      <LoadingSpinner size="xs" variant="inverted" />
+                      {isSignUp ? 'creating...' : 'signing in...'}
+                    </span>
+                  ) : (
                   <span className="flex items-center gap-2">
                     {isSignUp ? 'create_account' : 'sign_in'}
                     <ArrowRight className="w-4 h-4" />
