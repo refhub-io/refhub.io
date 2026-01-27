@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Publication, Vault } from '@/types/database';
+import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,32 @@ export function ExistingPaperSelector({
   const [selectedPublication, setSelectedPublication] = useState<Publication | null>(null);
   const [selectedVaultIds, setSelectedVaultIds] = useState<Set<string>>(new Set());
   const [isAdding, setIsAdding] = useState(false);
+  const [publicationVaults, setPublicationVaults] = useState<Map<string, Set<string>>>(new Map());
+
+  // Load which vaults each publication belongs to
+  useEffect(() => {
+    const loadPublicationVaults = async () => {
+      if (publications.length === 0) return;
+      
+      const { data, error } = await supabase
+        .from('vault_papers')
+        .select('vault_id, publication_id')
+        .in('publication_id', publications.map(p => p.id));
+      
+      if (!error && data) {
+        const vaultMap = new Map<string, Set<string>>();
+        data.forEach(item => {
+          if (!vaultMap.has(item.publication_id)) {
+            vaultMap.set(item.publication_id, new Set());
+          }
+          vaultMap.get(item.publication_id)!.add(item.vault_id);
+        });
+        setPublicationVaults(vaultMap);
+      }
+    };
+    
+    loadPublicationVaults();
+  }, [publications]);
 
   // Filter publications based on search - show all if no query
   const filteredPublications = useMemo(() => {
@@ -176,7 +203,8 @@ export function ExistingPaperSelector({
                 <div className="p-2 space-y-1">
                   {vaults.map((vault) => {
                     const isSelected = selectedVaultIds.has(vault.id);
-                    const isCurrentVault = selectedPublication.vault_id === vault.id;
+                    const publicationVaultIds = publicationVaults.get(selectedPublication.id) || new Set();
+                    const isCurrentVault = publicationVaultIds.has(vault.id);
                     
                     return (
                       <button

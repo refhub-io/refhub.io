@@ -122,7 +122,14 @@ export default function Auth() {
             title: 'welcome_to_refhub.io!',
             description: 'Your account has been created successfully.',
           });
-          navigate('/signup-next-steps');
+          // Check if there's a redirect URL stored in localStorage
+          const redirectAfterLogin = localStorage.getItem('redirectAfterLogin');
+          if (redirectAfterLogin) {
+            localStorage.removeItem('redirectAfterLogin'); // Clean up
+            navigate(redirectAfterLogin);
+          } else {
+            navigate('/signup-next-steps');
+          }
         }
       } else {
         const { error } = await signIn(email, password);
@@ -142,19 +149,24 @@ export default function Auth() {
             navigate('/');
             return;
           }
-          // Fetch profile by user_id
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('user_id', user.id)
-            .single<Profile>();
-          if (profileError) {
-            // fallback: go to root
+          // Use the reliable profile system
+          const { ensureProfileExists } = await import('@/lib/profile');
+          const profile = await ensureProfileExists(user);
+
+          if (!profile) {
+            console.error('Failed to create or fetch profile');
             navigate('/');
-          } else if (profile && profile.is_setup === false) {
+          } else if (profile.is_setup === false) {
             navigate('/profile-edit');
           } else {
-            navigate('/');
+            // Check if there's a redirect URL stored in localStorage
+            const redirectAfterLogin = localStorage.getItem('redirectAfterLogin');
+            if (redirectAfterLogin) {
+              localStorage.removeItem('redirectAfterLogin'); // Clean up
+              navigate(redirectAfterLogin);
+            } else {
+              navigate('/');
+            }
           }
         }
       }

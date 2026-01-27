@@ -14,13 +14,27 @@ export default function ProfileEdit() {
   const handleSave = async () => {
     await updateProfile({ username: userName, bio, is_setup: true });
     await refetch();
-    navigate('/');
+    // Check if there's a redirect URL stored in localStorage
+    const redirectAfterLogin = localStorage.getItem('redirectAfterLogin');
+    if (redirectAfterLogin) {
+      localStorage.removeItem('redirectAfterLogin'); // Clean up
+      navigate(redirectAfterLogin);
+    } else {
+      navigate('/');
+    }
   };
 
   const handleSkip = async () => {
     await updateProfile({ is_setup: true });
     await refetch();
-    navigate('/');
+    // Check if there's a redirect URL stored in localStorage
+    const redirectAfterLogin = localStorage.getItem('redirectAfterLogin');
+    if (redirectAfterLogin) {
+      localStorage.removeItem('redirectAfterLogin'); // Clean up
+      navigate(redirectAfterLogin);
+    } else {
+      navigate('/');
+    }
   };
 
   return (
@@ -28,12 +42,12 @@ export default function ProfileEdit() {
       <div className="max-w-md w-full bg-card/80 border-2 border-border/50 rounded-xl shadow-lg p-8 text-center animate-fade-in">
         <h1 className="text-2xl font-bold mb-4 text-gradient font-mono">set_up();</h1>
         <p className="text-muted-foreground mb-6 font-mono text-sm">
-            <span className="block text-lg font-bold mb-1">welcome, human!</span>
-            <span className="block text-base mb-1">setup your profile, or skip and remain mysterious.</span>
-            <span className="block text-xs text-muted-foreground font-mono" style={{ opacity: 0.7 }}>// you can always update this later...</span>
+          <span className="block text-lg font-bold mb-1">welcome, human!</span>
+          <span className="block text-base mb-1">setup your profile, or skip and remain mysterious.</span>
+          <span className="block text-xs text-muted-foreground font-mono" style={{ opacity: 0.7 }}>// you can always update this later...</span>
         </p>
         <div className="space-y-4">
-            <div>
+          <div>
             <Label htmlFor="userName" className="text-sm font-semibold font-mono">user_name</Label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-mono select-none pointer-events-none">@</span>
@@ -63,12 +77,60 @@ export default function ProfileEdit() {
               className="mt-1 font-mono"
             />
           </div>
+
+          {/* Password Change Section */}
+          <div className="mt-8 p-6 bg-card/50 border-2 border-border rounded-lg">
+            <h2 className="text-xl font-bold mb-4 font-mono">change_password</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              For security, password changes require re-authentication.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="currentPassword" className="text-sm font-semibold font-mono">current_password</Label>
+                <Input
+                  id="currentPassword"
+                  type="password"
+                  placeholder="enter_current_password"
+                  className="mt-1 font-mono"
+                />
+              </div>
+              <div>
+                <Label htmlFor="newPassword" className="text-sm font-semibold font-mono">new_password</Label>
+                <Input
+                  id="newPassword"
+                  type="password"
+                  placeholder="enter_new_password"
+                  className="mt-1 font-mono"
+                />
+              </div>
+              <div>
+                <Label htmlFor="confirmPassword" className="text-sm font-semibold font-mono">confirm_password</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  placeholder="confirm_new_password"
+                  className="mt-1 font-mono"
+                />
+              </div>
+            </div>
+            <Button
+              variant="glow"
+              className="w-full font-mono"
+              onClick={() => {
+                // TODO: Implement password change logic
+                console.log('Password change not implemented yet');
+              }}
+            >
+              change_password
+            </Button>
+          </div>
+
+          <div className="flex gap-4 mt-8">
+            <Button variant="glow" className="flex-1 font-mono" onClick={handleSave}>save_profile</Button>
+            <Button variant="outline" className="flex-1 font-mono" onClick={handleSkip}>remain_mysterious</Button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-6 font-mono">// built for researchers, by researchers ✨</p>
         </div>
-        <div className="flex gap-4 mt-8">
-          <Button variant="glow" className="flex-1 font-mono" onClick={handleSave}>save_profile</Button>
-          <Button variant="outline" className="flex-1 font-mono" onClick={handleSkip}>remain_mysterious</Button>
-        </div>
-        <p className="text-xs text-muted-foreground mt-6 font-mono">// built for researchers, by researchers ✨</p>
       </div>
     </div>
   );

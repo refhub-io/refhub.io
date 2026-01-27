@@ -50,7 +50,7 @@ export default function Users() {
 
   useEffect(() => {
     if (!authLoading && !user) {
-      navigate('/auth');
+      navigate('/'); // Redirect to root page instead of auth page
     }
   }, [user, authLoading, navigate]);
 
@@ -75,7 +75,7 @@ export default function Users() {
         supabase
           .from('vault_shares')
           .select('vault_id')
-          .or(`shared_with_email.eq."${user.email}",shared_with_user_id.eq.${user.id}`),
+          .or(`shared_with_email.eq.${user.email},shared_with_user_id.eq.${user.id}`),
       ]);
 
       if (ownedVaultsRes.data) setVaults(ownedVaultsRes.data as Vault[]);
@@ -123,7 +123,7 @@ export default function Users() {
           const [vaultsRes, pubsRes] = await Promise.all([
             supabase
               .from('vaults')
-              .select('id, is_public', { count: 'exact' })
+              .select('id, visibility', { count: 'exact' })
               .eq('user_id', profile.user_id),
             supabase
               .from('publications')
@@ -132,7 +132,7 @@ export default function Users() {
           ]);
 
           const vaultCount = vaultsRes.count || 0;
-          const publicVaultCount = vaultsRes.data?.filter(v => v.is_public).length || 0;
+          const publicVaultCount = vaultsRes.data?.filter(v => v.visibility === 'public').length || 0;
           const publicationCount = pubsRes.count || 0;
 
           return {
@@ -236,7 +236,32 @@ export default function Users() {
 
               <div className="flex-1 min-w-0">
                 <h1 className="text-lg sm:text-xl lg:text-2xl font-bold truncate font-mono leading-none">
-                  // <span className="text-gradient">researchers</span>
+                  {/* Follow Button */}
+                      <div className="mt-4">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            // TODO: Implement follow functionality
+                            console.log('Follow feature not implemented yet');
+                          }}
+                          className="font-mono"
+                        >
+                          follow
+                        </Button>
+                        {/* Add Paper Button */}
+                        <Button 
+                          variant="default" 
+                          size="sm"
+                          onClick={() => {
+                            // TODO: Implement add paper functionality
+                            console.log('Add Paper feature not implemented yet');
+                          }}
+                          className="font-mono ml-2"
+                        >
+                          add_paper
+                        </Button>
+                      </div>
                 </h1>
                 <p className="text-xs text-muted-foreground mt-1 font-mono truncate leading-none">
                   {filteredUsers.length} user{filteredUsers.length !== 1 ? 's' : ''} found
@@ -398,17 +423,46 @@ export default function Users() {
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                               <path d="M 11 12 C11 10 9 2 2 2" />
-                              <path d="M 12 12 C2 14 2 22 8 22" />
-                              <path d="M 12 12 C22 14 22 22 16 22" />
+                              <path d="M 12 12 C22 14 2 22 16 2" />
                               <path d="M 12 12 L 12 12" />
-                              <path d="M 13 12 C13 10 15 2 22 2" />
-                              <path d="M 16 22 C10 22 13 14 13 12" />
                               <path d="M 2 2 C-4 2 -2.5 14.5 12 12" />
-                              <path d="M 22 2 C28 2 28 14.5 12 12" />
+                              <path d="M 2 2 C-4 2 -2.5 14.5 12 12" />
+                              <path d="M 16 22 C10 22 11 14 11 12" />
+                              <path d="M 16 22 C22 14 13 14 13 12" />
                               <path d="M 8 22 C14 22 11 14 11 12" />
+                              <path d="M 8 22 C22 14 13 14 13 12" />
+                              <path d="M 2 2 C-4 2 -2.5 14.5 12 12" />
+                              <path d="M 2 2 C-4 2 -2.5 14.5 12 12" />
                             </svg>
                           </a>
                         )}
+                      </div>
+
+                      {/* Follow Button */}
+                      <div className="mt-4">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            // TODO: Implement follow functionality
+                            console.log('Follow feature not implemented yet');
+                          }}
+                          className="font-mono"
+                        >
+                          follow
+                        </Button>
+                        {/* Add Paper Button */}
+                        <Button 
+                          variant="default" 
+                          size="sm"
+                          onClick={() => {
+                            // TODO: Implement add paper functionality
+                            console.log('Add Paper feature not implemented yet');
+                          }}
+                          className="font-mono ml-2"
+                        >
+                          add_paper
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>

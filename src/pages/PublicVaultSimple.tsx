@@ -65,12 +65,22 @@ export default function PublicVault() {
       // Increment view count
       await supabase.rpc('increment_vault_views', { vault_uuid: vaultData.id });
 
-      // Fetch publications
-      const { data: pubsData } = await supabase
-        .from('publications')
-        .select('*')
-        .eq('vault_id', vaultData.id)
-        .order('year', { ascending: false });
+      // Fetch publications via vault_papers
+      const { data: vaultPapersData } = await supabase
+        .from('vault_papers')
+        .select('publication_id')
+        .eq('vault_id', vaultData.id);
+      
+      let pubsData: Publication[] = [];
+      if (vaultPapersData && vaultPapersData.length > 0) {
+        const pubIds = vaultPapersData.map(vp => vp.publication_id);
+        const { data: publicationsData } = await supabase
+          .from('publications')
+          .select('*')
+          .in('id', pubIds)
+          .order('year', { ascending: false });
+        pubsData = publicationsData || [];
+      }
 
       if (pubsData) {
         setPublications(pubsData);

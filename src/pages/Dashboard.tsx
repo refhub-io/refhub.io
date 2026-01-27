@@ -13,7 +13,7 @@ import { VaultDialog } from '@/components/vaults/VaultDialog';
 import { RelationshipGraph } from '@/components/publications/RelationshipGraph';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { ExportDialog } from '@/components/publications/ExportDialog';
-import { Loader } from '@/components/ui/loader';
+import { LoadingSpinner } from '@/components/ui/loading';
 import { useToast } from '@/hooks/use-toast';
 import { Sparkles } from 'lucide-react';
 import {
@@ -35,6 +35,7 @@ export default function Dashboard() {
 
   const [publications, setPublications] = useState<Publication[]>([]);
   const [vaults, setVaults] = useState<Vault[]>([]);
+  const [vaultPapers, setVaultPapers] = useState<{[key: string]: string[]}>({});
   const [tags, setTags] = useState<Tag[]>([]);
   const [publicationTags, setPublicationTags] = useState<PublicationTag[]>([]);
   const [publicationRelations, setPublicationRelations] = useState<PublicationRelation[]>([]);
@@ -46,7 +47,6 @@ export default function Dashboard() {
     return !sessionStorage.getItem('loaderShown');
   });
 
-  const [selectedVaultId, setSelectedVaultId] = useState<string | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   const [isPublicationDialogOpen, setIsPublicationDialogOpen] = useState(false);
@@ -81,7 +81,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!authLoading && !user) {
-      navigate('/auth');
+      navigate('/'); // Redirect to root page instead of auth page
     }
   }, [user, authLoading, navigate]);
 
@@ -92,21 +92,98 @@ export default function Dashboard() {
     }
     try {
       // Fetch owned vaults, shared vaults, and other data
-      const [pubsRes, ownedVaultsRes, sharedVaultsRes, tagsRes, pubTagsRes, relationsRes] = await Promise.all([
+      const [pubsRes, ownedVaultsRes, sharedVaultsRes, vaultPubsRes, tagsRes, pubTagsRes, relationsRes] = await Promise.all([
         supabase.from('publications').select('*').order('created_at', { ascending: false }),
         supabase.from('vaults').select('*').eq('user_id', user.id).order('name'),
         // Fetch vaults shared with current user (via email or user_id)
         supabase
           .from('vault_shares')
           .select('vault_id')
-          .or(`shared_with_email.eq."${user.email}",shared_with_user_id.eq.${user.id}`),
+          .or(`shared_with_email.eq.${user.email},shared_with_user_id.eq.${user.id}`),
+        supabase.from('vault_publications').select('*').order('created_at', { ascending: false }),
         supabase.from('tags').select('*').order('name'),
         supabase.from('publication_tags').select('*'),
         supabase.from('publication_relations').select('*'),
       ]);
 
-      if (pubsRes.data) setPublications(pubsRes.data as Publication[]);
+      // Combine original publications with vault-specific copies
+      // For the dashboard, we want to show all publications the user has access to
+      const originalPublications = pubsRes.data as Publication[];
+      const vaultPublications = vaultPubsRes.data as any[];
+
+      // Convert vault publications to the same format as original publications
+      const formattedVaultPublications = vaultPublications.map(vp => ({
+        id: vp.id, // Use the vault publication ID
+        user_id: vp.created_by, // Use the creator of the vault copy
+        title: vp.title,
+        authors: vp.authors,
+        year: vp.year,
+        journal: vp.journal,
+        volume: vp.volume,
+        issue: vp.issue,
+        pages: vp.pages,
+        doi: vp.doi,
+        url: vp.url,
+        abstract: vp.abstract,
+        pdf_url: vp.pdf_url,
+        bibtex_key: vp.bibtex_key,
+        publication_type: vp.publication_type,
+        notes: vp.notes,
+        booktitle: vp.booktitle,
+        chapter: vp.chapter,
+        edition: vp.edition,
+        editor: vp.editor,
+        howpublished: vp.howpublished,
+        institution: vp.institution,
+        number: vp.number,
+        organization: vp.organization,
+        publisher: vp.publisher,
+        school: vp.school,
+        series: vp.series,
+        type: vp.type,
+        eid: vp.eid,
+        isbn: vp.isbn,
+        issn: vp.issn,
+        keywords: vp.keywords,
+        created_at: vp.created_at,
+        updated_at: vp.updated_at,
+        original_publication_id: vp.original_publication_id, // Keep track of the original
+      }));
+
+      // Combine publications - deduplicating by original publication ID
+      const allPublicationsMap: Record<string, Publication> = {};
+
+      // Add original publications first
+      originalPublications.forEach(pub => {
+        allPublicationsMap[pub.id] = pub;
+      });
+
+      // Add vault-specific copies (these may override originals if they exist in the same vault)
+      formattedVaultPublications.forEach(vp => {
+        // Only add if not already present or if it's a different version
+        if (!allPublicationsMap[vp.id]) {
+          allPublicationsMap[vp.id] = vp;
+        }
+      });
+
+      const allPublications = Object.values(allPublicationsMap);
+
       if (ownedVaultsRes.data) setVaults(ownedVaultsRes.data as Vault[]);
+      if (sharedVaultsRes.data) {
+        // Process shared vaults
+        if (sharedVaultsRes.data.length > 0) {
+          const sharedVaultIds = sharedVaultsRes.data.map(s => s.vault_id);
+          const { data: sharedVaultDetails } = await supabase
+            .from('vaults')
+            .select('*')
+            .in('id', sharedVaultIds);
+
+          if (sharedVaultDetails) {
+            setSharedVaults(sharedVaultDetails as Vault[]);
+          }
+        }
+      }
+      setPublications(allPublications);
       if (tagsRes.data) setTags(tagsRes.data as Tag[]);
       if (pubTagsRes.data) setPublicationTags(pubTagsRes.data as PublicationTag[]);
       if (relationsRes.data) setPublicationRelations(relationsRes.data as PublicationRelation[]);
@@ -118,7 +195,6 @@ export default function Dashboard() {
           .from('vaults')
           .select('*')
           .in('id', sharedVaultIds)
-          .neq('user_id', user.id); // Exclude own vaults
         
         if (sharedVaultDetails) {
           setSharedVaults(sharedVaultDetails as Vault[]);
@@ -191,27 +267,58 @@ export default function Dashboard() {
     }
   };
 
-  const filteredPublications = selectedVaultId
-    ? publications.filter((p) => p.vault_id === selectedVaultId)
-    : publications;
+  const filteredPublications = publications;
+  const selectedVault = null;
 
-  const selectedVault = selectedVaultId
-    ? vaults.find((v) => v.id === selectedVaultId) || null
-    : null;
-
+  // Create publication tags map considering both original and vault-specific publications
   const publicationTagsMap: Record<string, string[]> = {};
+
+  // Create a mapping from both publication_id and vault_publication_id to tags
+  const pubTagsMap: Record<string, string[]> = {};
+  const vaultPubTagsMap: Record<string, string[]> = {};
+
   publicationTags.forEach((pt) => {
-    if (!publicationTagsMap[pt.publication_id]) {
-      publicationTagsMap[pt.publication_id] = [];
+    // Map by publication_id (for original publications)
+    if (pt.publication_id) {
+      if (!pubTagsMap[pt.publication_id]) pubTagsMap[pt.publication_id] = [];
+      pubTagsMap[pt.publication_id].push(pt.tag_id);
     }
-    publicationTagsMap[pt.publication_id].push(pt.tag_id);
+
+    // Map by vault_publication_id (for vault-specific copies)
+    if (pt.vault_publication_id) {
+      if (!vaultPubTagsMap[pt.vault_publication_id]) vaultPubTagsMap[pt.vault_publication_id] = [];
+      vaultPubTagsMap[pt.vault_publication_id].push(pt.tag_id);
+    }
+  });
+
+  // Combine mappings: for each publication, use vault-specific tags if available, otherwise use original tags
+  const allPublications = publications; // Use the combined publications
+  allPublications.forEach(pub => {
+    // First try to get tags for the vault-specific copy
+    const vaultTags = vaultPubTagsMap[pub.id] || [];
+
+    // If no vault-specific tags, try to get tags for the original publication
+    const originalId = pub.original_publication_id || pub.id;
+    const originalTags = pubTagsMap[originalId] || [];
+
+    // Combine both sets of tags (prioritizing vault-specific tags)
+    publicationTagsMap[pub.id] = [...new Set([...vaultTags, ...originalTags])]; // Use Set to avoid duplicates
   });
 
   // Build relations count map (bidirectional)
+  // In the copy-based model, we need to map relations to vault publication IDs
   const relationsCountMap: Record<string, number> = {};
   publicationRelations.forEach((rel) => {
-    relationsCountMap[rel.publication_id] = (relationsCountMap[rel.publication_id] || 0) + 1;
-    relationsCountMap[rel.related_publication_id] = (relationsCountMap[rel.related_publication_id] || 0) + 1;
+    // Map original publication IDs to vault publication IDs
+    // First try to find by original_publication_id, then by id
+    const pub1 = publications.find(p => p.original_publication_id === rel.publication_id || p.id === rel.publication_id);
+    const pub2 = publications.find(p => p.original_publication_id === rel.related_publication_id || p.id === rel.related_publication_id);
+
+    const vaultPubId1 = pub1?.id || rel.publication_id;
+    const vaultPubId2 = pub2?.id || rel.related_publication_id;
+
+    relationsCountMap[vaultPubId1] = (relationsCountMap[vaultPubId1] || 0) + 1;
+    relationsCountMap[vaultPubId2] = (relationsCountMap[vaultPubId2] || 0) + 1;
   });
 
   const checkForDuplicate = (newPub: Partial<Publication>, existingPubs: Publication[], excludeId?: string) => {
@@ -242,39 +349,182 @@ export default function Dashboard() {
 
     try {
       if (editingPublication) {
-        // Auto-generate bibkey if empty
-        const dataToSave = {
-          ...data,
-          bibtex_key: data.bibtex_key || generateBibtexKey({ ...editingPublication, ...data } as Publication)
-        };
-        
-        const { data: updatedPub, error } = await supabase
-          .from('publications')
-          .update(dataToSave)
+        // Determine if this is a vault-specific copy or an original publication
+        // Check if the ID matches a vault_publications record
+        const { data: vaultPub, error: vaultPubError } = await supabase
+          .from('vault_publications')
+          .select('id, original_publication_id')
           .eq('id', editingPublication.id)
-          .select()
-          .single();
+          .maybeSingle(); // Use maybeSingle to not throw error if not found
 
-        if (error) throw error;
+        let updatedPub;
+        let updateError;
 
-        // Update tags
-        await supabase.from('publication_tags').delete().eq('publication_id', editingPublication.id);
-        if (tagIds.length > 0) {
-          await supabase.from('publication_tags').insert(
-            tagIds.map((tagId) => ({
-              publication_id: editingPublication.id,
+        if (vaultPub) {
+          // This is a vault-specific copy, update the vault_publications table
+          const dataToSave = {
+            ...data,
+            bibtex_key: data.bibtex_key || generateBibtexKey({ ...editingPublication, ...data } as Publication),
+            updated_at: new Date().toISOString()
+          };
+
+          const result = await supabase
+            .from('vault_publications')
+            .update(dataToSave)
+            .eq('id', editingPublication.id)
+            .select()
+            .single();
+
+          updatedPub = result.data;
+          updateError = result.error;
+        } else {
+          // This is an original publication, update the publications table
+          const dataToSave = {
+            ...data,
+            bibtex_key: data.bibtex_key || generateBibtexKey({ ...editingPublication, ...data } as Publication)
+          };
+
+          const result = await supabase
+            .from('publications')
+            .update(dataToSave)
+            .eq('id', editingPublication.id)
+            .select()
+            .single();
+
+          updatedPub = result.data;
+          updateError = result.error;
+        }
+
+        if (updateError) throw updateError;
+
+        // Update tags - use the original publication ID for tagging
+        // Check if this is a vault-specific copy and get the original publication ID
+        console.log('Updating tags for publication in Dashboard:', editingPublication.id, 'with tagIds:', tagIds);
+
+        let originalPublicationId = editingPublication.id;
+
+        if (editingPublication.original_publication_id) {
+          // If the publication object already has the original ID, use it
+          originalPublicationId = editingPublication.original_publication_id;
+        } else {
+          // Otherwise, check if it's a vault-specific copy by querying vault_publications
+          const { data: vaultPubRecord, error: vaultPubError } = await supabase
+            .from('vault_publications')
+            .select('original_publication_id')
+            .eq('id', editingPublication.id)
+            .maybeSingle();
+
+          if (vaultPubRecord?.original_publication_id) {
+            originalPublicationId = vaultPubRecord.original_publication_id;
+          }
+        }
+
+        console.log('Original publication ID in Dashboard:', originalPublicationId);
+
+        // In the Dashboard (personal context), continue using publication_id
+        // First, get existing tag associations to compare
+        // For vault-specific copies, use vault_publication_id; for original publications, use publication_id
+        let query;
+        if (editingPublication.original_publication_id) {
+          // This is a vault-specific copy - use vault_publication_id
+          query = supabase
+            .from('publication_tags')
+            .select('tag_id')
+            .eq('vault_publication_id', editingPublication.id);
+        } else {
+          // This is an original publication - use publication_id
+          query = supabase
+            .from('publication_tags')
+            .select('tag_id')
+            .eq('publication_id', originalPublicationId);
+        }
+
+        const { data: existingTags, error: fetchError } = await query;
+
+        if (fetchError) {
+          console.error('Error fetching existing tags in Dashboard:', fetchError);
+          throw fetchError;
+        }
+
+        const existingTagIds = existingTags?.map(tag => tag.tag_id) || [];
+
+        // Determine which tags to remove (exist but not in new selection)
+        const tagsToRemove = existingTagIds.filter(existingId => !tagIds.includes(existingId));
+
+        // Delete tags that are no longer selected
+        if (tagsToRemove.length > 0) {
+          const { error: deleteError } = await supabase
+            .from('publication_tags')
+            .delete()
+            // For vault-specific copies, use vault_publication_id; for original publications, use publication_id
+            .eq(editingPublication.original_publication_id ? 'vault_publication_id' : 'publication_id',
+                editingPublication.original_publication_id ? editingPublication.id : originalPublicationId)
+            .in('tag_id', tagsToRemove);
+
+          if (deleteError) {
+            console.error('Error deleting existing tags in Dashboard:', deleteError);
+            throw deleteError;
+          }
+        }
+
+        // Determine which tags to add (in new selection but don't exist yet)
+        const tagsToAdd = tagIds.filter(newId => !existingTagIds.includes(newId));
+
+        if (tagsToAdd.length > 0) {
+          console.log('Inserting new tag associations in Dashboard:', tagsToAdd);
+          // For vault-specific copies, use vault_publication_id; for original publications, use publication_id
+          let tagInsertData;
+          if (editingPublication.original_publication_id) {
+            // This is a vault-specific copy - use vault_publication_id
+            tagInsertData = tagsToAdd.map((tagId) => ({
+              publication_id: null, // Set to null for vault-specific copies
+              vault_publication_id: editingPublication.id,
               tag_id: tagId,
-            }))
-          );
+            }));
+          } else {
+            // This is an original publication - use publication_id
+            tagInsertData = tagsToAdd.map((tagId) => ({
+              publication_id: originalPublicationId,
+              vault_publication_id: null, // Set to null for original publications
+              tag_id: tagId,
+            }));
+          }
+
+          const { error: insertError } = await supabase.from('publication_tags').insert(tagInsertData);
+
+          if (insertError) {
+            console.error('Error inserting new tags in Dashboard:', insertError);
+            throw insertError;
+          }
+        } else {
+          console.log('No new tags to insert in Dashboard');
         }
 
         // Optimistic update
-        setPublications(prev => prev.map(p => 
+        setPublications(prev => prev.map(p =>
           p.id === editingPublication.id ? { ...p, ...updatedPub } as Publication : p
         ));
+
+        // For vault-specific copies, we use vault_publication_id; for original publications, we use publication_id
+        let newTagRecords;
+        if (editingPublication.original_publication_id) {
+          // This is a vault-specific copy - use vault_publication_id
+          newTagRecords = tagIds.map(tagId => ({ id: crypto.randomUUID(), vault_publication_id: editingPublication.id, tag_id: tagId }));
+        } else {
+          // This is an original publication - use publication_id
+          newTagRecords = tagIds.map(tagId => ({ id: crypto.randomUUID(), publication_id: originalPublicationId, tag_id: tagId }));
+        }
+
         setPublicationTags(prev => [
-          ...prev.filter(pt => pt.publication_id !== editingPublication.id),
-          ...tagIds.map(tagId => ({ id: crypto.randomUUID(), publication_id: editingPublication.id, tag_id: tagId }))
+          ...prev.filter(pt => {
+            // Filter out tags for this publication based on whether it's a vault copy or original
+            if (editingPublication.original_publication_id) {
+              return pt.vault_publication_id !== editingPublication.id;
+            } else {
+              return pt.publication_id !== originalPublicationId;
+            }
+          }),
+          ...newTagRecords
         ]);
 
         // Update editingPublication with new data so dialog stays in sync
@@ -381,37 +631,37 @@ export default function Dashboard() {
     if (!user) return;
 
     try {
-      const publication = publications.find(p => p.id === publicationId);
-      if (!publication) throw new Error('Publication not found');
+      // Verify the publication exists and belongs to the user
+      const { data: publication, error: pubError } = await supabase
+        .from('publications')
+        .select('*')
+        .eq('id', publicationId)
+        .eq('user_id', user.id)
+        .single();
 
-      // For each vault, either update or duplicate the publication
+      if (pubError || !publication) throw new Error('Publication not found');
+
+      // For each vault, create a copy of the publication using the RPC function
       for (const vaultId of vaultIds) {
-        // If this is the original publication's vault, skip
-        if (publication.vault_id === vaultId) continue;
+        // Check if publication is already in this vault (as a copy)
+        const { data: existingCopy, error: checkError } = await supabase
+          .from('vault_publications')
+          .select('*')
+          .eq('vault_id', vaultId)
+          .eq('original_publication_id', publicationId)
+          .maybeSingle();
 
-        // Create a copy of the publication in the new vault - include all fields
-        const { 
-          title, authors, year, journal, volume, issue, pages, doi, url, abstract, pdf_url, bibtex_key, publication_type, notes,
-          booktitle, chapter, edition, editor, howpublished, institution, number, organization, publisher, school, series, type,
-          eid, isbn, issn, keywords
-        } = publication;
-        const { data: newPub, error } = await supabase
-          .from('publications')
-          .insert({
-            title, authors, year, journal, volume, issue, pages, doi, url, abstract, pdf_url, bibtex_key, publication_type, notes,
-            booktitle, chapter, edition, editor, howpublished, institution, number, organization, publisher, school, series, type,
-            eid, isbn, issn, keywords,
-            user_id: user.id,
-            vault_id: vaultId,
-          })
-          .select()
-          .single();
+        if (checkError) throw checkError;
 
-        if (error) throw error;
+        // Only add if not already in vault as a copy
+        if (!existingCopy) {
+          const { error: insertError } = await supabase.rpc('copy_publication_to_vault', {
+            pub_id: publicationId,
+            target_vault_id: vaultId,
+            user_id: user.id
+          });
 
-        // Optimistic update
-        if (newPub) {
-          setPublications(prev => [newPub as Publication, ...prev]);
+          if (insertError) throw insertError;
         }
       }
 
@@ -432,16 +682,37 @@ export default function Dashboard() {
     const deletedId = deleteConfirmation.id;
 
     try {
+      // Determine if this is a vault-specific copy or an original publication
+      const { data: vaultPub, error: vaultPubError } = await supabase
+        .from('vault_publications')
+        .select('id, original_publication_id')
+        .eq('id', deletedId)
+        .maybeSingle();
+
+      let deleteError;
+      if (vaultPub) {
+        // This is a vault-specific copy, delete from vault_publications
+        const { error } = await supabase
+          .from('vault_publications')
+          .delete()
+          .eq('id', deletedId);
+
+        deleteError = error;
+      } else {
+        // This is an original publication, delete from publications table
+        const { error } = await supabase
+          .from('publications')
+          .delete()
+          .eq('id', deletedId);
+
+        deleteError = error;
+      }
+
+      if (deleteError) throw deleteError;
+
       // Optimistic update
       setPublications(prev => prev.filter(p => p.id !== deletedId));
       setPublicationTags(prev => prev.filter(pt => pt.publication_id !== deletedId));
-
-      const { error } = await supabase
-        .from('publications')
-        .delete()
-        .eq('id', deletedId);
-
-      if (error) throw error;
 
       toast({ title: 'paper_deleted' });
     } catch (error) {
@@ -539,8 +810,26 @@ export default function Dashboard() {
     if (!user) return null;
 
     try {
+      // Check if a user-scoped tag with the same name already exists (where vault_id is NULL)
+      const { data: existingTag, error: existingTagError } = await supabase
+        .from('tags')
+        .select('id')
+        .eq('user_id', user.id)
+        .is('vault_id', null) // User-scoped tags have vault_id as NULL
+        .eq('name', name)
+        .maybeSingle();
+
+      if (existingTag) {
+        toast({
+          title: 'Tag already exists',
+          description: `A tag with the name "${name}" already exists in your personal tags.`,
+          variant: 'destructive',
+        });
+        return null;
+      }
+
       const colors = ['#a855f7', '#ec4899', '#f43f5e', '#22c55e', '#06b6d4', '#3b82f6', '#f97316'];
-      
+
       // If parent exists, inherit parent's color for hue consistency
       let color = colors[Math.floor(Math.random() * colors.length)];
       if (parentId) {
@@ -561,8 +850,43 @@ export default function Dashboard() {
       setTags(prev => [...prev, data as Tag]);
       return data as Tag;
     } catch (error) {
+      // Check if the error is due to the unique constraint violation
+      if ((error as any)?.code === '23505') { // PostgreSQL unique violation error code
+        toast({
+          title: 'Tag already exists',
+          description: `A tag with the name "${name}" already exists in your personal tags.`,
+          variant: 'destructive',
+        });
+        return null;
+      }
+
       toast({
         title: 'error_creating_tag',
+        description: (error as Error).message,
+        variant: 'destructive',
+      });
+      return null;
+    }
+  };
+
+  const handleUpdateTag = async (tagId: string, updates: Partial<Tag>): Promise<Tag | null> => {
+    if (!user) return null; // Only allow updating tags if user is authenticated
+
+    try {
+      const { data, error } = await supabase
+        .from('tags')
+        .update(updates)
+        .eq('id', tagId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setTags(prev => prev.map(tag => tag.id === tagId ? { ...tag, ...data } as Tag : tag));
+      return data as Tag;
+    } catch (error) {
+      toast({
+        title: 'error_updating_tag',
         description: (error as Error).message,
         variant: 'destructive',
       });
@@ -628,7 +952,7 @@ export default function Dashboard() {
   if (authLoading || showLoader) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader message="loading_your_library" />
+        <LoadingSpinner size="lg" />
       </div>
     );
   }
@@ -638,8 +962,8 @@ export default function Dashboard() {
       <Sidebar
         vaults={vaults}
         sharedVaults={sharedVaults}
-        selectedVaultId={selectedVaultId}
-        onSelectVault={setSelectedVaultId}
+        selectedVaultId={null}
+        onSelectVault={() => {}}
         onCreateVault={() => {
           setEditingVault(null);
           setIsVaultDialogOpen(true);
@@ -706,7 +1030,7 @@ export default function Dashboard() {
         onOpenChange={setIsImportDialogOpen}
         vaults={vaults}
         allPublications={publications}
-        currentVaultId={selectedVaultId}
+        currentVaultId={null}
         onImport={handleBulkImport}
         onAddToVaults={handleAddToVaults}
       />

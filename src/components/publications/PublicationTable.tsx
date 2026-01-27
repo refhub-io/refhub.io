@@ -205,7 +205,7 @@ export function PublicationTable({
 
                 {visibleColumns.vault && (
                   <TableCell className="text-sm font-mono text-muted-foreground">
-                    {getVaultName(pub.vault_id)}
+                    {/* TODO: Add vault name lookup via vault_papers */}
                   </TableCell>
                 )}
 

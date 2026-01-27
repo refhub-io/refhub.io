@@ -1,7 +1,6 @@
 export interface Publication {
   id: string;
   user_id: string;
-  vault_id: string | null;
   title: string;
   authors: string[];
   year: number | null;
@@ -43,8 +42,7 @@ export interface Vault {
   name: string;
   description: string | null;
   color: string;
-  is_shared: boolean;
-  is_public: boolean;
+  visibility: 'private' | 'public' | 'protected';
   public_slug: string | null;
   category: string | null;
   abstract: string | null;
@@ -138,8 +136,9 @@ export interface VaultShare {
   vault_id: string;
   shared_with_email: string | null;
   shared_with_user_id: string | null;
+  shared_with_name: string | null;
   shared_by: string;
-  permission: 'viewer' | 'editor' | null;
+  role: 'viewer' | 'editor' | 'owner' | null;
   created_at: string;
 }
 

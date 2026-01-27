@@ -85,9 +85,9 @@ export default function TheCodex() {
       // Fetch additional data for each vault
       const vaultsWithData = await Promise.all(
         vaultsData.map(async (vault) => {
-          // Get publication count
+          // Get publication count via vault_papers
           const { count } = await supabase
-            .from('publications')
+            .from('vault_papers')
             .select('*', { count: 'exact', head: true })
             .eq('vault_id', vault.id);
 
@@ -141,7 +141,7 @@ export default function TheCodex() {
       const { data: sharedVaultsData } = await supabase
         .from('vault_shares')
         .select('vault_id')
-        .or(`shared_with_email.eq."${user.email}",shared_with_user_id.eq.${user.id}`);
+        .or(`shared_with_email.eq.${user.email},shared_with_user_id.eq.${user.id}`);
       
       if (sharedVaultsData && sharedVaultsData.length > 0) {
         const sharedVaultIds = sharedVaultsData.map(s => s.vault_id);

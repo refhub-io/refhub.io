@@ -29,6 +29,17 @@ const Index = () => {
     return <FullScreenLoader message="loading_profile" variant="minimal" />;
   }
 
+  // Check if there's a redirect URL stored in localStorage
+  const redirectAfterLogin = localStorage.getItem('redirectAfterLogin');
+  if (redirectAfterLogin) {
+    localStorage.removeItem('redirectAfterLogin'); // Clean up
+    // For security, only redirect to internal URLs that start with /vault/
+    if (redirectAfterLogin.startsWith('/vault/')) {
+      window.location.href = redirectAfterLogin;
+      return null; // Return null while redirecting
+    }
+  }
+
   // Otherwise, show Dashboard
   return <Dashboard />;
 };

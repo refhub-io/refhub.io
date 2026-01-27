@@ -363,7 +363,7 @@ export function applyFilters(
           fieldValue = publicationTagsMap[pub.id] || [];
           break;
         case 'vault':
-          fieldValue = pub.vault_id || '';
+          fieldValue = ''; // TODO: Implement vault lookup
           break;
         case 'doi':
           fieldValue = pub.doi || '';

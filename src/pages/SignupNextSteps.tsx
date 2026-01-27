@@ -16,7 +16,16 @@ export default function SignupNextSteps() {
             // can't find it? check your <span className="text-primary">spam folder</span>
           </span>
         </p>
-        <Button variant="glow" className="w-full font-mono" onClick={() => navigate('/auth')}>return_to_login()</Button>
+        <Button variant="glow" className="w-full font-mono" onClick={() => {
+          // Check if there's a redirect URL stored in localStorage
+          const redirectAfterLogin = localStorage.getItem('redirectAfterLogin');
+          if (redirectAfterLogin) {
+            localStorage.removeItem('redirectAfterLogin'); // Clean up
+            navigate(redirectAfterLogin);
+          } else {
+            navigate('/auth');
+          }
+        }}>return_to_login()</Button>
       </div>
     </div>
   );

@@ -68,6 +68,50 @@ export function useNotifications() {
           setUnreadCount((prev) => prev + 1);
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const updatedNotification = payload.new as Notification;
+          setNotifications((prev) => {
+            const oldNotification = prev.find(n => n.id === updatedNotification.id);
+            const newNotifications = prev.map((n) => (n.id === updatedNotification.id ? updatedNotification : n));
+
+            // Update unread count based on the change
+            if (oldNotification && !oldNotification.read && updatedNotification.read) {
+              setUnreadCount(prevCount => Math.max(0, prevCount - 1));
+            } else if (oldNotification && oldNotification.read && !updatedNotification.read) {
+              setUnreadCount(prevCount => prevCount + 1);
+            }
+
+            return newNotifications;
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const deletedNotification = payload.old as Notification;
+          setNotifications((prev) => {
+            const newNotifications = prev.filter((n) => n.id !== deletedNotification.id);
+            if (!deletedNotification.read) {
+              setUnreadCount(prevCount => Math.max(0, prevCount - 1));
+            }
+            return newNotifications;
+          });
+        }
+      )
       .subscribe();
 
     return () => {
@@ -115,7 +159,7 @@ export function useNotifications() {
   const deleteNotification = async (notificationId: string) => {
     try {
       const notification = notifications.find((n) => n.id === notificationId);
-      
+
       const { error } = await supabase
         .from('notifications')
         .delete()

@@ -23,10 +23,20 @@ export default function AuthCallback() {
             refresh_token: refreshToken || '',
           });
 
-          // Redirect to dashboard
-          setTimeout(() => {
-            navigate('/dashboard');
-          }, 1500);
+          // Check if there's a redirect URL stored in localStorage
+          const redirectAfterLogin = localStorage.getItem('redirectAfterLogin');
+          if (redirectAfterLogin) {
+            localStorage.removeItem('redirectAfterLogin'); // Clean up
+            // Redirect to the stored URL
+            setTimeout(() => {
+              navigate(redirectAfterLogin);
+            }, 1500);
+          } else {
+            // Redirect to dashboard
+            setTimeout(() => {
+              navigate('/dashboard');
+            }, 1500);
+          }
         } else {
           // If no valid tokens, redirect to auth page
           navigate('/auth');

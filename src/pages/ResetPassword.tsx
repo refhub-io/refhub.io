@@ -97,7 +97,16 @@ export default function ResetPassword() {
                 // your password has been updated<br />
                 // you may now log in with your new password
               </p>
-              <Button variant="glow" className="w-full font-mono" onClick={() => navigate('/auth')}>
+              <Button variant="glow" className="w-full font-mono" onClick={() => {
+                // Check if there's a redirect URL stored in localStorage
+                const redirectAfterLogin = localStorage.getItem('redirectAfterLogin');
+                if (redirectAfterLogin) {
+                  localStorage.removeItem('redirectAfterLogin'); // Clean up
+                  navigate(redirectAfterLogin);
+                } else {
+                  navigate('/auth');
+                }
+              }}>
                 return_to_login()
               </Button>
             </div>

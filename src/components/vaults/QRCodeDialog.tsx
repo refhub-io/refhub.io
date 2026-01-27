@@ -40,8 +40,9 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
   const qrRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
-  const isPrivate = !vault.is_public && !vault.is_shared;
-  const canShare = vault.is_public || vault.is_shared;
+  const vaultWithVisibility = vault as any;
+  const isPrivate = vaultWithVisibility.visibility === 'private';
+  const canShare = vaultWithVisibility.visibility !== 'private';
 
   // Generate random aesthetic gradient color
   const generateRandomColor = () => {
@@ -79,7 +80,7 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
     try {
       const { error } = await supabase
         .from('vaults')
-        .update({ is_shared: true })
+        .update({ visibility: 'protected' } as any)
         .eq('id', vault.id);
 
       if (error) throw error;

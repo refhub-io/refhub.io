@@ -11,33 +11,26 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
+import {
   Lock,
   ShieldCheck,
   BookOpen,
   Heart,
-  GitFork
+  GitFork,
+  Clock
 } from 'lucide-react';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+import VaultAccessBadge from '../components/vaults/VaultAccessBadge';
+import { requestVaultAccess } from '@/hooks/useVaultAccess';
 
 export default function SharedVault() {
   const { slug } = useParams<{ slug: string }>();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { profile } = useProfile();
   const { isFavorite, toggleFavorite } = useVaultFavorites();
   const { forkVault } = useVaultFork();
   const navigate = useNavigate();
-  
+
   const [vault, setVault] = useState<Vault | null>(null);
   const [publications, setPublications] = useState<Publication[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
@@ -47,7 +40,7 @@ export default function SharedVault() {
   const [accessDenied, setAccessDenied] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [userPermission, setUserPermission] = useState<'viewer' | 'editor' | null>(null);
-  
+
   // Combined state update to prevent timing issues
   const updateAccessState = (updates: {
     accessDenied?: boolean;
@@ -60,80 +53,18 @@ export default function SharedVault() {
   };
   const [forking, setForking] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showRequestModal, setShowRequestModal] = useState(false);
-  const [requestNote, setRequestNote] = useState('');
   const [submittingRequest, setSubmittingRequest] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
+  const [hasPendingRequest, setHasPendingRequest] = useState(false);
 
   // Compute access status for render
-  const hasAccess = vault && (vault.is_public || isOwner || (user && vault.user_id === user.id));
+  const hasAccess = vault && (vault.visibility === 'public' || isOwner || (user && vault.user_id === user.id));
 
-  const handleRequestAccess = async () => {
-    if (!user || !vault) return;
-    
-    try {
-      setSubmittingRequest(true);
-      
-      // Check if user already has a pending request
-      const { data: existingRequest } = await supabase
-        .from('vault_access_requests')
-        .select('id')
-        .eq('vault_id', vault.id)
-        .eq('requester_id', user.id)
-        .eq('status', 'pending')
-        .single();
-      
-      if (existingRequest) {
-        toast({
-          title: 'request_already_pending',
-          description: 'You already have a pending access request for this vault.',
-          variant: 'destructive',
-        });
-        return;
-      }
-      
-      // Create access request
-      const { error } = await supabase
-        .from('vault_access_requests')
-        .insert({
-          vault_id: vault.id,
-          requester_id: user.id,
-          requester_email: user.email,
-          requester_name: user.user_metadata?.display_name || user.email?.split('@')[0] || 'User',
-          note: requestNote,
-          status: 'pending'
-        });
-      
-      if (error) {
-        toast({
-          title: 'Error',
-          description: 'Failed to submit access request. Please try again.',
-          variant: 'destructive',
-        });
-      } else {
-        toast({
-          title: 'request_submitted',
-          description: 'Your access request has been submitted. The vault owner will be notified.',
-        });
-        setShowRequestModal(false);
-        setRequestNote('');
-      }
-    } catch (error) {
-      console.error('[SharedVault] request access error', error);
-      toast({
-        title: 'Error',
-        description: 'Something went wrong. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setSubmittingRequest(false);
-    }
-  };
 
   const handleFavorite = async () => {
     if (!user || !vault) return;
-    
+
     const success = await toggleFavorite(vault.id);
     if (success) {
       toast({
@@ -151,11 +82,11 @@ export default function SharedVault() {
       });
       return;
     }
-    
+
     setForking(true);
     const newVault = await forkVault(vault);
     setForking(false);
-    
+
     if (newVault) {
       navigate('/dashboard');
       toast({
@@ -165,143 +96,632 @@ export default function SharedVault() {
     }
   };
 
+  const handleCreateTag = async (name: string, parentId?: string): Promise<Tag | null> => {
+    if (!user || !vault?.id || userPermission !== 'editor') return null; // Only allow creating tags if user has edit permission
+
+    try {
+      // Check if a tag with the same name already exists in this vault
+      const { data: existingTag, error: existingTagError } = await supabase
+        .from('tags')
+        .select('id')
+        .eq('vault_id', vault.id)
+        .eq('name', name)
+        .maybeSingle();
+
+      if (existingTag) {
+        toast({
+          title: 'Tag already exists',
+          description: `A tag with the name "${name}" already exists in this vault.`,
+          variant: 'destructive',
+        });
+        return null;
+      }
+
+      const colors = ['#a855f7', '#ec4899', '#f43f5e', '#22c55e', '#06b6d4', '#3b82f6', '#f97316'];
+
+      // If parent exists, inherit parent's color for hue consistency
+      let color = colors[Math.floor(Math.random() * colors.length)];
+      if (parentId) {
+        const parentTag = tags.find(t => t.id === parentId);
+        if (parentTag) {
+          color = parentTag.color;
+        }
+      }
+
+      const { data, error } = await supabase
+        .from('tags')
+        .insert({ name, color, user_id: user.id, parent_id: parentId || null, vault_id: vault.id })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setTags(prev => [...prev, data as Tag]);
+      return data as Tag;
+    } catch (error) {
+      // Check if the error is due to the unique constraint violation
+      if ((error as any)?.code === '23505') { // PostgreSQL unique violation error code
+        toast({
+          title: 'Tag already exists',
+          description: `A tag with the name "${name}" already exists in this vault.`,
+          variant: 'destructive',
+        });
+        return null;
+      }
+
+      toast({
+        title: 'error_creating_tag',
+        description: (error as Error).message,
+        variant: 'destructive',
+      });
+      return null;
+    }
+  };
+
+  const handleUpdateTag = async (tagId: string, updates: Partial<Tag>): Promise<Tag | null> => {
+    if (!user || userPermission !== 'editor') return null; // Only allow updating tags if user has edit permission
+
+    try {
+      const { data, error } = await supabase
+        .from('tags')
+        .update(updates)
+        .eq('id', tagId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setTags(prev => prev.map(tag => tag.id === tagId ? { ...tag, ...data } as Tag : tag));
+      return data as Tag;
+    } catch (error) {
+      toast({
+        title: 'error_updating_tag',
+        description: (error as Error).message,
+        variant: 'destructive',
+      });
+      return null;
+    }
+  };
+
+  const handleSavePublicationTags = async (publicationId: string, tagIds: string[]): Promise<void> => {
+    if (!user || userPermission !== 'editor') return; // Only allow updating tags if user has edit permission
+
+    try {
+      // Get the original publication ID from the vault publication record
+      const { data: vaultPubRecord, error: vaultPubError } = await supabase
+        .from('vault_publications')
+        .select('original_publication_id')
+        .eq('id', publicationId)
+        .single();
+
+      if (vaultPubError) {
+        console.error('Error fetching vault publication record:', vaultPubError);
+        throw vaultPubError;
+      }
+
+      const originalPublicationId = vaultPubRecord?.original_publication_id || publicationId;
+
+      // For shared vaults, use vault_publication_id instead of publication_id
+      // Get existing tag associations for this vault-specific copy
+      const { data: existingTags, error: fetchError } = await supabase
+        .from('publication_tags')
+        .select('tag_id')
+        .eq('vault_publication_id', publicationId);  // Use the vault-specific copy ID
+
+      if (fetchError) {
+        console.error('Error fetching existing tags for vault copy in SharedVault:', fetchError);
+        throw fetchError;
+      }
+
+      const existingTagIds = existingTags?.map(tag => tag.tag_id) || [];
+
+      // Determine which tags to remove (exist but not in new selection)
+      const tagsToRemove = existingTagIds.filter(existingId => !tagIds.includes(existingId));
+
+      // Delete tags that are no longer selected for this vault-specific copy
+      if (tagsToRemove.length > 0) {
+        const { error: deleteError } = await supabase
+          .from('publication_tags')
+          .delete()
+          .eq('vault_publication_id', publicationId)  // Use the vault-specific copy ID
+          .in('tag_id', tagsToRemove);
+
+        if (deleteError) {
+          console.error('Error deleting existing tags for vault copy in SharedVault:', deleteError);
+          throw deleteError;
+        }
+      }
+
+      // Determine which tags to add (in new selection but don't exist yet)
+      const tagsToAdd = tagIds.filter(newId => !existingTagIds.includes(newId));
+
+      if (tagsToAdd.length > 0) {
+        console.log('Inserting new tag associations for vault copy in SharedVault:', tagsToAdd);
+        const { error: insertError } = await supabase.from('publication_tags').insert(
+          tagsToAdd.map((tagId) => ({
+            publication_id: null, // Set to null for vault-specific copies in shared vaults
+            vault_publication_id: publicationId, // Use the vault-specific copy ID
+            tag_id: tagId,
+          }))
+        );
+
+        if (insertError) {
+          console.error('Error inserting new tags for vault copy in SharedVault:', insertError);
+          throw insertError;
+        }
+      } else {
+        console.log('No new tags to insert for vault copy in SharedVault');
+      }
+
+      // Update local state
+      setPublicationTags(prev => [
+        ...prev.filter(pt => pt.vault_publication_id !== publicationId),
+        ...tagIds.map(tagId => ({ id: crypto.randomUUID(), vault_publication_id: publicationId, tag_id: tagId }))
+      ]);
+    } catch (error) {
+      toast({
+        title: 'error_saving_tags',
+        description: (error as Error).message,
+        variant: 'destructive',
+      });
+    }
+  };
+
   const fetchVault = useCallback(async () => {
     console.log('[SharedVault] fetchVault entry', { slug, user: !!user, isFetching });
-    
-    if (!slug || !user || isFetching) {
-      console.log('[SharedVault] fetchVault early return', { 
-        noSlug: !slug, 
-        noUser: !user, 
-        isFetching 
+
+    if (!slug || isFetching) {
+      console.log('[SharedVault] fetchVault early return', {
+        noSlug: !slug,
+        isFetching
       });
       return;
     }
-    
+
     setIsFetching(true);
     setLoading(true);
     setNotFound(false);
     setAccessDenied(false);
     // Don't reset permission here - let it persist unless we find new data
-    
+
     try {
       console.log('[SharedVault] fetchVault called', { slug, user: !!user });
-      
-      const { data: vaultData, error: vaultError } = await supabase
-        .from('vaults')
-        .select('*')
-        .eq('id', slug)
-        .single();
-      
-      console.log('[SharedVault] Vault query result', { vaultData, vaultError });
-      
-      if (vaultError || !vaultData) {
-        console.log('[SharedVault] Vault not found', { vaultError });
-        setNotFound(true);
-        return;
-      }
-      
-      setVault(vaultData);
-      const ownerUser = user && vaultData.user_id === user.id;
-      const publicVault = vaultData.is_public;
-      
-      console.log('[SharedVault] Initial access check', { 
-        isOwnerUser: ownerUser, 
-        publicVault, 
-        vaultUserId: vaultData.user_id, 
-        currentUserId: user?.id 
-      });
-      
-      // Check if user has access via shares or approved requests
-      let hasAccess = publicVault || ownerUser;
-      
-      if (!ownerUser && !publicVault) {
+
+      // First, check if the vault exists by checking related tables that might have more permissive RLS
+      // This is needed because RLS prevents direct access to protected vaults unless shared
+      let vaultData = null;
+      let hasAccess = false;
+      let permission: 'viewer' | 'editor' | null = null;
+
+      // Check if user is authenticated
+      if (user) {
+        // Check if user has access via shares or approved requests first
         // Check for existing share with permission (by user_id or email)
         const { data: shareData, error: shareError } = await supabase
           .from('vault_shares')
-          .select('permission')
-          .eq('vault_id', vaultData.id)
+          .select('vault_id, role')
           .or(`shared_with_user_id.eq.${user.id},shared_with_email.eq.${user.email}`)
-          .single();
-        
-        console.log('[SharedVault] Share query result', { shareData, shareError });
-        
+          .eq('vault_id', slug)
+          .maybeSingle();
+
         if (shareData) {
           hasAccess = true;
-          const permission = shareData.permission as 'viewer' | 'editor';
+          permission = (shareData as any).role as 'viewer' | 'editor';
           setUserPermission(permission);
-          console.log('[SharedVault] User has share with permission:', permission);
-          console.log('[SharedVault] Permission set to:', permission, 'Current state:', userPermission);
+
+          // Now fetch the vault data since we know we have access
+          const { data: vaultFromShare, error: vaultFromShareError } = await supabase
+            .from('vaults')
+            .select('*')
+            .eq('id', shareData.vault_id)
+            .single();
+
+          if (vaultFromShareError) {
+            console.log('[SharedVault] Error fetching vault after confirmed access', { vaultFromShareError });
+            setNotFound(true);
+            return;
+          }
+
+          vaultData = vaultFromShare;
         } else {
           // Check for approved request
           const { data: approvedRequest } = await supabase
             .from('vault_access_requests')
-            .select('id')
-            .eq('vault_id', vaultData.id)
+            .select('vault_id')
+            .eq('vault_id', slug)
             .eq('requester_id', user.id)
             .eq('status', 'approved')
-            .single();
-          hasAccess = !!approvedRequest;
-          console.log('[SharedVault] Approved request found:', !!approvedRequest);
+            .maybeSingle();
+
+          if (approvedRequest) {
+            hasAccess = true;
+            permission = 'viewer';
+            setUserPermission('viewer');
+
+            // Now fetch the vault data since we know we have access
+            const { data: vaultFromRequest, error: vaultFromRequestError } = await supabase
+              .from('vaults')
+              .select('*')
+              .eq('id', approvedRequest.vault_id)
+              .single();
+
+            if (vaultFromRequestError) {
+              console.log('[SharedVault] Error fetching vault after approved request', { vaultFromRequestError });
+              // Don't set notFound here - the vault exists, we just might not have direct access yet
+              // This can happen if the share wasn't created after approval
+              // Try to get minimal vault info for display purposes
+              const { data: minimalVaultData } = await supabase
+                .from('vaults')
+                .select('id, name, description, visibility, updated_at, color, user_id')
+                .eq('id', approvedRequest.vault_id)
+                .single();
+
+              if (minimalVaultData) {
+                vaultData = minimalVaultData;
+              } else {
+                // If we can't get any vault data at all, then it truly doesn't exist
+                console.log('[SharedVault] Vault truly does not exist after approved request', { vaultFromRequestError });
+                setNotFound(true);
+                return;
+              }
+            }
+
+            vaultData = vaultFromRequest;
+          } else {
+            // Check if it's a public vault (user can access public vaults)
+            const { data: publicVaultData, error: publicVaultError } = await supabase
+              .from('vaults')
+              .select('*')
+              .eq('id', slug)
+              .eq('visibility', 'public')
+              .single();
+
+            if (publicVaultData) {
+              vaultData = publicVaultData;
+              hasAccess = true;
+              permission = 'viewer';
+              setUserPermission('viewer');
+            } else {
+              // Check if user is the owner (owners can always access their vaults)
+              const { data: ownerVaultData, error: ownerVaultError } = await supabase
+                .from('vaults')
+                .select('*')
+                .eq('id', slug)
+                .eq('user_id', user.id)
+                .single();
+
+              if (ownerVaultData) {
+                vaultData = ownerVaultData;
+                hasAccess = true;
+                // Owner permissions are handled separately
+              } else {
+                // For protected vaults, we need to check if the vault exists
+                // Since RLS prevents direct access to protected vaults, we'll check related tables
+                const { count: paperCount } = await supabase
+                  .from('vault_papers')
+                  .select('*', { count: 'exact', head: true })
+                  .eq('vault_id', slug)
+                  .limit(1);
+
+                if (paperCount > 0) {
+                  // Vault exists but user doesn't have access
+                  console.log('[SharedVault] Protected vault exists but access denied');
+                  hasAccess = false;
+
+                  // Try to get minimal vault info - this might work for protected vaults
+                  const { data: minimalVaultData } = await supabase
+                    .from('vaults')
+                    .select('id, name, description, visibility, updated_at, color, user_id')
+                    .eq('id', slug)
+                    .single();
+
+                  if (minimalVaultData) {
+                    vaultData = minimalVaultData;
+                  } else {
+                    // If we can't get vault data, create a minimal object
+                    vaultData = {
+                      id: slug,
+                      user_id: '', // Will be populated when user gets access
+                      name: 'Protected Vault',
+                      description: 'This vault is protected. Request access to view its contents.',
+                      color: '#6366f1',
+                      visibility: 'protected',
+                      public_slug: null,
+                      category: null,
+                      abstract: null,
+                      created_at: new Date().toISOString(),
+                      updated_at: new Date().toISOString()
+                    } as Vault;
+                  }
+                } else {
+                  // Check if vault exists at all by checking access requests
+                  const { count: requestCount } = await supabase
+                    .from('vault_access_requests')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('vault_id', slug)
+                    .limit(1);
+
+                  if (requestCount > 0) {
+                    // Vault exists but user doesn't have access
+                    console.log('[SharedVault] Protected vault exists but access denied (via requests)');
+                    hasAccess = false;
+
+                    // Try to get minimal vault info
+                    const { data: minimalVaultData } = await supabase
+                      .from('vaults')
+                      .select('id, name, description, visibility, updated_at, color, user_id')
+                      .eq('id', slug)
+                      .single();
+
+                    if (minimalVaultData) {
+                      vaultData = minimalVaultData;
+                    } else {
+                      // If we can't get vault data, create a minimal object
+                      vaultData = {
+                        id: slug,
+                        user_id: '', // Will be populated when user gets access
+                        name: 'Protected Vault',
+                        description: 'This vault is protected. Request access to view its contents.',
+                        color: '#6366f1',
+                        visibility: 'protected',
+                        public_slug: null,
+                        category: null,
+                        abstract: null,
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                      } as Vault;
+                    }
+                  } else {
+                    // Vault doesn't exist at all
+                    console.log('[SharedVault] Vault does not exist');
+                    setNotFound(true);
+                    return;
+                  }
+                }
+              }
+            }
+          }
         }
-      } else if (publicVault) {
-        // For public vaults, set default viewer permission
-        setUserPermission('viewer');
-        console.log('[SharedVault] Public vault, setting viewer permission');
+      } else {
+        // User is not authenticated - only check for public vaults
+        const { data: publicVaultData, error: publicVaultError } = await supabase
+          .from('vaults')
+          .select('*')
+          .eq('id', slug)
+          .eq('visibility', 'public')
+          .single();
+
+        if (publicVaultData) {
+          vaultData = publicVaultData;
+          hasAccess = true;
+          permission = 'viewer';
+          setUserPermission('viewer');
+        } else {
+          // For unauthenticated users, check if the vault exists by checking related tables
+          // that might have more permissive RLS policies for existence checks
+          const { count: paperCount } = await supabase
+            .from('vault_papers')
+            .select('*', { count: 'exact', head: true })
+            .eq('vault_id', slug)
+            .limit(1);
+
+          if (paperCount > 0) {
+            // Vault exists but user doesn't have access
+            console.log('[SharedVault] Protected vault exists but access denied (unauthenticated user)');
+            hasAccess = false;
+
+            // Try to get minimal vault info - this might work for protected vaults
+            const { data: minimalVaultData } = await supabase
+              .from('vaults')
+              .select('id, name, description, visibility, updated_at, color, user_id')
+              .eq('id', slug)
+              .single();
+
+            if (minimalVaultData) {
+              vaultData = minimalVaultData;
+            } else {
+              // If we can't get vault data, create a minimal object
+              vaultData = {
+                id: slug,
+                user_id: '', // Will be populated when user gets access
+                name: 'Protected Vault',
+                description: 'This vault is protected. Request access to view its contents.',
+                color: '#6366f1',
+                visibility: 'protected',
+                public_slug: null,
+                category: null,
+                abstract: null,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              } as Vault;
+            }
+          } else {
+            // Check if vault exists at all by checking access requests
+            const { count: requestCount } = await supabase
+              .from('vault_access_requests')
+              .select('*', { count: 'exact', head: true })
+              .eq('vault_id', slug)
+              .limit(1);
+
+            if (requestCount > 0) {
+              // Vault exists but user doesn't have access
+              console.log('[SharedVault] Protected vault exists but access denied (via requests, unauthenticated user)');
+              hasAccess = false;
+
+              // Try to get minimal vault info
+              const { data: minimalVaultData } = await supabase
+                .from('vaults')
+                .select('id, name, description, visibility, updated_at, color, user_id')
+                .eq('id', slug)
+                .single();
+
+              if (minimalVaultData) {
+                vaultData = minimalVaultData;
+              } else {
+                // If we can't get vault data, create a minimal object
+                vaultData = {
+                  id: slug,
+                  user_id: '', // Will be populated when user gets access
+                  name: 'Protected Vault',
+                  description: 'This vault is protected. Request access to view its contents.',
+                  color: '#6366f1',
+                  visibility: 'protected',
+                  public_slug: null,
+                  category: null,
+                  abstract: null,
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString()
+                } as Vault;
+              }
+            } else {
+              // Vault doesn't exist at all
+              console.log('[SharedVault] Vault does not exist (unauthenticated user)');
+              setNotFound(true);
+              return;
+            }
+          }
+        }
       }
-      
+
+      if (vaultData) {
+        setVault(vaultData);
+      }
+
+      const ownerUser = user && vaultData && vaultData.user_id === user.id;
+      const publicVault = vaultData && vaultData.visibility === 'public';
+
+      console.log('[SharedVault] Initial access check', {
+        isOwnerUser: ownerUser,
+        publicVault,
+        hasAccess,
+        vaultUserId: vaultData?.user_id,
+        currentUserId: user?.id
+      });
+
       // State will be updated asynchronously, so we'll check after React batch
       setTimeout(() => {
         console.log('[SharedVault] Final access decision (after batch)', { hasAccess, userPermission, isOwner });
       }, 0);
-      
+
+      // If we reach here, check if user has access to the vault
       if (!hasAccess) {
-        console.log('[SharedVault] Access denied');
-        setAccessDenied(true);
-        return;
+        // If vault data exists but user doesn't have access, show access denied (request form)
+        if (vaultData) {
+          console.log('[SharedVault] Access denied - vault exists but no access');
+          setAccessDenied(true);
+          return;
+        } else {
+          // If no vault data and no access, it means vault doesn't exist
+          console.log('[SharedVault] Vault does not exist and no access');
+          setNotFound(true);
+          return;
+        }
       }
-      
+
       setIsOwner(ownerUser);
-      
+
       if (hasAccess) {
         console.log('[SharedVault] Fetching publications');
         // Increment view count
         await supabase.rpc('increment_vault_views', { vault_uuid: vaultData.id });
-        
-        // Fetch publications
-        const { data: pubsData } = await supabase
-          .from('publications')
+
+        let pubsData: Publication[] = [];
+        // Get vault-specific copies
+        const { data: vaultPublicationsData } = await supabase
+          .from('vault_publications')
           .select('*')
           .eq('vault_id', vaultData.id)
-          .order('year', { ascending: false });
-        
+          .order('updated_at', { ascending: false });
+
+        // Convert vault publications to the same format as original publications
+        pubsData = vaultPublicationsData.map(vp => ({
+          id: vp.id, // Use the vault publication ID
+          user_id: vp.created_by, // Use the creator of the vault copy
+          title: vp.title,
+          authors: vp.authors,
+          year: vp.year,
+          journal: vp.journal,
+          volume: vp.volume,
+          issue: vp.issue,
+          pages: vp.pages,
+          doi: vp.doi,
+          url: vp.url,
+          abstract: vp.abstract,
+          pdf_url: vp.pdf_url,
+          bibtex_key: vp.bibtex_key,
+          publication_type: vp.publication_type,
+          notes: vp.notes,
+          booktitle: vp.booktitle,
+          chapter: vp.chapter,
+          edition: vp.edition,
+          editor: vp.editor,
+          howpublished: vp.howpublished,
+          institution: vp.institution,
+          number: vp.number,
+          organization: vp.organization,
+          publisher: vp.publisher,
+          school: vp.school,
+          series: vp.series,
+          type: vp.type,
+          eid: vp.eid,
+          isbn: vp.isbn,
+          issn: vp.issn,
+          keywords: vp.keywords,
+          created_at: vp.created_at,
+          updated_at: vp.updated_at,
+        }));
+
         if (pubsData) {
           setPublications(pubsData as Publication[]);
           console.log('[SharedVault] Publications loaded', pubsData.length);
-          
-          // Fetch tags
-          const pubIds = pubsData.map(p => p.id);
-          if (pubIds.length > 0) {
-            const { data: pubTagsData } = await supabase
+
+          // Fetch tags - in the copy-based model with vault-specific tags, we need to map from vault publication IDs
+          const vaultPubIds = pubsData.map(p => p.id).filter(id => id); // Use the vault-specific copy IDs
+          const originalPubIds = pubsData.map(p => p.original_publication_id).filter(id => id); // Also get original IDs
+
+          // Fetch tags for both vault-specific copies and original publications
+          let pubTagsData = [];
+
+          if (vaultPubIds.length > 0) {
+            const { data: vaultTags, error: vaultTagsError } = await supabase
               .from('publication_tags')
               .select('*')
-              .in('publication_id', pubIds);
-            
-            if (pubTagsData) {
-              setPublicationTags(pubTagsData);
-              
-              const tagIds = [...new Set(pubTagsData.map(pt => pt.tag_id))];
-              if (tagIds.length > 0) {
-                const { data: tagsData } = await supabase
-                  .from('tags')
-                  .select('*')
-                  .in('id', tagIds);
-                
-                if (tagsData) {
-                  setTags(tagsData);
-                  console.log('[SharedVault] Tags loaded', tagsData.length);
-                }
+              .in('vault_publication_id', vaultPubIds);
+            if (!vaultTagsError && vaultTags) {
+              pubTagsData = [...pubTagsData, ...vaultTags];
+            }
+          }
+
+          if (originalPubIds.length > 0) {
+            const { data: originalTags, error: originalTagsError } = await supabase
+              .from('publication_tags')
+              .select('*')
+              .in('publication_id', originalPubIds);
+            if (!originalTagsError && originalTags) {
+              pubTagsData = [...pubTagsData, ...originalTags];
+            }
+          }
+
+          if (pubTagsData.length > 0) {
+            setPublicationTags(pubTagsData);
+
+            // Get the unique tag IDs from the publication tags
+            const tagIds = [...new Set(pubTagsData.map(pt => pt.tag_id))];
+            if (tagIds.length > 0) {
+              const { data: tagsData } = await supabase
+                .from('tags')
+                .select('*')
+                .in('id', tagIds);
+
+              if (tagsData) {
+                setTags(tagsData);
+                console.log('[SharedVault] Tags loaded', tagsData.length);
               }
             }
+          } else {
+            // If no tags found, still initialize with empty arrays
+            setPublicationTags([]);
+            setTags([]);
           }
         }
       }
@@ -316,16 +736,59 @@ export default function SharedVault() {
   }, [slug, user]);
 
   useEffect(() => {
-    console.log('[SharedVault] useEffect triggered', { slug, user: !!user, loading });
-    fetchVault();
-  }, [slug, user]); // Removed fetchVault to prevent circular dependency
+    console.log('[SharedVault] useEffect triggered', { slug, user: !!user, loading, authLoading });
+
+    if (!authLoading) {
+      // Always fetch vault info regardless of authentication status
+      // This allows unauthenticated users to see vault details and request access
+      fetchVault();
+    }
+  }, [slug, user, authLoading, navigate]); // Removed fetchVault to prevent circular dependency
+
+  // Check for pending access requests when user and slug are available
+  useEffect(() => {
+    console.log('[SharedVault] Checking for pending requests', { user: !!user, slug });
+    if (user && slug) {
+      const checkPendingRequest = async () => {
+        const { data: existingRequest } = await supabase
+          .from('vault_access_requests')
+          .select('id, status')
+          .eq('vault_id', slug)
+          .eq('requester_id', user.id)
+          .in('status', ['pending', 'approved'])
+          .maybeSingle();
+
+        console.log('[SharedVault] Pending request check result:', existingRequest);
+        if (existingRequest) {
+          if (existingRequest.status === 'pending') {
+            console.log('[SharedVault] Setting hasPendingRequest to true');
+            setHasPendingRequest(true);
+            // Console warning for pending request
+            console.log('%c⚠️ WARNING: Request is pending approval - check vault owner for status', 'color: orange; font-weight: bold;');
+          } else if (existingRequest.status === 'approved') {
+            console.log('[SharedVault] Setting hasPendingRequest to false');
+            setHasPendingRequest(false);
+            // The main fetchVault logic will handle access updates
+          }
+        } else {
+          console.log('[SharedVault] No existing request, setting hasPendingRequest to false');
+          setHasPendingRequest(false);
+        }
+      };
+
+      checkPendingRequest();
+    } else {
+      console.log('[SharedVault] No user or slug, setting hasPendingRequest to false');
+      setHasPendingRequest(false);
+    }
+  }, [user, slug]);
 
   // Debug: Log when userPermission changes
   useEffect(() => {
     console.log('[SharedVault] userPermission state changed:', userPermission);
   }, [userPermission]);
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-6 p-8">
@@ -347,8 +810,8 @@ export default function SharedVault() {
           </div>
           <p className="text-muted-foreground font-mono text-sm">// vault_not_found</p>
           <p className="text-muted-foreground font-mono text-sm">// this_vault_doesnt_exist_or_was_removed</p>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="font-mono"
             onClick={() => navigate('/dashboard')}
           >
@@ -369,15 +832,98 @@ export default function SharedVault() {
           <p className="text-muted-foreground font-mono text-sm">// access_denied</p>
           <p className="text-muted-foreground font-mono text-sm">this_vault_is_private_you_need_permission</p>
           <div className="flex gap-4 justify-center">
-            <Button 
-              onClick={() => setShowRequestModal(true)}
-              className="bg-gradient-primary font-mono text-white shadow-lg hover:shadow-xl transition-all"
+            <Button
+              onClick={async () => {
+                console.log('[SharedVault] Request Access button clicked', { user: !!user, vault: !!vault, slug });
+                if (!user) {
+                  console.log('[SharedVault] User not authenticated, redirecting to login');
+                  // If user is not authenticated, redirect to login page
+                  localStorage.setItem('redirectAfterLogin', `/vault/${slug}`);
+                  navigate('/auth');
+                } else {
+                  console.log('[SharedVault] User authenticated, sending access request');
+                  // Send the access request directly instead of opening a modal
+                  if (vault) {
+                    // Check if user already has a pending request
+                    const { data: existingRequest } = await supabase
+                      .from('vault_access_requests')
+                      .select('id, status')
+                      .eq('vault_id', vault.id)
+                      .eq('requester_id', user.id)
+                      .in('status', ['pending', 'approved'])
+                      .maybeSingle();
+
+                    console.log('[SharedVault] Existing request check result:', existingRequest);
+                    if (existingRequest) {
+                      if (existingRequest.status === 'pending') {
+                        console.log('[SharedVault] Request already pending');
+                        toast({
+                          title: 'request_already_pending',
+                          description: 'You already have a pending access request for this vault.',
+                          variant: 'default',
+                        });
+                        return;
+                      } else if (existingRequest.status === 'approved') {
+                        console.log('[SharedVault] Access already approved');
+                        toast({
+                          title: 'access_already_approved',
+                          description: 'Your access has already been approved.',
+                          variant: 'default',
+                        });
+                        // Refresh the vault data to update access status
+                        fetchVault();
+                        return;
+                      }
+                    }
+
+                    // Create access request using the helper function
+                    try {
+                      const result = await requestVaultAccess(vault.id, user.id, ''); // Empty note
+
+                      if (result.error) {
+                        console.error('[SharedVault] Error creating access request:', result.error);
+                        toast({
+                          title: 'Error',
+                          description: 'Failed to submit access request. Please try again.',
+                          variant: 'destructive',
+                        });
+                      } else {
+                        console.log('[SharedVault] Access request submitted successfully');
+                        toast({
+                          title: 'request_submitted',
+                          description: 'Your access request has been submitted. The vault owner will be notified.',
+                        });
+                        // Update the pending request state
+                        setHasPendingRequest(true);
+                      }
+                    } catch (error) {
+                      console.error('[SharedVault] request access error:', error);
+                      toast({
+                        title: 'Error',
+                        description: 'Something went wrong. Please try again.',
+                        variant: 'destructive',
+                      });
+                    }
+                  }
+                }
+              }}
+              disabled={hasPendingRequest}
+              className={`${hasPendingRequest ? 'bg-muted text-muted-foreground cursor-not-allowed' : 'bg-gradient-primary text-white shadow-lg hover:shadow-xl'} font-mono transition-all`}
             >
-              <ShieldCheck className="w-4 h-4 mr-2" />
-              request_access
+              {hasPendingRequest ? (
+                <>
+                  <Clock className="w-4 h-4 mr-2" />
+                  request_pending
+                </>
+              ) : (
+                <>
+                  <ShieldCheck className="w-4 h-4 mr-2" />
+                  {user ? 'request_access' : 'sign_in_to_request_access'}
+                </>
+              )}
             </Button>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="font-mono"
               onClick={() => navigate('/dashboard')}
             >
@@ -412,22 +958,8 @@ export default function SharedVault() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div>
-                    <div className="flex items-center gap-2">
-                      {!isOwner && userPermission === 'viewer' && (
-                        <Badge variant="secondary" className="font-mono text-xs">
-                          VIEWER
-                        </Badge>
-                      )}
-                      {!isOwner && userPermission === 'editor' && (
-                        <Badge variant="secondary" className="font-mono text-xs">
-                          EDITOR
-                        </Badge>
-                      )}
-                      {isOwner && (
-                        <Badge variant="secondary" className="font-mono text-xs">
-                          OWNER
-                        </Badge>
-                      )}
+                    <div className="flex items-center gap-3">
+                      <VaultAccessBadge vaultId={vault?.id || ''} />
                     </div>
                     {vault.description && (
                       <p className="text-muted-foreground font-mono text-sm">
@@ -436,7 +968,7 @@ export default function SharedVault() {
                     )}
                   </div>
                 </div>
-                
+
                 <div className="flex items-center gap-2">
                   <span className="flex items-center gap-1 text-sm text-muted-foreground">
                     <BookOpen className="w-4 h-4" />
@@ -470,17 +1002,32 @@ export default function SharedVault() {
             </div>
           </div>
         )}
-        
+
         {vault && user && (
           <PublicationList
             publications={publications}
             tags={tags}
             vaults={[vault]}
-            publicationTagsMap={publicationTags.reduce((acc, pt) => {
-              if (!acc[pt.publication_id]) acc[pt.publication_id] = [];
-              acc[pt.publication_id].push(pt.tag_id);
-              return acc;
-            }, {} as Record<string, string[]>)}
+            publicationTagsMap={(() => {
+              // Create a map from vault publication IDs to tags
+              const vaultPubTagsMap: Record<string, string[]> = {};
+              publicationTags.forEach(pt => {
+                // Use vault_publication_id if available, otherwise fall back to publication_id
+                const vaultPubId = pt.vault_publication_id || pt.publication_id;
+                if (!vaultPubTagsMap[vaultPubId]) vaultPubTagsMap[vaultPubId] = [];
+                vaultPubTagsMap[vaultPubId].push(pt.tag_id);
+              });
+
+              // Create a map from publication IDs to tags
+              const pubTagsMap: Record<string, string[]> = {};
+              publications.forEach(pub => {
+                // In the copy-based model, publications are vault-specific copies
+                // Look up the tags using the vault publication ID
+                pubTagsMap[pub.id] = vaultPubTagsMap[pub.id] || [];
+              });
+
+              return pubTagsMap;
+            })()}
             relationsCountMap={{}}
             selectedVault={vault}
             onAddPublication={userPermission === 'editor' ? () => {
@@ -496,7 +1043,7 @@ export default function SharedVault() {
               // Editors can import publications
             } : () => {
               toast({
-                title: 'read_only_vault', 
+                title: 'read_only_vault',
                 description: 'You have viewer permissions. Fork it to import papers.',
                 variant: 'destructive',
               });
@@ -529,6 +1076,7 @@ export default function SharedVault() {
                 variant: 'destructive',
               });
             }}
+            onCreateTag={userPermission === 'editor' ? handleCreateTag : undefined}
             onExportBibtex={(pubs) => {
               if (pubs.length > 0) {
                 toast({ title: 'export_success ✨' });
@@ -548,56 +1096,6 @@ export default function SharedVault() {
         )}
       </div>
 
-      <AlertDialog open={showRequestModal} onOpenChange={setShowRequestModal}>
-        <AlertDialogContent className="border-2 bg-card/95 backdrop-blur-xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-bold font-mono">request_access</AlertDialogTitle>
-            <AlertDialogDescription className="font-mono text-sm">
-              Send a request to vault owner for access
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium font-mono">your_name</label>
-              <div className="p-3 border-2 border-border rounded-lg bg-muted/50 font-mono text-sm">
-                {user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'User'}
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <label className="text-sm font-medium font-mono">email</label>
-              <div className="p-3 border-2 border-border rounded-lg bg-muted/50 font-mono text-sm">
-                {user?.email || ''}
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <label className="text-sm font-medium font-mono">message</label>
-              <textarea
-                value={requestNote}
-                onChange={(e) => setRequestNote(e.target.value)}
-                placeholder="Tell vault owner why you need access..."
-                className="w-full min-h-[100px] p-3 border-2 border-border rounded-lg bg-background text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-primary"
-                maxLength={500}
-              />
-            </div>
-          </div>
-          
-          <AlertDialogFooter>
-            <AlertDialogCancel className="font-mono" disabled={submittingRequest}>
-              cancel
-            </AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleRequestAccess}
-              disabled={submittingRequest || !requestNote.trim()}
-              className="bg-gradient-primary font-mono text-white shadow-lg hover:shadow-xl transition-all"
-            >
-              {submittingRequest ? 'submitting...' : 'send_request'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

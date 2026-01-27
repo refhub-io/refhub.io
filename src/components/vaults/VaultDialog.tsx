@@ -47,12 +47,12 @@ interface VaultDialogProps {
   onSave: (data: Partial<Vault>) => Promise<void>;
   onUpdate?: () => void;
   onDelete?: (vault: Vault) => void;
-} 
+}
 
 export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSave, onUpdate, onDelete }: VaultDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
-  
+
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState(VAULT_COLORS[0]);
@@ -60,7 +60,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   const [abstract, setAbstract] = useState('');
   const [visibility, setVisibility] = useState<VaultVisibility>('private');
   const [saving, setSaving] = useState(false);
-  
+
   // Sharing state
   const [shares, setShares] = useState<VaultShare[]>([]);
   const [accessRequests, setAccessRequests] = useState<any[]>([]);
@@ -82,57 +82,47 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     // Debug: log current auth user id to help diagnose RLS/visibility issues
     // eslint-disable-next-line no-console
     console.debug('[VaultDialog] current auth user', { userId: user?.id });
-    const { data, error } = await supabase
+
+    // Get the access requests
+    const { data: requests, error: requestsError } = await supabase
       .from('vault_access_requests')
       .select('*')
       .eq('vault_id', vault.id)
       .eq('status', 'pending')
       .order('created_at', { ascending: false });
 
-    if (error) {
+    if (requestsError) {
       // eslint-disable-next-line no-console
-      console.error('[VaultDialog] error fetching vault_access_requests', error);
+      console.error('[VaultDialog] error fetching vault_access_requests', requestsError);
       return;
     }
 
-    if (data) {
-      const requesterIds = Array.from(new Set(data.filter((d: any) => d.requester_id).map((d: any) => d.requester_id)));
-      let profiles: any[] = [];
+    if (requests) {
+      // Process requests to set display names
+      const processed = requests.map((r) => {
+        // Construct display name prioritizing: requester_name > requester_email > 'Someone'
+        let displayName = 'Someone'; // Default fallback
 
-      if (requesterIds.length > 0) {
-        const { data: byId } = await supabase
-          .from('profiles')
-          .select('id, user_id, display_name, email, username')
-          .in('id', requesterIds);
-        if (byId) profiles = profiles.concat(byId);
+        if (r.requester_name) {
+          displayName = r.requester_name;
+        } else if (r.requester_email) {
+          // If no name provided, use the email
+          displayName = r.requester_email;
+        }
 
-        const { data: byUserId } = await supabase
-          .from('profiles')
-          .select('id, user_id, display_name, email, username')
-          .in('user_id', requesterIds);
-        if (byUserId) profiles = profiles.concat(byUserId);
-      }
-
-      const profilesByKey = Object.fromEntries(
-        profiles.map((p: any) => [[p.id, p.user_id].find(Boolean) as string, p])
-      );
-
-      const enriched = (data as any[]).map((r) => {
-        const profile = profilesByKey[r.requester_id] || null;
-        const displayName = r.requester_name || (profile ? (profile.display_name || profile.username || profile.email) : null) || r.requester_email || 'Someone';
-        return { ...r, display_name: displayName, requester_profile: profile || null };
+        return { ...r, display_name: displayName, requester_profile: null };
       });
 
-      setAccessRequests(enriched);
+      setAccessRequests(processed);
 
       // Initialize per-request permission selections (default viewer)
       const perms: Record<string, 'viewer' | 'editor'> = {};
-      enriched.forEach((r) => { perms[r.id] = 'viewer'; });
+      processed.forEach((r) => { perms[r.id] = 'viewer'; });
       setRequestPermissions(perms);
 
       // Debug: log fetched count and a summary to help diagnose missing requests
       // eslint-disable-next-line no-console
-      console.debug('[VaultDialog] fetched access requests', { count: enriched.length, example: enriched[0] || null });
+      console.debug('[VaultDialog] fetched access requests', { count: processed.length, example: processed[0] || null });
 
       // extra debug: raw fetch for owner diagnostics
       const raw = await supabase.from('vault_access_requests').select('*').eq('vault_id', vault.id);
@@ -194,9 +184,8 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   }, [vault, open, initialRequestId]);
 
   const getVisibility = (v: Vault): VaultVisibility => {
-    if (v.is_public) return 'public';
-    if (v.is_shared) return 'protected';
-    return 'private';
+    const vaultWithVisibility = v as any;
+    return vaultWithVisibility.visibility || 'private';
   };
 
   const generateSlug = (name: string) => {
@@ -209,7 +198,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
 
   const fetchShares = useCallback(async () => {
     if (!vault) return;
-    
+
     const { data, error } = await supabase
       .from('vault_shares')
       .select('*')
@@ -261,13 +250,13 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   // Auto-save for edit mode only (debounced) - only triggers on data changes
   useEffect(() => {
     if (!vaultRef.current || !openRef.current) return; // Only auto-save when editing an existing vault
-    
+
     // Skip auto-save on initial load
     if (isInitialLoadRef.current) {
       isInitialLoadRef.current = false;
       return;
     }
-    
+
     if (autoSaveTimeoutRef.current) {
       clearTimeout(autoSaveTimeoutRef.current);
     }
@@ -276,14 +265,12 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       if (name.trim()) {
         setSaving(true);
         try {
-          await onSave({ 
-            name, 
-            description, 
-            color, 
+          await onSave({
+            name,
+            description,
+            color,
             category: category || null,
             abstract: abstract || null,
-            is_public: visibility === 'public',
-            is_shared: visibility === 'protected' || visibility === 'public',
             public_slug: visibility === 'public' ? (publicSlug || generateSlug(name)) : null,
           });
           if (onUpdate) onUpdate();
@@ -307,14 +294,12 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     e.preventDefault();
     setSaving(true);
     try {
-      await onSave({ 
-        name, 
-        description, 
+      await onSave({
+        name,
+        description,
         color,
         category: category || null,
         abstract: abstract || null,
-        is_public: visibility === 'public',
-        is_shared: visibility === 'protected',
         public_slug: visibility === 'public' ? (publicSlug || generateSlug(name)) : null,
       });
       onOpenChange(false);
@@ -343,7 +328,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
         vault_id: vault.id,
         shared_with_email: email.trim().toLowerCase(),
         shared_by: user.id,
-        permission: sharePermission,
+        role: sharePermission,
       });
 
       if (error) throw error;
@@ -385,11 +370,11 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     }
   };
 
-  const handleUpdatePermission = async (shareId: string, newPermission: string) => {
+  const handleUpdatePermission = async (shareId: string, newPermission: 'viewer' | 'editor' | 'owner') => {
     try {
       const { error } = await supabase
         .from('vault_shares')
-        .update({ permission: newPermission })
+        .update({ role: newPermission })
         .eq('id', shareId);
 
       if (error) throw error;
@@ -409,24 +394,11 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   const handleApproveRequest = async (req: any, permission: 'viewer' | 'editor' = 'viewer') => {
     if (!vault || !user) return;
     try {
-      const insertObj: any = { vault_id: vault.id, shared_by: user.id, permission };
+      const insertObj: any = { vault_id: vault.id, shared_by: user.id, role: permission };
 
       if (req.requester_id) {
-        // requester_id is often profiles.id; resolve to profiles.user_id (auth.users.id)
-        const { data: profile, error: profileError } = await supabase.from('profiles').select('user_id').eq('id', req.requester_id).maybeSingle();
-        if (profileError) throw profileError;
-
-        if (profile?.user_id) {
-          // Use the auth user id for the FK
-          insertObj.shared_with_user_id = profile.user_id;
-        } else if (req.requester_email) {
-          // If we can't resolve to an auth user, fallback to email-based sharing
-          insertObj.shared_with_email = req.requester_email;
-        } else {
-          // Can't approve this request because we don't have a valid auth user or email
-          toast({ title: 'Error approving request', description: 'Cannot resolve requester to a user account; please ask requester to sign up or provide an email', variant: 'destructive' });
-          return;
-        }
+        // requester_id is auth.users.id; we can use it directly
+        insertObj.shared_with_user_id = req.requester_id;
       } else if (req.requester_email) {
         insertObj.shared_with_email = req.requester_email;
       }
@@ -456,7 +428,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     } catch (error) {
       toast({ title: 'Error', description: (error as Error).message, variant: 'destructive' });
     }
-  }; 
+  };
 
   const publicUrl = `${window.location.origin}/public/${publicSlug}`;
 
@@ -552,7 +524,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                   className={`w-8 h-8 rounded-lg transition-all duration-200 shadow-md ${
                     color === c ? 'ring-2 ring-offset-2 ring-offset-background ring-white scale-110' : 'hover:scale-105'
                   }`}
-                  style={{ 
+                  style={{
                     backgroundColor: c,
                     boxShadow: color === c ? `0 0 20px ${c}50` : undefined
                   }}
@@ -654,9 +626,9 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                       </SelectItem>
                     </SelectContent>
                   </Select>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
+                  <Button
+                    type="button"
+                    variant="outline"
                     onClick={handleShareWithUser}
                     disabled={saving || !email.trim()}
                     className="font-mono"
@@ -678,14 +650,21 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                     >
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-md bg-gradient-primary flex items-center justify-center text-xs font-bold text-white">
-                          {share.shared_with_email.charAt(0).toUpperCase()}
+                          {(share.shared_with_name || share.shared_with_email || 'U').charAt(0).toUpperCase()}
                         </div>
-                        <span className="text-sm font-mono">{share.shared_with_email}</span>
+                        <span className="text-sm font-mono">
+                          {share.shared_with_name || share.shared_with_email || 'Unknown User'}
+                          {share.shared_with_email && share.shared_with_name !== share.shared_with_email && (
+                            <span className="text-xs text-muted-foreground/60 ml-1">
+                              ({share.shared_with_email})
+                            </span>
+                          )}
+                        </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Select
-                          value={share.permission || 'viewer'}
-                          onValueChange={(value) => handleUpdatePermission(share.id, value)}
+                          value={(share as any).role || (share as any).permission || 'viewer'}
+                          onValueChange={(value) => handleUpdatePermission(share.id, value as 'viewer' | 'editor')}
                         >
                           <SelectTrigger className="w-[110px] h-7 font-mono text-xs">
                             <SelectValue />
@@ -787,9 +766,9 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
 
           <div className="flex flex-col sm:flex-row justify-between gap-3 pt-6 mt-6 border-t-2 border-border">
             {vault && onDelete ? (
-              <Button 
-                type="button" 
-                variant="ghost" 
+              <Button
+                type="button"
+                variant="ghost"
                 onClick={() => onDelete(vault)}
                 className="text-destructive hover:text-destructive hover:bg-destructive/10 w-full sm:w-auto font-mono"
               >

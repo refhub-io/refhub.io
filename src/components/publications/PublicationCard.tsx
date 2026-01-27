@@ -72,7 +72,8 @@ export function PublicationCard({
     return vault?.name || null;
   };
 
-  const vaultName = getVaultName(publication.vault_id);
+  // TODO: Implement vault name lookup via vault_papers
+  const vaultName = null;
 
   // Default all properties visible if no visibleColumns provided
   const show = visibleColumns || {

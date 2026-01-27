@@ -200,7 +200,7 @@ export function Sidebar({
                   >
                     <button
                       onClick={() => {
-                        onSelectVault(vault.id);
+                        navigate(`/vault/detail/${vault.id}`);
                         onMobileClose();
                       }}
                       className="flex items-center gap-3 flex-1 min-w-0"
@@ -210,9 +210,9 @@ export function Sidebar({
                         style={{ backgroundColor: vault.color }}
                       />
                       <span className="truncate font-medium">{vault.name}</span>
-                      {vault.is_public ? (
+                      {(vault as any).visibility === 'public' ? (
                         <Globe className="w-3 h-3 text-neon shrink-0" />
-                      ) : vault.is_shared ? (
+                      ) : (vault as any).visibility === 'protected' ? (
                         <Users className="w-3 h-3 text-blue-400 shrink-0" />
                       ) : (
                         <Lock className="w-3 h-3 text-muted-foreground/50 shrink-0" />
@@ -280,9 +280,8 @@ export function Sidebar({
                       )}
                     >
                       <Link
-                        to={`/vault/${vault.id}`}
+                        to={`/vault/detail/${vault.id}`}
                         onClick={() => {
-                          onSelectVault(vault.id);
                           onMobileClose();
                         }}
                         className="flex items-center gap-3 flex-1 min-w-0"
