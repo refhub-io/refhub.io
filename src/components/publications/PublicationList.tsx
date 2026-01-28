@@ -5,14 +5,17 @@ import { PublicationCard } from './PublicationCard';
 import { PublicationTable } from './PublicationTable';
 import { FilterBuilder, PublicationFilter, applyFilters } from './FilterBuilder';
 import { ViewSettings, ViewMode, VisibleColumns, DEFAULT_VISIBLE_COLUMNS } from './ViewSettings';
+import { useViewSettingsPersistence } from '@/hooks/useViewSettingsPersistence';
 import { QRCodeDialog } from '@/components/vaults/QRCodeDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { NotificationDropdown } from '@/components/notifications/NotificationDropdown';
-import { 
-  Plus, 
-  Search, 
-  Download, 
+import { PersistentFilterBuilder } from './PersistentFilterBuilder';
+import { cn } from '@/lib/utils';
+import {
+  Plus,
+  Search,
+  Download,
   SortAsc,
   CheckSquare,
   Square,
@@ -35,6 +38,7 @@ interface PublicationListProps {
   tags: Tag[];
   vaults: Vault[];
   publicationTagsMap: Record<string, string[]>;
+  publicationVaultsMap?: Record<string, string[]>; // Map of publication IDs to vault IDs
   relationsCountMap: Record<string, number>;
   selectedVault: Vault | null;
   onAddPublication: () => void;
@@ -53,6 +57,7 @@ export function PublicationList({
   tags,
   vaults,
   publicationTagsMap,
+  publicationVaultsMap,
   relationsCountMap,
   selectedVault,
   onAddPublication,
@@ -67,10 +72,45 @@ export function PublicationList({
 }: PublicationListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [sortBy, setSortBy] = useState<'title' | 'year' | 'created'>('created');
-  const [filters, setFilters] = useState<PublicationFilter[]>([]);
-  const [viewMode, setViewMode] = useState<ViewMode>('cards');
-  const [visibleColumns, setVisibleColumns] = useState<VisibleColumns>(DEFAULT_VISIBLE_COLUMNS);
+
+  const {
+    viewMode: persistedViewMode,
+    visibleColumns: persistedVisibleColumns,
+    sortBy: persistedSortBy,
+    filters: persistedFilters,
+    updateViewMode,
+    updateVisibleColumns,
+    updateSortBy,
+    updateFilters
+  } = useViewSettingsPersistence();
+
+  const [viewMode, setViewMode] = useState<ViewMode>(persistedViewMode);
+  const [visibleColumns, setVisibleColumns] = useState<VisibleColumns>(persistedVisibleColumns);
+  // Use the persisted value as initial state for sortBy
+  const [sortBy, setSortBy] = useState<'title' | 'year' | 'created'>(persistedSortBy);
+  const [filters, setFilters] = useState<PublicationFilter[]>(persistedFilters);
+
+  // Sync local state with persisted state when it changes
+  useEffect(() => {
+    setFilters(persistedFilters);
+  }, [persistedFilters]);
+
+  // Update persisted settings when local state changes
+  useEffect(() => {
+    updateViewMode(viewMode);
+  }, [viewMode, updateViewMode]);
+
+  useEffect(() => {
+    updateVisibleColumns(visibleColumns);
+  }, [visibleColumns, updateVisibleColumns]);
+
+  useEffect(() => {
+    updateSortBy(sortBy);
+  }, [sortBy, updateSortBy]);
+
+  useEffect(() => {
+    updateFilters(filters);
+  }, [filters, updateFilters]);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Keyboard shortcut to focus search (Ctrl+K or Cmd+K)
@@ -98,7 +138,7 @@ export function PublicationList({
   });
 
   // Apply custom filters
-  const customFiltered = applyFilters(searchFiltered, filters, publicationTagsMap);
+  const customFiltered = applyFilters(searchFiltered, persistedFilters, publicationTagsMap);
 
   // Apply sorting
   const filteredPublications = customFiltered.sort((a, b) => {
@@ -169,8 +209,8 @@ export function PublicationList({
             </div>
             <p className="text-xs text-muted-foreground mt-1 font-mono truncate leading-none">
               {filteredPublications.length} item{filteredPublications.length !== 1 ? 's' : ''}
-              {filters.length > 0 && (
-                <span className="text-primary"> • {filters.length} filter{filters.length !== 1 ? 's' : ''}</span>
+              {persistedFilters.length > 0 && (
+                <span className="text-primary"> • {persistedFilters.length} filter{persistedFilters.length !== 1 ? 's' : ''}</span>
               )}
               {selectedIds.size > 0 && (
                 <span className="text-neon-green"> • {selectedIds.size} selected</span>
@@ -260,17 +300,35 @@ export function PublicationList({
             </div>
           </div>
 
-          <FilterBuilder
-            filters={filters}
-            onFiltersChange={setFilters}
-            tags={tags}
-            vaults={vaults}
-          />
+          <div className={cn(
+            "relative overflow-visible",
+            persistedFilters.length > 0 && 'bg-primary/10 border-primary/30 rounded-md'
+          )}>
+            <PersistentFilterBuilder
+              tags={tags}
+              vaults={vaults}
+              onFiltersChange={setFilters}
+            />
+            {persistedFilters.length > 0 && (
+              <span className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full z-10"></span>
+            )}
+          </div>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="h-9 w-9">
+              <Button
+                variant="outline"
+                size="icon"
+                className={cn(
+                  "h-9 w-9 relative overflow-visible",
+                  sortBy !== 'created' && 'bg-primary/10 border-primary/30'
+                )}
+                title={`Sorting by: ${sortBy.replace('_', ' ')}`}
+              >
                 <SortAsc className="w-4 h-4" />
+                {sortBy !== 'created' && ( // Show indicator when not default sort
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full z-10"></span>
+                )}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="font-mono">
@@ -291,6 +349,8 @@ export function PublicationList({
             onViewModeChange={setViewMode}
             visibleColumns={visibleColumns}
             onVisibleColumnsChange={setVisibleColumns}
+            isViewModeChanged={viewMode !== 'cards'}
+            isVisibleColumnsChanged={JSON.stringify(visibleColumns) !== JSON.stringify(DEFAULT_VISIBLE_COLUMNS)}
           />
 
           {filteredPublications.length > 0 && (
@@ -349,6 +409,7 @@ export function PublicationList({
             tags={tags}
             vaults={vaults}
             publicationTagsMap={publicationTagsMap}
+            publicationVaultsMap={publicationVaultsMap}
             relationsCountMap={relationsCountMap}
             selectedIds={selectedIds}
             visibleColumns={visibleColumns}
@@ -370,6 +431,7 @@ export function PublicationList({
                   tags={getPublicationTags(pub.id)}
                   allTags={tags}
                   vaults={vaults}
+                  publicationVaults={publicationVaultsMap ? publicationVaultsMap[pub.id] || [] : []}
                   relationsCount={relationsCountMap[pub.id] || 0}
                   isSelected={selectedIds.has(pub.id)}
                   visibleColumns={visibleColumns}

@@ -39,6 +39,9 @@ export default function Dashboard() {
   const [tags, setTags] = useState<Tag[]>([]);
   const [publicationTags, setPublicationTags] = useState<PublicationTag[]>([]);
   const [publicationRelations, setPublicationRelations] = useState<PublicationRelation[]>([]);
+  const [publicationVaultsMap, setPublicationVaultsMap] = useState<Record<string, string[]>>({});
+  const [publicationTagsMap, setPublicationTagsMap] = useState<Record<string, string[]>>({});
+  const [relationsCountMap, setRelationsCountMap] = useState<Record<string, number>>({});
   const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
   const [loading, setLoading] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -150,7 +153,7 @@ export default function Dashboard() {
         original_publication_id: vp.original_publication_id, // Keep track of the original
       }));
 
-      // Combine publications - deduplicating by original publication ID
+      // Combine publications - deduplicating by original publication ID and aggregating vault info
       const allPublicationsMap: Record<string, Publication> = {};
 
       // Add original publications first
@@ -158,11 +161,20 @@ export default function Dashboard() {
         allPublicationsMap[pub.id] = pub;
       });
 
-      // Add vault-specific copies (these may override originals if they exist in the same vault)
+      // Process vault-specific copies and aggregate their information
+      // For the main publication list, we want to avoid duplicates
+      // So we'll only add vault-specific copies if they don't have an original counterpart
       formattedVaultPublications.forEach(vp => {
-        // Only add if not already present or if it's a different version
-        if (!allPublicationsMap[vp.id]) {
-          allPublicationsMap[vp.id] = vp;
+        // If this is a copy of an original publication, we don't add it separately
+        // to avoid duplication. The vault association will be tracked in publicationVaultsMap.
+        if (vp.original_publication_id) {
+          // We don't add this to allPublicationsMap to avoid duplication
+          // The original publication will represent this in the UI
+        } else {
+          // If no original ID, treat as standalone (this shouldn't normally happen)
+          if (!allPublicationsMap[vp.id]) {
+            allPublicationsMap[vp.id] = vp;
+          }
         }
       });
 
@@ -188,6 +200,112 @@ export default function Dashboard() {
       if (pubTagsRes.data) setPublicationTags(pubTagsRes.data as PublicationTag[]);
       if (relationsRes.data) setPublicationRelations(relationsRes.data as PublicationRelation[]);
 
+      // Create publicationVaultsMap to track which vaults each publication belongs to
+      const newPublicationVaultsMap: Record<string, string[]> = {};
+
+      // Initialize original publications with empty arrays
+      originalPublications.forEach(pub => {
+        newPublicationVaultsMap[pub.id] = [];
+      });
+
+      // Map vault-specific copies to track which vaults each original publication belongs to
+      vaultPublications.forEach(vp => {
+        // Map the original publication to the vault it's in
+        if (vp.original_publication_id) {
+          if (!newPublicationVaultsMap[vp.original_publication_id]) {
+            newPublicationVaultsMap[vp.original_publication_id] = [];
+          }
+          if (!newPublicationVaultsMap[vp.original_publication_id].includes(vp.vault_id)) {
+            newPublicationVaultsMap[vp.original_publication_id].push(vp.vault_id);
+          }
+        }
+
+        // Also track vault-specific copies (for when viewing individual vaults)
+        if (!newPublicationVaultsMap[vp.id]) {
+          newPublicationVaultsMap[vp.id] = [];
+        }
+        newPublicationVaultsMap[vp.id].push(vp.vault_id);
+      });
+
+      setPublicationVaultsMap(newPublicationVaultsMap);
+
+      // Create publication tags map considering both original and vault-specific publications
+      const publicationTagsMap: Record<string, string[]> = {};
+
+      // Create a mapping from both publication_id and vault_publication_id to tags
+      const pubTagsMap: Record<string, string[]> = {};
+      const vaultPubTagsMap: Record<string, string[]> = {};
+
+      publicationTags.forEach((pt) => {
+        // Map by publication_id (for original publications)
+        if (pt.publication_id) {
+          if (!pubTagsMap[pt.publication_id]) pubTagsMap[pt.publication_id] = [];
+          pubTagsMap[pt.publication_id].push(pt.tag_id);
+        }
+
+        // Map by vault_publication_id (for vault-specific copies)
+        if (pt.vault_publication_id) {
+          if (!vaultPubTagsMap[pt.vault_publication_id]) vaultPubTagsMap[pt.vault_publication_id] = [];
+          vaultPubTagsMap[pt.vault_publication_id].push(pt.tag_id);
+        }
+      });
+
+      // Create a mapping of original publication IDs to all their tags across all vaults
+      const originalPubTagsMap: Record<string, string[]> = {};
+
+      // Initialize the map with original publication tags
+      Object.entries(pubTagsMap).forEach(([pubId, tags]) => {
+        originalPubTagsMap[pubId] = [...tags];
+      });
+
+      // Add tags from vault-specific copies to the original publication
+      publicationTags.forEach(pt => {
+        if (pt.vault_publication_id) {
+          // Find the vault publication to get its original publication ID
+          const vaultPub = vaultPublications.find(vp => vp.id === pt.vault_publication_id);
+          if (vaultPub && vaultPub.original_publication_id) {
+            // Add this tag to the original publication's tag list
+            if (!originalPubTagsMap[vaultPub.original_publication_id]) {
+              originalPubTagsMap[vaultPub.original_publication_id] = [];
+            }
+            originalPubTagsMap[vaultPub.original_publication_id].push(pt.tag_id);
+          }
+        }
+      });
+
+      // Now assign the aggregated tags to each publication in the deduplicated list
+      allPublications.forEach(pub => {
+        const originalId = pub.original_publication_id || pub.id;
+        // Use Set to remove duplicates
+        publicationTagsMap[pub.id] = [...new Set(originalPubTagsMap[originalId] || [])];
+      });
+
+      // Build relations count map (bidirectional)
+      // In the copy-based model, we need to map relations to vault publication IDs
+      const relationsCountMap: Record<string, number> = {};
+      publicationRelations.forEach((rel) => {
+        // Map original publication IDs to vault publication IDs
+        // First try to find by original_publication_id, then by id
+        const pub1 = allPublications.find(p => p.original_publication_id === rel.publication_id || p.id === rel.publication_id);
+        const pub2 = allPublications.find(p => p.original_publication_id === rel.related_publication_id || p.id === rel.related_publication_id);
+
+        const vaultPubId1 = pub1?.id || rel.publication_id;
+        const vaultPubId2 = pub2?.id || rel.related_publication_id;
+
+        relationsCountMap[vaultPubId1] = (relationsCountMap[vaultPubId1] || 0) + 1;
+        relationsCountMap[vaultPubId2] = (relationsCountMap[vaultPubId2] || 0) + 1;
+      });
+
+      // Set the state with the processed data
+      setPublications(allPublications);
+      if (tagsRes.data) setTags(tagsRes.data as Tag[]);
+      if (pubTagsRes.data) setPublicationTags(pubTagsRes.data as PublicationTag[]);
+      if (relationsRes.data) setPublicationRelations(relationsRes.data as PublicationRelation[]);
+
+      // Set the computed maps
+      setPublicationTagsMap(publicationTagsMap);
+      setRelationsCountMap(relationsCountMap);
+
       // Fetch shared vault details
       if (sharedVaultsRes.data && sharedVaultsRes.data.length > 0) {
         const sharedVaultIds = sharedVaultsRes.data.map(s => s.vault_id);
@@ -195,7 +313,7 @@ export default function Dashboard() {
           .from('vaults')
           .select('*')
           .in('id', sharedVaultIds)
-        
+
         if (sharedVaultDetails) {
           setSharedVaults(sharedVaultDetails as Vault[]);
         }
@@ -267,59 +385,9 @@ export default function Dashboard() {
     }
   };
 
-  const filteredPublications = publications;
-  const selectedVault = null;
-
-  // Create publication tags map considering both original and vault-specific publications
-  const publicationTagsMap: Record<string, string[]> = {};
-
-  // Create a mapping from both publication_id and vault_publication_id to tags
-  const pubTagsMap: Record<string, string[]> = {};
-  const vaultPubTagsMap: Record<string, string[]> = {};
-
-  publicationTags.forEach((pt) => {
-    // Map by publication_id (for original publications)
-    if (pt.publication_id) {
-      if (!pubTagsMap[pt.publication_id]) pubTagsMap[pt.publication_id] = [];
-      pubTagsMap[pt.publication_id].push(pt.tag_id);
-    }
-
-    // Map by vault_publication_id (for vault-specific copies)
-    if (pt.vault_publication_id) {
-      if (!vaultPubTagsMap[pt.vault_publication_id]) vaultPubTagsMap[pt.vault_publication_id] = [];
-      vaultPubTagsMap[pt.vault_publication_id].push(pt.tag_id);
-    }
-  });
-
-  // Combine mappings: for each publication, use vault-specific tags if available, otherwise use original tags
-  const allPublications = publications; // Use the combined publications
-  allPublications.forEach(pub => {
-    // First try to get tags for the vault-specific copy
-    const vaultTags = vaultPubTagsMap[pub.id] || [];
-
-    // If no vault-specific tags, try to get tags for the original publication
-    const originalId = pub.original_publication_id || pub.id;
-    const originalTags = pubTagsMap[originalId] || [];
-
-    // Combine both sets of tags (prioritizing vault-specific tags)
-    publicationTagsMap[pub.id] = [...new Set([...vaultTags, ...originalTags])]; // Use Set to avoid duplicates
-  });
-
-  // Build relations count map (bidirectional)
-  // In the copy-based model, we need to map relations to vault publication IDs
-  const relationsCountMap: Record<string, number> = {};
-  publicationRelations.forEach((rel) => {
-    // Map original publication IDs to vault publication IDs
-    // First try to find by original_publication_id, then by id
-    const pub1 = publications.find(p => p.original_publication_id === rel.publication_id || p.id === rel.publication_id);
-    const pub2 = publications.find(p => p.original_publication_id === rel.related_publication_id || p.id === rel.related_publication_id);
-
-    const vaultPubId1 = pub1?.id || rel.publication_id;
-    const vaultPubId2 = pub2?.id || rel.related_publication_id;
-
-    relationsCountMap[vaultPubId1] = (relationsCountMap[vaultPubId1] || 0) + 1;
-    relationsCountMap[vaultPubId2] = (relationsCountMap[vaultPubId2] || 0) + 1;
-  });
+  // The publicationTagsMap and relationsCountMap are now created inside the fetchData function
+  // to ensure proper access to all required data and avoid duplication issues
+  // These will be passed to the PublicationList component via state
 
   const checkForDuplicate = (newPub: Partial<Publication>, existingPubs: Publication[], excludeId?: string) => {
     const duplicate = existingPubs.find(pub => {
@@ -666,6 +734,9 @@ export default function Dashboard() {
       }
 
       toast({ title: `added_to_${vaultIds.length}_vault${vaultIds.length > 1 ? 's' : ''} ✨` });
+
+      // Refresh the data to reflect the changes
+      await fetchData();
     } catch (error) {
       toast({
         title: 'Error adding paper',
@@ -980,12 +1051,13 @@ export default function Dashboard() {
 
       <div className="flex-1 lg:pl-72 min-w-0">
         <PublicationList
-        publications={filteredPublications}
+        publications={publications}
         tags={tags}
-        vaults={vaults}
+        vaults={vaults.concat(sharedVaults)}
         publicationTagsMap={publicationTagsMap}
+        publicationVaultsMap={publicationVaultsMap}
         relationsCountMap={relationsCountMap}
-        selectedVault={selectedVault}
+        selectedVault={null}
         onAddPublication={() => {
           setEditingPublication(null);
           setIsPublicationDialogOpen(true);
@@ -1021,8 +1093,10 @@ export default function Dashboard() {
         tags={tags}
         publicationTags={editingPublication ? publicationTagsMap[editingPublication.id] || [] : []}
         allPublications={publications}
+        publicationVaults={editingPublication ? publicationVaultsMap[editingPublication.id] || [] : []}
         onSave={handleSavePublication}
         onCreateTag={handleCreateTag}
+        onAddToVaults={handleAddToVaults}
       />
 
       <ImportDialog
@@ -1074,7 +1148,7 @@ export default function Dashboard() {
         open={isExportDialogOpen}
         onOpenChange={setIsExportDialogOpen}
         publications={exportPublications}
-        vaultName={selectedVault?.name}
+        vaultName={null}
       />
 
       <AlertDialog open={!!deleteConfirmation} onOpenChange={() => setDeleteConfirmation(null)}>

@@ -200,7 +200,7 @@ export function Sidebar({
                   >
                     <button
                       onClick={() => {
-                        navigate(`/vault/detail/${vault.id}`);
+                        navigate(`/vault/${vault.id}`);
                         onMobileClose();
                       }}
                       className="flex items-center gap-3 flex-1 min-w-0"
@@ -280,7 +280,7 @@ export function Sidebar({
                       )}
                     >
                       <Link
-                        to={`/vault/detail/${vault.id}`}
+                        to={`/vault/${vault.id}`}
                         onClick={() => {
                           onMobileClose();
                         }}

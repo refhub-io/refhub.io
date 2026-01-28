@@ -35,6 +35,7 @@ interface PublicationTableProps {
   tags: Tag[];
   vaults: Vault[];
   publicationTagsMap: Record<string, string[]>;
+  publicationVaultsMap?: Record<string, string[]>; // Map of publication IDs to vault IDs
   relationsCountMap: Record<string, number>;
   selectedIds: Set<string>;
   visibleColumns: VisibleColumns;
@@ -49,6 +50,7 @@ export function PublicationTable({
   tags,
   vaults,
   publicationTagsMap,
+  publicationVaultsMap,
   relationsCountMap,
   selectedIds,
   visibleColumns,
@@ -205,7 +207,32 @@ export function PublicationTable({
 
                 {visibleColumns.vault && (
                   <TableCell className="text-sm font-mono text-muted-foreground">
-                    {/* TODO: Add vault name lookup via vault_papers */}
+                    {publicationVaultsMap && publicationVaultsMap[pub.id] && publicationVaultsMap[pub.id].length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {publicationVaultsMap[pub.id].slice(0, 2).map((vaultId) => {
+                          const vault = vaults.find(v => v.id === vaultId);
+                          return vault ? (
+                            <span
+                              key={vaultId}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-secondary border"
+                            >
+                              <div
+                                className="w-1.5 h-1.5 rounded-full"
+                                style={{ backgroundColor: vault.color }}
+                              />
+                              {vault.name}
+                            </span>
+                          ) : null;
+                        })}
+                        {publicationVaultsMap[pub.id].length > 2 && (
+                          <span className="text-xs text-muted-foreground">
+                            +{publicationVaultsMap[pub.id].length - 2}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
+                    )}
                   </TableCell>
                 )}
 

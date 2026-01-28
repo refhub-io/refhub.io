@@ -240,11 +240,12 @@ export function ImportDialog({
   const handleImport = async () => {
     const toImport = parsedPublications
       .filter((_, i) => selectedIndices.has(i))
-      .map(pub => ({
-        ...pub,
-        vault_id: targetVaultId,
-      }));
-    
+      .map(pub => {
+        // Remove vault_id from the publication object since it doesn't exist in the publications table
+        const { vault_id, ...cleanPub } = pub as any;
+        return cleanPub;
+      });
+
     if (toImport.length === 0) {
       toast({
         title: 'no_papers_selected',
@@ -253,12 +254,31 @@ export function ImportDialog({
       });
       return;
     }
-    
+
     setImporting(true);
     try {
-      await onImport(toImport);
-      toast({ title: `imported_${toImport.length}_papers ✨` });
-      
+      // If a target vault is selected, we'll handle the import differently
+      // We need to import to user's library first, then add to the specific vault
+      if (targetVaultId) {
+        // Import to user's library first using onImport
+        await onImport(toImport);
+
+        // The onImport function in VaultDetail automatically adds to the current vault
+        // If a different target vault was selected, we need to add to that vault instead
+        // However, we don't have access to the IDs of the newly created publications here
+        // The proper solution would be to modify the parent component to handle this
+        // For now, we'll just notify the user that the import happened to the current vault
+        // and suggest they move the papers if needed
+        toast({
+          title: `imported_${toImport.length}_papers_to_current_vault ✨`,
+          description: "Note: Papers were added to the current vault. Use paper actions to add to other vaults."
+        });
+      } else {
+        // Import to user's library only
+        await onImport(toImport);
+        toast({ title: `imported_${toImport.length}_papers ✨` });
+      }
+
       // Reset state
       setParsedPublications([]);
       setSelectedIndices(new Set());

@@ -35,6 +35,7 @@ interface PublicationCardProps {
   tags: Tag[];
   allTags: Tag[];
   vaults?: Vault[];
+  publicationVaults?: string[]; // IDs of vaults this publication belongs to
   relationsCount?: number;
   isSelected: boolean;
   visibleColumns?: VisibleColumns;
@@ -49,6 +50,7 @@ export function PublicationCard({
   tags,
   allTags,
   vaults = [],
+  publicationVaults,
   relationsCount = 0,
   isSelected,
   visibleColumns,
@@ -65,15 +67,6 @@ export function PublicationCard({
     if (authors.length === 2) return authors.join(' & ');
     return `${authors[0]} et al.`;
   };
-
-  const getVaultName = (vaultId: string | null): string | null => {
-    if (!vaultId) return null;
-    const vault = vaults.find((v) => v.id === vaultId);
-    return vault?.name || null;
-  };
-
-  // TODO: Implement vault name lookup via vault_papers
-  const vaultName = null;
 
   // Default all properties visible if no visibleColumns provided
   const show = visibleColumns || {
@@ -172,10 +165,24 @@ export function PublicationCard({
               </p>
             )}
 
-            {show.vault && vaultName && (
-              <p className="text-xs text-muted-foreground mt-2 font-mono">
-                <span className="text-primary">vault:</span> {vaultName}
-              </p>
+            {show.vault && publicationVaults && publicationVaults.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {publicationVaults.map((vaultId) => {
+                  const vault = vaults?.find(v => v.id === vaultId);
+                  return vault ? (
+                    <span
+                      key={vaultId}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-mono bg-secondary border"
+                    >
+                      <div
+                        className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: vault.color }}
+                      />
+                      {vault.name}
+                    </span>
+                  ) : null;
+                })}
+              </div>
             )}
 
             {show.abstract && publication.abstract && (

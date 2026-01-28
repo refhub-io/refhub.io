@@ -6,9 +6,9 @@ import { getVaultShares, updateVaultShareRole, removeVaultShare, shareVault } fr
 import { VaultVisibility, VaultRole } from '../types/vault-extensions';
 
 const VaultSettingsPage: React.FC = () => {
-  const { slug } = useParams<{ slug: string }>();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { canEdit, vault } = useVaultAccess(slug || '');
+  const { canEdit, vault } = useVaultAccess(id || '');
   
   const [shares, setShares] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -134,7 +134,7 @@ const VaultSettingsPage: React.FC = () => {
           <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
           <p className="text-gray-600 mb-4">You don't have permission to edit this vault's settings.</p>
           <button
-            onClick={() => navigate(`/vault/${slug}`)}
+            onClick={() => navigate(`/vault/${id}`)}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
           >
             Back to Vault
@@ -160,7 +160,7 @@ const VaultSettingsPage: React.FC = () => {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-6">
           <button
-            onClick={() => navigate(`/vault/${slug}`)}
+            onClick={() => navigate(`/vault/${id}`)}
             className="text-blue-600 hover:text-blue-800 mb-4"
           >
             ← Back to Vault

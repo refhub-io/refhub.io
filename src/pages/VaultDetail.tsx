@@ -55,6 +55,7 @@ export default function VaultDetail() {
   const [vaults, setVaults] = useState<Vault[]>([]);
   const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
   const [allPublications, setAllPublications] = useState<Publication[]>([]);
+  const [publicationVaultsMap, setPublicationVaultsMap] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
@@ -112,15 +113,54 @@ export default function VaultDetail() {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
-        .from('publications')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+      const [pubsRes, vaultPubsRes] = await Promise.all([
+        supabase
+          .from('publications')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('vault_publications')
+          .select('*')
+          .order('created_at', { ascending: false })
+      ]);
 
-      if (error) throw error;
+      if (pubsRes.error) throw pubsRes.error;
+      if (vaultPubsRes.error) throw vaultPubsRes.error;
 
-      setAllPublications(data as Publication[]);
+      const publications = pubsRes.data as Publication[];
+      const vaultPublications = vaultPubsRes.data as any[];
+
+      setAllPublications(publications);
+
+      // Create publicationVaultsMap to track which vaults each publication belongs to
+      const newPublicationVaultsMap: Record<string, string[]> = {};
+
+      // Initialize all publications with empty arrays
+      allPublications.forEach(pub => {
+        newPublicationVaultsMap[pub.id] = [];
+      });
+
+      // Map vault-specific copies to their vaults and also track original publications
+      vaultPublications.forEach(vp => {
+        // For vault-specific copies, map the vault_publications.id to the vault
+        if (!newPublicationVaultsMap[vp.id]) {
+          newPublicationVaultsMap[vp.id] = [];
+        }
+        newPublicationVaultsMap[vp.id].push(vp.vault_id);
+
+        // Also map the original publication to the vault
+        if (vp.original_publication_id) {
+          if (!newPublicationVaultsMap[vp.original_publication_id]) {
+            newPublicationVaultsMap[vp.original_publication_id] = [];
+          }
+          if (!newPublicationVaultsMap[vp.original_publication_id].includes(vp.vault_id)) {
+            newPublicationVaultsMap[vp.original_publication_id].push(vp.vault_id);
+          }
+        }
+      });
+
+      setPublicationVaultsMap(newPublicationVaultsMap);
     } catch (error) {
       console.error('Error fetching all publications:', error);
     }
@@ -592,6 +632,9 @@ export default function VaultDetail() {
       }
 
       toast({ title: `added_to_${vaultIds.length}_vault${vaultIds.length > 1 ? 's' : ''} ✨` });
+
+      // Refresh the data to reflect the changes
+      refresh();
     } catch (error) {
       toast({
         title: 'Error adding paper',
@@ -1088,8 +1131,9 @@ export default function VaultDetail() {
         <PublicationList
           publications={publications}
           tags={tags}
-          vaults={currentVault ? [currentVault] : []}
+          vaults={vaults.concat(sharedVaults)}
           publicationTagsMap={publicationTagsMap}
+          publicationVaultsMap={publicationVaultsMap}
           relationsCountMap={relationsCountMap}
           selectedVault={currentVault}
           onAddPublication={canEdit ? () => {
@@ -1147,12 +1191,14 @@ export default function VaultDetail() {
           }
         }}
         publication={editingPublication}
-        vaults={[vault]}
+        vaults={vaults.concat(sharedVaults)} // Pass all user's vaults and shared vaults
         tags={tags}
         publicationTags={editingPublication ? publicationTagsMap[editingPublication.id] || [] : []}
-        allPublications={publications}
+        allPublications={allPublications} // Use all publications to show in which vaults this publication exists
+        publicationVaults={editingPublication ? publicationVaultsMap[editingPublication.id] || [] : []} // Show which vaults this publication is already in
         onSave={canEdit ? handleSavePublication : undefined}
         onCreateTag={canEdit ? handleCreateTag : undefined}
+        onAddToVaults={canEdit ? handleAddToVaults : undefined}
       />
 
       <ImportDialog

@@ -37,8 +37,10 @@ interface PublicationDialogProps {
   tags: Tag[];
   publicationTags: string[];
   allPublications: Publication[];
+  publicationVaults?: string[]; // IDs of vaults this publication is already in
   onSave: (data: Partial<Publication>, tagIds: string[], isAutoSave?: boolean) => Promise<void>;
   onCreateTag: (name: string, parentId?: string) => Promise<Tag | null>;
+  onAddToVaults?: (publicationId: string, vaultIds: string[]) => Promise<void>;
 }
 
 export function PublicationDialog({
@@ -49,8 +51,10 @@ export function PublicationDialog({
   tags,
   publicationTags,
   allPublications,
+  publicationVaults,
   onSave,
   onCreateTag,
+  onAddToVaults,
 }: PublicationDialogProps) {
   const { user } = useAuth();
   const {
@@ -74,7 +78,6 @@ export function PublicationDialog({
     bibtex_key: '',
     publication_type: 'article',
     notes: '',
-    vault_id: null,
     // Additional BibTeX fields
     booktitle: '',
     chapter: '',
@@ -169,7 +172,6 @@ export function PublicationDialog({
         bibtex_key: publication.bibtex_key || '',
         publication_type: publication.publication_type || 'article',
         notes: publication.notes || '',
-        vault_id: publication.vault_id,
         // Additional BibTeX fields
         booktitle: publication.booktitle || '',
         chapter: publication.chapter || '',
@@ -208,7 +210,6 @@ export function PublicationDialog({
         bibtex_key: '',
         publication_type: 'article',
         notes: '',
-        vault_id: null,
         // Additional BibTeX fields
         booktitle: '',
         chapter: '',
@@ -762,33 +763,80 @@ export function PublicationDialog({
               />
             </div>
 
-            {/* Vault */}
+            {/* Vaults - Show which vaults this publication is in and allow adding to more */}
             <div className="space-y-2 min-w-0">
-              <Label htmlFor="vault" className="font-semibold font-mono">vault</Label>
-              <Select
-                value={formData.vault_id || 'none'}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, vault_id: value === 'none' ? null : value })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="select_vault" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">no_vault</SelectItem>
-                  {vaults.map((vault) => (
-                    <SelectItem key={vault.id} value={vault.id}>
-                      <div className="flex items-center gap-2">
+              <Label className="font-semibold font-mono">vaults</Label>
+
+              {/* Display vaults this publication is already in */}
+              {publication && (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground font-mono">currently_in_vaults:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {vaults
+                      .filter(vault => publicationVaults?.includes(vault.id))
+                      .map(vault => (
                         <div
-                          className="w-3 h-3 rounded-md"
-                          style={{ backgroundColor: vault.color }}
-                        />
-                        {vault.name}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                          key={vault.id}
+                          className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono border bg-secondary"
+                        >
+                          <div
+                            className="w-2 h-2 rounded-full"
+                            style={{ backgroundColor: vault.color }}
+                          />
+                          {vault.name}
+                        </div>
+                      ))
+                    }
+                    {vaults.filter(vault => publicationVaults?.includes(vault.id)).length === 0 && (
+                      <p className="text-sm text-muted-foreground font-mono">not_in_any_vault</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Add to vaults selector */}
+              {onAddToVaults && publication && (
+                <div className="space-y-2 pt-2">
+                  <p className="text-sm text-muted-foreground font-mono">add_to_vault:</p>
+                  <Select
+                    onValueChange={async (vaultId) => {
+                      if (vaultId !== 'none' && publication?.id && onAddToVaults) {
+                        try {
+                          await onAddToVaults(publication.id, [vaultId]);
+                          // Show success message
+                        } catch (error) {
+                          console.error('Error adding to vault:', error);
+                        }
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="select_vault_to_add" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">select_vault</SelectItem>
+                      {vaults.map((vault) => (
+                        <SelectItem
+                          key={vault.id}
+                          value={vault.id}
+                          disabled={publicationVaults?.includes(vault.id)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-3 h-3 rounded-md"
+                              style={{ backgroundColor: vault.color }}
+                            />
+                            {vault.name}
+                            {publicationVaults?.includes(vault.id) && (
+                              <span className="ml-1 text-xs text-muted-foreground">(already in)</span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
             {/* Tags */}

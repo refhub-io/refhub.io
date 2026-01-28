@@ -6,9 +6,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LayoutGrid, List, Settings2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useViewSettingsPersistence } from '@/hooks/useViewSettingsPersistence';
 
 export type ViewMode = 'cards' | 'table';
 
@@ -28,10 +28,12 @@ export interface VisibleColumns {
 }
 
 interface ViewSettingsProps {
-  viewMode: ViewMode;
-  onViewModeChange: (mode: ViewMode) => void;
-  visibleColumns: VisibleColumns;
-  onVisibleColumnsChange: (columns: VisibleColumns) => void;
+  viewMode?: ViewMode;
+  onViewModeChange?: (mode: ViewMode) => void;
+  visibleColumns?: VisibleColumns;
+  onVisibleColumnsChange?: (columns: VisibleColumns) => void;
+  isViewModeChanged?: boolean;
+  isVisibleColumnsChanged?: boolean;
 }
 
 const COLUMN_OPTIONS: { key: keyof VisibleColumns; label: string }[] = [
@@ -66,34 +68,65 @@ export const DEFAULT_VISIBLE_COLUMNS: VisibleColumns = {
 };
 
 export function ViewSettings({
-  viewMode,
-  onViewModeChange,
-  visibleColumns,
-  onVisibleColumnsChange,
+  viewMode: externalViewMode,
+  onViewModeChange: externalOnViewModeChange,
+  visibleColumns: externalVisibleColumns,
+  onVisibleColumnsChange: externalOnVisibleColumnsChange,
+  isViewModeChanged = false,
+  isVisibleColumnsChanged = false,
 }: ViewSettingsProps) {
+  const {
+    viewMode: persistedViewMode,
+    visibleColumns: persistedVisibleColumns,
+    updateViewMode,
+    updateVisibleColumns
+  } = useViewSettingsPersistence();
+
+  // Use external props if provided, otherwise use persisted values
+  const currentViewMode = externalViewMode ?? persistedViewMode;
+  const currentVisibleColumns = externalVisibleColumns ?? persistedVisibleColumns;
+
+  const handleViewModeChange = (mode: ViewMode) => {
+    if (externalOnViewModeChange) {
+      externalOnViewModeChange(mode);
+    } else {
+      updateViewMode(mode);
+    }
+  };
+
   const toggleColumn = (key: keyof VisibleColumns) => {
     // Don't allow disabling title
     if (key === 'title') return;
-    onVisibleColumnsChange({
-      ...visibleColumns,
-      [key]: !visibleColumns[key],
-    });
+
+    const newColumns = {
+      ...currentVisibleColumns,
+      [key]: !currentVisibleColumns[key],
+    };
+
+    if (externalOnVisibleColumnsChange) {
+      externalOnVisibleColumnsChange(newColumns);
+    } else {
+      updateVisibleColumns(newColumns);
+    }
   };
 
-  const activeColumnCount = Object.values(visibleColumns).filter(Boolean).length;
+  const activeColumnCount = Object.values(currentVisibleColumns).filter(Boolean).length;
 
   return (
     <div className="flex items-center gap-2">
       {/* View Mode Toggle */}
-      <div className="flex items-center border border-border rounded-lg overflow-hidden">
+      <div className={cn(
+        "flex items-center border border-border rounded-lg overflow-visible relative",
+        (isViewModeChanged || isVisibleColumnsChanged) && 'bg-primary/10 border-primary/30'
+      )}>
         <Button
           variant="ghost"
           size="sm"
           className={cn(
             'h-9 w-9 rounded-none border-0',
-            viewMode === 'cards' && 'bg-primary/20 text-primary'
+            currentViewMode === 'cards' && 'bg-primary/20 text-primary'
           )}
-          onClick={() => onViewModeChange('cards')}
+          onClick={() => handleViewModeChange('cards')}
           title="Card view"
         >
           <LayoutGrid className="w-4 h-4" />
@@ -104,38 +137,54 @@ export function ViewSettings({
           size="sm"
           className={cn(
             'h-9 w-9 rounded-none border-0',
-            viewMode === 'table' && 'bg-primary/20 text-primary'
+            currentViewMode === 'table' && 'bg-primary/20 text-primary'
           )}
-          onClick={() => onViewModeChange('table')}
+          onClick={() => handleViewModeChange('table')}
           title="Table view"
         >
           <List className="w-4 h-4" />
         </Button>
+        {currentViewMode === 'table' && ( // Show indicator when current mode is table (not default)
+          <span className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full z-10"></span>
+        )}
       </div>
 
       {/* Column Settings */}
       <Popover>
         <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" className="h-9 gap-2 font-mono text-xs">
+          <Button
+            variant="outline"
+            size="sm"
+            className={cn(
+              "h-9 gap-2 font-mono text-xs relative",
+              isVisibleColumnsChanged && 'bg-primary/10 border-primary/30'
+            )}
+          >
             <Settings2 className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Properties</span>
-            <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px]">
+            <span className={cn(
+              "bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px]",
+              isVisibleColumnsChanged && "bg-white text-primary font-bold"
+            )}>
               {activeColumnCount}
             </span>
+            {isVisibleColumnsChanged && (
+              <span className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full z-10"></span>
+            )}
           </Button>
         </PopoverTrigger>
         <PopoverContent align="end" className="w-56 p-3 bg-popover border-2">
           <div className="space-y-3">
             <h4 className="text-sm font-semibold">Visible Properties</h4>
             <p className="text-xs text-muted-foreground font-mono">
-              // toggle columns in {viewMode} view
+              // toggle columns in {currentViewMode} view
             </p>
             <div className="space-y-2">
               {COLUMN_OPTIONS.map((col) => (
                 <div key={col.key} className="flex items-center gap-2">
                   <Checkbox
                     id={col.key}
-                    checked={visibleColumns[col.key]}
+                    checked={currentVisibleColumns[col.key]}
                     onCheckedChange={() => toggleColumn(col.key)}
                     disabled={col.key === 'title'}
                     className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"

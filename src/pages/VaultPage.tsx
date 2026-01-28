@@ -132,22 +132,22 @@ const VaultError: React.FC<{ error: string | null; onRetry: () => void }> = ({ e
 
 const VaultPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
-  const { 
-    canView, 
-    canEdit, 
-    isOwner, 
-    permission, 
-    accessStatus, 
-    vault, 
+  const {
+    canView,
+    canEdit,
+    isOwner,
+    permission,
+    accessStatus,
+    vault,
     error,
-    refresh 
+    refresh
   } = useVaultAccess(slug || '');
 
   const [showRequestDialog, setShowRequestDialog] = React.useState(false);
 
   const handleRequestAccess = async (note?: string) => {
     if (!vault?.id) return;
-    
+
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       // Redirect to auth
@@ -157,11 +157,11 @@ const VaultPage: React.FC = () => {
 
     const { requestVaultAccess } = await import('../hooks/useVaultAccess');
     const result = await requestVaultAccess(vault.id, user.id, note);
-    
+
     if (result.error) {
       throw result.error;
     }
-    
+
     // Refresh the access status
     refresh();
   };
@@ -174,14 +174,27 @@ const VaultPage: React.FC = () => {
     refresh();
   };
 
-  // Loading state
-  if (accessStatus === 'loading') {
+  // Generic loading state while we figure out vault existence and access
+  // Show loading if accessStatus is loading OR if we have an error but no vault yet (still determining)
+  if (accessStatus === 'loading' || (error && !vault && accessStatus !== 'denied' && accessStatus !== 'requestable' && accessStatus !== 'pending')) {
     return <VaultLoading />;
   }
 
-  // Error state
-  if (error && !vault) {
+  // Error state - only show if vault doesn't exist (after we've determined the access status)
+  if (error && !vault && accessStatus !== 'loading') {
     return <VaultError error={error} onRetry={handleRetry} />;
+  }
+
+  // Check authentication after we know the vault exists but before checking access
+  // If the vault exists but user is not authenticated, redirect to auth
+  // We'll check authentication when we have the vault info and access status is not loading
+  if (vault && accessStatus !== 'loading') {
+    const { data: { user } } = supabase.auth.getUserSync ? supabase.auth.getUserSync() : { user: null };
+    if (!user) {
+      // Redirect to auth if not authenticated and vault exists
+      window.location.href = '/auth';
+      return null; // Return null to prevent further rendering
+    }
   }
 
   // Access denied for private vaults
@@ -193,8 +206,8 @@ const VaultPage: React.FC = () => {
   if (accessStatus === 'requestable') {
     return (
       <>
-        <VaultError 
-          error="This vault requires access approval" 
+        <VaultError
+          error="This vault requires access approval"
           onRetry={() => setShowRequestDialog(true)}
         />
         {showRequestDialog && (
@@ -230,7 +243,7 @@ const VaultPage: React.FC = () => {
   // If we have access, render the appropriate vault component
   if (canView && vault) {
     const vaultId = (vault as any).id;
-    
+
     return (
       <div className="min-h-screen bg-background">
         {/* Vault header with access badge */}
@@ -244,7 +257,7 @@ const VaultPage: React.FC = () => {
             </div>
           </div>
         </div>
-        
+
         {/* Vault content */}
         {(() => {
           // For now, delegate to existing components based on visibility
@@ -260,7 +273,7 @@ const VaultPage: React.FC = () => {
     );
   }
 
-  // Fallback
+  // Fallback - this should only happen in unexpected cases
   return <VaultError error="Unable to access vault" onRetry={handleRetry} />;
 };
 
