@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
@@ -183,44 +183,56 @@ export default function VaultDetail() {
 
   // Check for pending access requests
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
+  const processedApprovedRequestRef = useRef<string | null>(null);
+  const lastCheckedVaultIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     console.log('[VaultDetail] Checking for pending requests', { user: !!user, vaultId, vault: !!vault });
     if (user && vaultId) {
-      const checkPendingRequest = async () => {
-        if (vault) {
-          const { data: existingRequest } = await supabase
-            .from('vault_access_requests')
-            .select('id, status')
-            .eq('vault_id', vault.id)
-            .eq('requester_id', user.id)
-            .in('status', ['pending', 'approved'])
-            .maybeSingle();
+      // Only run if the vault ID has changed to prevent unnecessary checks
+      if (lastCheckedVaultIdRef.current !== vaultId) {
+        lastCheckedVaultIdRef.current = vaultId;
 
-          console.log('[VaultDetail] Pending request check result:', existingRequest);
-          if (existingRequest) {
-            if (existingRequest.status === 'pending') {
-              console.log('[VaultDetail] Setting hasPendingRequest to true');
-              setHasPendingRequest(true);
-            } else if (existingRequest.status === 'approved') {
+        const checkPendingRequest = async () => {
+          // Only check if we have the vault object
+          if (vault) {
+            const { data: existingRequest } = await supabase
+              .from('vault_access_requests')
+              .select('id, status')
+              .eq('vault_id', vault.id)
+              .eq('requester_id', user.id)
+              .in('status', ['pending', 'approved'])
+              .maybeSingle();
+
+            console.log('[VaultDetail] Pending request check result:', existingRequest);
+
+            // Only refresh if we haven't already processed this specific request ID
+            if (existingRequest && existingRequest.status === 'approved' &&
+                existingRequest.id !== processedApprovedRequestRef.current) {
               console.log('[VaultDetail] Setting hasPendingRequest to false and refreshing');
               setHasPendingRequest(false);
+              processedApprovedRequestRef.current = existingRequest.id;
               // Refresh to update access status
               refresh();
+            } else if (existingRequest && existingRequest.status === 'pending') {
+              console.log('[VaultDetail] Setting hasPendingRequest to true');
+              setHasPendingRequest(true);
+            } else {
+              console.log('[VaultDetail] No existing request, setting hasPendingRequest to false');
+              setHasPendingRequest(false);
             }
-          } else {
-            console.log('[VaultDetail] No existing request, setting hasPendingRequest to false');
-            setHasPendingRequest(false);
           }
-        }
-      };
+        };
 
-      checkPendingRequest();
+        checkPendingRequest();
+      }
     } else {
       console.log('[VaultDetail] No user or vaultId, setting hasPendingRequest to false');
       setHasPendingRequest(false);
+      processedApprovedRequestRef.current = null;
+      lastCheckedVaultIdRef.current = null;
     }
-  }, [user, vaultId, vault, refresh]);
+  }, [user, vaultId, refresh]); // Removed 'vault' from dependencies to prevent continuous re-runs
 
   // Combine loading states
   const combinedLoading = authLoading || contentLoading;
@@ -253,11 +265,19 @@ export default function VaultDetail() {
   // Build relations count map (bidirectional)
   // In the copy-based model, we need to map relations to vault publication IDs
   const relationsCountMap: Record<string, number> = useMemo(() => {
+    // Create a lookup map for faster publication ID resolution
+    const originalToVaultMap = new Map<string, string>();
+    publications.forEach(pub => {
+      if (pub.original_publication_id) {
+        originalToVaultMap.set(pub.original_publication_id, pub.id);
+      }
+    });
+
     const map: Record<string, number> = {};
     publicationRelations.forEach((rel) => {
-      // Map original publication IDs to vault publication IDs
-      const vaultPubId1 = publications.find(p => p.original_publication_id === rel.publication_id)?.id || rel.publication_id;
-      const vaultPubId2 = publications.find(p => p.original_publication_id === rel.related_publication_id)?.id || rel.related_publication_id;
+      // Map original publication IDs to vault publication IDs using the lookup map
+      const vaultPubId1 = originalToVaultMap.get(rel.publication_id) || rel.publication_id;
+      const vaultPubId2 = originalToVaultMap.get(rel.related_publication_id) || rel.related_publication_id;
 
       map[vaultPubId1] = (map[vaultPubId1] || 0) + 1;
       map[vaultPubId2] = (map[vaultPubId2] || 0) + 1;
@@ -887,29 +907,101 @@ export default function VaultDetail() {
     setIsExportDialogOpen(true);
   };
 
-  if (authLoading || loading) {
+  // State to track loading state to prevent flickering
+  const [hasStartedLoading, setHasStartedLoading] = useState(false);
+  const [finishedLoading, setFinishedLoading] = useState(false);
+  const [loadingCompletedAt, setLoadingCompletedAt] = useState<number | null>(null);
+
+  // Track loading state changes to prevent flickering
+  useEffect(() => {
+    const isLoading = accessStatus === 'loading' || authLoading || contentLoading;
+    console.log('[VaultDetail] Loading state changed:', {
+      accessStatus,
+      authLoading,
+      contentLoading,
+      isLoading,
+      hasStartedLoading,
+      finishedLoading,
+      loadingCompletedAt,
+      timestamp: Date.now()
+    });
+
+    if (!hasStartedLoading && (accessStatus === 'loading' || authLoading || contentLoading)) {
+      // Mark when initial loading starts
+      console.log('[VaultDetail] Initial loading started');
+      setHasStartedLoading(true);
+    }
+
+    if (hasStartedLoading && !isLoading && !finishedLoading) {
+      // Mark when all loading is complete
+      console.log('[VaultDetail] All loading completed');
+      setFinishedLoading(true);
+      setLoadingCompletedAt(Date.now());
+    }
+  }, [accessStatus, authLoading, contentLoading, hasStartedLoading, finishedLoading]);
+
+  // Minimum time to show loading screen to prevent flickering
+  const MIN_LOADING_DISPLAY_TIME = 300; // 300ms minimum loading display time
+
+  // Determine if we should show the loading screen
+  const shouldShowLoading = hasStartedLoading && (
+    !finishedLoading ||
+    (loadingCompletedAt && Date.now() - loadingCompletedAt < MIN_LOADING_DISPLAY_TIME)
+  );
+
+  console.log('[VaultDetail] Render - shouldShowLoading:', shouldShowLoading, {
+    hasStartedLoading,
+    finishedLoading,
+    loadingCompletedAt,
+    timeSinceComplete: loadingCompletedAt ? Date.now() - loadingCompletedAt : null,
+    minDisplayTime: MIN_LOADING_DISPLAY_TIME,
+    shouldStillShow: loadingCompletedAt && Date.now() - loadingCompletedAt < MIN_LOADING_DISPLAY_TIME
+  });
+
+  // Show loading state while access is being checked and content is loading
+  // Only show "not found" after access check is complete and confirmed inaccessible
+  if (shouldShowLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <LoadingSpinner size="lg" />
+        <div className="text-center space-y-6 p-8 max-w-md mx-4">
+          <div className="w-20 h-20 rounded-2xl bg-gradient-primary flex items-center justify-center mx-auto shadow-lg">
+            <div className="w-10 h-10 border-3 border-white/50 border-t-white rounded-full animate-spin" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold mb-2 font-mono">initializing_vault...</h1>
+            <p className="text-muted-foreground font-mono text-sm mb-4">
+              // loading_vault_contents
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
 
   // Check if vault exists but access is denied/requestable
+  // Only show "not found" after access check is complete and confirmed inaccessible
   const isVaultAccessible = vault || (accessStatus === 'requestable' && !!vaultId);
 
   if (!isVaultAccessible) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <Card className="w-full max-w-md mx-4">
-          <CardHeader>
-            <CardTitle className="text-xl">Vault Not Found</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="mb-4">The requested vault does not exist or you don't have access to it.</p>
-            <Button onClick={() => navigate('/dashboard')}>Go to Dashboard</Button>
-          </CardContent>
-        </Card>
+        <div className="text-center space-y-6 p-8 max-w-md mx-4">
+          <div className="w-20 h-20 rounded-2xl bg-gradient-primary flex items-center justify-center mx-auto shadow-lg">
+            <div className="w-10 h-10 border-3 border-white/50 border-t-white rounded-full animate-spin" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold mb-2 font-mono">vault_not_found</h1>
+            <p className="text-muted-foreground font-mono text-sm mb-4">
+              // this_vault_doesnt_exist_or_was_removed
+            </p>
+            <Button
+              onClick={() => navigate('/dashboard')}
+              className="font-mono"
+            >
+              back_to_dashboard
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }

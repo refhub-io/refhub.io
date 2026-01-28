@@ -790,12 +790,59 @@ export default function SharedVault() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-6 p-8">
-          <div className="w-20 h-20 rounded-2xl bg-muted flex items-center justify-center mx-auto">
-            <div className="w-10 h-10 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
+      <div className="min-h-screen bg-background flex">
+        <div className="w-72 lg:w-72 flex-shrink-0 hidden lg:block border-r border-border bg-muted/10" />
+
+        <div className="flex-1 flex flex-col min-h-0 overflow-x-hidden">
+          {/* Header with vault info and actions */}
+          <header className="bg-card/50 backdrop-blur-xl border-b-2 border-border px-4 lg:px-8 py-4 shrink-0 sticky top-0 z-10">
+            <div className="flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-md bg-muted animate-pulse" />
+                  <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-transparent bg-clip-text bg-muted-foreground animate-pulse">
+                    Loading vault...
+                  </h1>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1 font-mono">
+                  <span className="text-transparent bg-clip-text bg-muted-foreground animate-pulse">
+                    // loading publications...
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            {/* Search, filters and view settings skeleton */}
+            <div className="flex items-center gap-3 mt-5 flex-wrap">
+              <div className="relative flex-1 min-w-[200px]">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground bg-muted rounded-full" />
+                <div className="h-10 w-full pl-11 rounded-md border border-input bg-background text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-muted animate-pulse" />
+              </div>
+
+              <div className="h-9 w-32 rounded-md border border-input bg-background text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-muted animate-pulse" />
+
+              <div className="h-9 w-9 rounded-md border border-input bg-background text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-muted animate-pulse" />
+
+              <div className="h-9 w-32 rounded-md border border-input bg-background text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-muted animate-pulse" />
+            </div>
+          </header>
+
+          {/* Publication list skeleton */}
+          <div className="flex-1 overflow-y-auto scrollbar-thin overflow-x-hidden p-4 lg:p-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-4xl mx-auto">
+              {[...Array(6)].map((_, idx) => (
+                <div key={idx} className="border border-border rounded-lg p-4 animate-pulse">
+                  <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
+                  <div className="h-3 bg-muted rounded w-full mb-1"></div>
+                  <div className="h-3 bg-muted rounded w-5/6 mb-3"></div>
+                  <div className="flex gap-1">
+                    <div className="h-4 bg-muted rounded w-12"></div>
+                    <div className="h-4 bg-muted rounded w-16"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-          <p className="text-muted-foreground font-mono text-sm">// loading vault...</p>
         </div>
       </div>
     );
@@ -804,19 +851,23 @@ export default function SharedVault() {
   if (notFound) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-6 p-8">
-          <div className="w-20 h-20 rounded-2xl bg-muted flex items-center justify-center mx-auto">
-            <div className="w-10 h-10 border-3 border-primary/30 border-t-primary rounded-full" />
+        <div className="text-center space-y-6 p-8 max-w-md mx-4">
+          <div className="w-20 h-20 rounded-2xl bg-gradient-primary flex items-center justify-center mx-auto shadow-lg">
+            <div className="w-10 h-10 border-3 border-white/50 border-t-white rounded-full animate-spin" />
           </div>
-          <p className="text-muted-foreground font-mono text-sm">// vault_not_found</p>
-          <p className="text-muted-foreground font-mono text-sm">// this_vault_doesnt_exist_or_was_removed</p>
-          <Button
-            variant="outline"
-            className="font-mono"
-            onClick={() => navigate('/dashboard')}
-          >
-            back_to_dashboard
-          </Button>
+          <div>
+            <h1 className="text-2xl font-bold mb-2 font-mono">vault_not_found</h1>
+            <p className="text-muted-foreground font-mono text-sm mb-4">
+              // this_vault_doesnt_exist_or_was_removed
+            </p>
+            <Button
+              variant="outline"
+              className="font-mono"
+              onClick={() => navigate('/dashboard')}
+            >
+              back_to_dashboard
+            </Button>
+          </div>
         </div>
       </div>
     );

@@ -44,9 +44,14 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
 
   // Fetch vault content when vaultId changes
   useEffect(() => {
-    if (!currentVaultId || !user || !canView) return;
+    console.log('[VaultContentContext] Effect triggered', { currentVaultId, user: !!user, canView });
+    if (!currentVaultId || !user || !canView) {
+      console.log('[VaultContentContext] Skipping fetch - conditions not met', { hasId: !!currentVaultId, hasUser: !!user, canView });
+      return;
+    }
 
     const fetchVaultContent = async () => {
+      console.log('[VaultContentContext] Starting fetch for vault:', currentVaultId);
       setLoading(true);
       setError(null);
 
@@ -55,7 +60,6 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         const [
           vaultPubsRes,
           tagsRes,
-          relationsRes,
           sharesRes
         ] = await Promise.all([
           supabase
@@ -64,7 +68,6 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
             .eq('vault_id', currentVaultId)
             .order('created_at', { ascending: false }),
           supabase.from('tags').select('*').eq('vault_id', currentVaultId).order('name'),
-          supabase.from('publication_relations').select('*'),
           supabase.from('vault_shares').select('*').eq('vault_id', currentVaultId)
         ]);
 
@@ -72,6 +75,21 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         const vaultPublications = vaultPubsRes.data as any[]; // Define vaultPublications here
         const vaultPublicationIds = vaultPublications.map(vp => vp.id).filter(id => id); // Use the vault-specific copy IDs
         const originalPublicationIds = vaultPublications.map(vp => vp.original_publication_id).filter(id => id); // Also get original IDs
+
+        // Fetch publication relations - for now fetch all to avoid complex query issues
+        // This will be optimized later if needed
+        const allRelationsRes = await supabase
+          .from('publication_relations')
+          .select('*');
+
+        // Filter relations to only include those relevant to this vault's publications
+        const allPublicationIdsSet = new Set([...vaultPublicationIds, ...originalPublicationIds]);
+        const filteredRelations = allRelationsRes.data?.filter(rel =>
+          allPublicationIdsSet.has(rel.publication_id) ||
+          allPublicationIdsSet.has(rel.related_publication_id)
+        ) || [];
+
+        const relationsRes = { data: filteredRelations, error: allRelationsRes.error };
 
         // Fetch publication tags for both the vault-specific copies and the original publications in this vault
         let pubTagsRes;
@@ -156,17 +174,20 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
           original_publication_id: vp.original_publication_id, // Keep track of the original
         }));
 
+        // Batch state updates to reduce re-renders and flickering
+        setCurrentVault(vaultData as Vault);
         setPublications(formattedVaultPublications);
         setTags(tagsRes.data as Tag[]);
         setPublicationTags(pubTagsRes.data as PublicationTag[]);
         setPublicationRelations(relationsRes.data as PublicationRelation[]);
         setVaultShares(sharesRes.data as VaultShare[]);
-        setCurrentVault(vaultData as Vault);
+        console.log('[VaultContentContext] Completed fetch, all state updated');
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load vault content');
         console.error('Error loading vault content:', err);
       } finally {
         setLoading(false);
+        console.log('[VaultContentContext] Loading set to false');
       }
     };
 

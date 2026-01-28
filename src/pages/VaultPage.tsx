@@ -101,7 +101,7 @@ const VaultLoading: React.FC = () => {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-        <p className="text-gray-600">Checking vault access...</p>
+        <p className="text-gray-600">Initializing vault...</p>
       </div>
     </div>
   );
@@ -110,21 +110,25 @@ const VaultLoading: React.FC = () => {
 // Error component
 const VaultError: React.FC<{ error: string | null; onRetry: () => void }> = ({ error, onRetry }) => {
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="text-center max-w-md mx-4">
-        <div className="text-red-600 mb-4">
-          <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="text-center space-y-6 p-8 max-w-md mx-4">
+        <div className="w-20 h-20 rounded-2xl bg-gradient-primary flex items-center justify-center mx-auto shadow-lg">
+          <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
         </div>
-        <h2 className="text-xl font-semibold mb-2">Vault Access Error</h2>
-        <p className="text-gray-600 mb-4">{error || 'An unknown error occurred'}</p>
-        <button
-          onClick={onRetry}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-        >
-          Try Again
-        </button>
+        <div>
+          <h1 className="text-2xl font-bold mb-2 font-mono">vault_not_found</h1>
+          <p className="text-muted-foreground font-mono text-sm mb-4">
+            // {error || 'this_vault_doesnt_exist_or_was_removed'}
+          </p>
+          <button
+            onClick={onRetry}
+            className="font-mono"
+          >
+            go_to_dashboard
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -174,27 +178,23 @@ const VaultPage: React.FC = () => {
     refresh();
   };
 
-  // Generic loading state while we figure out vault existence and access
-  // Show loading if accessStatus is loading OR if we have an error but no vault yet (still determining)
-  if (accessStatus === 'loading' || (error && !vault && accessStatus !== 'denied' && accessStatus !== 'requestable' && accessStatus !== 'pending')) {
+  // Main loading state - show while determining vault existence and access
+  if (accessStatus === 'loading') {
     return <VaultLoading />;
   }
 
-  // Error state - only show if vault doesn't exist (after we've determined the access status)
-  if (error && !vault && accessStatus !== 'loading') {
-    return <VaultError error={error} onRetry={handleRetry} />;
+  // Check authentication first - if not authenticated, redirect to auth
+  const { data: { user } } = supabase.auth.getUserSync ? supabase.auth.getUserSync() : { user: null };
+  if (!user && vault) {
+    // Redirect to auth if not authenticated and vault exists
+    window.location.href = '/auth';
+    return null;
   }
 
-  // Check authentication after we know the vault exists but before checking access
-  // If the vault exists but user is not authenticated, redirect to auth
-  // We'll check authentication when we have the vault info and access status is not loading
-  if (vault && accessStatus !== 'loading') {
-    const { data: { user } } = supabase.auth.getUserSync ? supabase.auth.getUserSync() : { user: null };
-    if (!user) {
-      // Redirect to auth if not authenticated and vault exists
-      window.location.href = '/auth';
-      return null; // Return null to prevent further rendering
-    }
+  // Vault doesn't exist - show error (only if accessStatus is not loading anymore)
+  // This check should only happen after loading is complete
+  if (error && !vault) {
+    return <VaultError error={error} onRetry={handleRetry} />;
   }
 
   // Access denied for private vaults
