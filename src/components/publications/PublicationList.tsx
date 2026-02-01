@@ -51,13 +51,13 @@ interface PublicationListProps {
   publicationVaultsMap?: Record<string, string[]>; // Map of publication IDs to vault IDs
   relationsCountMap: Record<string, number>;
   selectedVault: Vault | null;
-  onAddPublication: () => void;
-  onImportPublications: () => void;
-  onEditPublication: (pub: Publication) => void;
-  onDeletePublication: (pub: Publication) => void;
+  onAddPublication?: () => void;
+  onImportPublications?: () => void;
+  onEditPublication?: (pub: Publication) => void;
+  onDeletePublication?: (pub: Publication) => void;
   onExportBibtex: (pubs: Publication[]) => void;
   onMobileMenuOpen: () => void;
-  onOpenGraph: () => void;
+  onOpenGraph?: () => void;
   onEditVault?: (vault: Vault) => void;
   onVaultUpdate?: () => void;
   // Tag management props (optional - only shown if canEdit is true)
@@ -313,40 +313,48 @@ export function PublicationList({
             )}
 
             {/* Mobile dropdown with gradient styling */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="glow" size="icon" className="h-9 w-9 lg:hidden" title="More actions">
-                  <MoreVertical className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="font-mono">
-                <DropdownMenuItem onClick={onOpenGraph}>
-                  <Network className="w-4 h-4 mr-2" />
-                  relationship_graph
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={onImportPublications}>
-                  <Upload className="w-4 h-4 mr-2" />
-                  import_papers
-                </DropdownMenuItem>
-                {selectedVault && onEditVault && (
-                  <DropdownMenuItem onClick={() => onEditVault(selectedVault)}>
-                    <Settings className="w-4 h-4 mr-2" />
-                    vault_settings
-                  </DropdownMenuItem>
-                )}
-                {canEditTags && onUpdateTag && onDeleteTag && (
-                  <DropdownMenuItem onClick={() => setIsTagManagerOpen(true)}>
-                    <Tags className="w-4 h-4 mr-2" />
-                    manage_tags
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {(onOpenGraph || onImportPublications || (selectedVault && onEditVault) || (canEditTags && onUpdateTag && onDeleteTag)) && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="glow" size="icon" className="h-9 w-9 lg:hidden" title="More actions">
+                    <MoreVertical className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="font-mono">
+                  {onOpenGraph && (
+                    <DropdownMenuItem onClick={onOpenGraph}>
+                      <Network className="w-4 h-4 mr-2" />
+                      relationship_graph
+                    </DropdownMenuItem>
+                  )}
+                  {onImportPublications && (
+                    <DropdownMenuItem onClick={onImportPublications}>
+                      <Upload className="w-4 h-4 mr-2" />
+                      import_papers
+                    </DropdownMenuItem>
+                  )}
+                  {selectedVault && onEditVault && (
+                    <DropdownMenuItem onClick={() => onEditVault(selectedVault)}>
+                      <Settings className="w-4 h-4 mr-2" />
+                      vault_settings
+                    </DropdownMenuItem>
+                  )}
+                  {canEditTags && onUpdateTag && onDeleteTag && (
+                    <DropdownMenuItem onClick={() => setIsTagManagerOpen(true)}>
+                      <Tags className="w-4 h-4 mr-2" />
+                      manage_tags
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
 
-            <Button onClick={onAddPublication} variant="glow" className="h-9 font-mono">
-              <Plus className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">add_paper</span>
-            </Button>
+            {onAddPublication && (
+              <Button onClick={onAddPublication} variant="glow" className="h-9 font-mono">
+                <Plus className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">add_paper</span>
+              </Button>
+            )}
           </div>
         </div>
 

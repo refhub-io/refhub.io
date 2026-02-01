@@ -74,7 +74,7 @@ export default function TheCodex() {
       const { data: vaultsData, error: vaultsError } = await supabase
         .from('vaults')
         .select('*')
-        .eq('is_public', true)
+        .eq('visibility', 'public')
         .order('updated_at', { ascending: false });
 
       if (vaultsError || !vaultsData) {
@@ -165,6 +165,30 @@ export default function TheCodex() {
     if (user) {
       fetchUserVaults();
     }
+
+    // Subscribe to realtime changes for vaults table
+    // Since we query with visibility='public', any change will naturally filter correctly
+    const channel = supabase
+      .channel('public-vaults-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'vaults',
+        },
+        (payload) => {
+          console.log('[TheCodex] Realtime vault change:', payload);
+          // Simply refetch on any vault change - the query filters by visibility='public'
+          // so vaults that become private will automatically disappear
+          fetchPublicVaults();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user, fetchUserVaults]);
 
   const filteredVaults = vaults.filter((vault) => {

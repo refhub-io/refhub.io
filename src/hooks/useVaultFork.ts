@@ -28,8 +28,7 @@ export function useVaultFork() {
           color: originalVault.color,
           category: originalVault.category,
           abstract: originalVault.abstract,
-          is_public: false,
-          is_shared: false,
+          visibility: 'private',
         })
         .select()
         .single();

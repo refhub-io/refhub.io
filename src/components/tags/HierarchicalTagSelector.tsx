@@ -89,7 +89,7 @@ export function HierarchicalTagSelector({
 
   return (
     <div className="space-y-4 min-w-0">
-      <Label className="font-semibold">Tags</Label>
+      <Label className="font-semibold font-mono">tags</Label>
       
       {/* Selected tags display */}
       {selectedTagIds.length > 0 && (

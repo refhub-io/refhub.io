@@ -805,22 +805,6 @@ export default function Dashboard() {
     const deletedId = deleteVaultConfirmation.id;
 
     try {
-      // Check if vault has publications
-      const { data: pubs } = await supabase
-        .from('publications')
-        .select('id')
-        .eq('vault_id', deletedId);
-
-      if (pubs && pubs.length > 0) {
-        toast({
-          title: 'cannot_delete_vault',
-          description: `This vault contains ${pubs.length} paper${pubs.length > 1 ? 's' : ''}. Remove them first.`,
-          variant: 'destructive',
-        });
-        setDeleteVaultConfirmation(null);
-        return;
-      }
-
       // Check if vault has been forked
       const { data: forks } = await supabase
         .from('vault_forks')
@@ -837,23 +821,27 @@ export default function Dashboard() {
         return;
       }
 
-      // Delete vault shares first
+      // Delete vault publications (annotated copies)
+      // This will cascade delete publication_tags due to ON DELETE CASCADE
+      await supabase
+        .from('vault_publications')
+        .delete()
+        .eq('vault_id', deletedId);
+
+      // Delete vault shares
       await supabase
         .from('vault_shares')
         .delete()
         .eq('vault_id', deletedId);
 
-      // Delete vault favorites first
+      // Delete vault favorites
       await supabase
         .from('vault_favorites')
         .delete()
         .eq('vault_id', deletedId);
 
-      // Optimistic update
+      // Optimistic update - remove vault from list
       setVaults(prev => prev.filter(v => v.id !== deletedId));
-      if (selectedVaultId === deletedId) {
-        setSelectedVaultId(null);
-      }
 
       const { error } = await supabase
         .from('vaults')
@@ -986,20 +974,45 @@ export default function Dashboard() {
         
         toast({ title: 'vault_updated ✨' });
       } else {
-        const { data: newVault, error } = await supabase
-          .from('vaults')
-          .insert([{ ...data, user_id: user.id } as Omit<Vault, 'id' | 'created_at' | 'updated_at'>])
-          .select()
-          .single();
+        // Create optimistic vault with temporary ID
+        const tempId = `temp_${Date.now()}`;
+        const optimisticVault: Vault = {
+          id: tempId,
+          user_id: user.id,
+          name: data.name || '',
+          description: data.description || null,
+          color: data.color || '#3b82f6',
+          slug: data.slug || null,
+          visibility: data.visibility || 'private',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
 
-        if (error) throw error;
+        // Apply optimistic update immediately
+        setVaults(prev => [...prev, optimisticVault].sort((a, b) => a.name.localeCompare(b.name)));
         
-        // Optimistic update
-        if (newVault) {
-          setVaults(prev => [...prev, newVault as Vault].sort((a, b) => a.name.localeCompare(b.name)));
+        try {
+          const { data: newVault, error } = await supabase
+            .from('vaults')
+            .insert([{ ...data, user_id: user.id } as Omit<Vault, 'id' | 'created_at' | 'updated_at'>])
+            .select()
+            .single();
+
+          if (error) throw error;
+          
+          // Replace temporary vault with real one from database
+          if (newVault) {
+            setVaults(prev => prev.map(v => 
+              v.id === tempId ? newVault as Vault : v
+            ).sort((a, b) => a.name.localeCompare(b.name)));
+          }
+          
+          toast({ title: 'vault_created ✨' });
+        } catch (error) {
+          // Rollback optimistic update on error
+          setVaults(prev => prev.filter(v => v.id !== tempId));
+          throw error;
         }
-        
-        toast({ title: 'vault_created ✨' });
       }
 
       setEditingVault(null);
@@ -1171,17 +1184,33 @@ export default function Dashboard() {
       <AlertDialog open={!!deleteVaultConfirmation} onOpenChange={() => setDeleteVaultConfirmation(null)}>
         <AlertDialogContent className="border-2 bg-card/95 backdrop-blur-xl">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-bold font-mono">delete_vault?</AlertDialogTitle>
-            <AlertDialogDescription className="font-mono text-sm">
-              // this_will_permanently_delete "{deleteVaultConfirmation?.name}"
-              <br />
-              // make_sure_the_vault_is_empty_first
-            </AlertDialogDescription>
+            <AlertDialogTitle className="text-xl font-bold font-mono text-destructive">⚠️ delete_vault?</AlertDialogTitle>
           </AlertDialogHeader>
+          <div className="px-6 pb-4">
+            <div className="font-mono text-sm space-y-3">
+              <p className="text-foreground">
+                // vault: <span className="font-bold text-destructive">"{deleteVaultConfirmation?.name}"</span>
+              </p>
+              <p className="text-muted-foreground">
+                // this_will_permanently_delete:
+              </p>
+              <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-2">
+                <li>all annotated publications in this vault</li>
+                <li>all tags and relationships</li>
+                <li>all vault settings and metadata</li>
+              </ul>
+              <p className="text-muted-foreground">
+                // original papers remain in all_papers collection
+              </p>
+              <p className="text-destructive font-bold mt-3">
+                ⚡ this_action_is_irreversible
+              </p>
+            </div>
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel className="font-mono">cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteVault} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono">
-              delete
+              delete_vault
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

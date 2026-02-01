@@ -25,6 +25,16 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function VaultDetail() {
   const { id: vaultId } = useParams<{ id: string }>();
@@ -371,7 +381,7 @@ export default function VaultDetail() {
     return duplicate;
   };
 
-  const handleSavePublication = async (data: Partial<Publication>, tagIds: string[], isAutoSave = false) => {
+  const handleSavePublication = async (data: Partial<Publication>, tagIds: string[], vaultIds?: string[], isAutoSave = false) => {
     if (!user || !vaultId || !canEdit) return; // Only allow editing if user has edit permission
 
     try {
@@ -436,11 +446,24 @@ export default function VaultDetail() {
           bibtex_key: data.bibtex_key || generateBibtexKey(data as Publication),
         };
 
-        // Use the optimistic update hook for creating publications
+        // Use the optimistic update hook for creating publications in the current vault
         const result = await sharedVaultOps.createVaultPublication(dataToSave, tagIds);
 
         if (!result.success) {
           throw result.error || new Error('Failed to create publication');
+        }
+
+        // If vaultIds are specified and include other vaults, add to those vaults too
+        if (vaultIds && vaultIds.length > 0 && result.publication) {
+          const otherVaultIds = vaultIds.filter(id => id !== vaultId);
+          if (otherVaultIds.length > 0) {
+            try {
+              await handleAddToVaults(result.publication.id, otherVaultIds);
+            } catch (error) {
+              console.error('Error adding to additional vaults:', error);
+              // Don't throw - the publication was created successfully in the main vault
+            }
+          }
         }
 
         // Update last activity for the new publication
@@ -610,22 +633,6 @@ export default function VaultDetail() {
     const deletedId = deleteVaultConfirmation.id;
 
     try {
-      // Check if vault has publications
-      const { data: pubs } = await supabase
-        .from('publications')
-        .select('id')
-        .eq('vault_id', deletedId);
-
-      if (pubs && pubs.length > 0) {
-        toast({
-          title: 'cannot_delete_vault',
-          description: `This vault contains ${pubs.length} paper${pubs.length > 1 ? 's' : ''}. Remove them first.`,
-          variant: 'destructive',
-        });
-        setDeleteVaultConfirmation(null);
-        return;
-      }
-
       // Check if vault has been forked
       const { data: forks } = await supabase
         .from('vault_forks')
@@ -642,13 +649,20 @@ export default function VaultDetail() {
         return;
       }
 
-      // Delete vault shares first
+      // Delete vault publications (annotated copies)
+      // This will cascade delete publication_tags due to ON DELETE CASCADE
+      await supabase
+        .from('vault_publications')
+        .delete()
+        .eq('vault_id', deletedId);
+
+      // Delete vault shares
       await supabase
         .from('vault_shares')
         .delete()
         .eq('vault_id', deletedId);
 
-      // Delete vault favorites first
+      // Delete vault favorites
       await supabase
         .from('vault_favorites')
         .delete()
@@ -784,6 +798,9 @@ export default function VaultDetail() {
 
         if (error) throw error;
 
+        // Update the editingVault state with the fresh data from the database
+        setEditingVault(updatedVault as Vault);
+        
         // Update the vault in the hook's state
         refresh();
         toast({ title: 'vault_updated ✨' });
@@ -801,7 +818,7 @@ export default function VaultDetail() {
         toast({ title: 'vault_created ✨' });
       }
 
-      setEditingVault(null);
+      // Note: Don't set editingVault to null here, let the dialog stay open with updated data
     } catch (error) {
       toast({
         title: 'error_adding_to_vaults',
@@ -1185,7 +1202,7 @@ export default function VaultDetail() {
           onExportBibtex={handleExportBibtex}
           onMobileMenuOpen={() => setIsMobileSidebarOpen(true)}
           onOpenGraph={() => setIsGraphOpen(true)}
-          onEditVault={isOwner && currentVault ? (vault) => {
+          onEditVault={isOwner && currentVault ? () => {
             setEditingVault(vault);
             setIsVaultDialogOpen(true);
           } : undefined}
@@ -1212,6 +1229,7 @@ export default function VaultDetail() {
         publicationTags={editingPublication ? publicationTagsMap[editingPublication.id] || [] : []}
         allPublications={allPublications} // Use all publications to show in which vaults this publication exists
         publicationVaults={editingPublication ? publicationVaultsMap[editingPublication.id] || [] : []} // Show which vaults this publication is already in
+        currentVaultId={vaultId} // Pass current vault ID to pre-select when adding new paper
         onSave={canEdit ? handleSavePublication : undefined}
         onCreateTag={canEdit ? handleCreateTag : undefined}
         onAddToVaults={canEdit ? handleAddToVaults : undefined}
@@ -1228,6 +1246,7 @@ export default function VaultDetail() {
       />
 
       <VaultDialog
+        key={editingVault ? `${editingVault.id}-${editingVault.updated_at}` : 'new-vault'}
         open={isVaultDialogOpen}
         onOpenChange={(open) => {
           setIsVaultDialogOpen(open);
@@ -1263,6 +1282,41 @@ export default function VaultDetail() {
         publications={exportPublications}
         vaultName={vault?.name}
       />
+
+      <AlertDialog open={!!deleteVaultConfirmation} onOpenChange={() => setDeleteVaultConfirmation(null)}>
+        <AlertDialogContent className="border-2 bg-card/95 backdrop-blur-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-bold font-mono text-destructive">⚠️ delete_vault?</AlertDialogTitle>
+          </AlertDialogHeader>
+          <div className="px-6 pb-4">
+            <div className="font-mono text-sm space-y-3">
+              <p className="text-foreground">
+                // vault: <span className="font-bold text-destructive">"{deleteVaultConfirmation?.name}"</span>
+              </p>
+              <p className="text-muted-foreground">
+                // this_will_permanently_delete:
+              </p>
+              <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-2">
+                <li>all annotated publications in this vault</li>
+                <li>all tags and relationships</li>
+                <li>all vault settings and metadata</li>
+              </ul>
+              <p className="text-muted-foreground">
+                // original papers remain in all_papers collection
+              </p>
+              <p className="text-destructive font-bold mt-3">
+                ⚡ this_action_is_irreversible
+              </p>
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="font-mono">cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteVault} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono">
+              delete_vault
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

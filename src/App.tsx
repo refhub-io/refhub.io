@@ -9,7 +9,7 @@ import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
-import PublicVault from "./pages/PublicVault";
+import PublicVault from "./pages/PublicVaultSimple";
 import VaultDetail from "./pages/VaultDetail";
 import TheCodex from "./pages/TheCodex";
 import OpenGraphPreview from "./pages/OpenGraphPreview";

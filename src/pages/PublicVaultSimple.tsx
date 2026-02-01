@@ -2,34 +2,31 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag } from '@/types/database';
-import { publicationToBibtex, exportMultipleToBibtex, downloadBibtex } from '@/lib/bibtex';
+import { formatTimeAgo } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { useProfile } from '@/hooks/useProfile';
 import { useVaultFavorites } from '@/hooks/useVaultFavorites';
 import { useVaultFork } from '@/hooks/useVaultFork';
+import { Sidebar } from '@/components/layout/Sidebar';
+import { PublicationList } from '@/components/publications/PublicationList';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { HierarchicalTagBadge } from '@/components/tags/HierarchicalTagBadge';
 import { Badge } from '@/components/ui/badge';
 import { 
   Sparkles, 
-  Search, 
-  Download, 
-  ExternalLink, 
-  FileText,
-  BookOpen,
-  Calendar,
-  Users,
   ArrowLeft,
   Globe,
   Heart,
-  GitFork
+  GitFork,
+  Eye,
+  Clock
 } from 'lucide-react';
 
 export default function PublicVault() {
   const { slug } = useParams();
   const { toast } = useToast();
   const { user } = useAuth();
+  const { profile } = useProfile();
   const { isFavorite, toggleFavorite } = useVaultFavorites();
   const { forkVault } = useVaultFork();
   const navigate = useNavigate();
@@ -41,6 +38,7 @@ export default function PublicVault() {
   const [searchQuery, setSearchQuery] = useState('');
   const [notFound, setNotFound] = useState(false);
   const [forking, setForking] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Fetch public vault
   const fetchPublicVault = useCallback(async () => {
@@ -52,7 +50,7 @@ export default function PublicVault() {
         .from('vaults')
         .select('*')
         .eq('public_slug', slug)
-        .eq('is_public', true)
+        .eq('visibility', 'public')
         .single();
 
       if (error || !vaultData) {
@@ -65,33 +63,60 @@ export default function PublicVault() {
       // Increment view count
       await supabase.rpc('increment_vault_views', { vault_uuid: vaultData.id });
 
-      // Fetch publications via vault_papers
-      const { data: vaultPapersData } = await supabase
-        .from('vault_papers')
-        .select('publication_id')
+      // Fetch publications via vault_publications
+      const { data: vaultPublicationsData } = await supabase
+        .from('vault_publications')
+        .select('*')
         .eq('vault_id', vaultData.id);
       
       let pubsData: Publication[] = [];
-      if (vaultPapersData && vaultPapersData.length > 0) {
-        const pubIds = vaultPapersData.map(vp => vp.publication_id);
-        const { data: publicationsData } = await supabase
-          .from('publications')
-          .select('*')
-          .in('id', pubIds)
-          .order('year', { ascending: false });
-        pubsData = publicationsData || [];
-      }
-
-      if (pubsData) {
+      if (vaultPublicationsData && vaultPublicationsData.length > 0) {
+        // Convert vault publications to Publication format
+        pubsData = vaultPublicationsData.map(vp => ({
+          id: vp.id,
+          user_id: vp.created_by || vaultData.user_id,
+          title: vp.title,
+          authors: vp.authors || [],
+          year: vp.year,
+          journal: vp.journal,
+          volume: vp.volume,
+          issue: vp.issue,
+          pages: vp.pages,
+          doi: vp.doi,
+          url: vp.url,
+          abstract: vp.abstract,
+          pdf_url: vp.pdf_url,
+          bibtex_key: vp.bibtex_key,
+          publication_type: vp.publication_type || 'article',
+          notes: vp.notes,
+          booktitle: vp.booktitle,
+          chapter: vp.chapter,
+          edition: vp.edition,
+          editor: vp.editor,
+          howpublished: vp.howpublished,
+          institution: vp.institution,
+          number: vp.number,
+          organization: vp.organization,
+          publisher: vp.publisher,
+          school: vp.school,
+          series: vp.series,
+          type: vp.type,
+          eid: vp.eid,
+          isbn: vp.isbn,
+          issn: vp.issn,
+          keywords: vp.keywords,
+          created_at: vp.created_at,
+          updated_at: vp.updated_at,
+        }));
         setPublications(pubsData);
         
-        // Fetch tags
-        const pubIds = pubsData.map(p => p.id);
-        if (pubIds.length > 0) {
+        // Fetch tags using vault_publication_id
+        const vaultPubIds = pubsData.map(p => p.id);
+        if (vaultPubIds.length > 0) {
           const { data: pubTagsData } = await supabase
             .from('publication_tags')
             .select('*')
-            .in('publication_id', pubIds);
+            .in('vault_publication_id', vaultPubIds);
 
           if (pubTagsData) {
             setPublicationTags(pubTagsData);
@@ -120,47 +145,6 @@ export default function PublicVault() {
   useEffect(() => {
     fetchPublicVault();
   }, [fetchPublicVault]);
-
-  // Create publication tags map
-  const publicationTagsMap: Record<string, string[]> = {};
-  publicationTags.forEach((pt) => {
-    if (!publicationTagsMap[pt.publication_id]) {
-      publicationTagsMap[pt.publication_id] = [];
-    }
-    publicationTagsMap[pt.publication_id].push(pt.tag_id);
-  });
-
-  // Filtered publications for search
-  const filteredPublications = publications.filter((pub) => {
-    const query = searchQuery.toLowerCase();
-    return (
-      pub.title.toLowerCase().includes(query) ||
-      pub.authors?.some(a => a.toLowerCase().includes(query)) ||
-      pub.journal?.toLowerCase().includes(query)
-    );
-  });
-
-  const getTagsForPublication = (pubId: string): Tag[] => {
-    const tagIds = publicationTagsMap[pubId] || [];
-    return tags.filter(t => tagIds.includes(t.id));
-  };
-
-  const handleExportAll = async () => {
-    if (filteredPublications.length === 0 || !vault) return;
-    
-    // Increment download count
-    await supabase.rpc('increment_vault_downloads', { vault_uuid: vault.id });
-    
-    const content = exportMultipleToBibtex(filteredPublications);
-    downloadBibtex(content, `${vault.name || 'references'}.bib`);
-    toast({ title: `exported_${filteredPublications.length}_references 📄` });
-  };
-
-  const handleExportSingle = (pub: Publication) => {
-    const content = publicationToBibtex(pub);
-    downloadBibtex(content, `${pub.bibtex_key || 'reference'}.bib`);
-    toast({ title: 'reference_exported 📄' });
-  };
 
   const handleFavorite = async () => {
     if (!user) {
@@ -203,12 +187,28 @@ export default function PublicVault() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-lg glow-purple animate-glow-pulse">
-            <Sparkles className="w-8 h-8 text-white" />
+      <div className="min-h-screen bg-background flex">
+        {user && (
+          <Sidebar
+            vaults={[]}
+            sharedVaults={[]}
+            selectedVaultId={null}
+            onSelectVault={() => {}}
+            onCreateVault={() => {}}
+            isMobileOpen={isMobileSidebarOpen}
+            onMobileClose={() => setIsMobileSidebarOpen(false)}
+            profile={profile}
+            onEditProfile={() => {}}
+          />
+        )}
+        
+        <div className={`flex-1 ${user ? 'lg:pl-72' : ''} min-w-0 flex items-center justify-center`}>
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-lg glow-purple animate-glow-pulse">
+              <Sparkles className="w-8 h-8 text-white" />
+            </div>
+            <p className="text-muted-foreground font-mono text-sm">// loading public vault...</p>
           </div>
-          <p className="text-muted-foreground font-mono text-sm">// loading public vault...</p>
         </div>
       </div>
     );
@@ -216,244 +216,164 @@ export default function PublicVault() {
 
   if (notFound) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-6 p-8">
-          <div className="w-20 h-20 rounded-2xl bg-gradient-primary flex items-center justify-center mx-auto shadow-lg">
-            <Globe className="w-10 h-10 text-white" />
+      <div className="min-h-screen bg-background flex">
+        {user && (
+          <Sidebar
+            vaults={[]}
+            sharedVaults={[]}
+            selectedVaultId={null}
+            onSelectVault={() => {}}
+            onCreateVault={() => {}}
+            isMobileOpen={isMobileSidebarOpen}
+            onMobileClose={() => setIsMobileSidebarOpen(false)}
+            profile={profile}
+            onEditProfile={() => {}}
+          />
+        )}
+        
+        <div className={`flex-1 ${user ? 'lg:pl-72' : ''} min-w-0 flex items-center justify-center`}>
+          <div className="text-center space-y-6 p-8">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-primary flex items-center justify-center mx-auto shadow-lg">
+              <Globe className="w-10 h-10 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold mb-2 font-mono">vault_not_found</h1>
+              <p className="text-muted-foreground font-mono text-sm">// no_public_vault_matches_this_slug</p>
+            </div>
+            <Link to="/">
+              <Button variant="outline" className="font-mono mt-4">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                back_to_home
+              </Button>
+            </Link>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold mb-2 font-mono">vault_not_found</h1>
-            <p className="text-muted-foreground font-mono text-sm">// no_public_vault_matches_this_slug</p>
-          </div>
-          <Link to="/">
-            <Button variant="outline" className="font-mono mt-4">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              back_to_home
-            </Button>
-          </Link>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b-2 border-border bg-card/50 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-lg">
-              <Sparkles className="w-5 h-5 text-white" />
-            </div>
-            <span className="font-bold text-lg">
-              <span className="text-gradient">refhub</span>
-              <span className="text-foreground/60">.io</span>
-            </span>
-          </Link>
-          <Badge variant="neon" className="gap-1 font-mono">
-            <Globe className="w-3 h-3" />
-            public_vault
-          </Badge>
+    <div className="min-h-screen bg-background flex">
+      {user ? (
+        <Sidebar
+          vaults={[]}
+          sharedVaults={vault ? [vault] : []}
+          selectedVaultId={vault?.id || null}
+          onSelectVault={() => {}}
+          onCreateVault={() => {}}
+          isMobileOpen={isMobileSidebarOpen}
+          onMobileClose={() => setIsMobileSidebarOpen(false)}
+          profile={profile}
+          onEditProfile={() => {}}
+        />
+      ) : (
+        // Show logo only for non-logged in users
+        <div className="fixed top-0 left-0 right-0 z-50 border-b-2 border-border bg-card/50 backdrop-blur-xl">
+          <div className="px-4 py-4 flex items-center justify-between">
+            <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+              <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-lg">
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
+              <span className="font-bold text-lg">
+                <span className="text-gradient">refhub</span>
+                <span className="text-foreground/60">.io</span>
+              </span>
+            </Link>
+            <Badge variant="neon" className="gap-1 font-mono">
+              <Globe className="w-3 h-3" />
+              public_vault
+            </Badge>
+          </div>
         </div>
-      </header>
+      )}
 
-      {/* Vault Header */}
-      <div className="border-b-2 border-border bg-gradient-to-b from-card/80 to-background">
-        <div className="max-w-6xl mx-auto px-4 py-8 sm:py-12">
-          <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-            <div 
-              className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl shrink-0 shadow-lg"
-              style={{ backgroundColor: vault?.color }}
-            />
-            <div className="flex-1 min-w-0">
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2">{vault?.name}</h1>
-              {vault?.description && (
-                <p className="text-muted-foreground font-mono text-sm mb-4">
-                  // {vault.description}
-                </p>
-              )}
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                <span className="flex items-center gap-1.5">
-                  <FileText className="w-4 h-4" />
-                  {publications.length} papers
-                </span>
+      <div className={`flex-1 ${user ? 'lg:pl-72' : 'pt-20'} min-w-0`}>
+        {/* Header with vault info and actions */}
+        {vault && (
+          <div className="border-b border-border bg-card/50 backdrop-blur-xl sticky top-0 z-40">
+            <div className="max-w-6xl mx-auto px-4 py-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Badge variant="secondary" className="gap-1 font-mono text-xs shrink-0">
+                    <Globe className="w-3 h-3" />
+                    public
+                  </Badge>
+                  <Badge className="gap-1 font-mono text-xs shrink-0 border-blue-500/50 bg-blue-500/10 text-blue-500 hover:bg-blue-500/10">
+                    <Eye className="w-3 h-3" />
+                    viewer
+                  </Badge>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                    <Clock className="w-4 h-4" />
+                    last_sync // {formatTimeAgo(vault.updated_at)}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleFavorite}
+                    className={`font-mono ${vault && isFavorite(vault.id) ? 'text-rose-500 border-rose-500/30' : ''}`}
+                  >
+                    <Heart className={`w-4 h-4 ${vault && isFavorite(vault.id) ? 'fill-rose-500' : ''}`} />
+                    <span className="ml-2">{vault && isFavorite(vault.id) ? 'favorited' : 'favorite'}</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleFork}
+                    disabled={forking}
+                    className="font-mono"
+                  >
+                    <GitFork className="w-4 h-4" />
+                    <span className="ml-2">fork</span>
+                  </Button>
+                </div>
               </div>
             </div>
-            
-            {/* Fork/Favorite buttons - visible to all users */}
-            <div className="flex gap-2 shrink-0 w-full sm:w-auto">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleFavorite}
-                className={`font-mono ${vault && isFavorite(vault.id) ? 'text-rose-500 border-rose-500/30' : ''}`}
-              >
-                <Heart className={`w-4 h-4 sm:mr-1.5 ${vault && isFavorite(vault.id) ? 'fill-rose-500' : ''}`} />
-                <span className="hidden sm:inline">{vault && isFavorite(vault.id) ? 'favorited' : 'favorite'}</span>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleFork}
-                disabled={forking}
-                className="font-mono"
-              >
-                <GitFork className="w-4 h-4 sm:mr-1.5" />
-                <span className="hidden sm:inline">{forking ? 'forking...' : 'fork'}</span>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Content */}
-      <main className="max-w-6xl mx-auto px-4 py-8">
-        {/* Search and Export */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-8">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="search_papers..."
-              className="pl-10 font-mono"
-            />
-          </div>
-          <Button 
-            variant="outline" 
-            onClick={handleExportAll}
-            disabled={filteredPublications.length === 0}
-            className="font-mono"
-          >
-            <Download className="w-4 h-4 mr-2" />
-            export_all_bibtex
-          </Button>
-        </div>
-
-        {/* Publications Grid */}
-        {filteredPublications.length === 0 ? (
-          <div className="text-center py-16">
-            <BookOpen className="w-16 h-16 text-muted-foreground/50 mx-auto mb-4" />
-            <p className="text-muted-foreground font-mono">
-              {searchQuery ? '// no papers match your search' : '// no papers in this vault yet'}
-            </p>
-          </div>
-        ) : (
-          <div className="grid gap-4">
-            {filteredPublications.map((pub) => {
-              const pubTags = getTagsForPublication(pub.id);
-              return (
-                <article
-                  key={pub.id}
-                  className="p-6 rounded-2xl border-2 border-border bg-card/50 hover:border-primary/30 transition-all duration-200 group"
-                >
-                  <div className="flex flex-col lg:flex-row lg:items-start gap-4">
-                    <div className="flex-1 min-w-0">
-                      <h2 className="text-lg font-semibold mb-2 group-hover:text-primary transition-colors">
-                        {pub.title}
-                      </h2>
-                      
-                      {pub.authors && pub.authors.length > 0 && (
-                        <p className="text-sm text-muted-foreground mb-2 flex items-center gap-1.5">
-                          <Users className="w-3.5 h-3.5 shrink-0" />
-                          {pub.authors.join(', ')}
-                        </p>
-                      )}
-
-                      <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground mb-3">
-                        {pub.journal && (
-                          <span className="flex items-center gap-1">
-                            <BookOpen className="w-3 h-3" />
-                            {pub.journal}
-                          </span>
-                        )}
-                        {pub.year && (
-                          <span className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            {pub.year}
-                          </span>
-                        )}
-                        {pub.volume && <span>Vol. {pub.volume}</span>}
-                        {pub.issue && <span>Issue {pub.issue}</span>}
-                      </div>
-
-                      {pubTags.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mb-3">
-                          {pubTags.map((tag) => (
-                            <HierarchicalTagBadge
-                              key={tag.id}
-                              tag={tag}
-                              allTags={tags}
-                              size="sm"
-                              showHierarchy
-                            />
-                          ))}
-                        </div>
-                      )}
-
-                      {pub.abstract && (
-                        <p className="text-sm text-muted-foreground line-clamp-2">
-                          {pub.abstract}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex lg:flex-col gap-2 shrink-0">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleExportSingle(pub)}
-                      >
-                        <Download className="w-3.5 h-3.5 mr-1.5" />
-                        BibTeX
-                      </Button>
-                      {pub.doi && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          asChild
-                        >
-                          <a
-                            href={`https://doi.org/${encodeURIComponent(pub.doi)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
-                            DOI
-                          </a>
-                        </Button>
-                      )}
-                      {pub.url && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          asChild
-                        >
-                          <a
-                            href={pub.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
-                            Link
-                          </a>
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
           </div>
         )}
-      </main>
 
-      {/* Footer */}
-      <footer className="border-t-2 border-border mt-16 py-8 text-center">
-        <p className="text-sm text-muted-foreground font-mono">
-          Powered by <Link to="/" className="text-primary hover:underline">refhub.io</Link>
-        </p>
-      </footer>
+        {/* PublicationList - READ-ONLY mode */}
+        {vault && (
+          <PublicationList
+            publications={publications}
+            tags={tags}
+            vaults={[vault]}
+            publicationTagsMap={(() => {
+              // Create a map from vault publication IDs to tags
+              const vaultPubTagsMap: Record<string, string[]> = {};
+              publicationTags.forEach(pt => {
+                // Use vault_publication_id if available, otherwise fall back to publication_id
+                const vaultPubId = pt.vault_publication_id || pt.publication_id;
+                if (!vaultPubTagsMap[vaultPubId]) vaultPubTagsMap[vaultPubId] = [];
+                vaultPubTagsMap[vaultPubId].push(pt.tag_id);
+              });
+
+              // Create a map from publication IDs to tags
+              const pubTagsMap: Record<string, string[]> = {};
+              publications.forEach(pub => {
+                // In the copy-based model, publications are vault-specific copies
+                // Look up the tags using the vault publication ID
+                pubTagsMap[pub.id] = vaultPubTagsMap[pub.id] || [];
+              });
+
+              return pubTagsMap;
+            })()}
+            relationsCountMap={{}}
+            selectedVault={vault}
+            onExportBibtex={(pubs) => {
+              if (pubs.length > 0 && vault) {
+                // Increment download count
+                supabase.rpc('increment_vault_downloads', { vault_uuid: vault.id });
+                toast({ title: `exported_${pubs.length}_references 📄` });
+              }
+            }}
+            onMobileMenuOpen={() => setIsMobileSidebarOpen(true)}
+            onVaultUpdate={() => {}}
+          />
+        )}
+      </div>
     </div>
   );
 }

@@ -41,7 +41,7 @@ export function useVaultFavorites() {
             .from('vaults')
             .select('*')
             .in('id', vaultIds)
-            .eq('is_public', true);
+            .eq('visibility', 'public');
 
           if (vaultsData) {
             // Enrich with publication counts and owner info

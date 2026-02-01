@@ -52,7 +52,7 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
     return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
   };
 
-  const shareUrl = vault.is_public && vault.public_slug
+  const shareUrl = vault.visibility === 'public' && vault.public_slug
     ? `${window.location.origin}/public/${vault.public_slug}`
     : `${window.location.origin}/vault/${vault.id}`;
 
@@ -168,7 +168,7 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
                   // scan_to_access_vault
                 </p>
                 <div className="flex items-center justify-center gap-2 text-xs">
-                  {vault.is_public ? (
+                  {vault.visibility === 'public' ? (
                     <>
                       <Globe className="w-3 h-3 text-neon-green" />
                       <span className="text-neon-green font-mono">public</span>

@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Lock, Users, Globe, Mail, Trash2, Copy, Check, Link2 } from 'lucide-react';
+import { Lock, Users, Globe, Mail, Trash2, Copy, Check, Link2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type VaultVisibility = 'private' | 'protected' | 'public';
@@ -70,8 +70,11 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   const [diagResult, setDiagResult] = useState<{ data?: any; error?: any; count?: number } | null>(null);
   const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('viewer');
   const [publicSlug, setPublicSlug] = useState('');
+  const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
+  const [checkingSlug, setCheckingSlug] = useState(false);
   const [copied, setCopied] = useState(false);
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const slugCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadRef = useRef(true);
   const vaultRef = useRef(vault);
   const openRef = useRef(open);
@@ -247,6 +250,53 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     }
   }, [open, vault]);
 
+  // Check slug availability (debounced)
+  useEffect(() => {
+    if (!publicSlug || visibility !== 'public') {
+      setSlugAvailable(null);
+      setCheckingSlug(false);
+      return;
+    }
+
+    // Clear previous timeout
+    if (slugCheckTimeoutRef.current) {
+      clearTimeout(slugCheckTimeoutRef.current);
+    }
+
+    setCheckingSlug(true);
+
+    slugCheckTimeoutRef.current = setTimeout(async () => {
+      try {
+        const { data, error } = await supabase
+          .from('vaults')
+          .select('id')
+          .eq('public_slug', publicSlug)
+          .maybeSingle();
+
+        if (error) throw error;
+
+        // If we found a vault with this slug, check if it's the current vault
+        if (data) {
+          const isCurrentVault = vault?.id === data.id;
+          setSlugAvailable(isCurrentVault);
+        } else {
+          setSlugAvailable(true);
+        }
+      } catch (error) {
+        console.error('[VaultDialog] Error checking slug:', error);
+        setSlugAvailable(null);
+      } finally {
+        setCheckingSlug(false);
+      }
+    }, 500);
+
+    return () => {
+      if (slugCheckTimeoutRef.current) {
+        clearTimeout(slugCheckTimeoutRef.current);
+      }
+    };
+  }, [publicSlug, visibility, vault?.id]);
+
   // Auto-save for edit mode only (debounced) - only triggers on data changes
   useEffect(() => {
     if (!vaultRef.current || !openRef.current) return; // Only auto-save when editing an existing vault
@@ -271,6 +321,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
             color,
             category: category || null,
             abstract: abstract || null,
+            visibility,
             public_slug: visibility === 'public' ? (publicSlug || generateSlug(name)) : null,
           });
           if (onUpdate) onUpdate();
@@ -300,6 +351,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
         color,
         category: category || null,
         abstract: abstract || null,
+        visibility,
         public_slug: visibility === 'public' ? (publicSlug || generateSlug(name)) : null,
       });
       onOpenChange(false);
@@ -565,12 +617,39 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
           {visibility === 'public' && (
             <div className="space-y-3 p-4 rounded-xl border-2 border-neon/30 bg-neon/5">
               <Label className="text-xs font-mono text-muted-foreground">public_url_slug</Label>
-              <Input
-                value={publicSlug}
-                onChange={(e) => setPublicSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                placeholder="my-research-vault"
-                className="font-mono text-sm"
-              />
+              <div className="relative">
+                <Input
+                  value={publicSlug}
+                  onChange={(e) => {
+                    setPublicSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''));
+                    setSlugAvailable(null); // Reset while typing
+                  }}
+                  placeholder="my-research-vault"
+                  className={`font-mono text-sm pr-10 ${
+                    slugAvailable === false ? 'border-destructive focus-visible:ring-destructive' : 
+                    slugAvailable === true ? 'border-neon focus-visible:ring-neon' : ''
+                  }`}
+                />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  {checkingSlug ? (
+                    <div className="w-4 h-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+                  ) : slugAvailable === true ? (
+                    <Check className="w-4 h-4 text-neon" />
+                  ) : slugAvailable === false ? (
+                    <X className="w-4 h-4 text-destructive" />
+                  ) : null}
+                </div>
+              </div>
+              {slugAvailable === false && (
+                <p className="text-xs text-destructive font-mono">
+                  // slug_already_taken - please choose another
+                </p>
+              )}
+              {slugAvailable === true && publicSlug && (
+                <p className="text-xs text-neon font-mono">
+                  // slug_available ✨
+                </p>
+              )}
               <div className="flex items-center gap-2 p-2 rounded-lg bg-background/50 border border-border">
                 <Link2 className="w-4 h-4 text-muted-foreground shrink-0" />
                 <code className="text-xs text-muted-foreground truncate flex-1">

@@ -38,7 +38,8 @@ interface PublicationDialogProps {
   publicationTags: string[];
   allPublications: Publication[];
   publicationVaults?: string[]; // IDs of vaults this publication is already in
-  onSave: (data: Partial<Publication>, tagIds: string[], isAutoSave?: boolean) => Promise<void>;
+  currentVaultId?: string; // Current vault ID to pre-select when adding new paper
+  onSave: (data: Partial<Publication>, tagIds: string[], vaultIds?: string[], isAutoSave?: boolean) => Promise<void>;
   onCreateTag: (name: string, parentId?: string) => Promise<Tag | null>;
   onAddToVaults?: (publicationId: string, vaultIds: string[]) => Promise<void>;
 }
@@ -52,6 +53,7 @@ export function PublicationDialog({
   publicationTags,
   allPublications,
   publicationVaults,
+  currentVaultId,
   onSave,
   onCreateTag,
   onAddToVaults,
@@ -97,6 +99,7 @@ export function PublicationDialog({
     keywords: [],
   });
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedVaultIds, setSelectedVaultIds] = useState<string[]>(currentVaultId ? [currentVaultId] : []);
   const [authorsInput, setAuthorsInput] = useState('');
   const [editorInput, setEditorInput] = useState('');
   const [keywordsInput, setKeywordsInput] = useState('');
@@ -147,6 +150,11 @@ export function PublicationDialog({
 
     // Update the open ref
     openRef.current = open;
+
+    // Reset selectedVaultIds when opening for add mode
+    if (isNowOpening && !publication && currentVaultId) {
+      setSelectedVaultIds([currentVaultId]);
+    }
 
     // Only reset if opening fresh or switching publications, not on close or while staying open
     if (!isNowOpening && !isSwitchingPublication) {
@@ -425,7 +433,8 @@ export function PublicationDialog({
       .filter((k) => k.length > 0);
 
     try {
-      await onSave({ ...formData, authors, editor, keywords }, selectedTags);
+      // Pass vaultIds only for new publications (when publication is null)
+      await onSave({ ...formData, authors, editor, keywords }, selectedTags, publication ? undefined : selectedVaultIds);
       onOpenChange(false);
     } finally {
       setSaving(false);
@@ -927,7 +936,47 @@ export function PublicationDialog({
                 </div>
               )}
 
-              {/* Add to vaults selector */}
+              {/* Multi-select vaults when adding new paper */}
+              {!publication && (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground font-mono">add_to_vaults:</p>
+                  <div className="border rounded-md p-3 space-y-2 max-h-48 overflow-y-auto">
+                    {vaults.map(vault => (
+                      <label
+                        key={vault.id}
+                        className="flex items-center gap-3 cursor-pointer hover:bg-muted/50 p-2 rounded transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedVaultIds.includes(vault.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedVaultIds([...selectedVaultIds, vault.id]);
+                            } else {
+                              setSelectedVaultIds(selectedVaultIds.filter(id => id !== vault.id));
+                            }
+                          }}
+                          className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-2 focus:ring-primary"
+                        />
+                        <div className="flex items-center gap-2 flex-1">
+                          <div
+                            className="w-3 h-3 rounded-md"
+                            style={{ backgroundColor: vault.color }}
+                          />
+                          <span className="text-sm font-mono">{vault.name}</span>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  {selectedVaultIds.length > 0 && (
+                    <p className="text-xs text-muted-foreground font-mono">
+                      {selectedVaultIds.length} vault{selectedVaultIds.length !== 1 ? 's' : ''} selected
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Add to vaults selector for existing publications */}
               {onAddToVaults && publication && (
                 <div className="space-y-2 pt-2">
                   <p className="text-sm text-muted-foreground font-mono">add_to_vault:</p>
