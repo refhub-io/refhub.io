@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
+import { Maximize, Minimize } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -105,6 +106,7 @@ export function PublicationDialog({
   const [keywordsInput, setKeywordsInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [notesTab, setNotesTab] = useState<'write' | 'preview'>('write');
+  const [notesFullscreen, setNotesFullscreen] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState<Publication | null>(null);
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const duplicateCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -1047,7 +1049,19 @@ export function PublicationDialog({
 
             {/* Notes */}
             <div className="space-y-2 min-w-0">
-              <Label htmlFor="notes" className="font-semibold font-mono">notes <span className="text-muted-foreground font-mono text-xs">(markdown_supported)</span></Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="notes" className="font-semibold font-mono">notes <span className="text-muted-foreground font-mono text-xs">(markdown_supported)</span></Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setNotesFullscreen(true)}
+                  className="h-7 font-mono text-xs"
+                >
+                  <Maximize className="w-3 h-3 mr-1" />
+                  fullscreen
+                </Button>
+              </div>
               <Tabs value={notesTab} onValueChange={(v) => setNotesTab(v as 'write' | 'preview')} className="w-full min-w-0">
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="write" className="font-mono text-xs">write</TabsTrigger>
@@ -1059,7 +1073,7 @@ export function PublicationDialog({
                     value={formData.notes}
                     onChange={(e) => {
                       setFormData({ ...formData, notes: e.target.value });
-                      trackFieldModification('notes'); // Track that user has modified notes
+                      trackFieldModification('notes');
                     }}
                     placeholder="// your_personal_notes...\n\n**Bold text**, *italic*, `code`, [links](url)\n\n- bullet points\n- supported"
                     rows={6}
@@ -1095,6 +1109,83 @@ export function PublicationDialog({
                 </TabsContent>
               </Tabs>
             </div>
+
+            {/* Fullscreen Notes Overlay */}
+            {notesFullscreen && (
+              <div className="fixed inset-0 z-[100] bg-background">
+                <div className="h-full flex flex-col">
+                  {/* Header */}
+                  <div className="border-b border-border bg-card/50 backdrop-blur-xl">
+                    <div className="px-6 py-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <h2 className="text-lg font-bold font-mono">notes_editor</h2>
+                        <span className="text-xs text-muted-foreground font-mono">(markdown_supported)</span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setNotesFullscreen(false)}
+                        className="font-mono"
+                      >
+                        <Minimize className="w-4 h-4 mr-2" />
+                        exit_fullscreen
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Tabs and Content */}
+                  <div className="flex-1 overflow-hidden">
+                    <Tabs value={notesTab} onValueChange={(v) => setNotesTab(v as 'write' | 'preview')} className="h-full flex flex-col">
+                      <div className="border-b border-border px-6 pt-4">
+                        <TabsList className="grid w-full max-w-md grid-cols-2">
+                          <TabsTrigger value="write" className="font-mono">write</TabsTrigger>
+                          <TabsTrigger value="preview" className="font-mono">preview</TabsTrigger>
+                        </TabsList>
+                      </div>
+                      
+                      <TabsContent value="write" className="flex-1 px-6 py-4 overflow-hidden mt-0">
+                        <Textarea
+                          value={formData.notes}
+                          onChange={(e) => {
+                            setFormData({ ...formData, notes: e.target.value });
+                            trackFieldModification('notes');
+                          }}
+                          placeholder="// your_personal_notes...\n\n**Bold text**, *italic*, `code`, [links](url)\n\n- bullet points\n- supported"
+                          className="font-mono text-sm w-full h-full resize-none"
+                        />
+                      </TabsContent>
+                      
+                      <TabsContent value="preview" className="flex-1 px-6 py-4 overflow-auto mt-0">
+                        {formData.notes ? (
+                          <div className="prose prose-sm dark:prose-invert max-w-4xl mx-auto break-words prose-ul:list-disc prose-ol:list-decimal prose-li:ml-4 prose-ul:space-y-1 prose-ol:space-y-1 prose-headings:font-bold prose-code:bg-muted prose-code:px-1 prose-code:rounded prose-pre:bg-muted prose-pre:p-3 prose-blockquote:border-l-4 prose-blockquote:border-primary prose-blockquote:pl-4 prose-table:border prose-th:border prose-td:border prose-th:p-2 prose-td:p-2">
+                            <ReactMarkdown 
+                              remarkPlugins={[remarkGfm, remarkBreaks]}
+                              rehypePlugins={[rehypeRaw, rehypeSanitize]}
+                              components={{
+                                ul: ({ node, ...props }) => <ul className="list-disc pl-6 space-y-1 my-2" {...props} />,
+                                ol: ({ node, ...props }) => <ol className="list-decimal pl-6 space-y-1 my-2" {...props} />,
+                                li: ({ node, ...props }) => <li className="ml-0" {...props} />,
+                                h1: ({ node, ...props }) => <h1 className="text-xl font-bold mt-4 mb-2" {...props} />,
+                                h2: ({ node, ...props }) => <h2 className="text-lg font-bold mt-3 mb-2" {...props} />,
+                                h3: ({ node, ...props }) => <h3 className="text-base font-bold mt-2 mb-1" {...props} />,
+                                code: ({ node, inline, ...props }: { node: unknown; inline?: boolean; [key: string]: unknown }) => 
+                                  inline ? <code className="bg-muted px-1 py-0.5 rounded text-sm" {...props} /> : <code {...props} />,
+                                blockquote: ({ node, ...props }) => <blockquote className="border-l-4 border-primary pl-4 italic my-2" {...props} />,
+                              }}
+                            >
+                              {formData.notes}
+                            </ReactMarkdown>
+                          </div>
+                        ) : (
+                          <p className="text-muted-foreground text-center font-mono mt-12">// no_notes_yet</p>
+                        )}
+                      </TabsContent>
+                    </Tabs>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* BibTeX Key */}
             <div className="space-y-2 min-w-0">
