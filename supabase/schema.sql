@@ -670,8 +670,10 @@ ALTER TABLE "public"."publication_relations" OWNER TO "postgres";
 
 CREATE TABLE IF NOT EXISTS "public"."publication_tags" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "publication_id" "uuid" NOT NULL,
-    "tag_id" "uuid" NOT NULL
+    "publication_id" "uuid",
+    "tag_id" "uuid" NOT NULL,
+    "vault_publication_id" "uuid",
+    CONSTRAINT "publication_tags_one_id_required_check" CHECK ((("publication_id" IS NOT NULL) OR ("vault_publication_id" IS NOT NULL)))
 );
 
 
@@ -979,11 +981,6 @@ ALTER TABLE ONLY "public"."publication_tags"
 
 
 
-ALTER TABLE ONLY "public"."publication_tags"
-    ADD CONSTRAINT "publication_tags_publication_id_tag_id_key" UNIQUE ("publication_id", "tag_id");
-
-
-
 ALTER TABLE ONLY "public"."publications"
     ADD CONSTRAINT "publications_pkey" PRIMARY KEY ("id");
 
@@ -1094,6 +1091,10 @@ CREATE INDEX "idx_publication_relations_related" ON "public"."publication_relati
 
 
 
+CREATE INDEX "idx_publication_tags_vault_publication_id" ON "public"."publication_tags" USING "btree" ("vault_publication_id");
+
+
+
 CREATE INDEX "idx_tags_parent_id" ON "public"."tags" USING "btree" ("parent_id");
 
 
@@ -1155,6 +1156,14 @@ CREATE INDEX "idx_vaults_public_slug" ON "public"."vaults" USING "btree" ("publi
 
 
 CREATE INDEX "idx_vaults_visibility" ON "public"."vaults" USING "btree" ("visibility");
+
+
+
+CREATE UNIQUE INDEX "publication_tags_publication_id_tag_id_idx" ON "public"."publication_tags" USING "btree" ("publication_id", "tag_id") WHERE ("publication_id" IS NOT NULL);
+
+
+
+CREATE UNIQUE INDEX "publication_tags_vault_publication_id_tag_id_idx" ON "public"."publication_tags" USING "btree" ("vault_publication_id", "tag_id") WHERE ("vault_publication_id" IS NOT NULL);
 
 
 
@@ -1220,6 +1229,11 @@ ALTER TABLE ONLY "public"."publication_tags"
 
 ALTER TABLE ONLY "public"."publication_tags"
     ADD CONSTRAINT "publication_tags_tag_id_fkey" FOREIGN KEY ("tag_id") REFERENCES "public"."tags"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."publication_tags"
+    ADD CONSTRAINT "publication_tags_vault_publication_id_fkey" FOREIGN KEY ("vault_publication_id") REFERENCES "public"."vault_publications"("id") ON DELETE CASCADE;
 
 
 
@@ -1323,16 +1337,18 @@ ALTER TABLE ONLY "public"."vaults"
 
 
 
-CREATE POLICY "Users can access publication tags for accessible publications" ON "public"."publication_tags" FOR SELECT TO "authenticated" USING (((EXISTS ( SELECT 1
+CREATE POLICY "Users can access publication tags for accessible publications" ON "public"."publication_tags" FOR SELECT TO "authenticated" USING (((("publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
+   FROM "public"."publications" "p"
+  WHERE (("p"."id" = "publication_tags"."publication_id") AND ("p"."user_id" = "auth"."uid"()))))) OR (("publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM ((("public"."publications" "p"
      LEFT JOIN "public"."vault_papers" "vp" ON (("p"."id" = "vp"."publication_id")))
      LEFT JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
      LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-  WHERE (("p"."id" = "publication_tags"."publication_id") AND (("p"."user_id" = "auth"."uid"()) OR (("v"."id" IS NOT NULL) AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL)) OR ("v"."visibility" = 'public'::"public"."vault_visibility"))))))) OR (EXISTS ( SELECT 1
+  WHERE (("p"."id" = "publication_tags"."publication_id") AND (("p"."user_id" = "auth"."uid"()) OR (("v"."id" IS NOT NULL) AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL)) OR ("v"."visibility" = 'public'::"public"."vault_visibility")))))))) OR (("vault_publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM (("public"."vault_publications" "vp"
      LEFT JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
      LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-  WHERE (("vp"."original_publication_id" = "publication_tags"."publication_id") AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL)) OR ("v"."visibility" = 'public'::"public"."vault_visibility")))))));
+  WHERE (("vp"."id" = "publication_tags"."vault_publication_id") AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL)) OR ("v"."visibility" = 'public'::"public"."vault_visibility"))))))));
 
 
 
@@ -1370,29 +1386,29 @@ CREATE POLICY "Users can manage own vaults" ON "public"."vaults" TO "authenticat
 
 
 
-CREATE POLICY "Users can manage publication tags for own publications and acce" ON "public"."publication_tags" TO "authenticated" USING (((EXISTS ( SELECT 1
+CREATE POLICY "Users can manage publication tags for own publications and acce" ON "public"."publication_tags" TO "authenticated" USING (((("publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM "public"."publications" "p"
-  WHERE (("p"."id" = "publication_tags"."publication_id") AND ("p"."user_id" = "auth"."uid"())))) OR (EXISTS ( SELECT 1
+  WHERE (("p"."id" = "publication_tags"."publication_id") AND ("p"."user_id" = "auth"."uid"()))))) OR (("publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM ((("public"."publications" "p"
      LEFT JOIN "public"."vault_papers" "vp" ON (("p"."id" = "vp"."publication_id")))
      LEFT JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
      LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-  WHERE (("p"."id" = "publication_tags"."publication_id") AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility"))))) OR (EXISTS ( SELECT 1
+  WHERE (("p"."id" = "publication_tags"."publication_id") AND (("p"."user_id" = "auth"."uid"()) OR (("v"."id" IS NOT NULL) AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility")))))))) OR (("vault_publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM (("public"."vault_publications" "vp"
      LEFT JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
      LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-  WHERE (("vp"."original_publication_id" = "publication_tags"."publication_id") AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility"))))))) WITH CHECK (((EXISTS ( SELECT 1
+  WHERE (("vp"."id" = "publication_tags"."vault_publication_id") AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility")))))))) WITH CHECK (((("publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM "public"."publications" "p"
-  WHERE (("p"."id" = "publication_tags"."publication_id") AND ("p"."user_id" = "auth"."uid"())))) OR (EXISTS ( SELECT 1
+  WHERE (("p"."id" = "publication_tags"."publication_id") AND ("p"."user_id" = "auth"."uid"()))))) OR (("publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM ((("public"."publications" "p"
      LEFT JOIN "public"."vault_papers" "vp" ON (("p"."id" = "vp"."publication_id")))
      LEFT JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
      LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-  WHERE (("p"."id" = "publication_tags"."publication_id") AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility"))))) OR (EXISTS ( SELECT 1
+  WHERE (("p"."id" = "publication_tags"."publication_id") AND (("p"."user_id" = "auth"."uid"()) OR (("v"."id" IS NOT NULL) AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility")))))))) OR (("vault_publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM (("public"."vault_publications" "vp"
      LEFT JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
      LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-  WHERE (("vp"."original_publication_id" = "publication_tags"."publication_id") AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility")))))));
+  WHERE (("vp"."id" = "publication_tags"."vault_publication_id") AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility"))))))));
 
 
 

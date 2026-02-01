@@ -111,7 +111,8 @@ export interface Tag {
 
 export interface PublicationTag {
   id: string;
-  publication_id: string;
+  publication_id: string | null;
+  vault_publication_id?: string | null;
   tag_id: string;
 }
 
@@ -145,7 +146,7 @@ export interface VaultShare {
 export interface Notification {
   id: string;
   user_id: string;
-  type: 'vault_shared' | 'vault_forked' | 'vault_favorited';
+  type: 'vault_shared' | 'vault_forked' | 'vault_favorited' | 'publication_updated';
   title: string;
   message: string | null;
   data: Record<string, unknown> | null;
