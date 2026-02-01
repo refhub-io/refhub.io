@@ -144,20 +144,25 @@ export function PublicationDialog({
     const wasClosedBefore = !openRef.current;
     const isNowOpening = open && wasClosedBefore;
     const isSwitchingPublication = publicationId !== lastPublicationIdRef.current;
-    
+
     // Update the open ref
     openRef.current = open;
-    
+
     // Only reset if opening fresh or switching publications, not on close or while staying open
     if (!isNowOpening && !isSwitchingPublication) {
       return;
     }
-    
+
     isInitialLoadRef.current = true;
     lastPublicationIdRef.current = publicationId;
     
+    // Reset modified fields tracking when opening dialog or switching publications
+    // This allows realtime sync to work properly for the new publication
+    setModifiedFields(new Set());
+
     if (publication) {
       setFormData({
+        id: publication.id, // Include id for realtime sync tracking
         title: publication.title,
         authors: publication.authors,
         year: publication.year,
@@ -234,6 +239,58 @@ export function PublicationDialog({
       setSelectedTags([]);
     }
   }, [publication, publicationTags, open]);
+
+  // Track which fields have been modified by the user
+  const [modifiedFields, setModifiedFields] = useState<Set<string>>(new Set());
+
+  // Sync with external publication changes when dialog is open, but only for fields not modified by user
+  // This enables realtime updates to notes/markdown preview when another client makes changes
+  useEffect(() => {
+    if (open && publication && lastPublicationIdRef.current === publication.id) {
+      setFormData(prev => {
+        const updatedData = { ...prev };
+
+        // Only update fields that haven't been modified by the user
+        if (!modifiedFields.has('title')) updatedData.title = publication.title;
+        if (!modifiedFields.has('authors')) updatedData.authors = publication.authors;
+        if (!modifiedFields.has('year')) updatedData.year = publication.year;
+        if (!modifiedFields.has('journal')) updatedData.journal = publication.journal || '';
+        if (!modifiedFields.has('volume')) updatedData.volume = publication.volume || '';
+        if (!modifiedFields.has('issue')) updatedData.issue = publication.issue || '';
+        if (!modifiedFields.has('pages')) updatedData.pages = publication.pages || '';
+        if (!modifiedFields.has('doi')) updatedData.doi = publication.doi || '';
+        if (!modifiedFields.has('url')) updatedData.url = publication.url || '';
+        if (!modifiedFields.has('abstract')) updatedData.abstract = publication.abstract || '';
+        if (!modifiedFields.has('pdf_url')) updatedData.pdf_url = publication.pdf_url || '';
+        if (!modifiedFields.has('bibtex_key')) updatedData.bibtex_key = publication.bibtex_key || '';
+        if (!modifiedFields.has('publication_type')) updatedData.publication_type = publication.publication_type || 'article';
+        if (!modifiedFields.has('notes')) updatedData.notes = publication.notes || ''; // This is the key field for markdown preview
+        if (!modifiedFields.has('booktitle')) updatedData.booktitle = publication.booktitle || '';
+        if (!modifiedFields.has('chapter')) updatedData.chapter = publication.chapter || '';
+        if (!modifiedFields.has('edition')) updatedData.edition = publication.edition || '';
+        if (!modifiedFields.has('editor')) updatedData.editor = publication.editor || [];
+        if (!modifiedFields.has('howpublished')) updatedData.howpublished = publication.howpublished || '';
+        if (!modifiedFields.has('institution')) updatedData.institution = publication.institution || '';
+        if (!modifiedFields.has('number')) updatedData.number = publication.number || '';
+        if (!modifiedFields.has('organization')) updatedData.organization = publication.organization || '';
+        if (!modifiedFields.has('publisher')) updatedData.publisher = publication.publisher || '';
+        if (!modifiedFields.has('school')) updatedData.school = publication.school || '';
+        if (!modifiedFields.has('series')) updatedData.series = publication.series || '';
+        if (!modifiedFields.has('type')) updatedData.type = publication.type || '';
+        if (!modifiedFields.has('eid')) updatedData.eid = publication.eid || '';
+        if (!modifiedFields.has('isbn')) updatedData.isbn = publication.isbn || '';
+        if (!modifiedFields.has('issn')) updatedData.issn = publication.issn || '';
+        if (!modifiedFields.has('keywords')) updatedData.keywords = publication.keywords || [];
+
+        return updatedData;
+      });
+    }
+  }, [publication, open, modifiedFields]);
+
+  // Handler to track when a field is modified by the user
+  const trackFieldModification = (fieldName: string) => {
+    setModifiedFields(prev => new Set(prev).add(fieldName));
+  };
 
   // Debounced duplicate check
   useEffect(() => {
@@ -420,7 +477,10 @@ export function PublicationDialog({
               <Input
                 id="title"
                 value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, title: e.target.value });
+                  trackFieldModification('title');
+                }}
                 placeholder="publication_title"
                 required
                 className="font-mono w-full text-xs sm:text-sm break-words h-9 sm:h-10 box-border"
@@ -433,7 +493,10 @@ export function PublicationDialog({
               <Input
                 id="authors"
                 value={authorsInput}
-                onChange={(e) => setAuthorsInput(e.target.value)}
+                onChange={(e) => {
+                  setAuthorsInput(e.target.value);
+                  trackFieldModification('authors');
+                }}
                 placeholder="john_doe, jane_smith"
                 className="font-mono w-full text-xs sm:text-sm break-words h-9 sm:h-10 box-border"
               />
@@ -447,9 +510,10 @@ export function PublicationDialog({
                   id="year"
                   type="number"
                   value={formData.year || ''}
-                  onChange={(e) =>
-                    setFormData({ ...formData, year: e.target.value ? parseInt(e.target.value) : undefined })
-                  }
+                  onChange={(e) => {
+                    setFormData({ ...formData, year: e.target.value ? parseInt(e.target.value) : undefined });
+                    trackFieldModification('year');
+                  }}
                   placeholder="2024"
                   className="font-mono w-full text-xs sm:text-sm h-9 sm:h-10 box-border"
                 />
@@ -458,7 +522,10 @@ export function PublicationDialog({
                 <Label htmlFor="type" className="font-semibold font-mono">type</Label>
                 <Select
                   value={formData.publication_type}
-                  onValueChange={(value) => setFormData({ ...formData, publication_type: value })}
+                  onValueChange={(value) => {
+                    setFormData({ ...formData, publication_type: value });
+                    trackFieldModification('publication_type');
+                  }}
                 >
                   <SelectTrigger className="font-mono">
                     <SelectValue />
@@ -480,7 +547,10 @@ export function PublicationDialog({
               <Input
                 id="journal"
                 value={formData.journal}
-                onChange={(e) => setFormData({ ...formData, journal: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, journal: e.target.value });
+                  trackFieldModification('journal');
+                }}
                 placeholder="nature, science, neurips..."
                 className="font-mono w-full text-xs sm:text-sm break-words h-9 sm:h-10 box-border"
               />
@@ -492,7 +562,10 @@ export function PublicationDialog({
                 <Input
                   id="volume"
                   value={formData.volume}
-                  onChange={(e) => setFormData({ ...formData, volume: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, volume: e.target.value });
+                    trackFieldModification('volume');
+                  }}
                   placeholder="12"
                   className="font-mono w-full text-xs sm:text-sm h-9 sm:h-10 box-border"
                 />
@@ -502,7 +575,10 @@ export function PublicationDialog({
                 <Input
                   id="issue"
                   value={formData.issue}
-                  onChange={(e) => setFormData({ ...formData, issue: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, issue: e.target.value });
+                    trackFieldModification('issue');
+                  }}
                   placeholder="3"
                   className="font-mono w-full text-xs sm:text-sm h-9 sm:h-10 box-border"
                 />
@@ -512,7 +588,10 @@ export function PublicationDialog({
                 <Input
                   id="pages"
                   value={formData.pages}
-                  onChange={(e) => setFormData({ ...formData, pages: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, pages: e.target.value });
+                    trackFieldModification('pages');
+                  }}
                   placeholder="1-10"
                   className="font-mono w-full text-xs sm:text-sm h-9 sm:h-10 box-border"
                 />
@@ -526,7 +605,10 @@ export function PublicationDialog({
                 <Input
                   id="doi"
                   value={formData.doi}
-                  onChange={(e) => setFormData({ ...formData, doi: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, doi: e.target.value });
+                    trackFieldModification('doi');
+                  }}
                   placeholder="10.1000/xyz123"
                   className="font-mono text-xs sm:text-sm w-full break-all h-9 sm:h-10 box-border"
                 />
@@ -536,7 +618,10 @@ export function PublicationDialog({
                 <Input
                   id="url"
                   value={formData.url}
-                  onChange={(e) => setFormData({ ...formData, url: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, url: e.target.value });
+                    trackFieldModification('url');
+                  }}
                   placeholder="https://..."
                   className="font-mono text-xs sm:text-sm w-full break-all h-9 sm:h-10 box-border"
                 />
@@ -549,7 +634,10 @@ export function PublicationDialog({
               <Input
                 id="pdf_url"
                 value={formData.pdf_url}
-                onChange={(e) => setFormData({ ...formData, pdf_url: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, pdf_url: e.target.value });
+                  trackFieldModification('pdf_url');
+                }}
                 placeholder="link_to_pdf"
                 className="font-mono text-xs sm:text-sm w-full break-all h-9 sm:h-10 box-border"
               />
@@ -564,7 +652,10 @@ export function PublicationDialog({
                 <Input
                   id="editor"
                   value={editorInput}
-                  onChange={(e) => setEditorInput(e.target.value)}
+                  onChange={(e) => {
+                    setEditorInput(e.target.value);
+                    trackFieldModification('editor');
+                  }}
                   placeholder="editor_name_1, editor_name_2"
                   className="font-mono w-full text-xs sm:text-sm break-words h-9 sm:h-10 box-border"
                 />
@@ -578,7 +669,10 @@ export function PublicationDialog({
                 <Input
                   id="publisher"
                   value={formData.publisher}
-                  onChange={(e) => setFormData({ ...formData, publisher: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, publisher: e.target.value });
+                    trackFieldModification('publisher');
+                  }}
                   placeholder="publisher_name"
                   className="font-mono w-full text-xs sm:text-sm break-words h-9 sm:h-10 box-border"
                 />
@@ -592,7 +686,10 @@ export function PublicationDialog({
                 <Input
                   id="booktitle"
                   value={formData.booktitle}
-                  onChange={(e) => setFormData({ ...formData, booktitle: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, booktitle: e.target.value });
+                    trackFieldModification('booktitle');
+                  }}
                   placeholder="title_of_book_or_proceedings"
                   className="font-mono w-full text-xs sm:text-sm break-words h-9 sm:h-10 box-border"
                 />
@@ -606,7 +703,10 @@ export function PublicationDialog({
                 <Input
                   id="series"
                   value={formData.series}
-                  onChange={(e) => setFormData({ ...formData, series: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, series: e.target.value });
+                    trackFieldModification('series');
+                  }}
                   placeholder="series_name"
                   className="font-mono w-full text-xs sm:text-sm break-words h-9 sm:h-10 box-border"
                 />
@@ -620,7 +720,10 @@ export function PublicationDialog({
                 <Input
                   id="edition"
                   value={formData.edition}
-                  onChange={(e) => setFormData({ ...formData, edition: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, edition: e.target.value });
+                    trackFieldModification('edition');
+                  }}
                   placeholder="Second, Third, etc."
                   className="font-mono w-full text-xs sm:text-sm break-words h-9 sm:h-10 box-border"
                 />
@@ -634,7 +737,10 @@ export function PublicationDialog({
                 <Input
                   id="chapter"
                   value={formData.chapter}
-                  onChange={(e) => setFormData({ ...formData, chapter: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, chapter: e.target.value });
+                    trackFieldModification('chapter');
+                  }}
                   placeholder="3"
                   className="font-mono w-full text-xs sm:text-sm break-words h-9 sm:h-10 box-border"
                 />
@@ -648,7 +754,10 @@ export function PublicationDialog({
                 <Input
                   id="school"
                   value={formData.school}
-                  onChange={(e) => setFormData({ ...formData, school: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, school: e.target.value });
+                    trackFieldModification('school');
+                  }}
                   placeholder="university_name"
                   className="font-mono w-full text-xs sm:text-sm break-words h-9 sm:h-10 box-border"
                 />
@@ -662,7 +771,10 @@ export function PublicationDialog({
                 <Input
                   id="institution"
                   value={formData.institution}
-                  onChange={(e) => setFormData({ ...formData, institution: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, institution: e.target.value });
+                    trackFieldModification('institution');
+                  }}
                   placeholder="institution_name"
                   className="font-mono w-full text-xs sm:text-sm break-words h-9 sm:h-10 box-border"
                 />
@@ -676,7 +788,10 @@ export function PublicationDialog({
                 <Input
                   id="organization"
                   value={formData.organization}
-                  onChange={(e) => setFormData({ ...formData, organization: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, organization: e.target.value });
+                    trackFieldModification('organization');
+                  }}
                   placeholder="organization_name"
                   className="font-mono w-full text-xs sm:text-sm break-words h-9 sm:h-10 box-border"
                 />
@@ -690,7 +805,10 @@ export function PublicationDialog({
                 <Input
                   id="howpublished"
                   value={formData.howpublished}
-                  onChange={(e) => setFormData({ ...formData, howpublished: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, howpublished: e.target.value });
+                    trackFieldModification('howpublished');
+                  }}
                   placeholder="how_it_was_published"
                   className="font-mono w-full text-xs sm:text-sm break-words h-9 sm:h-10 box-border"
                 />
@@ -704,7 +822,10 @@ export function PublicationDialog({
                 <Input
                   id="type_field"
                   value={formData.type}
-                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, type: e.target.value });
+                    trackFieldModification('type');
+                  }}
                   placeholder="type_description"
                   className="font-mono w-full text-xs sm:text-sm break-words h-9 sm:h-10 box-border"
                 />
@@ -718,7 +839,10 @@ export function PublicationDialog({
                 <Input
                   id="isbn"
                   value={formData.isbn}
-                  onChange={(e) => setFormData({ ...formData, isbn: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, isbn: e.target.value });
+                    trackFieldModification('isbn');
+                  }}
                   placeholder="978-3-16-148410-0"
                   className="font-mono w-full text-xs sm:text-sm h-9 sm:h-10 box-border"
                 />
@@ -733,7 +857,10 @@ export function PublicationDialog({
                   <Input
                     id="issn"
                     value={formData.issn}
-                    onChange={(e) => setFormData({ ...formData, issn: e.target.value })}
+                    onChange={(e) => {
+                    setFormData({ ...formData, issn: e.target.value });
+                    trackFieldModification('issn');
+                  }}
                     placeholder="1234-5678"
                     className="font-mono w-full text-xs sm:text-sm h-9 sm:h-10 box-border"
                   />
@@ -743,7 +870,10 @@ export function PublicationDialog({
                   <Input
                     id="eid"
                     value={formData.eid}
-                    onChange={(e) => setFormData({ ...formData, eid: e.target.value })}
+                    onChange={(e) => {
+                    setFormData({ ...formData, eid: e.target.value });
+                    trackFieldModification('eid');
+                  }}
                     placeholder="electronic_id"
                     className="font-mono w-full text-xs sm:text-sm h-9 sm:h-10 box-border"
                   />
@@ -757,7 +887,10 @@ export function PublicationDialog({
               <Input
                 id="keywords"
                 value={keywordsInput}
-                onChange={(e) => setKeywordsInput(e.target.value)}
+                onChange={(e) => {
+                  setKeywordsInput(e.target.value);
+                  trackFieldModification('keywords');
+                }}
                 placeholder="machine_learning, neural_networks, deep_learning"
                 className="font-mono w-full text-xs sm:text-sm break-words h-9 sm:h-10 box-border"
               />
@@ -853,7 +986,10 @@ export function PublicationDialog({
               <Textarea
                 id="abstract"
                 value={formData.abstract}
-                onChange={(e) => setFormData({ ...formData, abstract: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, abstract: e.target.value });
+                  trackFieldModification('abstract');
+                }}
                 placeholder="publication_abstract..."
                 rows={4}
                 className="font-mono text-xs sm:text-sm w-full min-w-0 break-words"
@@ -872,7 +1008,10 @@ export function PublicationDialog({
                   <Textarea
                     id="notes"
                     value={formData.notes}
-                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    onChange={(e) => {
+                      setFormData({ ...formData, notes: e.target.value });
+                      trackFieldModification('notes'); // Track that user has modified notes
+                    }}
                     placeholder="// your_personal_notes...\n\n**Bold text**, *italic*, `code`, [links](url)\n\n- bullet points\n- supported"
                     rows={6}
                     className="font-mono text-xs sm:text-sm w-full min-w-0 break-words"
@@ -914,7 +1053,10 @@ export function PublicationDialog({
               <Input
                 id="bibtex_key"
                 value={formData.bibtex_key}
-                onChange={(e) => setFormData({ ...formData, bibtex_key: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, bibtex_key: e.target.value });
+                  trackFieldModification('bibtex_key');
+                }}
                 placeholder="author2024title"
                 className="font-mono w-full min-w-0 text-sm break-words"
               />

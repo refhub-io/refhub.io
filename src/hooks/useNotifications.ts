@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 export interface Notification {
   id: string;
   user_id: string;
-  type: 'vault_shared' | 'vault_forked' | 'vault_favorited';
+  type: 'vault_shared' | 'vault_forked' | 'vault_favorited' | 'publication_updated';
   title: string;
   message: string | null;
   data: Record<string, unknown> | null;
@@ -185,4 +185,103 @@ export function useNotifications() {
     deleteNotification,
     refetch: fetchNotifications,
   };
+}
+
+// Hook to subscribe to publication changes in vaults the user has access to
+export function usePublicationChangeNotifications() {
+  const { user } = useAuth();
+  const { refetch } = useNotifications(); // To trigger notification refresh
+
+  useEffect(() => {
+    if (!user) return;
+
+    // Subscribe to changes in vault_publications for publications in vaults the user has access to
+    const channel = supabase
+      .channel(`publication-changes-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'vault_publications',
+          // Listen to all vault_publications changes - we'll filter on the client side
+        },
+        async (payload) => {
+          const updatedPublication = payload.new;
+          const oldPublication = payload.old;
+
+          // Check if the current user has access to this vault
+          const { data: vault } = await supabase
+            .from('vaults')
+            .select('user_id, visibility')
+            .eq('id', updatedPublication.vault_id)
+            .single();
+
+          if (!vault) return; // Vault doesn't exist
+
+          // Check if user has access to this vault (owner, shared, or public)
+          const hasAccess =
+            vault.user_id === user.id || // Owner
+            vault.visibility === 'public' || // Public vault
+            (await supabase
+              .from('vault_shares')
+              .select('id')
+              .or(`shared_with_user_id.eq.${user.id},shared_with_email.eq.${user.email}`)
+              .eq('vault_id', updatedPublication.vault_id)
+              .maybeSingle()).data; // Shared with user
+
+          if (!hasAccess) return; // User doesn't have access to this vault
+
+          // Check what changed to customize the notification
+          let changeType = 'updated';
+          if (oldPublication.notes !== updatedPublication.notes) {
+            changeType = 'notes updated';
+          } else if (oldPublication.title !== updatedPublication.title) {
+            changeType = 'title updated';
+          } else if (oldPublication.abstract !== updatedPublication.abstract) {
+            changeType = 'abstract updated';
+          } else if (JSON.stringify(oldPublication.authors) !== JSON.stringify(updatedPublication.authors)) {
+            changeType = 'authors updated';
+          }
+
+          // Get the vault name
+          const { data: vaultInfo } = await supabase
+            .from('vaults')
+            .select('name')
+            .eq('id', updatedPublication.vault_id)
+            .single();
+
+          // Get the user who made the change
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('display_name, username')
+            .eq('user_id', updatedPublication.created_by)
+            .single();
+
+          const changedBy = profile?.display_name || profile?.username || 'Someone';
+
+          // Create notification for the current user
+          await supabase.from('notifications').insert({
+            user_id: user.id,
+            type: 'publication_updated',
+            title: 'Publication updated',
+            message: `${changedBy} ${changeType} "${updatedPublication.title}" in "${vaultInfo?.name}"`,
+            data: {
+              vault_id: updatedPublication.vault_id,
+              vault_name: vaultInfo?.name,
+              publication_id: updatedPublication.id,
+              publication_title: updatedPublication.title,
+              changed_by: changedBy,
+              change_type: changeType
+            },
+            read: false
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, refetch]);
 }

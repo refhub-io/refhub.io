@@ -18,6 +18,7 @@ import { LoadingSpinner } from '@/components/ui/loading';
 import { useToast } from '@/hooks/use-toast';
 import { useVaultAccess } from '@/hooks/useVaultAccess';
 import { useVaultContent } from '@/contexts/VaultContentContext';
+import { useSharedVaultOperations } from '@/hooks/useSharedVaultOperations';
 import { Lock, Globe, Shield, Users, Calendar, User, ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -47,8 +48,23 @@ export default function VaultDetail() {
     setTags,
     setPublicationTags,
     setPublicationRelations,
-    setVaultShares
+    setVaultShares,
+    refreshVaultContent,
+    isRealtimeConnected,
   } = useVaultContent();
+
+  // Use the shared vault operations hook for optimistic updates
+  const sharedVaultOps = useSharedVaultOperations({
+    vaultId: vaultId || null,
+    userId: user?.id || null,
+    canEdit,
+    publications,
+    setPublications,
+    tags,
+    setTags,
+    publicationTags,
+    setPublicationTags,
+  });
 
   // Local state for UI elements
   const [vaultPapers, setVaultPapers] = useState<{[key: string]: string[]}>({});
@@ -62,6 +78,7 @@ export default function VaultDetail() {
   const [isPublicationDialogOpen, setIsPublicationDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [editingPublication, setEditingPublication] = useState<Publication | null>(null);
+  const currentlyEditingPublicationId = useRef<string | null>(null);
 
   const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
   const [editingVault, setEditingVault] = useState<Vault | null>(null);
@@ -72,6 +89,18 @@ export default function VaultDetail() {
 
   const [deleteConfirmation, setDeleteConfirmation] = useState<Publication | null>(null);
   const [deleteVaultConfirmation, setDeleteVaultConfirmation] = useState<Vault | null>(null);
+
+  // Sync editingPublication with publications array for realtime updates
+  // This ensures the dialog shows updated notes when another client makes changes
+  useEffect(() => {
+    if (editingPublication && currentlyEditingPublicationId.current) {
+      const updatedPub = publications.find(p => p.id === currentlyEditingPublicationId.current);
+      if (updatedPub && updatedPub.updated_at !== editingPublication.updated_at) {
+        // Only update if the publication was actually changed (different updated_at)
+        setEditingPublication(updatedPub);
+      }
+    }
+  }, [publications, editingPublication]);
 
   // Fetch user's vaults and shared vaults separately
   const fetchUserVaults = useCallback(async () => {
@@ -344,105 +373,34 @@ export default function VaultDetail() {
 
     try {
       if (editingPublication) {
-        // In the copy-based model, the editingPublication is already a vault-specific copy
-        // Its ID is from vault_publications.id
+        // Use the optimistic update hook for updating publications
         const dataToSave = {
           ...data,
           bibtex_key: data.bibtex_key || generateBibtexKey({ ...editingPublication, ...data } as Publication),
-          updated_at: new Date().toISOString()
         };
 
-        const { data: updatedVaultPub, error } = await supabase
-          .from('vault_publications')
-          .update(dataToSave)
-          .eq('id', editingPublication.id) // editingPublication.id is the vault_publications.id
-          .select()
-          .single();
+        // Use optimistic update for publication data
+        const pubResult = await sharedVaultOps.updateVaultPublication(
+          editingPublication.id,
+          dataToSave,
+          { silent: isAutoSave }
+        );
 
-        if (error) throw error;
-
-        // Optimistic update - update the publication in the local state
-        setPublications(prev => prev.map(p =>
-          p.id === editingPublication.id ? { ...p, ...updatedVaultPub } as Publication : p
-        ));
-
-        // Update tags - in the copy-based model, we need to use the original publication ID for tagging
-        // Get the original publication ID from the vault publication record
-        console.log('Updating tags for publication:', editingPublication.id, 'with tagIds:', tagIds);
-
-        const { data: vaultPubRecord, error: vaultPubError } = await supabase
-          .from('vault_publications')
-          .select('original_publication_id')
-          .eq('id', editingPublication.id)
-          .single();
-
-        if (vaultPubError) {
-          console.error('Error fetching vault publication record:', vaultPubError);
-          throw vaultPubError;
+        if (!pubResult.success) {
+          throw pubResult.error || new Error('Failed to update publication');
         }
 
-        const originalPublicationId = vaultPubRecord?.original_publication_id || editingPublication.id;
-        console.log('Original publication ID:', originalPublicationId);
+        // Use optimistic update for tags
+        const tagResult = await sharedVaultOps.updatePublicationTags(
+          editingPublication.id,
+          tagIds,
+          { silent: true } // Tags are updated silently, toast shown with pub update
+        );
 
-        // For vault-specific copies, we should use vault_publication_id instead of publication_id
-        // Get existing tag associations for this vault-specific copy
-        const { data: existingTags, error: fetchError } = await supabase
-          .from('publication_tags')
-          .select('tag_id')
-          .eq('vault_publication_id', editingPublication.id); // Use the vault-specific copy ID
-
-        if (fetchError) {
-          console.error('Error fetching existing tags for vault copy:', fetchError);
-          throw fetchError;
+        if (!tagResult.success) {
+          console.error('Error updating tags:', tagResult.error);
+          // Don't throw - publication was already saved successfully
         }
-
-        const existingTagIds = existingTags?.map(tag => tag.tag_id) || [];
-
-        // Determine which tags to remove (exist but not in new selection)
-        const tagsToRemove = existingTagIds.filter(existingId => !tagIds.includes(existingId));
-
-        // Delete tags that are no longer selected for this vault-specific copy
-        if (tagsToRemove.length > 0) {
-          const { error: deleteError } = await supabase
-            .from('publication_tags')
-            .delete()
-            .eq('vault_publication_id', editingPublication.id) // Use the vault-specific copy ID
-            .in('tag_id', tagsToRemove);
-
-          if (deleteError) {
-            console.error('Error deleting existing tags for vault copy:', deleteError);
-            throw deleteError;
-          }
-        }
-
-        // Determine which tags to add (in new selection but don't exist yet)
-        const tagsToAdd = tagIds.filter(newId => !existingTagIds.includes(newId));
-
-        if (tagsToAdd.length > 0) {
-          console.log('Inserting new tag associations for vault copy:', tagsToAdd);
-          const { error: insertError } = await supabase.from('publication_tags').insert(
-            tagsToAdd.map((tagId) => ({
-              publication_id: null, // Set to null for vault-specific copies
-              vault_publication_id: editingPublication.id, // Use the vault-specific copy ID
-              tag_id: tagId,
-            }))
-          );
-
-          if (insertError) {
-            console.error('Error inserting new tags for vault copy:', insertError);
-            throw insertError;
-          }
-        } else {
-          console.log('No new tags to insert for vault copy');
-        }
-
-        // Update publication tags in local state
-        setPublicationTags(prev => [
-          ...prev.filter(pt => pt.vault_publication_id !== editingPublication.id),
-          ...tagIds.map(tagId => ({ id: crypto.randomUUID(), vault_publication_id: editingPublication.id, tag_id: tagId }))
-        ]);
-
-        console.log('Tags updated successfully');
 
         // Update editingPublication with new data so dialog stays in sync
         if (isAutoSave) {
@@ -450,12 +408,11 @@ export default function VaultDetail() {
         }
 
         if (!isAutoSave) {
-          toast({ title: 'paper_updated ✨' });
+          // Only show toast if not already shown by optimistic update
+          // toast({ title: 'paper_updated ✨' }); // Already shown by sharedVaultOps
         }
       } else {
-        // Creating a new publication - this would be added to the user's personal publications first
-        // Then it would be copied to the vault using handleAddToVaults
-
+        // Creating a new publication
         // Check for duplicates before adding
         const duplicate = checkForDuplicate(data, publications);
         if (duplicate) {
@@ -470,93 +427,15 @@ export default function VaultDetail() {
         // Auto-generate bibkey if empty
         const dataToSave = {
           ...data,
-          user_id: user.id,
-          bibtex_key: data.bibtex_key || generateBibtexKey(data as Publication)
+          bibtex_key: data.bibtex_key || generateBibtexKey(data as Publication),
         };
 
-        const { data: newPub, error } = await supabase
-          .from('publications')
-          .insert([dataToSave as Omit<Publication, 'id' | 'created_at' | 'updated_at'>])
-          .select()
-          .single();
+        // Use the optimistic update hook for creating publications
+        const result = await sharedVaultOps.createVaultPublication(dataToSave, tagIds);
 
-        if (error) throw error;
-
-        // Add to vault by creating a copy in vault_publications
-        const { error: vaultPubError } = await supabase
-          .from('vault_publications')
-          .insert({
-            vault_id: vaultId,
-            original_publication_id: newPub.id,
-            title: newPub.title,
-            authors: newPub.authors,
-            year: newPub.year,
-            journal: newPub.journal,
-            volume: newPub.volume,
-            issue: newPub.issue,
-            pages: newPub.pages,
-            doi: newPub.doi,
-            url: newPub.url,
-            abstract: newPub.abstract,
-            pdf_url: newPub.pdf_url,
-            bibtex_key: newPub.bibtex_key,
-            publication_type: newPub.publication_type,
-            notes: newPub.notes,
-            booktitle: newPub.booktitle,
-            chapter: newPub.chapter,
-            edition: newPub.edition,
-            editor: newPub.editor,
-            howpublished: newPub.howpublished,
-            institution: newPub.institution,
-            number: newPub.number,
-            organization: newPub.organization,
-            publisher: newPub.publisher,
-            school: newPub.school,
-            series: newPub.series,
-            type: newPub.type,
-            eid: newPub.eid,
-            isbn: newPub.isbn,
-            issn: newPub.issn,
-            keywords: newPub.keywords,
-            created_by: user.id,
-          });
-
-        if (vaultPubError) throw vaultPubError;
-
-        // After creating the vault-specific copy, we need to get its ID to assign tags
-        // First, get the vault-specific copy that was just created
-        const { data: vaultPub, error: vaultPubFetchError } = await supabase
-          .from('vault_publications')
-          .select('id')
-          .eq('original_publication_id', newPub.id)
-          .eq('vault_id', vaultId)
-          .single();
-
-        if (vaultPubFetchError) {
-          console.error('Error fetching vault publication after creation:', vaultPubFetchError);
-          throw vaultPubFetchError;
+        if (!result.success) {
+          throw result.error || new Error('Failed to create publication');
         }
-
-        if (tagIds.length > 0 && newPub) {
-          await supabase.from('publication_tags').insert(
-            tagIds.map((tagId) => ({
-              publication_id: null, // Set to null for vault-specific copies
-              vault_publication_id: vaultPub.id, // For newly created publications in vaults, use the vault-specific copy ID
-              tag_id: tagId,
-            }))
-          );
-        }
-
-        // Optimistic update
-        setPublications(prev => [newPub as Publication, ...prev]);
-        if (tagIds.length > 0 && newPub) {
-          setPublicationTags(prev => [
-            ...prev,
-            ...tagIds.map(tagId => ({ id: crypto.randomUUID(), vault_publication_id: vaultPub.id, tag_id: tagId }))
-          ]);
-        }
-
-        toast({ title: 'paper_added ✨' });
       }
 
       // Only clear editing publication on manual save, not auto-save
@@ -590,26 +469,38 @@ export default function VaultDetail() {
       return;
     }
 
-    const { data: insertedPubs, error } = await supabase
-      .from('publications')
-      .insert(pubsToInsert as Omit<Publication, 'id' | 'created_at' | 'updated_at'>[])
-      .select();
+    try {
+      const { data: insertedPubs, error } = await supabase
+        .from('publications')
+        .insert(pubsToInsert as Omit<Publication, 'id' | 'created_at' | 'updated_at'>[])
+        .select();
 
-    if (error) throw error;
+      if (error) throw error;
 
-    // Add imported publications to this vault using the copy-based model
-    if (insertedPubs) {
-      for (const pub of insertedPubs) {
-        await supabase.rpc('copy_publication_to_vault', {
-          pub_id: pub.id,
-          target_vault_id: vaultId,
-          user_id: user.id
+      // Add imported publications to this vault using the copy-based model
+      if (insertedPubs) {
+        for (const pub of insertedPubs) {
+          await supabase.rpc('copy_publication_to_vault', {
+            pub_id: pub.id,
+            target_vault_id: vaultId,
+            user_id: user.id
+          });
+        }
+
+        // Don't manually update state here - realtime subscription will handle it
+        // This prevents duplicate entries when realtime INSERT fires
+        
+        toast({ 
+          title: 'papers_imported ✨',
+          description: `${insertedPubs.length} paper${insertedPubs.length > 1 ? 's' : ''} added to vault`
         });
       }
-
-      // Optimistic update - reload publications to include the vault copies
-      // Note: The actual reloading happens via the context effect when data changes
-      setPublications(prev => [...(insertedPubs as Publication[]), ...prev]);
+    } catch (error) {
+      toast({
+        title: 'error_importing_papers',
+        description: (error as Error).message,
+        variant: 'destructive',
+      });
     }
   };
 
@@ -908,9 +799,8 @@ export default function VaultDetail() {
   };
 
   // State to track loading state to prevent flickering
-  const [hasStartedLoading, setHasStartedLoading] = useState(false);
-  const [finishedLoading, setFinishedLoading] = useState(false);
-  const [loadingCompletedAt, setLoadingCompletedAt] = useState<number | null>(null);
+  const [hasStartedInitialLoad, setHasStartedInitialLoad] = useState(false);
+  const [finishedInitialLoad, setFinishedInitialLoad] = useState(false);
 
   // Track loading state changes to prevent flickering
   useEffect(() => {
@@ -920,42 +810,33 @@ export default function VaultDetail() {
       authLoading,
       contentLoading,
       isLoading,
-      hasStartedLoading,
-      finishedLoading,
-      loadingCompletedAt,
+      hasStartedInitialLoad,
+      finishedInitialLoad,
       timestamp: Date.now()
     });
 
-    if (!hasStartedLoading && (accessStatus === 'loading' || authLoading || contentLoading)) {
+    if (!hasStartedInitialLoad && (accessStatus === 'loading' || authLoading || contentLoading)) {
       // Mark when initial loading starts
       console.log('[VaultDetail] Initial loading started');
-      setHasStartedLoading(true);
+      setHasStartedInitialLoad(true);
     }
 
-    if (hasStartedLoading && !isLoading && !finishedLoading) {
-      // Mark when all loading is complete
-      console.log('[VaultDetail] All loading completed');
-      setFinishedLoading(true);
-      setLoadingCompletedAt(Date.now());
+    if (hasStartedInitialLoad && !isLoading && !finishedInitialLoad) {
+      // Mark when initial loading is complete
+      console.log('[VaultDetail] Initial loading completed');
+      setFinishedInitialLoad(true);
     }
-  }, [accessStatus, authLoading, contentLoading, hasStartedLoading, finishedLoading]);
+  }, [accessStatus, authLoading, contentLoading, hasStartedInitialLoad, finishedInitialLoad]);
 
-  // Minimum time to show loading screen to prevent flickering
-  const MIN_LOADING_DISPLAY_TIME = 300; // 300ms minimum loading display time
 
   // Determine if we should show the loading screen
-  const shouldShowLoading = hasStartedLoading && (
-    !finishedLoading ||
-    (loadingCompletedAt && Date.now() - loadingCompletedAt < MIN_LOADING_DISPLAY_TIME)
-  );
+  // Only show loading screen during initial load, not after initial load is complete
+  const shouldShowLoading = hasStartedInitialLoad && !finishedInitialLoad;
 
   console.log('[VaultDetail] Render - shouldShowLoading:', shouldShowLoading, {
-    hasStartedLoading,
-    finishedLoading,
-    loadingCompletedAt,
-    timeSinceComplete: loadingCompletedAt ? Date.now() - loadingCompletedAt : null,
-    minDisplayTime: MIN_LOADING_DISPLAY_TIME,
-    shouldStillShow: loadingCompletedAt && Date.now() - loadingCompletedAt < MIN_LOADING_DISPLAY_TIME
+    hasStartedInitialLoad,
+    finishedInitialLoad,
+    timestamp: Date.now()
   });
 
   // Show loading state while access is being checked and content is loading
@@ -1247,6 +1128,7 @@ export default function VaultDetail() {
           }}
           onEditPublication={canEdit ? (pub) => {
             setEditingPublication(pub);
+            currentlyEditingPublicationId.current = pub.id;
             setIsPublicationDialogOpen(true);
           } : (pub) => {
             toast({
@@ -1279,6 +1161,7 @@ export default function VaultDetail() {
           setIsPublicationDialogOpen(open);
           if (!open) {
             setEditingPublication(null);
+            currentlyEditingPublicationId.current = null;
             refetchRelations();
           }
         }}

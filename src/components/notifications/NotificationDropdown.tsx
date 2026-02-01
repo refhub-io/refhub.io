@@ -11,6 +11,7 @@ import {
   Mail,
   Trash2,
   X,
+  Edit3,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,6 +27,7 @@ const notificationIcons: Record<string, React.ComponentType<{ className?: string
   vault_forked: GitFork,
   vault_favorited: Heart,
   vault_access_requested: Mail,
+  publication_updated: Edit3,
 };
 
 const notificationColors: Record<string, string> = {
@@ -33,6 +35,7 @@ const notificationColors: Record<string, string> = {
   vault_forked: 'text-purple-400',
   vault_favorited: 'text-pink-400',
   vault_access_requested: 'text-yellow-400',
+  publication_updated: 'text-green-400',
 };
 
 export function NotificationDropdown() {
@@ -66,6 +69,13 @@ export function NotificationDropdown() {
         const requestId = (notification.data as any).request_id;
         // Navigate to dashboard and open vault dialog for this vault + request
         navigate(`/dashboard?openVault=${vaultId}${requestId ? `&request=${requestId}` : ''}`);
+      }
+
+      // For publication updates, navigate to the vault
+      if (notification.type === 'publication_updated') {
+        setOpen(false);
+        const vaultId = (notification.data as any).vault_id;
+        navigate(`/vault/${vaultId}`);
       }
     }
   };

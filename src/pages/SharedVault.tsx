@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
 import { useVaultFavorites } from '@/hooks/useVaultFavorites';
 import { useVaultFork } from '@/hooks/useVaultFork';
+import { useSharedVaultOperations } from '@/hooks/useSharedVaultOperations';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { Button } from '@/components/ui/button';
@@ -58,6 +59,19 @@ export default function SharedVault() {
   const [isFetching, setIsFetching] = useState(false);
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
 
+  // Initialize the shared vault operations hook for optimistic updates
+  const sharedVaultOps = useSharedVaultOperations({
+    vaultId: slug || null,
+    userId: user?.id || null,
+    canEdit: userPermission === 'editor',
+    publications,
+    setPublications,
+    tags,
+    setTags,
+    publicationTags,
+    setPublicationTags,
+  });
+
   // Compute access status for render
   const hasAccess = vault && (vault.visibility === 'public' || isOwner || (user && vault.user_id === user.id));
 
@@ -99,171 +113,40 @@ export default function SharedVault() {
   const handleCreateTag = async (name: string, parentId?: string): Promise<Tag | null> => {
     if (!user || !vault?.id || userPermission !== 'editor') return null; // Only allow creating tags if user has edit permission
 
-    try {
-      // Check if a tag with the same name already exists in this vault
-      const { data: existingTag, error: existingTagError } = await supabase
-        .from('tags')
-        .select('id')
-        .eq('vault_id', vault.id)
-        .eq('name', name)
-        .maybeSingle();
-
-      if (existingTag) {
-        toast({
-          title: 'Tag already exists',
-          description: `A tag with the name "${name}" already exists in this vault.`,
-          variant: 'destructive',
-        });
-        return null;
-      }
-
-      const colors = ['#a855f7', '#ec4899', '#f43f5e', '#22c55e', '#06b6d4', '#3b82f6', '#f97316'];
-
-      // If parent exists, inherit parent's color for hue consistency
-      let color = colors[Math.floor(Math.random() * colors.length)];
-      if (parentId) {
-        const parentTag = tags.find(t => t.id === parentId);
-        if (parentTag) {
-          color = parentTag.color;
-        }
-      }
-
-      const { data, error } = await supabase
-        .from('tags')
-        .insert({ name, color, user_id: user.id, parent_id: parentId || null, vault_id: vault.id })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      setTags(prev => [...prev, data as Tag]);
-      return data as Tag;
-    } catch (error) {
-      // Check if the error is due to the unique constraint violation
-      if ((error as any)?.code === '23505') { // PostgreSQL unique violation error code
-        toast({
-          title: 'Tag already exists',
-          description: `A tag with the name "${name}" already exists in this vault.`,
-          variant: 'destructive',
-        });
-        return null;
-      }
-
-      toast({
-        title: 'error_creating_tag',
-        description: (error as Error).message,
-        variant: 'destructive',
-      });
+    // Use the optimistic update hook for creating tags
+    const result = await sharedVaultOps.createTag(name, parentId);
+    
+    if (!result.success) {
+      // Error toast is already shown by the hook
       return null;
     }
+    
+    return result.data || null;
   };
 
   const handleUpdateTag = async (tagId: string, updates: Partial<Tag>): Promise<Tag | null> => {
     if (!user || userPermission !== 'editor') return null; // Only allow updating tags if user has edit permission
 
-    try {
-      const { data, error } = await supabase
-        .from('tags')
-        .update(updates)
-        .eq('id', tagId)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      setTags(prev => prev.map(tag => tag.id === tagId ? { ...tag, ...data } as Tag : tag));
-      return data as Tag;
-    } catch (error) {
-      toast({
-        title: 'error_updating_tag',
-        description: (error as Error).message,
-        variant: 'destructive',
-      });
+    // Use the optimistic update hook for updating tags
+    const result = await sharedVaultOps.updateTag(tagId, updates);
+    
+    if (!result.success) {
+      // Error toast is already shown by the hook
       return null;
     }
+    
+    return result.data || null;
   };
 
   const handleSavePublicationTags = async (publicationId: string, tagIds: string[]): Promise<void> => {
     if (!user || userPermission !== 'editor') return; // Only allow updating tags if user has edit permission
 
-    try {
-      // Get the original publication ID from the vault publication record
-      const { data: vaultPubRecord, error: vaultPubError } = await supabase
-        .from('vault_publications')
-        .select('original_publication_id')
-        .eq('id', publicationId)
-        .single();
-
-      if (vaultPubError) {
-        console.error('Error fetching vault publication record:', vaultPubError);
-        throw vaultPubError;
-      }
-
-      const originalPublicationId = vaultPubRecord?.original_publication_id || publicationId;
-
-      // For shared vaults, use vault_publication_id instead of publication_id
-      // Get existing tag associations for this vault-specific copy
-      const { data: existingTags, error: fetchError } = await supabase
-        .from('publication_tags')
-        .select('tag_id')
-        .eq('vault_publication_id', publicationId);  // Use the vault-specific copy ID
-
-      if (fetchError) {
-        console.error('Error fetching existing tags for vault copy in SharedVault:', fetchError);
-        throw fetchError;
-      }
-
-      const existingTagIds = existingTags?.map(tag => tag.tag_id) || [];
-
-      // Determine which tags to remove (exist but not in new selection)
-      const tagsToRemove = existingTagIds.filter(existingId => !tagIds.includes(existingId));
-
-      // Delete tags that are no longer selected for this vault-specific copy
-      if (tagsToRemove.length > 0) {
-        const { error: deleteError } = await supabase
-          .from('publication_tags')
-          .delete()
-          .eq('vault_publication_id', publicationId)  // Use the vault-specific copy ID
-          .in('tag_id', tagsToRemove);
-
-        if (deleteError) {
-          console.error('Error deleting existing tags for vault copy in SharedVault:', deleteError);
-          throw deleteError;
-        }
-      }
-
-      // Determine which tags to add (in new selection but don't exist yet)
-      const tagsToAdd = tagIds.filter(newId => !existingTagIds.includes(newId));
-
-      if (tagsToAdd.length > 0) {
-        console.log('Inserting new tag associations for vault copy in SharedVault:', tagsToAdd);
-        const { error: insertError } = await supabase.from('publication_tags').insert(
-          tagsToAdd.map((tagId) => ({
-            publication_id: null, // Set to null for vault-specific copies in shared vaults
-            vault_publication_id: publicationId, // Use the vault-specific copy ID
-            tag_id: tagId,
-          }))
-        );
-
-        if (insertError) {
-          console.error('Error inserting new tags for vault copy in SharedVault:', insertError);
-          throw insertError;
-        }
-      } else {
-        console.log('No new tags to insert for vault copy in SharedVault');
-      }
-
-      // Update local state
-      setPublicationTags(prev => [
-        ...prev.filter(pt => pt.vault_publication_id !== publicationId),
-        ...tagIds.map(tagId => ({ id: crypto.randomUUID(), vault_publication_id: publicationId, tag_id: tagId }))
-      ]);
-    } catch (error) {
-      toast({
-        title: 'error_saving_tags',
-        description: (error as Error).message,
-        variant: 'destructive',
-      });
+    // Use the optimistic update hook for updating publication tags
+    const result = await sharedVaultOps.updatePublicationTags(publicationId, tagIds);
+    
+    if (!result.success) {
+      // Error toast is already shown by the hook
+      console.error('Error updating publication tags:', result.error);
     }
   };
 

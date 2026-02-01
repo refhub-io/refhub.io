@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
+import { usePublicationChangeNotifications } from "@/hooks/useNotifications";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
@@ -32,32 +33,40 @@ const queryClient = new QueryClient({
   },
 });
 
+const AppWithNotifications = () => {
+  usePublicationChangeNotifications(); // Enable publication change notifications globally
+
+  return (
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Index />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/codex" element={<TheCodex />} />
+          <Route path="/users" element={<Users />} />
+          <Route path="/public/:slug" element={<PublicVault />} />
+          <Route path="/vault/:id" element={<VaultDetail />} />
+          <Route path="/vault/:id/settings" element={<VaultSettingsPage />} />
+          <Route path="/opengraphpreview" element={<OpenGraphPreview />} />
+          <Route path="/profile-edit" element={<ProfileEdit />} />
+          <Route path="/signup-next-steps" element={<SignupNextSteps />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </BrowserRouter>
+    </TooltipProvider>
+  );
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <VaultContentProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/auth/callback" element={<AuthCallback />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/codex" element={<TheCodex />} />
-              <Route path="/users" element={<Users />} />
-              <Route path="/public/:slug" element={<PublicVault />} />
-              <Route path="/vault/:id" element={<VaultDetail />} />
-              <Route path="/vault/:id/settings" element={<VaultSettingsPage />} />
-              <Route path="/opengraphpreview" element={<OpenGraphPreview />} />
-              <Route path="/profile-edit" element={<ProfileEdit />} />
-              <Route path="/signup-next-steps" element={<SignupNextSteps />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
+        <AppWithNotifications />
       </VaultContentProvider>
     </AuthProvider>
   </QueryClientProvider>
