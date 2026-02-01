@@ -18,7 +18,6 @@ import Users from "./pages/Users";
 import ProfileEdit from "./pages/ProfileEdit";
 import SignupNextSteps from "./pages/SignupNextSteps";
 import ResetPassword from "./pages/ResetPassword";
-import VaultAccessPage from "./pages/VaultAccessPage";
 import { VaultContentProvider } from "./contexts/VaultContentContext";
 
 const queryClient = new QueryClient({
