@@ -17,10 +17,12 @@ import { ExportDialog } from '@/components/publications/ExportDialog';
 import { QRCodeDialog } from '@/components/vaults/QRCodeDialog';
 import { LoadingSpinner } from '@/components/ui/loading';
 import { useToast } from '@/hooks/use-toast';
-import { useVaultAccess } from '@/hooks/useVaultAccess';
+import { useVaultAccess, requestVaultAccess } from '@/hooks/useVaultAccess';
+import { useVaultFavorites } from '@/hooks/useVaultFavorites';
+import { useVaultFork } from '@/hooks/useVaultFork';
 import { useVaultContent } from '@/contexts/VaultContentContext';
 import { useSharedVaultOperations } from '@/hooks/useSharedVaultOperations';
-import { Lock, Globe, Shield, Users, Clock, User, ExternalLink, Sparkles, Crown, Edit, Eye } from 'lucide-react';
+import { Lock, Globe, Shield, Users, Clock, User, ExternalLink, Sparkles, Crown, Edit, Eye, Heart, GitFork } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -43,6 +45,9 @@ export default function VaultDetail() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { canView, canEdit, isOwner, userRole, accessStatus, vault, error: accessError, refresh } = useVaultAccess(vaultId || '');
+  const { isFavorite, toggleFavorite } = useVaultFavorites();
+  const { forkVault } = useVaultFork();
+  const [forking, setForking] = useState(false);
 
   // Use the context for vault content data
   const {
@@ -784,6 +789,40 @@ export default function VaultDetail() {
     return result;
   };
 
+  const handleFavorite = async () => {
+    if (!user || !currentVault) return;
+
+    const success = await toggleFavorite(currentVault.id);
+    if (success) {
+      toast({
+        title: isFavorite(currentVault.id) ? 'removed_from_favorites' : 'added_to_favorites ❤️',
+      });
+    }
+  };
+
+  const handleFork = async () => {
+    if (!user || !currentVault) {
+      toast({
+        title: 'sign_in_required',
+        description: 'Please sign in to fork this vault.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setForking(true);
+    const result = await forkVault(currentVault);
+    setForking(false);
+
+    if (result.success && result.vaultId) {
+      toast({
+        title: 'vault_forked 🍴',
+        description: 'Successfully forked vault!',
+      });
+      navigate(`/vault/${result.vaultId}`);
+    }
+  };
+
   const handleSaveVault = async (data: Partial<Vault>) => {
     if (!user || !vaultId || !isOwner) return; // Only allow saving if user is the owner
 
@@ -877,7 +916,7 @@ export default function VaultDetail() {
 
   // Show loading state while access is being checked and content is loading
   // Only show "not found" after access check is complete and confirmed inaccessible
-  if (shouldShowLoading) {
+  if (shouldShowLoading || accessStatus === 'loading') {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-6 p-8 max-w-md mx-4">
@@ -898,16 +937,19 @@ export default function VaultDetail() {
     );
   }
 
+  // Only show access-related screens after access check is fully complete
+  // This prevents flickering between states
+  
   // Check if vault exists but access is denied/requestable
   // Only show "not found" after access check is complete and confirmed inaccessible
-  const isVaultAccessible = vault || (accessStatus === 'requestable' && !!vaultId);
+  const isVaultAccessible = vault || accessStatus === 'requestable' || accessStatus === 'pending';
 
-  if (!isVaultAccessible) {
+  if (!isVaultAccessible && accessStatus === 'denied' && finishedInitialLoad) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-6 p-8 max-w-md mx-4">
           <div className="w-20 h-20 rounded-2xl bg-gradient-primary flex items-center justify-center mx-auto shadow-lg">
-            <div className="w-10 h-10 border-3 border-white/50 border-t-white rounded-full animate-spin" />
+            <Lock className="w-10 h-10 text-white" />
           </div>
           <div>
             <h1 className="text-2xl font-bold mb-2 font-mono">vault_not_found</h1>
@@ -915,10 +957,10 @@ export default function VaultDetail() {
               // this_vault_doesnt_exist_or_was_removed
             </p>
             <Button
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate(user ? '/dashboard' : '/')}
               className="font-mono"
             >
-              back_to_dashboard
+              {user ? 'back_to_dashboard' : 'back_to_home'}
             </Button>
           </div>
         </div>
@@ -926,153 +968,141 @@ export default function VaultDetail() {
     );
   }
 
-  // If user doesn't have access to a protected vault, show access request page
-  if (!canView && (vault || accessStatus === 'requestable') &&
-      ((vault && vault.visibility === 'protected') || accessStatus === 'requestable')) {
+  // Show pending access request status (only after loading complete)
+  if (accessStatus === 'pending' && finishedInitialLoad) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-6 p-8 max-w-md mx-4">
+          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-yellow-500/20 to-orange-500/20 flex items-center justify-center mx-auto border-2 border-yellow-500/30">
+            <Clock className="w-10 h-10 text-yellow-500" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold mb-2 font-mono">request_pending</h1>
+            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 mb-4">
+              <p className="font-mono text-sm text-yellow-600 dark:text-yellow-400">
+                <span className="text-yellow-500 font-semibold">warn:</span> your access request is pending approval
+              </p>
+            </div>
+            <p className="text-muted-foreground text-sm mb-6">
+              the vault owner has been notified. you'll get access once they approve your request.
+            </p>
+            <Button
+              variant="outline"
+              onClick={() => navigate(user ? '/dashboard' : '/')}
+              className="font-mono"
+            >
+              {user ? 'back_to_dashboard' : 'back_to_home'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-    // Use the vault from hook if available, otherwise fetch basic info for display
-    const displayVault = vault || {
-      id: vaultId || '',
-      name: 'Protected Vault',
-      description: 'This vault is protected. Request access to view its contents.',
-      visibility: 'protected',
-      updated_at: new Date().toISOString(),
-      user_id: '',
-      color: '#6366f1',
-      created_at: new Date().toISOString()
-    };
+  // If user doesn't have access to a protected vault, show access request page (only after loading complete)
+  if (accessStatus === 'requestable' && vault && finishedInitialLoad) {
 
     return (
-      <div className="min-h-screen bg-background flex">
-        <Sidebar
-          vaults={vaults}
-          sharedVaults={sharedVaults}
-          selectedVaultId={null}
-          onSelectVault={() => {}}
-          onCreateVault={() => {
-            setEditingVault(null);
-            setIsVaultDialogOpen(true);
-          }}
-          onEditVault={(vault) => {
-            setEditingVault(vault);
-            setIsVaultDialogOpen(true);
-          }}
-          isMobileOpen={isMobileSidebarOpen}
-          onMobileClose={() => setIsMobileSidebarOpen(false)}
-          profile={profile}
-          onEditProfile={() => setIsProfileDialogOpen(true)}
-        />
-
-        <div className="flex-1 lg:pl-72 min-w-0 flex items-center justify-center p-4">
-          <Card className="w-full max-w-md mx-auto">
-            <CardHeader className="text-center">
-              <Shield className="w-12 h-12 mx-auto text-orange-500 mb-4" />
-              <CardTitle className="text-xl">Protected Vault</CardTitle>
-            </CardHeader>
-            <CardContent className="text-center">
-              <p className="mb-6 text-muted-foreground">
-                This vault is protected. Request access to view its contents.
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-6 p-8 max-w-md mx-4">
+          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-orange-500/20 to-amber-500/20 flex items-center justify-center mx-auto border-2 border-orange-500/30">
+            <Shield className="w-10 h-10 text-orange-500" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold mb-2 font-mono">{vault.name}</h1>
+            {vault.description && (
+              <p className="text-muted-foreground font-mono text-sm mb-2">
+                // {vault.description.toLowerCase()}
               </p>
-              <div className="space-y-4">
-                <div className="text-left">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h3 className="font-semibold">{displayVault.name}</h3>
-                    {displayVault.visibility !== 'private' && (
-                      <QRCodeDialog vault={displayVault} onVaultUpdate={refresh} />
-                    )}
-                  </div>
-                  {displayVault.description && (
-                    <p className="text-sm text-muted-foreground mb-4">{displayVault.description}</p>
-                  )}
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Clock className="w-3.5 h-3.5" />
-                    <span>Updated {formatTimeAgo(new Date(displayVault.updated_at))}</span>
-                  </div>
-                </div>
+            )}
+            <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3 mb-6">
+              <p className="font-mono text-sm text-orange-600 dark:text-orange-400">
+                <span className="text-orange-500 font-semibold">info:</span> this vault is protected. request access to view its contents.
+              </p>
+            </div>
+            <div className="flex flex-col gap-3">
+              <Button
+                onClick={async () => {
+                  if (!user) {
+                    // Store URL and redirect to auth
+                    localStorage.setItem('redirectAfterLogin', `/vault/${vaultId}`);
+                    navigate('/auth');
+                    return;
+                  }
 
-                <Button
-                  className="w-full"
-                  onClick={async () => {
-                    console.log('[VaultDetail] Request Access button clicked', { user: !!user, displayVault: displayVault?.id });
-                    if (!user) {
-                      console.log('[VaultDetail] User not authenticated');
+                  try {
+                    // Check for existing request
+                    const { data: existingRequest } = await supabase
+                      .from('vault_access_requests')
+                      .select('id, status')
+                      .eq('vault_id', vault.id)
+                      .eq('requester_id', user.id)
+                      .in('status', ['pending', 'approved'])
+                      .maybeSingle();
+
+                    if (existingRequest?.status === 'pending') {
                       toast({
-                        title: "Authentication Required",
-                        description: "Please sign in to request access to this vault.",
-                        variant: "destructive",
+                        title: "Request Already Pending",
+                        description: "Your access request is pending approval.",
                       });
+                      return;
+                    } else if (existingRequest?.status === 'approved') {
+                      toast({
+                        title: "Access Approved",
+                        description: "Refreshing...",
+                      });
+                      refresh();
                       return;
                     }
 
-                    try {
-                      console.log('[VaultDetail] Checking for existing requests');
-                      // Check if user already has a pending request
-                      const { data: existingRequest } = await supabase
-                        .from('vault_access_requests')
-                        .select('id, status')
-                        .eq('vault_id', displayVault.id)
-                        .eq('requester_id', user.id)
-                        .in('status', ['pending', 'approved'])
-                        .maybeSingle();
+                    // Submit new request
+                    const result = await requestVaultAccess(vault.id, user.id, '');
+                    if (result.error) throw result.error;
 
-                      console.log('[VaultDetail] Existing request check result:', existingRequest);
-                      if (existingRequest) {
-                        if (existingRequest.status === 'pending') {
-                          console.log('[VaultDetail] Request already pending');
-                          toast({
-                            title: "Request Already Pending",
-                            description: "Your access request is currently pending approval by the vault owner.",
-                            variant: "default",
-                          });
-                          return;
-                        } else if (existingRequest.status === 'approved') {
-                          console.log('[VaultDetail] Access already approved');
-                          toast({
-                            title: "Access Already Approved",
-                            description: "Your access has already been approved. Refreshing the page...",
-                            variant: "default",
-                          });
-                          refresh();
-                          return;
-                        }
-                      }
+                    toast({
+                      title: "Request Submitted",
+                      description: "The vault owner has been notified.",
+                    });
+                    refresh();
+                  } catch (error) {
+                    console.error('[VaultDetail] Error requesting access:', error);
+                    toast({
+                      title: "Error",
+                      description: (error as Error).message,
+                      variant: "destructive",
+                    });
+                  }
+                }}
+                disabled={hasPendingRequest}
+                className={`w-full font-mono ${hasPendingRequest ? 'bg-muted text-muted-foreground' : 'bg-gradient-primary text-white shadow-lg hover:shadow-xl'} transition-all`}
+              >
+                {!user ? 'sign_in_to_request_access' : hasPendingRequest ? 'request_pending' : 'request_access'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => navigate(user ? '/dashboard' : '/')}
+                className="w-full font-mono"
+              >
+                {user ? 'back_to_dashboard' : 'back_to_home'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-                      console.log('[VaultDetail] Sending new access request');
-                      // Use the helper function from the hook
-                      const result = await requestVaultAccess(displayVault.id, user.id, '');
-
-                      if (result.error) throw result.error;
-
-                      toast({
-                        title: "Access Requested",
-                        description: "Your request has been sent to the vault owner.",
-                      });
-
-                      // Refresh the access status
-                      refresh();
-                    } catch (error) {
-                      console.error('[VaultDetail] Error requesting access:', error);
-                      toast({
-                        title: "Error Requesting Access",
-                        description: (error as Error).message,
-                        variant: "destructive",
-                      });
-                    }
-                  }}
-                >
-                  {hasPendingRequest ? 'Request Pending...' : 'Request Access'}
-                </Button>
-
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => navigate('/dashboard')}
-                >
-                  Back to Dashboard
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+  // At this point, we should have canView === true and a vault to display
+  if (!canView || !vault) {
+    // Fallback - this shouldn't happen but just in case
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-6 p-8">
+          <Lock className="w-12 h-12 mx-auto text-muted-foreground" />
+          <p className="text-muted-foreground font-mono">access_denied</p>
+          <Button variant="outline" onClick={() => navigate(user ? '/dashboard' : '/')}>
+            {user ? 'back_to_dashboard' : 'back_to_home'}
+          </Button>
         </div>
       </div>
     );
@@ -1116,8 +1146,8 @@ export default function VaultDetail() {
       <div className="flex-1 lg:pl-72 min-w-0">
         {/* Vault Header */}
         <div className="border-b bg-card/50 backdrop-blur-xl sticky top-0 z-10">
-          <div className="container mx-auto px-4 py-3">
-            <div className="flex items-center justify-between gap-3">
+          <div className="container mx-auto px-4 py-2">
+            <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 flex-shrink-0">
                 {visibilityBadge}
                 {userRole === 'owner' && (
@@ -1140,30 +1170,59 @@ export default function VaultDetail() {
                 )}
               </div>
 
-              <div className="flex items-center gap-2 text-xs text-muted-foreground flex-shrink-0 font-mono">
-                {lastActivity ? (
-                  <div className="flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5" />
-                    <span>
-                      {lastActivity.userName 
-                        ? `${lastActivity.userName}.${lastActivity.type === 'publication_added' ? 'added_paper()' : 
-                            lastActivity.type === 'publication_updated' ? 'updated_paper()' :
-                            lastActivity.type === 'publication_removed' ? 'removed_paper()' :
-                            lastActivity.type === 'tag_added' ? 'added_tag()' :
-                            lastActivity.type === 'tag_updated' ? 'updated_tag()' :
-                            lastActivity.type === 'tag_removed' ? 'removed_tag()' : 'action()'}`
-                        : `last_sync`
-                      }
-                      {' // '}
-                      {formatTimeAgo(lastActivity.timestamp)}
-                    </span>
-                  </div>
-                ) : currentVault?.updated_at ? (
-                  <div className="flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5" />
-                    <span>last_sync // {formatTimeAgo(new Date(currentVault.updated_at))}</span>
-                  </div>
-                ) : null}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="text-xs text-muted-foreground font-mono hidden lg:block">
+                  {lastActivity ? (
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>
+                        {lastActivity.userName 
+                          ? `${lastActivity.userName}.${lastActivity.type === 'publication_added' ? 'added_paper()' : 
+                              lastActivity.type === 'publication_updated' ? 'updated_paper()' :
+                              lastActivity.type === 'publication_removed' ? 'removed_paper()' :
+                              lastActivity.type === 'tag_added' ? 'added_tag()' :
+                              lastActivity.type === 'tag_updated' ? 'updated_tag()' :
+                              lastActivity.type === 'tag_removed' ? 'removed_tag()' : 'action()'}`
+                          : `last_sync`
+                        }
+                        {' // '}
+                        {formatTimeAgo(lastActivity.timestamp)}
+                      </span>
+                    </div>
+                  ) : currentVault?.updated_at ? (
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>last_sync // {formatTimeAgo(new Date(currentVault.updated_at))}</span>
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Fork and Favorite buttons for non-owners (viewers and editors) */}
+                {!isOwner && currentVault && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleFavorite}
+                      className={`font-mono h-8 ${isFavorite(currentVault.id) ? 'text-rose-500 border-rose-500/30' : ''}`}
+                      title={isFavorite(currentVault.id) ? 'Remove from favorites' : 'Add to favorites'}
+                    >
+                      <Heart className={`w-4 h-4 ${isFavorite(currentVault.id) ? 'fill-rose-500' : ''}`} />
+                      <span className="ml-2 hidden md:inline">{isFavorite(currentVault.id) ? 'favorited' : 'favorite'}</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleFork}
+                      disabled={forking}
+                      className="font-mono h-8"
+                      title="Fork vault"
+                    >
+                      <GitFork className="w-4 h-4" />
+                      <span className="ml-2 hidden md:inline">fork</span>
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -1180,38 +1239,14 @@ export default function VaultDetail() {
           onAddPublication={canEdit ? () => {
             setEditingPublication(null);
             setIsPublicationDialogOpen(true);
-          } : () => {
-            toast({
-              title: 'read_only_vault',
-              description: 'You have viewer permissions. Contact the owner to edit papers.',
-              variant: 'destructive',
-            });
-          }}
-          onImportPublications={canEdit ? () => setIsImportDialogOpen(true) : () => {
-            toast({
-              title: 'read_only_vault',
-              description: 'You have viewer permissions. Contact the owner to import papers.',
-              variant: 'destructive',
-            });
-          }}
+          } : undefined}
+          onImportPublications={canEdit ? () => setIsImportDialogOpen(true) : undefined}
           onEditPublication={canEdit ? (pub) => {
             setEditingPublication(pub);
             currentlyEditingPublicationId.current = pub.id;
             setIsPublicationDialogOpen(true);
-          } : (pub) => {
-            toast({
-              title: 'read_only_vault',
-              description: 'You have viewer permissions. Contact the owner to edit papers.',
-              variant: 'destructive',
-            });
-          }}
-          onDeletePublication={canEdit ? (pub) => setDeleteConfirmation(pub) : (pub) => {
-            toast({
-              title: 'read_only_vault',
-              description: 'You have viewer permissions. Contact the owner to delete papers.',
-              variant: 'destructive',
-            });
-          }}
+          } : undefined}
+          onDeletePublication={canEdit ? (pub) => setDeleteConfirmation(pub) : undefined}
           onExportBibtex={handleExportBibtex}
           onMobileMenuOpen={() => setIsMobileSidebarOpen(true)}
           onOpenGraph={() => setIsGraphOpen(true)}

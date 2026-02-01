@@ -903,19 +903,19 @@ export default function SharedVault() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                    <BookOpen className="w-4 h-4" />
-                    {publications.length}
+                    <Clock className="w-4 h-4" />
+                    last_sync // {formatTimeAgo(vault.updated_at)}
                   </span>
                   {!isOwner && (
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={handleFavorite}
-                      className="font-mono"
+                      className={`font-mono ${isFavorite(vault.id) ? 'text-rose-500 border-rose-500/30' : ''}`}
                     >
-                      <Heart className={`w-4 h-4 ${isFavorite(vault.id) ? 'fill-red-500' : ''}`} />
+                      <Heart className={`w-4 h-4 ${isFavorite(vault.id) ? 'fill-rose-500' : ''}`} />
                       <span className="ml-2">{isFavorite(vault.id) ? 'favorited' : 'favorite'}</span>
                     </Button>
                   )}
@@ -964,66 +964,44 @@ export default function SharedVault() {
             })()}
             relationsCountMap={{}}
             selectedVault={vault}
-            onAddPublication={userPermission === 'editor' ? () => {
-              // Editors can add publications
-            } : () => {
-              toast({
-                title: 'read_only_vault',
-                description: 'You have viewer permissions. Fork it to add papers.',
-                variant: 'destructive',
-              });
-            }}
-            onImportPublications={userPermission === 'editor' ? () => {
-              // Editors can import publications
-            } : () => {
-              toast({
-                title: 'read_only_vault',
-                description: 'You have viewer permissions. Fork it to import papers.',
-                variant: 'destructive',
-              });
-            }}
-            onEditPublication={userPermission === 'editor' ? (pub) => {
+            onAddPublication={isOwner || userPermission === 'editor' ? () => {
+              // Owners and editors can add publications
+            } : undefined}
+            onImportPublications={isOwner || userPermission === 'editor' ? () => {
+              // Owners and editors can import publications
+            } : undefined}
+            onEditPublication={isOwner || userPermission === 'editor' ? (pub) => {
               // Editors can edit publications - would need to implement edit functionality
               toast({
                 title: 'coming_soon',
                 description: 'Edit functionality for shared vaults coming soon.',
                 variant: 'default',
               });
-            } : () => {
-              toast({
-                title: 'read_only_vault',
-                description: 'You have viewer permissions. Fork it to edit papers.',
-                variant: 'destructive',
-              });
-            }}
-            onDeletePublication={userPermission === 'editor' ? () => {
-              // Editors can delete publications
+            } : undefined}
+            onDeletePublication={isOwner || userPermission === 'editor' ? () => {
+              // Owners and editors can delete publications
               toast({
                 title: 'coming_soon',
                 description: 'Delete functionality for shared vaults coming soon.',
                 variant: 'default',
               });
-            } : () => {
-              toast({
-                title: 'read_only_vault',
-                description: 'You have viewer permissions. Fork it to delete papers.',
-                variant: 'destructive',
-              });
-            }}
-            onCreateTag={userPermission === 'editor' ? handleCreateTag : undefined}
+            } : undefined}
+            onCreateTag={isOwner || userPermission === 'editor' ? handleCreateTag : undefined}
+            canEditTags={isOwner || userPermission === 'editor'}
             onExportBibtex={(pubs) => {
               if (pubs.length > 0) {
                 toast({ title: 'export_success ✨' });
               }
             }}
             onMobileMenuOpen={() => setIsMobileSidebarOpen(true)}
-            onOpenGraph={() => {
+            onOpenGraph={userPermission ? () => {
+              // Both editors and viewers can view the relationship graph
               toast({
-                title: 'read_only_vault',
-                description: 'This is a shared vault. Fork it to view graph.',
-                variant: 'destructive',
+                title: 'coming_soon',
+                description: 'Relationship graph for shared vaults coming soon.',
+                variant: 'default',
               });
-            }}
+            } : undefined}
             onEditVault={isOwner ? () => navigate('/dashboard') : undefined}
             onVaultUpdate={() => {}}
           />

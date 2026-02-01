@@ -52,6 +52,7 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
     return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
   };
 
+  // Only use public slug URL for public vaults, always use /vault/{id} for protected
   const shareUrl = vault.visibility === 'public' && vault.public_slug
     ? `${window.location.origin}/public/${vault.public_slug}`
     : `${window.location.origin}/vault/${vault.id}`;

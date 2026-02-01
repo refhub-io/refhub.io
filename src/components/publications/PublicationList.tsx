@@ -251,23 +251,27 @@ export function PublicationList({
             <NotificationDropdown />
 
             {/* Visible buttons on larger screens */}
-            <Button 
-              onClick={onOpenGraph} 
-              variant="outline" 
-              className="h-9 font-mono hidden lg:flex"
-            >
-              <Network className="w-4 h-4 mr-2" />
-              relationship_graph
-            </Button>
+            {onOpenGraph && (
+              <Button 
+                onClick={onOpenGraph} 
+                variant="outline" 
+                className="h-9 font-mono hidden lg:flex"
+              >
+                <Network className="w-4 h-4 mr-2" />
+                relationship_graph
+              </Button>
+            )}
 
-            <Button 
-              onClick={onImportPublications} 
-              variant="outline" 
-              className="h-9 font-mono hidden lg:flex"
-            >
-              <Upload className="w-4 h-4 mr-2" />
-              import_papers
-            </Button>
+            {onImportPublications && (
+              <Button 
+                onClick={onImportPublications} 
+                variant="outline" 
+                className="h-9 font-mono hidden lg:flex"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                import_papers
+              </Button>
+            )}
 
             {selectedVault && onEditVault && (
               <Button 

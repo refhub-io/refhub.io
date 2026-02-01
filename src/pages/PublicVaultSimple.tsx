@@ -94,14 +94,37 @@ export default function PublicVault() {
     
     setLoading(true);
     try {
+      // First, try to find a public vault with this slug
       const { data: vaultData, error } = await supabase
         .from('vaults')
         .select('*')
         .eq('public_slug', slug)
         .eq('visibility', 'public')
-        .single();
+        .maybeSingle();
 
-      if (error || !vaultData) {
+      if (error) {
+        console.error('[PublicVault] Error fetching vault:', error);
+        setNotFound(true);
+        return;
+      }
+
+      // If no public vault found, check if there's a protected/private vault with this slug
+      // and redirect to the proper vault page
+      if (!vaultData) {
+        const { data: anyVault } = await supabase
+          .from('vaults')
+          .select('id, visibility')
+          .eq('public_slug', slug)
+          .maybeSingle();
+
+        if (anyVault) {
+          // Vault exists but is no longer public - redirect to the vault detail page
+          // which will handle proper access control (show request access page for protected)
+          console.log('[PublicVault] Vault is no longer public, redirecting to vault page');
+          navigate(`/vault/${anyVault.id}`, { replace: true });
+          return;
+        }
+        
         setNotFound(true);
         return;
       }
@@ -188,7 +211,7 @@ export default function PublicVault() {
     } finally {
       setLoading(false);
     }
-  }, [slug]);
+  }, [slug, navigate]);
 
   useEffect(() => {
     fetchPublicVault();
@@ -350,7 +373,7 @@ export default function PublicVault() {
         {vault && (
           <div className="border-b border-border bg-card/50 backdrop-blur-xl sticky top-0 z-30">
             <div className="max-w-6xl mx-auto px-4 py-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
                   <Badge variant="secondary" className="gap-1 font-mono text-xs shrink-0">
                     <Globe className="w-3 h-3" />
@@ -363,28 +386,28 @@ export default function PublicVault() {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                    <Clock className="w-4 h-4" />
+                  <span className="hidden lg:flex items-center gap-1 text-xs text-muted-foreground font-mono">
+                    <Clock className="w-3.5 h-3.5" />
                     last_sync // {formatTimeAgo(vault.updated_at)}
                   </span>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={handleFavorite}
-                    className={`font-mono ${vault && isFavorite(vault.id) ? 'text-rose-500 border-rose-500/30' : ''}`}
+                    className={`font-mono h-8 ${vault && isFavorite(vault.id) ? 'text-rose-500 border-rose-500/30' : ''}`}
                   >
                     <Heart className={`w-4 h-4 ${vault && isFavorite(vault.id) ? 'fill-rose-500' : ''}`} />
-                    <span className="ml-2">{vault && isFavorite(vault.id) ? 'favorited' : 'favorite'}</span>
+                    <span className="ml-2 hidden md:inline">{vault && isFavorite(vault.id) ? 'favorited' : 'favorite'}</span>
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={handleFork}
                     disabled={forking}
-                    className="font-mono"
+                    className="font-mono h-8"
                   >
                     <GitFork className="w-4 h-4" />
-                    <span className="ml-2">fork</span>
+                    <span className="ml-2 hidden md:inline">fork</span>
                   </Button>
                 </div>
               </div>
