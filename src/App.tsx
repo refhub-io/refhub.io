@@ -11,7 +11,6 @@ import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
 import PublicVault from "./pages/PublicVault";
 import VaultDetail from "./pages/VaultDetail";
-import VaultSettingsPage from "./pages/VaultSettingsPage";
 import TheCodex from "./pages/TheCodex";
 import OpenGraphPreview from "./pages/OpenGraphPreview";
 import Users from "./pages/Users";
@@ -49,7 +48,6 @@ const App = () => (
               <Route path="/users" element={<Users />} />
               <Route path="/public/:slug" element={<PublicVault />} />
               <Route path="/vault/:id" element={<VaultDetail />} />
-              <Route path="/vault/:id/settings" element={<VaultSettingsPage />} />
               <Route path="/opengraphpreview" element={<OpenGraphPreview />} />
               <Route path="/profile-edit" element={<ProfileEdit />} />
               <Route path="/signup-next-steps" element={<SignupNextSteps />} />
