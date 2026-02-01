@@ -21,7 +21,6 @@ import {
   FolderOpen,
   ArrowRight,
   Eye,
-  Download,
   Clock,
   Filter,
   Scroll,
@@ -43,6 +42,8 @@ import { ThemeToggle } from '@/components/layout/ThemeToggle';
 interface CodexVault extends Vault {
   publication_count?: number;
   stats?: VaultStats;
+  favorites_count?: number;
+  fork_count?: number;
   owner?: {
     display_name: string | null;
     email: string | null;
@@ -98,6 +99,18 @@ export default function TheCodex() {
             .eq('vault_id', vault.id)
             .maybeSingle();
 
+          // Get favorites count
+          const { count: favoritesCount } = await supabase
+            .from('vault_favorites')
+            .select('*', { count: 'exact', head: true })
+            .eq('vault_id', vault.id);
+
+          // Get fork count
+          const { count: forkCount } = await supabase
+            .from('vault_forks')
+            .select('*', { count: 'exact', head: true })
+            .eq('original_vault_id', vault.id);
+
           // Get owner info
           const { data: profileData } = await supabase
             .from('profiles')
@@ -109,6 +122,8 @@ export default function TheCodex() {
             ...vault,
             publication_count: count || 0,
             stats: statsData as VaultStats | undefined,
+            favorites_count: favoritesCount || 0,
+            fork_count: forkCount || 0,
             owner: profileData || undefined,
           } as CodexVault;
         })
@@ -458,8 +473,13 @@ export default function TheCodex() {
                       </div>
                       <span className="text-muted-foreground/30">|</span>
                       <div className="flex items-center gap-1.5">
-                        <Download className="w-3.5 h-3.5" />
-                        <span>{vault.stats?.download_count || 0}</span>
+                        <Heart className="w-3.5 h-3.5" />
+                        <span>{vault.favorites_count || 0}_favorites</span>
+                      </div>
+                      <span className="text-muted-foreground/30">|</span>
+                      <div className="flex items-center gap-1.5">
+                        <GitFork className="w-3.5 h-3.5" />
+                        <span>{vault.fork_count || 0}_forks</span>
                       </div>
                     </div>
 

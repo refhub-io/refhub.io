@@ -92,6 +92,8 @@ export default function VaultDetail() {
   const [publicationVaultsMap, setPublicationVaultsMap] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [favoritesCount, setFavoritesCount] = useState(0);
+  const [forkCount, setForkCount] = useState(0);
 
   const [isPublicationDialogOpen, setIsPublicationDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
@@ -228,6 +230,29 @@ export default function VaultDetail() {
     }
   }, [user, fetchUserVaults, fetchAllPublications]);
 
+  // Fetch favorites and forks count for the current vault
+  useEffect(() => {
+    const fetchVaultStats = async () => {
+      if (!vault) return;
+      
+      const [favRes, forkRes] = await Promise.all([
+        supabase
+          .from('vault_favorites')
+          .select('*', { count: 'exact', head: true })
+          .eq('vault_id', vault.id),
+        supabase
+          .from('vault_forks')
+          .select('*', { count: 'exact', head: true })
+          .eq('original_vault_id', vault.id),
+      ]);
+      
+      setFavoritesCount(favRes.count || 0);
+      setForkCount(forkRes.count || 0);
+    };
+    
+    fetchVaultStats();
+  }, [vault]);
+
   // Check for pending access requests
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
   const processedApprovedRequestRef = useRef<string | null>(null);
@@ -351,6 +376,7 @@ export default function VaultDetail() {
   const refetchVault = async () => {
     if (!user || !vaultId) return;
     refresh(); // Use the refresh function from the hook
+    fetchUserVaults(); // Also refresh sidebar vaults to update visibility icons
   };
 
   const refetchRelations = async () => {
@@ -792,10 +818,13 @@ export default function VaultDetail() {
   const handleFavorite = async () => {
     if (!user || !currentVault) return;
 
+    const wasFavorited = isFavorite(currentVault.id);
     const success = await toggleFavorite(currentVault.id);
     if (success) {
+      // Update count immediately
+      setFavoritesCount(prev => wasFavorited ? Math.max(0, prev - 1) : prev + 1);
       toast({
-        title: isFavorite(currentVault.id) ? 'removed_from_favorites' : 'added_to_favorites ❤️',
+        title: wasFavorited ? 'removed_from_favorites' : 'added_to_favorites ❤️',
       });
     }
   };
@@ -810,16 +839,21 @@ export default function VaultDetail() {
       return;
     }
 
+    if (forking) return; // Prevent double-clicks
+    
     setForking(true);
-    const result = await forkVault(currentVault);
-    setForking(false);
+    try {
+      const newVault = await forkVault(currentVault);
 
-    if (result.success && result.vaultId) {
-      toast({
-        title: 'vault_forked 🍴',
-        description: 'Successfully forked vault!',
-      });
-      navigate(`/vault/${result.vaultId}`);
+      if (newVault) {
+        toast({
+          title: 'vault_forked 🍴',
+          description: 'Successfully forked vault!',
+        });
+        navigate(`/vault/${newVault.id}`);
+      }
+    } finally {
+      setForking(false);
     }
   };
 
@@ -1112,11 +1146,11 @@ export default function VaultDetail() {
   const visibilityBadge = (() => {
     switch (vault.visibility) {
       case 'public':
-        return <Badge variant="outline" className="font-mono text-xs gap-1"><Globe className="w-3 h-3" /> public</Badge>;
+        return <Badge variant="secondary" className="font-mono text-xs gap-1 shrink-0"><Globe className="w-3 h-3" /> public</Badge>;
       case 'protected':
-        return <Badge variant="outline" className="font-mono text-xs gap-1"><Shield className="w-3 h-3" /> protected</Badge>;
+        return <Badge variant="secondary" className="font-mono text-xs gap-1 shrink-0"><Shield className="w-3 h-3" /> protected</Badge>;
       case 'private':
-        return <Badge variant="outline" className="font-mono text-xs gap-1"><Lock className="w-3 h-3" /> private</Badge>;
+        return <Badge variant="secondary" className="font-mono text-xs gap-1 shrink-0"><Lock className="w-3 h-3" /> private</Badge>;
       default:
         return null;
     }
@@ -1145,57 +1179,56 @@ export default function VaultDetail() {
 
       <div className="flex-1 lg:pl-72 min-w-0">
         {/* Vault Header */}
-        <div className="border-b bg-card/50 backdrop-blur-xl sticky top-0 z-10">
-          <div className="container mx-auto px-4 py-2">
+        <div className="border-b border-border bg-card/50 backdrop-blur-xl sticky top-0 z-30">
+          <div className="px-4 py-3">
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center gap-2 min-w-0 flex-wrap">
                 {visibilityBadge}
                 {userRole === 'owner' && (
-                  <Badge variant="outline" className="font-mono text-xs gap-1">
+                  <Badge variant="outline" className="font-mono text-xs gap-1 shrink-0">
                     <Crown className="w-3 h-3" />
                     owner
                   </Badge>
                 )}
                 {userRole === 'editor' && (
-                  <Badge variant="outline" className="font-mono text-xs gap-1">
+                  <Badge variant="outline" className="font-mono text-xs gap-1 shrink-0">
                     <Edit className="w-3 h-3" />
                     editor
                   </Badge>
                 )}
                 {userRole === 'viewer' && (
-                  <Badge variant="outline" className="font-mono text-xs gap-1">
+                  <Badge variant="outline" className="font-mono text-xs gap-1 shrink-0">
                     <Eye className="w-3 h-3" />
                     viewer
                   </Badge>
                 )}
+                <span className="flex items-center gap-1 text-xs text-muted-foreground font-mono">
+                  <Clock className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">
+                    {lastActivity 
+                      ? `${lastActivity.userName || 'someone'}.last_update() // ${formatTimeAgo(lastActivity.timestamp)}`
+                      : currentVault?.updated_at 
+                        ? `last_sync() // ${formatTimeAgo(new Date(currentVault.updated_at))}`
+                        : 'last_sync() // unknown'
+                    }
+                  </span>
+                </span>
               </div>
 
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <div className="text-xs text-muted-foreground font-mono hidden lg:block">
-                  {lastActivity ? (
-                    <div className="flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5" />
-                      <span>
-                        {lastActivity.userName 
-                          ? `${lastActivity.userName}.${lastActivity.type === 'publication_added' ? 'added_paper()' : 
-                              lastActivity.type === 'publication_updated' ? 'updated_paper()' :
-                              lastActivity.type === 'publication_removed' ? 'removed_paper()' :
-                              lastActivity.type === 'tag_added' ? 'added_tag()' :
-                              lastActivity.type === 'tag_updated' ? 'updated_tag()' :
-                              lastActivity.type === 'tag_removed' ? 'removed_tag()' : 'action()'}`
-                          : `last_sync`
-                        }
-                        {' // '}
-                        {formatTimeAgo(lastActivity.timestamp)}
-                      </span>
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Stats for owners */}
+                {isOwner && currentVault && (
+                  <>
+                    <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground font-mono border border-input rounded-md px-3 h-8">
+                      <Heart className="w-3.5 h-3.5" />
+                      <span>{favoritesCount}</span>
                     </div>
-                  ) : currentVault?.updated_at ? (
-                    <div className="flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5" />
-                      <span>last_sync // {formatTimeAgo(new Date(currentVault.updated_at))}</span>
+                    <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground font-mono border border-input rounded-md px-3 h-8">
+                      <GitFork className="w-3.5 h-3.5" />
+                      <span>{forkCount}</span>
                     </div>
-                  ) : null}
-                </div>
+                  </>
+                )}
 
                 {/* Fork and Favorite buttons for non-owners (viewers and editors) */}
                 {!isOwner && currentVault && (

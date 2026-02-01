@@ -51,6 +51,7 @@ interface PublicationListProps {
   publicationVaultsMap?: Record<string, string[]>; // Map of publication IDs to vault IDs
   relationsCountMap: Record<string, number>;
   selectedVault: Vault | null;
+  vaultOwnerName?: string; // Display owner name next to item count
   onAddPublication?: () => void;
   onImportPublications?: () => void;
   onEditPublication?: (pub: Publication) => void;
@@ -74,6 +75,7 @@ export function PublicationList({
   publicationVaultsMap,
   relationsCountMap,
   selectedVault,
+  vaultOwnerName,
   onAddPublication,
   onImportPublications,
   onEditPublication,
@@ -237,6 +239,9 @@ export function PublicationList({
               )}
             </div>
             <p className="text-xs text-muted-foreground mt-1 font-mono truncate leading-none">
+              {vaultOwnerName && (
+                <span>by {vaultOwnerName} • </span>
+              )}
               {filteredPublications.length} item{filteredPublications.length !== 1 ? 's' : ''}
               {persistedFilters.length > 0 && (
                 <span className="text-primary"> • {persistedFilters.length} filter{persistedFilters.length !== 1 ? 's' : ''}</span>

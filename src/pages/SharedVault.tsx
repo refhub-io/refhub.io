@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag } from '@/types/database';
+import { formatTimeAgo } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
@@ -14,7 +15,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   Lock,
-  ShieldCheck,
+  Shield,
+  Globe,
   BookOpen,
   Heart,
   GitFork,
@@ -33,6 +35,10 @@ export default function SharedVault() {
   const navigate = useNavigate();
 
   const [vault, setVault] = useState<Vault | null>(null);
+  const [vaultOwner, setVaultOwner] = useState<{ display_name: string | null; username: string | null } | null>(null);
+  const [lastUpdatedBy, setLastUpdatedBy] = useState<{ display_name: string | null; username: string | null } | null>(null);
+  const [favoritesCount, setFavoritesCount] = useState(0);
+  const [forkCount, setForkCount] = useState(0);
   const [publications, setPublications] = useState<Publication[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [publicationTags, setPublicationTags] = useState<PublicationTag[]>([]);
@@ -79,10 +85,13 @@ export default function SharedVault() {
   const handleFavorite = async () => {
     if (!user || !vault) return;
 
+    const wasFavorited = isFavorite(vault.id);
     const success = await toggleFavorite(vault.id);
     if (success) {
+      // Update count immediately
+      setFavoritesCount(prev => wasFavorited ? Math.max(0, prev - 1) : prev + 1);
       toast({
-        title: isFavorite(vault.id) ? 'removed_from_favorites' : 'added_to_favorites ❤️',
+        title: wasFavorited ? 'removed_from_favorites' : 'added_to_favorites ❤️',
       });
     }
   };
@@ -97,16 +106,20 @@ export default function SharedVault() {
       return;
     }
 
+    if (forking) return; // Prevent double-clicks
+    
     setForking(true);
-    const newVault = await forkVault(vault);
-    setForking(false);
-
-    if (newVault) {
-      navigate('/dashboard');
-      toast({
-        title: 'fork_success',
-        description: 'The vault has been added to your collection.',
-      });
+    try {
+      const newVault = await forkVault(vault);
+      if (newVault) {
+        navigate('/dashboard');
+        toast({
+          title: 'fork_success',
+          description: 'The vault has been added to your collection.',
+        });
+      }
+    } finally {
+      setForking(false);
     }
   };
 
@@ -468,6 +481,49 @@ export default function SharedVault() {
 
       if (vaultData) {
         setVault(vaultData);
+
+        // Fetch vault owner profile
+        const { data: ownerProfile } = await supabase
+          .from('profiles')
+          .select('display_name, username')
+          .eq('user_id', vaultData.user_id)
+          .maybeSingle();
+        
+        setVaultOwner(ownerProfile);
+
+        // Fetch favorites count
+        const { count: favsCount } = await supabase
+          .from('vault_favorites')
+          .select('*', { count: 'exact', head: true })
+          .eq('vault_id', vaultData.id);
+        
+        setFavoritesCount(favsCount || 0);
+
+        // Fetch fork count
+        const { count: forksCount } = await supabase
+          .from('vault_forks')
+          .select('*', { count: 'exact', head: true })
+          .eq('original_vault_id', vaultData.id);
+        
+        setForkCount(forksCount || 0);
+
+        // Fetch last updated by user
+        const { data: lastUpdatedPub } = await supabase
+          .from('vault_publications')
+          .select('updated_by')
+          .eq('vault_id', vaultData.id)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (lastUpdatedPub?.updated_by) {
+          const { data: updaterProfile } = await supabase
+            .from('profiles')
+            .select('display_name, username')
+            .eq('user_id', lastUpdatedPub.updated_by)
+            .maybeSingle();
+          setLastUpdatedBy(updaterProfile);
+        }
       }
 
       const ownerUser = user && vaultData && vaultData.user_id === user.id;
@@ -887,49 +943,75 @@ export default function SharedVault() {
       <div className="flex-1 lg:pl-72 min-w-0">
         {/* Header with vault info and actions */}
         {vault && user && !accessDenied && (
-          <div className="border-b border-border bg-card/50 backdrop-blur-xl">
-            <div className="max-w-6xl mx-auto px-4 py-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <VaultAccessBadge vaultId={vault?.id || ''} />
-                    </div>
-                    {vault.description && (
-                      <p className="text-muted-foreground font-mono text-sm">
-                        // {vault.description}
-                      </p>
-                    )}
-                  </div>
+          <div className="border-b border-border bg-card/50 backdrop-blur-xl sticky top-0 z-30">
+            <div className="px-4 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                  {/* Visibility badge */}
+                  {vault.visibility === 'public' && (
+                    <Badge variant="secondary" className="gap-1 font-mono text-xs shrink-0">
+                      <Globe className="w-3 h-3" />
+                      public
+                    </Badge>
+                  )}
+                  {vault.visibility === 'protected' && (
+                    <Badge variant="secondary" className="gap-1 font-mono text-xs shrink-0">
+                      <Shield className="w-3 h-3" />
+                      protected
+                    </Badge>
+                  )}
+                  {vault.visibility === 'private' && (
+                    <Badge variant="secondary" className="gap-1 font-mono text-xs shrink-0">
+                      <Lock className="w-3 h-3" />
+                      private
+                    </Badge>
+                  )}
+                  <VaultAccessBadge vaultId={vault?.id || ''} />
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground font-mono">
+                    <Clock className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">
+                      {lastUpdatedBy 
+                        ? `${lastUpdatedBy.display_name || lastUpdatedBy.username || 'someone'}.last_update() // ${formatTimeAgo(vault.updated_at)}`
+                        : `last_sync() // ${formatTimeAgo(vault.updated_at)}`
+                      }
+                    </span>
+                  </span>
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                    <Clock className="w-4 h-4" />
-                    last_sync // {formatTimeAgo(vault.updated_at)}
-                  </span>
-                  {!isOwner && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleFavorite}
-                      className={`font-mono ${isFavorite(vault.id) ? 'text-rose-500 border-rose-500/30' : ''}`}
-                    >
-                      <Heart className={`w-4 h-4 ${isFavorite(vault.id) ? 'fill-rose-500' : ''}`} />
-                      <span className="ml-2">{isFavorite(vault.id) ? 'favorited' : 'favorite'}</span>
-                    </Button>
-                  )}
-                  {!isOwner && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleFork}
-                      disabled={forking}
-                      className="font-mono"
-                    >
-                      <GitFork className="w-4 h-4" />
-                      <span className="ml-2">fork</span>
-                    </Button>
+                  {isOwner ? (
+                    <>
+                      <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground font-mono border border-input rounded-md px-3 h-8">
+                        <Heart className="w-3.5 h-3.5" />
+                        <span>{favoritesCount}</span>
+                      </div>
+                      <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground font-mono border border-input rounded-md px-3 h-8">
+                        <GitFork className="w-3.5 h-3.5" />
+                        <span>{forkCount}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleFavorite}
+                        className={`font-mono h-8 ${isFavorite(vault.id) ? 'text-rose-500 border-rose-500/30' : ''}`}
+                      >
+                        <Heart className={`w-4 h-4 ${isFavorite(vault.id) ? 'fill-rose-500' : ''}`} />
+                        <span className="ml-2 hidden md:inline">{isFavorite(vault.id) ? 'favorited' : 'favorite'}</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleFork}
+                        disabled={forking}
+                        className="font-mono h-8"
+                      >
+                        <GitFork className="w-4 h-4" />
+                        <span className="ml-2 hidden md:inline">fork</span>
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -942,6 +1024,7 @@ export default function SharedVault() {
             publications={publications}
             tags={tags}
             vaults={[vault]}
+            vaultOwnerName={vaultOwner?.display_name || vaultOwner?.username || undefined}
             publicationTagsMap={(() => {
               // Create a map from vault publication IDs to tags
               const vaultPubTagsMap: Record<string, string[]> = {};

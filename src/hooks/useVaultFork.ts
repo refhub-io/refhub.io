@@ -18,6 +18,22 @@ export function useVaultFork() {
     }
 
     try {
+      // Check if user already forked this vault
+      const { data: existingFork } = await supabase
+        .from('vault_forks')
+        .select('forked_vault_id')
+        .eq('original_vault_id', originalVault.id)
+        .eq('forked_by', user.id)
+        .maybeSingle();
+
+      if (existingFork) {
+        toast({
+          title: 'already_forked',
+          description: 'You have already forked this vault.',
+        });
+        return null;
+      }
+
       // Create a new vault as a copy
       const { data: newVault, error: vaultError } = await supabase
         .from('vaults')
