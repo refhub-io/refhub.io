@@ -34,24 +34,24 @@ export function HierarchicalTagBadge({
     <Badge
       variant={isSelected ? 'default' : 'outline'}
       className={`
-        cursor-pointer transition-all hover:scale-105 font-mono border-2
-        ${size === 'sm' ? 'text-xs py-0 px-1.5' : ''}
+        cursor-pointer transition-all hover:scale-105 font-mono border
+        ${size === 'sm' ? 'text-xs py-0 px-1.5' : 'text-xs py-0.5 px-2'}
         ${hasParents ? 'pl-1.5' : ''}
       `}
       style={
         isSelected
           ? { backgroundColor: displayColor, borderColor: displayColor }
-          : { borderColor: `${displayColor}60`, color: displayColor }
+          : { borderColor: `${displayColor}40`, color: displayColor, backgroundColor: `${displayColor}10` }
       }
       onClick={onClick}
     >
       {hasParents && (
         <span 
-          className="w-1.5 h-1.5 rounded-full mr-1.5 shrink-0"
+          className="w-1.5 h-1.5 rounded-full mr-1 shrink-0"
           style={{ backgroundColor: parentChain[0].color }}
         />
       )}
-      {tag.name}
+      <span className="opacity-50">#</span>{tag.name}
     </Badge>
   );
 
@@ -67,31 +67,31 @@ export function HierarchicalTagBadge({
         </TooltipTrigger>
         <TooltipContent 
           side="top" 
-          className="bg-popover/95 backdrop-blur-xl border-2 p-2"
+          className="bg-popover/95 backdrop-blur-xl border p-2"
         >
-          <div className="flex items-center gap-1 text-xs">
+          <div className="flex items-center gap-1 text-xs font-mono">
             {parentChain.map((parent, idx) => (
               <span key={parent.id} className="flex items-center gap-1">
                 <span 
-                  className="px-1.5 py-0.5 rounded font-mono"
+                  className="px-1.5 py-0.5 rounded"
                   style={{ 
-                    backgroundColor: `${parent.color}20`,
+                    backgroundColor: `${parent.color}15`,
                     color: parent.color 
                   }}
                 >
-                  {parent.name}
+                  <span className="opacity-50">#</span>{parent.name}
                 </span>
                 <ChevronRight className="w-3 h-3 text-muted-foreground" />
               </span>
             ))}
             <span 
-              className="px-1.5 py-0.5 rounded font-mono font-medium"
+              className="px-1.5 py-0.5 rounded font-medium"
               style={{ 
-                backgroundColor: `${displayColor}20`,
+                backgroundColor: `${displayColor}15`,
                 color: displayColor 
               }}
             >
-              {tag.name}
+              <span className="opacity-50">#</span>{tag.name}
             </span>
           </div>
         </TooltipContent>

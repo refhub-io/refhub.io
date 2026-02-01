@@ -1,5 +1,5 @@
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Publication, Tag, Vault } from '@/types/database';
 import { PublicationCard } from './PublicationCard';
 import { PublicationTable } from './PublicationTable';
@@ -7,10 +7,19 @@ import { FilterBuilder, PublicationFilter, applyFilters } from './FilterBuilder'
 import { ViewSettings, ViewMode, VisibleColumns, DEFAULT_VISIBLE_COLUMNS } from './ViewSettings';
 import { useViewSettingsPersistence } from '@/hooks/useViewSettingsPersistence';
 import { QRCodeDialog } from '@/components/vaults/QRCodeDialog';
+import { TagManager } from '@/components/tags/TagManager';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { NotificationDropdown } from '@/components/notifications/NotificationDropdown';
 import { PersistentFilterBuilder } from './PersistentFilterBuilder';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import {
   Plus,
@@ -24,7 +33,8 @@ import {
   Upload,
   Network,
   Settings,
-  MoreVertical
+  MoreVertical,
+  Tags
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -50,6 +60,10 @@ interface PublicationListProps {
   onOpenGraph: () => void;
   onEditVault?: (vault: Vault) => void;
   onVaultUpdate?: () => void;
+  // Tag management props (optional - only shown if canEdit is true)
+  canEditTags?: boolean;
+  onUpdateTag?: (tagId: string, updates: Partial<Tag>) => Promise<Tag | null>;
+  onDeleteTag?: (tagId: string) => Promise<{ success: boolean; error?: Error }>;
 }
 
 export function PublicationList({
@@ -69,9 +83,24 @@ export function PublicationList({
   onOpenGraph,
   onEditVault,
   onVaultUpdate,
+  canEditTags,
+  onUpdateTag,
+  onDeleteTag,
 }: PublicationListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
+
+  // Calculate tag usage counts
+  const tagUsageCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    Object.values(publicationTagsMap).forEach(tagIds => {
+      tagIds.forEach(tagId => {
+        counts.set(tagId, (counts.get(tagId) || 0) + 1);
+      });
+    });
+    return counts;
+  }, [publicationTagsMap]);
 
   const {
     viewMode: persistedViewMode,
@@ -251,6 +280,38 @@ export function PublicationList({
               </Button>
             )}
 
+            {/* Tag Manager - only shown when canEditTags and handlers are provided */}
+            {canEditTags && onUpdateTag && onDeleteTag && (
+              <Sheet open={isTagManagerOpen} onOpenChange={setIsTagManagerOpen}>
+                <SheetTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    className="h-9 font-mono hidden lg:flex"
+                  >
+                    <Tags className="w-4 h-4 mr-2" />
+                    manage_tags
+                  </Button>
+                </SheetTrigger>
+                <SheetContent className="w-[400px] sm:w-[540px]">
+                  <SheetHeader>
+                    <SheetTitle className="font-mono">manage_tags()</SheetTitle>
+                    <SheetDescription>
+                      Rename or delete tags in this vault. Deleting a tag will untag publications but won't delete them.
+                    </SheetDescription>
+                  </SheetHeader>
+                  <div className="mt-6 max-h-[calc(100vh-200px)] overflow-y-auto">
+                    <TagManager
+                      tags={tags}
+                      canEdit={canEditTags}
+                      onUpdateTag={onUpdateTag}
+                      onDeleteTag={onDeleteTag}
+                      tagUsageCounts={tagUsageCounts}
+                    />
+                  </div>
+                </SheetContent>
+              </Sheet>
+            )}
+
             {/* Mobile dropdown with gradient styling */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -271,6 +332,12 @@ export function PublicationList({
                   <DropdownMenuItem onClick={() => onEditVault(selectedVault)}>
                     <Settings className="w-4 h-4 mr-2" />
                     vault_settings
+                  </DropdownMenuItem>
+                )}
+                {canEditTags && onUpdateTag && onDeleteTag && (
+                  <DropdownMenuItem onClick={() => setIsTagManagerOpen(true)}>
+                    <Tags className="w-4 h-4 mr-2" />
+                    manage_tags
                   </DropdownMenuItem>
                 )}
               </DropdownMenuContent>

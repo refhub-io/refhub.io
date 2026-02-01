@@ -5,6 +5,7 @@ import { useProfile } from '@/hooks/useProfile';
 import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag, PublicationRelation, VaultShare } from '@/types/database';
 import { generateBibtexKey } from '@/lib/bibtex';
+import { formatTimeAgo } from '@/lib/utils';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationDialog } from '@/components/publications/PublicationDialog';
@@ -19,7 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useVaultAccess } from '@/hooks/useVaultAccess';
 import { useVaultContent } from '@/contexts/VaultContentContext';
 import { useSharedVaultOperations } from '@/hooks/useSharedVaultOperations';
-import { Lock, Globe, Shield, Users, Calendar, User, ExternalLink } from 'lucide-react';
+import { Lock, Globe, Shield, Users, Clock, User, ExternalLink, Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -51,6 +52,8 @@ export default function VaultDetail() {
     setVaultShares,
     refreshVaultContent,
     isRealtimeConnected,
+    lastActivity,
+    updateLastActivity,
   } = useVaultContent();
 
   // Use the shared vault operations hook for optimistic updates
@@ -405,6 +408,9 @@ export default function VaultDetail() {
         // Update editingPublication with new data so dialog stays in sync
         if (isAutoSave) {
           setEditingPublication({ ...editingPublication, ...data } as Publication);
+        } else {
+          // Update last activity for the updated publication
+          updateLastActivity('publication_updated', user.id);
         }
 
         if (!isAutoSave) {
@@ -436,6 +442,9 @@ export default function VaultDetail() {
         if (!result.success) {
           throw result.error || new Error('Failed to create publication');
         }
+
+        // Update last activity for the new publication
+        updateLastActivity('publication_added', user.id);
       }
 
       // Only clear editing publication on manual save, not auto-save
@@ -489,6 +498,9 @@ export default function VaultDetail() {
 
         // Don't manually update state here - realtime subscription will handle it
         // This prevents duplicate entries when realtime INSERT fires
+        
+        // Update last activity for bulk import
+        updateLastActivity('publication_added', user.id);
         
         toast({ 
           title: 'papers_imported ✨',
@@ -574,6 +586,9 @@ export default function VaultDetail() {
       // Optimistic update
       setPublications(prev => prev.filter(p => p.id !== deletedId));
       setPublicationTags(prev => prev.filter(pt => pt.publication_id !== deletedId));
+
+      // Update last activity for the deleted publication
+      updateLastActivity('publication_removed', user?.id || null);
 
       toast({ title: 'paper_deleted' });
     } catch (error) {
@@ -729,26 +744,30 @@ export default function VaultDetail() {
   const handleUpdateTag = async (tagId: string, updates: Partial<Tag>): Promise<Tag | null> => {
     if (!user || !canEdit) return null; // Only allow updating tags if user has edit permission
 
-    try {
-      const { data, error } = await supabase
-        .from('tags')
-        .update(updates)
-        .eq('id', tagId)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      setTags(prev => prev.map(tag => tag.id === tagId ? { ...tag, ...data } as Tag : tag));
-      return data as Tag;
-    } catch (error) {
+    const result = await sharedVaultOps.updateTag(tagId, updates);
+    if (result.success && result.tag) {
       toast({
-        title: 'error_updating_tag',
-        description: (error as Error).message,
-        variant: 'destructive',
+        title: 'tag_updated ✨',
+        description: `Tag renamed to "${result.tag.name}"`,
       });
-      return null;
+      return result.tag;
     }
+    return null;
+  };
+
+  const handleDeleteTag = async (tagId: string): Promise<{ success: boolean; error?: Error }> => {
+    if (!user || !canEdit) {
+      return { success: false, error: new Error('Not authorized to delete tags') };
+    }
+
+    const result = await sharedVaultOps.deleteTag(tagId);
+    if (result.success) {
+      toast({
+        title: 'tag_deleted 🗑️',
+        description: 'Tag removed from vault',
+      });
+    }
+    return result;
   };
 
   const handleSaveVault = async (data: Partial<Vault>) => {
@@ -845,14 +864,17 @@ export default function VaultDetail() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-6 p-8 max-w-md mx-4">
-          <div className="w-20 h-20 rounded-2xl bg-gradient-primary flex items-center justify-center mx-auto shadow-lg">
-            <div className="w-10 h-10 border-3 border-white/50 border-t-white rounded-full animate-spin" />
+          <div className="w-20 h-20 rounded-2xl bg-gradient-primary flex items-center justify-center mx-auto shadow-lg relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+            <Sparkles className="w-10 h-10 text-white relative z-10" />
           </div>
-          <div>
-            <h1 className="text-2xl font-bold mb-2 font-mono">initializing_vault...</h1>
-            <p className="text-muted-foreground font-mono text-sm mb-4">
-              // loading_vault_contents
-            </p>
+          <div className="space-y-2">
+            <h1 className="text-xl font-bold font-mono">initializing_vault<span className="animate-pulse">...</span></h1>
+            <div className="text-muted-foreground font-mono text-xs space-y-1">
+              <p className="animate-pulse">// loading_vault_contents</p>
+              <p className="text-muted-foreground/50">// fetching_publications</p>
+              <p className="text-muted-foreground/30">// syncing_tags</p>
+            </div>
           </div>
         </div>
       </div>
@@ -945,8 +967,9 @@ export default function VaultDetail() {
                   {displayVault.description && (
                     <p className="text-sm text-muted-foreground mb-4">{displayVault.description}</p>
                   )}
-                  <div className="flex items-center justify-between text-sm text-muted-foreground">
-                    <span>Updated: {new Date(displayVault.updated_at).toLocaleDateString()}</span>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>Updated {formatTimeAgo(new Date(displayVault.updated_at))}</span>
                   </div>
                 </div>
 
@@ -1042,11 +1065,11 @@ export default function VaultDetail() {
   const visibilityBadge = (() => {
     switch (vault.visibility) {
       case 'public':
-        return <Badge variant="secondary" className="ml-2"><Globe className="w-3 h-3 mr-1" /> Public</Badge>;
+        return <Badge variant="secondary" className="font-mono text-xs"><Globe className="w-3 h-3 mr-1" /> public</Badge>;
       case 'protected':
-        return <Badge variant="default" className="ml-2 bg-orange-500 hover:bg-orange-600"><Shield className="w-3 h-3 mr-1" /> Protected</Badge>;
+        return <Badge variant="default" className="font-mono text-xs bg-orange-500 hover:bg-orange-600"><Shield className="w-3 h-3 mr-1" /> protected</Badge>;
       case 'private':
-        return <Badge variant="destructive" className="ml-2"><Lock className="w-3 h-3 mr-1" /> Private</Badge>;
+        return <Badge variant="destructive" className="font-mono text-xs"><Lock className="w-3 h-3 mr-1" /> private</Badge>;
       default:
         return null;
     }
@@ -1076,28 +1099,43 @@ export default function VaultDetail() {
       <div className="flex-1 lg:pl-72 min-w-0">
         {/* Vault Header */}
         <div className="border-b bg-card/50 backdrop-blur-xl sticky top-0 z-10">
-          <div className="container mx-auto px-4 py-4">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold truncate">{currentVault?.name || 'Loading...'}</h1>
+          <div className="container mx-auto px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 flex-shrink-0">
                 {visibilityBadge}
                 {userRole && (
-                  <Badge variant={userRole === 'owner' ? 'default' : userRole === 'editor' ? 'secondary' : 'outline'}>
-                    {userRole.charAt(0).toUpperCase() + userRole.slice(1)}
+                  <Badge variant={userRole === 'owner' ? 'default' : userRole === 'editor' ? 'secondary' : 'outline'} className="font-mono text-xs">
+                    {userRole}
                   </Badge>
                 )}
-                {currentVault && <QRCodeDialog vault={currentVault} onVaultUpdate={refetchVault} />}
               </div>
 
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Calendar className="w-4 h-4" />
-                <span>Last updated: {currentVault?.updated_at ? new Date(currentVault.updated_at).toLocaleDateString() : 'Loading...'}</span>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground flex-shrink-0 font-mono">
+                {lastActivity ? (
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>
+                      {lastActivity.userName 
+                        ? `${lastActivity.userName}.${lastActivity.type === 'publication_added' ? 'added_paper()' : 
+                            lastActivity.type === 'publication_updated' ? 'updated_paper()' :
+                            lastActivity.type === 'publication_removed' ? 'removed_paper()' :
+                            lastActivity.type === 'tag_added' ? 'added_tag()' :
+                            lastActivity.type === 'tag_updated' ? 'updated_tag()' :
+                            lastActivity.type === 'tag_removed' ? 'removed_tag()' : 'action()'}`
+                        : `last_sync`
+                      }
+                      {' // '}
+                      {formatTimeAgo(lastActivity.timestamp)}
+                    </span>
+                  </div>
+                ) : currentVault?.updated_at ? (
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>last_sync // {formatTimeAgo(new Date(currentVault.updated_at))}</span>
+                  </div>
+                ) : null}
               </div>
             </div>
-
-            {currentVault?.description && (
-              <p className="mt-2 text-muted-foreground text-sm">{currentVault.description}</p>
-            )}
           </div>
         </div>
 
@@ -1152,6 +1190,9 @@ export default function VaultDetail() {
             setIsVaultDialogOpen(true);
           } : undefined}
           onVaultUpdate={refetchVault}
+          canEditTags={canEdit}
+          onUpdateTag={canEdit ? handleUpdateTag : undefined}
+          onDeleteTag={canEdit ? handleDeleteTag : undefined}
         />
       </div>
 

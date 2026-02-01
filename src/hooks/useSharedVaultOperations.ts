@@ -94,6 +94,7 @@ export function useSharedVaultOperations({
       const dataToSave = {
         ...updates,
         updated_at: new Date().toISOString(),
+        updated_by: userId, // Track who made the update
       };
 
       // Remove fields that shouldn't be sent to vault_publications

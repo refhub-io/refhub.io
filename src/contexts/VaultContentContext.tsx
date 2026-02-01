@@ -4,6 +4,16 @@ import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag, PublicationRelation, VaultShare } from '@/types/database';
 import { useVaultAccess } from '@/hooks/useVaultAccess';
 
+// Info about the last activity in the vault
+export type ActivityType = 'publication_added' | 'publication_updated' | 'publication_removed' | 'tag_added' | 'tag_updated' | 'tag_removed';
+
+export interface LastActivityInfo {
+  timestamp: string;
+  userId: string | null;
+  userName: string | null;
+  type: ActivityType;
+}
+
 interface VaultContentContextType {
   currentVault: Vault | null;
   publications: Publication[];
@@ -22,6 +32,9 @@ interface VaultContentContextType {
   // New methods for optimistic updates
   refreshVaultContent: () => Promise<void>;
   isRealtimeConnected: boolean;
+  // Last activity tracking
+  lastActivity: LastActivityInfo | null;
+  updateLastActivity: (type: ActivityType, userId: string | null) => void;
 }
 
 const VaultContentContext = createContext<VaultContentContextType | undefined>(undefined);
@@ -41,13 +54,94 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
+  const [lastActivity, setLastActivity] = useState<LastActivityInfo | null>(null);
 
   const [currentVaultId, setCurrentVaultIdState] = useState<string | null>(null);
   
   // Track pending optimistic updates to avoid overwriting them with realtime data
   const pendingUpdatesRef = useRef<Set<string>>(new Set());
+  
+  // Track when we made a local activity update to prevent realtime from overwriting it
+  const lastLocalActivityUpdateRef = useRef<number>(0);
+  
+  // Cache for user profile names to avoid repeated lookups
+  const userProfileCacheRef = useRef<Map<string, string>>(new Map());
 
   const { canView, refresh } = useVaultAccess(currentVaultId || '');
+  
+  // Helper to get user display name (with caching)
+  const getUserDisplayName = useCallback(async (userId: string): Promise<string | null> => {
+    if (userProfileCacheRef.current.has(userId)) {
+      return userProfileCacheRef.current.get(userId) || null;
+    }
+    
+    try {
+      // Try user_id first (standard lookup)
+      let { data: profile, error } = await supabase
+        .from('profiles')
+        .select('display_name, username')
+        .eq('user_id', userId)
+        .maybeSingle();
+      
+      // If not found by user_id, try by id (some profiles might use id as the user reference)
+      if (!profile && !error) {
+        const result = await supabase
+          .from('profiles')
+          .select('display_name, username')
+          .eq('id', userId)
+          .maybeSingle();
+        profile = result.data;
+        error = result.error;
+      }
+      
+      if (error) {
+        console.warn('[VaultContentContext] Error fetching profile for user:', userId, error);
+        return null;
+      }
+      
+      const displayName = profile?.display_name || profile?.username || null;
+      console.log('[VaultContentContext] getUserDisplayName result:', { userId, displayName, profile });
+      if (displayName) {
+        userProfileCacheRef.current.set(userId, displayName);
+      }
+      return displayName;
+    } catch (err) {
+      console.warn('[VaultContentContext] Failed to fetch user display name:', err);
+      return null;
+    }
+  }, []);
+  
+  // Helper to update last activity
+  // isFromRealtime: if true, this is from a realtime event (may have stale user info)
+  const updateLastActivity = useCallback(async (
+    type: ActivityType,
+    userId: string | null,
+    timestamp?: string,
+    isFromRealtime?: boolean
+  ) => {
+    console.log('[VaultContentContext] updateLastActivity called:', { type, userId, timestamp, isFromRealtime });
+    
+    // Skip realtime updates if we recently made a local update (within 2 seconds)
+    // This prevents realtime from overwriting with incorrect user (e.g., created_by instead of actual updater)
+    if (isFromRealtime && Date.now() - lastLocalActivityUpdateRef.current < 2000) {
+      console.log('[VaultContentContext] Skipping realtime activity update - recent local update');
+      return;
+    }
+    
+    // Track local updates
+    if (!isFromRealtime) {
+      lastLocalActivityUpdateRef.current = Date.now();
+    }
+    
+    const userName = userId ? await getUserDisplayName(userId) : null;
+    console.log('[VaultContentContext] Setting lastActivity with userName:', userName);
+    setLastActivity({
+      timestamp: timestamp || new Date().toISOString(),
+      userId,
+      userName,
+      type,
+    });
+  }, [getUserDisplayName]);
 
   // Helper to convert vault publication to Publication format
   const formatVaultPublication = useCallback((vp: any): Publication => ({
@@ -179,6 +273,21 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       // Convert vault publications to the same format as original publications
       const formattedVaultPublications = (vaultPublications || []).map(formatVaultPublication);
 
+      // Find the most recently updated publication to set initial lastActivity
+      let mostRecentActivity: { timestamp: string; updatedBy: string | null } | null = null;
+      if (vaultPublications && vaultPublications.length > 0) {
+        const sorted = [...vaultPublications].sort((a, b) => 
+          new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+        );
+        const mostRecent = sorted[0];
+        if (mostRecent) {
+          mostRecentActivity = {
+            timestamp: mostRecent.updated_at,
+            updatedBy: mostRecent.updated_by || null, // Use updated_by if available
+          };
+        }
+      }
+
       // Batch state updates to reduce re-renders
       setCurrentVault(vaultData as Vault);
       setPublications(formattedVaultPublications);
@@ -186,6 +295,22 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       setPublicationTags(pubTagsRes.data as PublicationTag[]);
       setPublicationRelations(relationsRes.data as PublicationRelation[]);
       setVaultShares(sharesRes.data as VaultShare[]);
+      
+      // Set initial lastActivity based on most recently updated publication
+      // Now uses updated_by field if available to show who made the last update
+      // Only set if we don't already have a more recent local activity
+      if (mostRecentActivity && Date.now() - lastLocalActivityUpdateRef.current > 2000) {
+        const userName = mostRecentActivity.updatedBy 
+          ? await getUserDisplayName(mostRecentActivity.updatedBy) 
+          : null;
+        setLastActivity({
+          timestamp: mostRecentActivity.timestamp,
+          userId: mostRecentActivity.updatedBy,
+          userName,
+          type: 'publication_updated', // We don't know the actual type, default to updated
+        });
+      }
+      
       console.log('[VaultContentContext] Completed fetch, all state updated');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load vault content');
@@ -256,6 +381,8 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
               }
               return [formatVaultPublication(newRecord), ...prev];
             });
+            // Track activity (from realtime)
+            updateLastActivity('publication_added', newRecord.created_by, newRecord.created_at, true);
           } else if (eventType === 'UPDATE') {
             // Update existing publication
             setPublications(prev =>
@@ -265,6 +392,10 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
                   : pub
               )
             );
+            // Track activity - use updated_by if available (new field), fallback to created_by
+            const updaterId = newRecord.updated_by || newRecord.created_by;
+            console.log('[VaultContentContext] UPDATE event - updated_by:', newRecord.updated_by, 'created_by:', newRecord.created_by, 'using:', updaterId);
+            updateLastActivity('publication_updated', updaterId, newRecord.updated_at, true);
           } else if (eventType === 'DELETE') {
             // Remove publication
             const deletedId = oldRecord?.id;
@@ -274,6 +405,9 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
               setPublicationTags(prev => prev.filter(pt => 
                 pt.vault_publication_id !== deletedId && pt.publication_id !== deletedId
               ));
+              // Track activity - use updated_by if available for who deleted it
+              const deleterId = oldRecord.updated_by || oldRecord.created_by;
+              updateLastActivity('publication_removed', deleterId, undefined, true);
             }
           }
         }
@@ -306,12 +440,16 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
               }
               return [...prev, newRecord as Tag];
             });
+            // Track activity
+            updateLastActivity('tag_added', newRecord.user_id, newRecord.created_at, true);
           } else if (eventType === 'UPDATE') {
             setTags(prev =>
               prev.map(tag =>
                 tag.id === newRecord.id ? { ...tag, ...newRecord } : tag
               )
             );
+            // Track activity
+            updateLastActivity('tag_updated', newRecord.user_id, newRecord.updated_at, true);
           } else if (eventType === 'DELETE') {
             const deletedId = oldRecord?.id;
             if (deletedId) {
@@ -494,6 +632,8 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         setVaultShares,
         refreshVaultContent,
         isRealtimeConnected,
+        lastActivity,
+        updateLastActivity,
       }}
     >
       {children}
