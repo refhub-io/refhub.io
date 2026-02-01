@@ -39,6 +39,54 @@ export default function PublicVault() {
   const [notFound, setNotFound] = useState(false);
   const [forking, setForking] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [userVaults, setUserVaults] = useState<Vault[]>([]);
+  const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
+
+  // Fetch user's own vaults and shared vaults
+  const fetchUserVaults = useCallback(async () => {
+    if (!user) {
+      setUserVaults([]);
+      setSharedVaults([]);
+      return;
+    }
+
+    try {
+      // Fetch owned vaults
+      const { data: ownedVaults, error: ownedError } = await supabase
+        .from('vaults')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('name');
+
+      if (ownedError) throw ownedError;
+
+      // Fetch shared vaults
+      const { data: sharedVaultIds, error: sharedError } = await supabase
+        .from('vault_shares')
+        .select('vault_id')
+        .or(`shared_with_email.eq.${user.email},shared_with_user_id.eq.${user.id}`);
+
+      if (sharedError) throw sharedError;
+
+      if (sharedVaultIds && sharedVaultIds.length > 0) {
+        const vaultIds = sharedVaultIds.map(vs => vs.vault_id);
+        const { data: sharedVaultsData, error: vaultsError } = await supabase
+          .from('vaults')
+          .select('*')
+          .in('id', vaultIds)
+          .order('name');
+
+        if (vaultsError) throw vaultsError;
+        setSharedVaults(sharedVaultsData || []);
+      } else {
+        setSharedVaults([]);
+      }
+
+      setUserVaults(ownedVaults || []);
+    } catch (error) {
+      console.error('Error fetching user vaults:', error);
+    }
+  }, [user]);
 
   // Fetch public vault
   const fetchPublicVault = useCallback(async () => {
@@ -145,6 +193,10 @@ export default function PublicVault() {
   useEffect(() => {
     fetchPublicVault();
   }, [fetchPublicVault]);
+
+  useEffect(() => {
+    fetchUserVaults();
+  }, [fetchUserVaults]);
 
   const handleFavorite = async () => {
     if (!user) {
@@ -256,15 +308,21 @@ export default function PublicVault() {
     <div className="min-h-screen bg-background flex">
       {user ? (
         <Sidebar
-          vaults={[]}
-          sharedVaults={vault ? [vault] : []}
-          selectedVaultId={vault?.id || null}
-          onSelectVault={() => {}}
-          onCreateVault={() => {}}
+          vaults={userVaults}
+          sharedVaults={sharedVaults}
+          selectedVaultId={null}
+          onSelectVault={(vaultId) => {
+            if (vaultId) {
+              navigate(`/vault/${vaultId}`);
+            } else {
+              navigate('/dashboard');
+            }
+          }}
+          onCreateVault={() => navigate('/dashboard')}
           isMobileOpen={isMobileSidebarOpen}
           onMobileClose={() => setIsMobileSidebarOpen(false)}
           profile={profile}
-          onEditProfile={() => {}}
+          onEditProfile={() => navigate('/profile/edit')}
         />
       ) : (
         // Show logo only for non-logged in users
@@ -290,7 +348,7 @@ export default function PublicVault() {
       <div className={`flex-1 ${user ? 'lg:pl-72' : 'pt-20'} min-w-0`}>
         {/* Header with vault info and actions */}
         {vault && (
-          <div className="border-b border-border bg-card/50 backdrop-blur-xl sticky top-0 z-40">
+          <div className="border-b border-border bg-card/50 backdrop-blur-xl sticky top-0 z-30">
             <div className="max-w-6xl mx-auto px-4 py-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 min-w-0">

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { 
   FolderOpen, 
@@ -12,6 +12,7 @@ import {
   Globe,
   Scroll,
   Lock,
+  Shield,
   Users,
   Settings,
   MoreVertical,
@@ -65,6 +66,20 @@ export function Sidebar({
     navigate('/auth');
   };
 
+  // Close sidebar on Escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isMobileOpen) {
+        onMobileClose();
+      }
+    };
+
+    if (isMobileOpen) {
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [isMobileOpen, onMobileClose]);
+
   const isCodexActive = location.pathname === '/codex';
   const isUsersActive = location.pathname === '/users';
   const isDashboardActive = location.pathname === '/dashboard' || (location.pathname === '/' && selectedVaultId === null);
@@ -74,8 +89,10 @@ export function Sidebar({
       {/* Mobile overlay */}
       {isMobileOpen && (
         <div 
-          className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 lg:hidden"
+          className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 lg:hidden cursor-pointer"
           onClick={onMobileClose}
+          role="button"
+          aria-label="Close sidebar"
         />
       )}
 
@@ -101,8 +118,9 @@ export function Sidebar({
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden text-sidebar-foreground hover:bg-sidebar-accent"
+            className="lg:hidden text-sidebar-foreground hover:bg-sidebar-accent min-w-[40px] min-h-[40px]"
             onClick={onMobileClose}
+            aria-label="Close sidebar"
           >
             <X className="w-5 h-5" />
           </Button>
@@ -211,11 +229,11 @@ export function Sidebar({
                       />
                       <span className="truncate font-medium">{vault.name}</span>
                       {(vault as any).visibility === 'public' ? (
-                        <Globe className="w-3 h-3 text-neon shrink-0" />
+                        <Globe className="w-3 h-3 text-muted-foreground shrink-0" />
                       ) : (vault as any).visibility === 'protected' ? (
-                        <Users className="w-3 h-3 text-blue-400 shrink-0" />
+                        <Shield className="w-3 h-3 text-muted-foreground shrink-0" />
                       ) : (
-                        <Lock className="w-3 h-3 text-muted-foreground/50 shrink-0" />
+                        <Lock className="w-3 h-3 text-muted-foreground shrink-0" />
                       )}
                     </button>
                     
@@ -332,7 +350,7 @@ export function Sidebar({
                         style={{ backgroundColor: vault.color || '#6366f1' }}
                       />
                       <span className="truncate font-medium">{vault.name}</span>
-                      <Globe className="w-3 h-3 text-neon shrink-0" />
+                      <Globe className="w-3 h-3 text-muted-foreground shrink-0" />
                     </Link>
                   ))}
                 </div>

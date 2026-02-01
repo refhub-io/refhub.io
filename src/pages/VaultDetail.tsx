@@ -20,7 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useVaultAccess } from '@/hooks/useVaultAccess';
 import { useVaultContent } from '@/contexts/VaultContentContext';
 import { useSharedVaultOperations } from '@/hooks/useSharedVaultOperations';
-import { Lock, Globe, Shield, Users, Clock, User, ExternalLink, Sparkles } from 'lucide-react';
+import { Lock, Globe, Shield, Users, Clock, User, ExternalLink, Sparkles, Crown, Edit, Eye } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -1082,11 +1082,11 @@ export default function VaultDetail() {
   const visibilityBadge = (() => {
     switch (vault.visibility) {
       case 'public':
-        return <Badge variant="secondary" className="font-mono text-xs"><Globe className="w-3 h-3 mr-1" /> public</Badge>;
+        return <Badge variant="outline" className="font-mono text-xs gap-1"><Globe className="w-3 h-3" /> public</Badge>;
       case 'protected':
-        return <Badge variant="default" className="font-mono text-xs bg-orange-500 hover:bg-orange-600"><Shield className="w-3 h-3 mr-1" /> protected</Badge>;
+        return <Badge variant="outline" className="font-mono text-xs gap-1"><Shield className="w-3 h-3" /> protected</Badge>;
       case 'private':
-        return <Badge variant="destructive" className="font-mono text-xs"><Lock className="w-3 h-3 mr-1" /> private</Badge>;
+        return <Badge variant="outline" className="font-mono text-xs gap-1"><Lock className="w-3 h-3" /> private</Badge>;
       default:
         return null;
     }
@@ -1120,9 +1120,22 @@ export default function VaultDetail() {
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 flex-shrink-0">
                 {visibilityBadge}
-                {userRole && (
-                  <Badge variant={userRole === 'owner' ? 'default' : userRole === 'editor' ? 'secondary' : 'outline'} className="font-mono text-xs">
-                    {userRole}
+                {userRole === 'owner' && (
+                  <Badge variant="outline" className="font-mono text-xs gap-1">
+                    <Crown className="w-3 h-3" />
+                    owner
+                  </Badge>
+                )}
+                {userRole === 'editor' && (
+                  <Badge variant="outline" className="font-mono text-xs gap-1">
+                    <Edit className="w-3 h-3" />
+                    editor
+                  </Badge>
+                )}
+                {userRole === 'viewer' && (
+                  <Badge variant="outline" className="font-mono text-xs gap-1">
+                    <Eye className="w-3 h-3" />
+                    viewer
                   </Badge>
                 )}
               </div>

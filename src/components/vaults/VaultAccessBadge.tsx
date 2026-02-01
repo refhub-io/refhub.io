@@ -39,19 +39,19 @@ const VaultAccessBadge: React.FC<VaultAccessBadgeProps> = ({ vaultId }) => {
   return (
     <div className="flex items-center gap-2">
       {permission === 'owner' && (
-        <Badge className="gap-1 font-mono text-xs border-yellow-500/50 bg-yellow-500/10 text-yellow-600">
+        <Badge variant="outline" className="gap-1 font-mono text-xs">
           <Crown className="w-3 h-3" />
           owner
         </Badge>
       )}
       {permission === 'editor' && (
-        <Badge className="gap-1 font-mono text-xs border-green-500/50 bg-green-500/10 text-green-600">
+        <Badge variant="outline" className="gap-1 font-mono text-xs">
           <Edit className="w-3 h-3" />
           editor
         </Badge>
       )}
       {permission === 'viewer' && (
-        <Badge className="gap-1 font-mono text-xs border-blue-500/50 bg-blue-500/10 text-blue-500">
+        <Badge variant="outline" className="gap-1 font-mono text-xs">
           <Eye className="w-3 h-3" />
           viewer
         </Badge>
