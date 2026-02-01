@@ -13,7 +13,7 @@ export function BugReportButton() {
         variant="outline" 
         className="gap-1 font-mono text-xs bg-background/95 backdrop-blur-sm border-primary/30 text-primary animate-pulse"
       >
-        <span className="text-[10px]">v0.1.0-beta</span>
+        <span className="text-[10px]">v1.1.0-beta</span>
       </Badge>
       <Button
         onClick={handleBugReport}
