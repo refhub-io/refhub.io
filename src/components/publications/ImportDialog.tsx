@@ -32,7 +32,7 @@ interface ImportDialogProps {
   vaults: Vault[];
   allPublications: Publication[];
   currentVaultId: string | null;
-  onImport: (publications: Partial<Publication>[]) => Promise<void>;
+  onImport: (publications: Partial<Publication>[], targetVaultId?: string | null) => Promise<string[]>;
   onAddToVaults: (publicationId: string, vaultIds: string[]) => Promise<void>;
 }
 
@@ -257,25 +257,17 @@ export function ImportDialog({
 
     setImporting(true);
     try {
-      // If a target vault is selected, we'll handle the import differently
-      // We need to import to user's library first, then add to the specific vault
-      if (targetVaultId) {
-        // Import to user's library first using onImport
-        await onImport(toImport);
-
-        // The onImport function in VaultDetail automatically adds to the current vault
-        // If a different target vault was selected, we need to add to that vault instead
-        // However, we don't have access to the IDs of the newly created publications here
-        // The proper solution would be to modify the parent component to handle this
-        // For now, we'll just notify the user that the import happened to the current vault
-        // and suggest they move the papers if needed
-        toast({
-          title: `imported_${toImport.length}_papers_to_current_vault ✨`,
-          description: "Note: Papers were added to the current vault. Use paper actions to add to other vaults."
+      // Import publications and optionally add to target vault
+      // The parent function handles adding to the specified vault
+      const insertedIds = await onImport(toImport, targetVaultId);
+      
+      if (targetVaultId && insertedIds.length > 0) {
+        const targetVault = vaults.find(v => v.id === targetVaultId);
+        toast({ 
+          title: `imported_${insertedIds.length}_papers ✨`,
+          description: targetVault ? `Added to ${targetVault.name}` : undefined
         });
       } else {
-        // Import to user's library only
-        await onImport(toImport);
         toast({ title: `imported_${toImport.length}_papers ✨` });
       }
 

@@ -39,6 +39,7 @@ interface PublicationCardProps {
   relationsCount?: number;
   isSelected: boolean;
   visibleColumns?: VisibleColumns;
+  isVaultContext?: boolean; // If true, shows "remove from vault" instead of "delete"
   onToggleSelect: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -54,6 +55,7 @@ export function PublicationCard({
   relationsCount = 0,
   isSelected,
   visibleColumns,
+  isVaultContext = false,
   onToggleSelect,
   onEdit,
   onDelete,
@@ -121,6 +123,9 @@ export function PublicationCard({
                     {show.year && publication.year && (
                       <span className="text-neon-green"> • {publication.year}</span>
                     )}
+                    {show.type && publication.publication_type && (
+                      <span className="text-cyber-blue"> • {publication.publication_type}</span>
+                    )}
                   </p>
                 )}
               </div>
@@ -138,11 +143,11 @@ export function PublicationCard({
                 <DropdownMenuContent align="end" className="w-48">
                   <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }}>
                     <Edit className="w-4 h-4 mr-2" />
-                    Edit
+                    edit
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onExportBibtex(); }}>
                     <Download className="w-4 h-4 mr-2" />
-                    Export BibTeX
+                    export bibtex
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
@@ -150,7 +155,7 @@ export function PublicationCard({
                     className="text-destructive focus:text-destructive"
                   >
                     <Trash2 className="w-4 h-4 mr-2" />
-                    Delete
+                    {isVaultContext ? 'remove from vault' : 'delete'}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Publication, Vault, Tag, PUBLICATION_TYPES } from '@/types/database';
+import { UnsavedChangesDialog } from '@/components/ui/unsaved-changes-dialog';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -108,7 +110,8 @@ export function PublicationDialog({
   const [notesTab, setNotesTab] = useState<'write' | 'preview'>('write');
   const [notesFullscreen, setNotesFullscreen] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState<Publication | null>(null);
-  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const [pendingClose, setPendingClose] = useState(false);
   const duplicateCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadRef = useRef(true);
   const publicationRef = useRef(publication);
@@ -334,12 +337,13 @@ export function PublicationDialog({
     };
   }, [formData.title, formData.doi, formData, publication, allPublications, checkForDuplicate]);
 
-  // Reset auto-save flag when dialog opens
+  // Reset state when dialog opens
   useEffect(() => {
     publicationRef.current = publication;
     openRef.current = open;
-    if (open && publication) {
+    if (open) {
       isInitialLoadRef.current = true;
+      setPendingClose(false);
     }
   }, [open, publication]);
 
@@ -350,70 +354,22 @@ export function PublicationDialog({
     selectedTagsRef.current = selectedTags;
   }, [formData, authorsInput, selectedTags]);
 
-  const editorInputRef = useRef(editorInput);
-  const keywordsInputRef = useRef(keywordsInput);
+  // Compute isDirty based on modifiedFields - only true if user has actually modified something
+  const isDirty = modifiedFields.size > 0;
 
+  // Handle beforeunload when dialog is open and dirty
   useEffect(() => {
-    editorInputRef.current = editorInput;
-    keywordsInputRef.current = keywordsInput;
-  }, [editorInput, keywordsInput]);
-
-  // Auto-save for edit mode only (debounced) - only triggers on formData changes
-  useEffect(() => {
-    if (!publicationRef.current || !openRef.current) return; // Only auto-save when editing an existing publication
-    
-    // Skip auto-save on initial load
-    if (isInitialLoadRef.current) {
-      isInitialLoadRef.current = false;
-      return;
-    }
-    
-    if (autoSaveTimeoutRef.current) {
-      clearTimeout(autoSaveTimeoutRef.current);
-    }
-
-    autoSaveTimeoutRef.current = setTimeout(async () => {
-      // Get latest values from refs
-      const currentFormData = formDataRef.current;
-      const currentAuthorsInput = authorsInputRef.current;
-      const currentSelectedTags = selectedTagsRef.current;
-      const currentEditorInput = editorInputRef.current;
-      const currentKeywordsInput = keywordsInputRef.current;
-      
-      const authors = currentAuthorsInput
-        .split(',')
-        .map((a) => a.trim())
-        .filter((a) => a.length > 0);
-
-      const editor = currentEditorInput
-        .split(',')
-        .map((e) => e.trim())
-        .filter((e) => e.length > 0);
-
-      const keywords = currentKeywordsInput
-        .split(',')
-        .map((k) => k.trim())
-        .filter((k) => k.length > 0);
-      
-      if (currentFormData.title && authors.length > 0) {
-        setSaving(true);
-        try {
-          await onSave({ ...currentFormData, authors, editor, keywords }, currentSelectedTags, true); // true = isAutoSave
-        } catch (error) {
-          /* intentionally empty */
-        } finally {
-          setSaving(false);
-        }
-      }
-    }, 3000); // 3 second debounce
-
-    return () => {
-      if (autoSaveTimeoutRef.current) {
-        clearTimeout(autoSaveTimeoutRef.current);
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (open && modifiedFields.size > 0) {
+        e.preventDefault();
+        e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+        return e.returnValue;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData, authorsInput, selectedTags]);
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [open, modifiedFields.size]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -437,11 +393,69 @@ export function PublicationDialog({
     try {
       // Pass vaultIds only for new publications (when publication is null)
       await onSave({ ...formData, authors, editor, keywords }, selectedTags, publication ? undefined : selectedVaultIds);
+      setModifiedFields(new Set()); // Clear dirty state
       onOpenChange(false);
     } finally {
       setSaving(false);
     }
   };
+
+  // Handle dialog close with unsaved changes check
+  // Dialog calls onOpenChange(false) when user clicks X or outside
+  const handleDialogClose = useCallback((open: boolean) => {
+    if (open) {
+      // Dialog is opening, just pass through
+      onOpenChange(true);
+      return;
+    }
+    
+    // Dialog wants to close
+    if (modifiedFields.size > 0) {
+      setPendingClose(true);
+      setShowUnsavedDialog(true);
+    } else {
+      onOpenChange(false);
+    }
+  }, [modifiedFields.size, onOpenChange]);
+
+  // Handle discard changes
+  const handleDiscardChanges = useCallback(() => {
+    setShowUnsavedDialog(false);
+    setModifiedFields(new Set());
+    setPendingClose(false);
+    onOpenChange(false);
+  }, [onOpenChange]);
+
+  // Handle save and close
+  const handleSaveAndClose = useCallback(async () => {
+    setSaving(true);
+    try {
+      const authors = authorsInput
+        .split(',')
+        .map((a) => a.trim())
+        .filter((a) => a.length > 0);
+
+      const editor = editorInput
+        .split(',')
+        .map((e) => e.trim())
+        .filter((e) => e.length > 0);
+
+      const keywords = keywordsInput
+        .split(',')
+        .map((k) => k.trim())
+        .filter((k) => k.length > 0);
+
+      await onSave({ ...formData, authors, editor, keywords }, selectedTags, publication ? undefined : selectedVaultIds);
+      setModifiedFields(new Set()); // Clear dirty state
+      setShowUnsavedDialog(false);
+      setPendingClose(false);
+      onOpenChange(false);
+    } catch (error) {
+      // Keep dialog open on error
+    } finally {
+      setSaving(false);
+    }
+  }, [authorsInput, editorInput, keywordsInput, formData, selectedTags, selectedVaultIds, publication, onSave, onOpenChange]);
 
   const toggleTag = (tagId: string) => {
     setSelectedTags(
@@ -452,8 +466,21 @@ export function PublicationDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-screen max-w-none box-border h-screen sm:w-[95vw] sm:max-w-3xl sm:h-auto sm:max-h-[90vh] m-0 p-0 border-0 sm:border-2 bg-card/95 backdrop-blur-xl overflow-x-hidden overflow-y-auto flex flex-col">
+    <>
+      <UnsavedChangesDialog
+        open={showUnsavedDialog}
+        onDiscard={handleDiscardChanges}
+        onCancel={() => {
+          setShowUnsavedDialog(false);
+          setPendingClose(false);
+        }}
+        onSave={handleSaveAndClose}
+        saving={saving}
+        title="Unsaved Changes"
+        description="You have unsaved changes to this paper. Would you like to save them before closing?"
+      />
+      <Dialog open={open} onOpenChange={handleDialogClose}>
+        <DialogContent className="w-screen max-w-none box-border h-screen sm:w-[95vw] sm:max-w-3xl sm:h-auto sm:max-h-[90vh] m-0 p-0 border-0 sm:border-2 bg-card/95 backdrop-blur-xl overflow-x-hidden overflow-y-auto flex flex-col">
         <DialogHeader className="px-2 py-3 sm:p-6 pb-2 sm:pb-0">
           <DialogTitle className="text-lg sm:text-2xl font-bold font-mono pr-2 sm:pr-0">
             {publication ? (
@@ -1110,41 +1137,45 @@ export function PublicationDialog({
               </Tabs>
             </div>
 
-            {/* Fullscreen Notes Overlay */}
-            {notesFullscreen && (
-              <div className="fixed inset-0 z-[100] bg-background">
+            {/* Fullscreen Notes Overlay - Portal to escape dialog transforms */}
+            {notesFullscreen && createPortal(
+              <div className="fixed inset-0 z-[9999] bg-background pointer-events-auto" style={{ margin: 0, padding: 0, top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100vh' }}>
                 <div className="h-full flex flex-col">
                   {/* Header */}
-                  <div className="border-b border-border bg-card/50 backdrop-blur-xl">
-                    <div className="px-6 py-4 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <h2 className="text-lg font-bold font-mono">notes_editor</h2>
-                        <span className="text-xs text-muted-foreground font-mono">(markdown_supported)</span>
+                  <div className="border-b border-border bg-card/50 backdrop-blur-xl shrink-0">
+                    <div className="px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
+                      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                        <h2 className="text-base sm:text-lg font-bold font-mono truncate">notes_editor</h2>
+                        <span className="text-xs text-muted-foreground font-mono hidden sm:inline">(markdown_supported)</span>
                       </div>
                       <Button
                         type="button"
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
-                        onClick={() => setNotesFullscreen(false)}
-                        className="font-mono"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setNotesFullscreen(false);
+                        }}
+                        className="font-mono shrink-0 relative z-10"
                       >
-                        <Minimize className="w-4 h-4 mr-2" />
-                        exit_fullscreen
+                        <Minimize className="w-4 h-4 sm:mr-2" />
+                        <span className="hidden sm:inline">exit_fullscreen</span>
                       </Button>
                     </div>
                   </div>
 
                   {/* Tabs and Content */}
-                  <div className="flex-1 overflow-hidden">
+                  <div className="flex-1 overflow-hidden min-h-0">
                     <Tabs value={notesTab} onValueChange={(v) => setNotesTab(v as 'write' | 'preview')} className="h-full flex flex-col">
-                      <div className="border-b border-border px-6 pt-4">
+                      <div className="border-b border-border px-4 sm:px-6 pt-3 sm:pt-4 shrink-0">
                         <TabsList className="grid w-full max-w-md grid-cols-2">
-                          <TabsTrigger value="write" className="font-mono">write</TabsTrigger>
-                          <TabsTrigger value="preview" className="font-mono">preview</TabsTrigger>
+                          <TabsTrigger value="write" className="font-mono text-xs sm:text-sm">write</TabsTrigger>
+                          <TabsTrigger value="preview" className="font-mono text-xs sm:text-sm">preview</TabsTrigger>
                         </TabsList>
                       </div>
                       
-                      <TabsContent value="write" className="flex-1 px-6 py-4 overflow-hidden mt-0">
+                      <TabsContent value="write" className="flex-1 px-4 sm:px-6 py-3 sm:py-4 overflow-hidden mt-0 min-h-0">
                         <Textarea
                           value={formData.notes}
                           onChange={(e) => {
@@ -1156,7 +1187,7 @@ export function PublicationDialog({
                         />
                       </TabsContent>
                       
-                      <TabsContent value="preview" className="flex-1 px-6 py-4 overflow-auto mt-0">
+                      <TabsContent value="preview" className="flex-1 px-4 sm:px-6 py-3 sm:py-4 overflow-auto mt-0 min-h-0">
                         {formData.notes ? (
                           <div className="prose prose-sm dark:prose-invert max-w-4xl mx-auto break-words prose-ul:list-disc prose-ol:list-decimal prose-li:ml-4 prose-ul:space-y-1 prose-ol:space-y-1 prose-headings:font-bold prose-code:bg-muted prose-code:px-1 prose-code:rounded prose-pre:bg-muted prose-pre:p-3 prose-blockquote:border-l-4 prose-blockquote:border-primary prose-blockquote:pl-4 prose-table:border prose-th:border prose-td:border prose-th:p-2 prose-td:p-2">
                             <ReactMarkdown 
@@ -1184,7 +1215,8 @@ export function PublicationDialog({
                     </Tabs>
                   </div>
                 </div>
-              </div>
+              </div>,
+              document.body
             )}
 
             {/* BibTeX Key */}
@@ -1216,7 +1248,7 @@ export function PublicationDialog({
 
             {/* Actions */}
             <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-3 sm:pt-4 border-t border-border w-full box-border">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="font-mono w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10">
+              <Button type="button" variant="outline" onClick={() => handleDialogClose(false)} className="font-mono w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10">
                 cancel
               </Button>
               <Button type="submit" variant="glow" disabled={saving} className="font-mono w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10">
@@ -1227,5 +1259,6 @@ export function PublicationDialog({
         </ScrollArea>
       </DialogContent>
     </Dialog>
+    </>
   );
 }

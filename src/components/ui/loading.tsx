@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
+import { Check, Loader2 } from 'lucide-react';
 
 interface LoadingSpinnerProps {
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
@@ -25,6 +26,20 @@ interface FullScreenLoaderProps {
   variant?: 'terminal' | 'minimal' | 'centered';
   progress?: boolean;
   className?: string;
+}
+
+export interface LoadingPhase {
+  id: string;
+  label: string;
+  status: 'pending' | 'loading' | 'complete' | 'error';
+}
+
+interface PhaseLoaderProps {
+  phases: LoadingPhase[];
+  title?: string;
+  subtitle?: string;
+  className?: string;
+  progress?: number; // Optional external progress override (0-100)
 }
 
 const loadingMessages = [
@@ -304,4 +319,220 @@ export function Loader({ message, className }: { message?: string; className?: s
 
 export function InlineLoaderCompat({ className }: { className?: string }) {
   return <CompactLoader className={className} />;
+}
+
+// Phase-based loader with progress visualization
+export function PhaseLoader({ phases, title = 'initializing_refhub', subtitle, className, progress: externalProgress }: PhaseLoaderProps) {
+  const [dots, setDots] = useState('');
+  const [glitchText, setGlitchText] = useState(false);
+
+  // Calculate progress based on phases, or use external progress if provided
+  const progress = useMemo(() => {
+    if (externalProgress !== undefined) {
+      return Math.round(externalProgress);
+    }
+    const completed = phases.filter(p => p.status === 'complete').length;
+    const loading = phases.filter(p => p.status === 'loading').length;
+    return Math.round(((completed + loading * 0.5) / phases.length) * 100);
+  }, [phases, externalProgress]);
+
+  const currentPhase = useMemo(() => {
+    return phases.find(p => p.status === 'loading') || phases.find(p => p.status === 'pending');
+  }, [phases]);
+
+  const allComplete = useMemo(() => {
+    return phases.every(p => p.status === 'complete');
+  }, [phases]);
+
+  // Animate dots
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDots(prev => prev.length >= 3 ? '' : prev + '.');
+    }, 400);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Random glitch effect
+  useEffect(() => {
+    const glitchInterval = setInterval(() => {
+      if (Math.random() > 0.85) {
+        setGlitchText(true);
+        setTimeout(() => setGlitchText(false), 100);
+      }
+    }, 500);
+    return () => clearInterval(glitchInterval);
+  }, []);
+
+  return (
+    <div className={cn("min-h-screen bg-background flex items-center justify-center", className)}>
+      <div className="w-full max-w-lg px-6">
+        {/* Terminal window */}
+        <div className="bg-card border-2 border-border rounded-lg overflow-hidden shadow-2xl">
+          {/* Terminal header */}
+          <div className="bg-muted/50 px-4 py-2 flex items-center gap-2 border-b border-border">
+            <div className="flex gap-1.5">
+              <div className="w-3 h-3 rounded-full bg-red-500/80 hover:bg-red-500 transition-colors" />
+              <div className="w-3 h-3 rounded-full bg-yellow-500/80 hover:bg-yellow-500 transition-colors" />
+              <div className="w-3 h-3 rounded-full bg-green-500/80 hover:bg-green-500 transition-colors" />
+            </div>
+            <span className="text-xs font-mono text-muted-foreground ml-2">refhub.io — loading</span>
+          </div>
+
+          {/* Terminal content */}
+          <div className="p-6 font-mono text-sm space-y-6">
+            {/* Title with glitch effect */}
+            <div className="space-y-1">
+              <h1 className={cn(
+                "text-xl font-bold transition-all duration-75",
+                glitchText && "text-primary translate-x-[1px] skew-x-1"
+              )}>
+                <span className="text-primary">$</span> {title}
+                <span className="text-primary animate-pulse">{dots}</span>
+              </h1>
+              {subtitle && (
+                <p className="text-muted-foreground text-xs pl-4">// {subtitle}</p>
+              )}
+            </div>
+
+            {/* Progress bar */}
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>progress</span>
+                <span className="text-primary tabular-nums">{progress}%</span>
+              </div>
+              <div className="h-2 bg-muted rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-primary to-primary/80 rounded-full"
+                  style={{ 
+                    width: `${progress}%`,
+                    transition: 'width 150ms ease-out'
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Phase list */}
+            <div className="space-y-2 border-l-2 border-border pl-4 ml-1">
+              {phases.map((phase, index) => (
+                <div 
+                  key={phase.id}
+                  className={cn(
+                    "flex items-center gap-3 text-sm transition-all duration-300",
+                    phase.status === 'complete' && "text-green-500",
+                    phase.status === 'loading' && "text-primary",
+                    phase.status === 'pending' && "text-muted-foreground/50",
+                    phase.status === 'error' && "text-destructive"
+                  )}
+                  style={{ 
+                    animationDelay: `${index * 100}ms`,
+                    opacity: phase.status === 'pending' ? 0.4 : 1
+                  }}
+                >
+                  <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                    {phase.status === 'complete' && (
+                      <Check className="w-4 h-4 animate-in zoom-in duration-200" />
+                    )}
+                    {phase.status === 'loading' && (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    )}
+                    {phase.status === 'pending' && (
+                      <div className="w-2 h-2 rounded-full bg-current" />
+                    )}
+                    {phase.status === 'error' && (
+                      <span className="text-xs">✗</span>
+                    )}
+                  </div>
+                  <span className={cn(
+                    "transition-all duration-300",
+                    phase.status === 'loading' && "font-semibold"
+                  )}>
+                    {phase.label}
+                    {phase.status === 'loading' && <span className="text-primary">{dots}</span>}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Current operation */}
+            {currentPhase && !allComplete && (
+              <div className="pt-2 border-t border-border">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="text-primary">▸</span>
+                  <span>executing: </span>
+                  <span className="text-foreground">{currentPhase.label}</span>
+                  <div className="inline-block w-2 h-4 bg-primary animate-pulse ml-1" />
+                </div>
+              </div>
+            )}
+
+            {/* Completion message */}
+            {allComplete && (
+              <div className="pt-2 border-t border-border animate-in fade-in duration-500">
+                <div className="flex items-center gap-2 text-xs text-green-500">
+                  <span>▸</span>
+                  <span>initialization_complete ✨</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Fun footer message */}
+        <p className="text-xs text-muted-foreground font-mono text-center mt-6 animate-pulse">
+          // {allComplete ? 'ready_to_explore_your_research 🚀' : 'brewing_knowledge_graphs ☕'}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Hook to manage loading phases
+export function useLoadingPhases(initialPhases: { id: string; label: string }[]) {
+  const [phases, setPhases] = useState<LoadingPhase[]>(
+    initialPhases.map((p, index) => ({
+      ...p,
+      status: index === 0 ? 'loading' : 'pending'
+    }))
+  );
+
+  const completePhase = (phaseId: string) => {
+    setPhases(prev => {
+      const index = prev.findIndex(p => p.id === phaseId);
+      if (index === -1) return prev;
+
+      const newPhases = [...prev];
+      newPhases[index] = { ...newPhases[index], status: 'complete' };
+      
+      // Start next pending phase
+      const nextPending = newPhases.findIndex(p => p.status === 'pending');
+      if (nextPending !== -1) {
+        newPhases[nextPending] = { ...newPhases[nextPending], status: 'loading' };
+      }
+      
+      return newPhases;
+    });
+  };
+
+  const setPhaseLoading = (phaseId: string) => {
+    setPhases(prev => prev.map(p => 
+      p.id === phaseId ? { ...p, status: 'loading' } : p
+    ));
+  };
+
+  const setPhaseError = (phaseId: string) => {
+    setPhases(prev => prev.map(p => 
+      p.id === phaseId ? { ...p, status: 'error' } : p
+    ));
+  };
+
+  const resetPhases = () => {
+    setPhases(initialPhases.map((p, index) => ({
+      ...p,
+      status: index === 0 ? 'loading' : 'pending'
+    })));
+  };
+
+  const allComplete = phases.every(p => p.status === 'complete');
+
+  return { phases, completePhase, setPhaseLoading, setPhaseError, resetPhases, allComplete };
 }

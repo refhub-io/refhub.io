@@ -1,9 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Github, Linkedin, AtSign, User, FileText, Camera, Trash2 } from 'lucide-react';
+import { Github, Linkedin, AtSign, User, FileText, Camera, Trash2, Settings } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { UnsavedChangesDialog } from '@/components/ui/unsaved-changes-dialog';
 import {
   Dialog,
   DialogContent,
@@ -98,58 +100,32 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
 
   const watchedUsername = form.watch('username');
   const watchedAvatarUrl = form.watch('avatar_url');
-  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const isInitialLoadRef = useRef(true);
-  const profileRef = useRef(profile);
-  const openRef = useRef(open);
-  const formValues = form.watch();
 
-  // Reset auto-save flag when dialog opens
+  // Reset state when dialog opens
   useEffect(() => {
-    profileRef.current = profile;
-    openRef.current = open;
-    if (open && profile) {
+    if (open) {
       isInitialLoadRef.current = true;
     }
-  }, [open, profile]);
+  }, [open]);
 
-  // Auto-save profile changes (debounced) - only triggers on form value changes
+  // Get dirty state from react-hook-form
+  const isDirty = form.formState.isDirty;
+
+  // Handle beforeunload when dialog is open and dirty
   useEffect(() => {
-    if (!profileRef.current || !openRef.current) return;
-    
-    // Skip auto-save on initial load
-    if (isInitialLoadRef.current) {
-      isInitialLoadRef.current = false;
-      return;
-    }
-    
-    if (autoSaveTimeoutRef.current) {
-      clearTimeout(autoSaveTimeoutRef.current);
-    }
-
-    autoSaveTimeoutRef.current = setTimeout(async () => {
-      if (form.formState.isDirty && !form.formState.errors.display_name) {
-        const values = form.getValues();
-        if (values.display_name) {
-          setIsSubmitting(true);
-          try {
-            await updateProfile(values as Profile);
-          } catch (error) {
-            /* intentionally empty */
-          } finally {
-            setIsSubmitting(false);
-          }
-        }
-      }
-    }, 3000); // 3 second debounce
-
-    return () => {
-      if (autoSaveTimeoutRef.current) {
-        clearTimeout(autoSaveTimeoutRef.current);
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (open && form.formState.isDirty) {
+        e.preventDefault();
+        e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+        return e.returnValue;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formValues]);
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [open, form.formState.isDirty]);
 
   useEffect(() => {
     if (!watchedUsername || watchedUsername.length < 3) {
@@ -191,12 +167,69 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
 
       const { error } = await updateProfile(updates);
       if (!error) {
+        form.reset(updates); // Reset form with new values to clear dirty state
         onOpenChange(false);
       }
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  // Handle dialog close with unsaved changes check
+  // Dialog calls onOpenChange(false) when user clicks X or outside
+  const handleDialogClose = useCallback((open: boolean) => {
+    if (open) {
+      // Dialog is opening, just pass through
+      onOpenChange(true);
+      return;
+    }
+    
+    // Dialog wants to close
+    if (form.formState.isDirty) {
+      setShowUnsavedDialog(true);
+    } else {
+      onOpenChange(false);
+    }
+  }, [form.formState.isDirty, onOpenChange]);
+
+  // Handle discard changes
+  const handleDiscardChanges = useCallback(() => {
+    setShowUnsavedDialog(false);
+    form.reset(); // Reset form to clear dirty state
+    onOpenChange(false);
+  }, [onOpenChange, form]);
+
+  // Handle save and close
+  const handleSaveAndClose = useCallback(async () => {
+    const isValid = await form.trigger();
+    if (!isValid || usernameStatus === 'taken') {
+      setShowUnsavedDialog(false);
+      return;
+    }
+    
+    setIsSubmitting(true);
+    try {
+      const data = form.getValues();
+      const updates: Partial<Profile> = {
+        display_name: data.display_name,
+        username: data.username || null,
+        bio: data.bio || null,
+        github_url: data.github_url || null,
+        linkedin_url: data.linkedin_url || null,
+        bluesky_url: data.bluesky_url || null,
+        avatar_url: data.avatar_url || null,
+      };
+
+      const { error } = await updateProfile(updates);
+      if (!error) {
+        form.reset(updates); // Reset form with new values to clear dirty state
+        setShowUnsavedDialog(false);
+        onOpenChange(false);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [form, usernameStatus, updateProfile, onOpenChange]);
 
   const handleDeleteAccount = async () => {
     if (!user) return;
@@ -221,8 +254,18 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
   const displayName = form.watch('display_name') || user?.email?.split('@')[0] || 'User';
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full h-full sm:h-auto sm:w-[95vw] sm:max-w-xl sm:max-h-[90vh] border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col p-0">
+    <>
+      <UnsavedChangesDialog
+        open={showUnsavedDialog}
+        onDiscard={handleDiscardChanges}
+        onCancel={() => setShowUnsavedDialog(false)}
+        onSave={handleSaveAndClose}
+        saving={isSubmitting}
+        title="Unsaved Changes"
+        description="You have unsaved changes to your profile. Would you like to save them before closing?"
+      />
+      <Dialog open={open} onOpenChange={handleDialogClose}>
+        <DialogContent className="w-full h-full sm:h-auto sm:w-[95vw] sm:max-w-xl sm:max-h-[90vh] border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle className="text-2xl font-bold font-mono">edit_profile</DialogTitle>
         </DialogHeader>
@@ -433,20 +476,32 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
             </div>
 
             <div className="flex flex-col sm:flex-row justify-between gap-3 py-4 border-t border-border">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setShowDeleteConfirm(true)}
-                className="text-destructive hover:text-destructive hover:bg-destructive/10 w-full sm:w-auto font-mono"
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                delete_account
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10 w-full sm:w-auto font-mono"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  delete_account
+                </Button>
+                <Link to="/profile-edit" onClick={() => onOpenChange(false)}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full sm:w-auto font-mono"
+                  >
+                    <Settings className="w-4 h-4 mr-2" />
+                    account_settings
+                  </Button>
+                </Link>
+              </div>
               <div className="flex flex-col-reverse sm:flex-row gap-3 w-full sm:w-auto">
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => onOpenChange(false)}
+                  onClick={() => handleDialogClose(false)}
                   className="border-2 w-full sm:w-auto font-mono"
                 >
                   cancel
@@ -489,5 +544,6 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
         </AlertDialogContent>
       </AlertDialog>
     </Dialog>
+    </>
   );
 }

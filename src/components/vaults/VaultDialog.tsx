@@ -3,6 +3,7 @@ import { Vault, VaultShare, VAULT_CATEGORIES } from '@/types/database';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { UnsavedChangesDialog } from '@/components/ui/unsaved-changes-dialog';
 import {
   Dialog,
   DialogContent,
@@ -73,11 +74,11 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
   const [checkingSlug, setCheckingSlug] = useState(false);
   const [copied, setCopied] = useState(false);
-  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const slugCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadRef = useRef(true);
-  const vaultRef = useRef(vault);
-  const openRef = useRef(open);
+  const initialValuesRef = useRef<{ name: string; description: string; color: string; category: string; abstract: string; visibility: VaultVisibility; publicSlug: string } | null>(null);
 
   // Fetch access requests for owners and enrich with display names when possible
   async function fetchAccessRequests() {
@@ -199,56 +200,142 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       .slice(0, 50);
   };
 
-  const fetchShares = useCallback(async () => {
-    if (!vault) return;
-
+  const fetchShares = useCallback(async (vaultId: string) => {
     const { data, error } = await supabase
       .from('vault_shares')
       .select('*')
-      .eq('vault_id', vault.id);
+      .eq('vault_id', vaultId);
 
+    console.log('[VaultDialog] fetchShares raw result:', { data, error });
+    
     if (data && !error) {
-      setShares(data as VaultShare[]);
+      // Enrich shares with profile data for those missing shared_with_name or shared_with_email
+      const enrichedShares = await Promise.all(
+        data.map(async (share) => {
+          // If we already have both name and email, use them
+          if (share.shared_with_name && share.shared_with_email) {
+            return share;
+          }
+          
+          let profile = null;
+          
+          // Try to look up profile by user_id first
+          if (share.shared_with_user_id) {
+            const { data: profileData } = await supabase
+              .from('profiles')
+              .select('display_name, username, email')
+              .eq('user_id', share.shared_with_user_id)
+              .single();
+            profile = profileData;
+          }
+          
+          // If no profile found by user_id, try by email
+          if (!profile && share.shared_with_email) {
+            const { data: profileData } = await supabase
+              .from('profiles')
+              .select('display_name, username, email')
+              .eq('email', share.shared_with_email)
+              .single();
+            profile = profileData;
+          }
+          
+          if (profile) {
+            const enrichedName = share.shared_with_name || profile.display_name || profile.username || profile.email;
+            const enrichedEmail = share.shared_with_email || profile.email;
+            console.log('[VaultDialog] Enriched share:', { share_id: share.id, enrichedName, enrichedEmail });
+            return {
+              ...share,
+              shared_with_name: enrichedName,
+              shared_with_email: enrichedEmail,
+            };
+          }
+          
+          return share;
+        })
+      );
+      
+      console.log('[VaultDialog] Final enriched shares:', enrichedShares);
+      setShares(enrichedShares as VaultShare[]);
     }
-  }, [vault]);
+  }, []);
 
   useEffect(() => {
     isInitialLoadRef.current = true; // Reset on dialog open
+    setHasUnsavedChanges(false); // Reset unsaved changes on dialog open
     if (vault) {
-      setName(vault.name);
-      setDescription(vault.description || '');
-      setColor(vault.color);
-      setCategory(vault.category || '');
-      setAbstract(vault.abstract || '');
-      setVisibility(getVisibility(vault));
-      setPublicSlug(vault.public_slug || generateSlug(vault.name));
-      fetchShares();
+      const initialName = vault.name;
+      const initialDescription = vault.description || '';
+      const initialColor = vault.color;
+      const initialCategory = vault.category || '';
+      const initialAbstract = vault.abstract || '';
+      const initialVisibility = getVisibility(vault);
+      const initialPublicSlug = vault.public_slug || generateSlug(vault.name);
+      
+      setName(initialName);
+      setDescription(initialDescription);
+      setColor(initialColor);
+      setCategory(initialCategory);
+      setAbstract(initialAbstract);
+      setVisibility(initialVisibility);
+      setPublicSlug(initialPublicSlug);
+      fetchShares(vault.id);
+      
+      // Store initial values for change detection
+      initialValuesRef.current = {
+        name: initialName,
+        description: initialDescription,
+        color: initialColor,
+        category: initialCategory,
+        abstract: initialAbstract,
+        visibility: initialVisibility,
+        publicSlug: initialPublicSlug,
+      };
     } else {
+      const randomColor = VAULT_COLORS[Math.floor(Math.random() * VAULT_COLORS.length)];
       setName('');
       setDescription('');
-      setColor(VAULT_COLORS[Math.floor(Math.random() * VAULT_COLORS.length)]);
+      setColor(randomColor);
       setCategory('');
       setAbstract('');
       setVisibility('private');
       setPublicSlug('');
       setShares([]);
+      
+      // Store initial values for new vault
+      initialValuesRef.current = {
+        name: '',
+        description: '',
+        color: randomColor,
+        category: '',
+        abstract: '',
+        visibility: 'private',
+        publicSlug: '',
+      };
     }
-  }, [vault, open, fetchShares]);
+  }, [vault?.id, open, fetchShares]);
 
+  // Track unsaved changes
   useEffect(() => {
-    if (vault && open) {
-      fetchShares();
+    // Skip on initial load
+    if (isInitialLoadRef.current) {
+      isInitialLoadRef.current = false;
+      return;
     }
-  }, [vault, open, fetchShares]);
-
-  // Reset auto-save flag when dialog opens
-  useEffect(() => {
-    vaultRef.current = vault;
-    openRef.current = open;
-    if (open && vault) {
-      isInitialLoadRef.current = true;
-    }
-  }, [open, vault]);
+    
+    if (!initialValuesRef.current) return;
+    
+    const initial = initialValuesRef.current;
+    const hasChanges = 
+      name !== initial.name ||
+      description !== initial.description ||
+      color !== initial.color ||
+      category !== initial.category ||
+      abstract !== initial.abstract ||
+      visibility !== initial.visibility ||
+      publicSlug !== initial.publicSlug;
+    
+    setHasUnsavedChanges(hasChanges);
+  }, [name, description, color, category, abstract, visibility, publicSlug]);
 
   // Check slug availability (debounced)
   useEffect(() => {
@@ -297,49 +384,52 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     };
   }, [publicSlug, visibility, vault?.id]);
 
-  // Auto-save for edit mode only (debounced) - only triggers on data changes
-  useEffect(() => {
-    if (!vaultRef.current || !openRef.current) return; // Only auto-save when editing an existing vault
-
-    // Skip auto-save on initial load
-    if (isInitialLoadRef.current) {
-      isInitialLoadRef.current = false;
+  // Handle dialog close with unsaved changes check
+  const handleDialogClose = useCallback((newOpen: boolean) => {
+    if (newOpen) {
+      onOpenChange(true);
       return;
     }
-
-    if (autoSaveTimeoutRef.current) {
-      clearTimeout(autoSaveTimeoutRef.current);
+    
+    // Dialog wants to close - check for unsaved changes
+    if (hasUnsavedChanges) {
+      setShowUnsavedDialog(true);
+    } else {
+      onOpenChange(false);
     }
+  }, [hasUnsavedChanges, onOpenChange]);
 
-    autoSaveTimeoutRef.current = setTimeout(async () => {
-      if (name.trim()) {
-        setSaving(true);
-        try {
-          await onSave({
-            name,
-            description,
-            color,
-            category: category || null,
-            abstract: abstract || null,
-            visibility,
-            public_slug: visibility === 'public' ? (publicSlug || generateSlug(name)) : null,
-          });
-          if (onUpdate) onUpdate();
-        } catch (error) {
-          /* intentionally empty */
-        } finally {
-          setSaving(false);
-        }
-      }
-    }, 3000); // 3 second debounce
+  // Handle discard changes
+  const handleDiscardChanges = useCallback(() => {
+    setShowUnsavedDialog(false);
+    setHasUnsavedChanges(false);
+    onOpenChange(false);
+  }, [onOpenChange]);
 
-    return () => {
-      if (autoSaveTimeoutRef.current) {
-        clearTimeout(autoSaveTimeoutRef.current);
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, description, color, category, abstract, visibility, publicSlug]);
+  // Handle save and close
+  const handleSaveAndClose = useCallback(async () => {
+    if (!name.trim()) return;
+    
+    setSaving(true);
+    try {
+      await onSave({
+        name,
+        description,
+        color,
+        category: category || null,
+        abstract: abstract || null,
+        visibility,
+        public_slug: visibility === 'public' ? (publicSlug || generateSlug(name)) : null,
+      });
+      setHasUnsavedChanges(false);
+      setShowUnsavedDialog(false);
+      onOpenChange(false);
+    } catch (error) {
+      // Keep dialog open on error
+    } finally {
+      setSaving(false);
+    }
+  }, [name, description, color, category, abstract, visibility, publicSlug, onSave, onOpenChange]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -354,6 +444,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
         visibility,
         public_slug: visibility === 'public' ? (publicSlug || generateSlug(name)) : null,
       });
+      setHasUnsavedChanges(false);
       onOpenChange(false);
     } finally {
       setSaving(false);
@@ -376,19 +467,40 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
 
     setSaving(true);
     try {
-      const { error } = await supabase.from('vault_shares').insert({
+      // Look up the user's profile by email to get their user_id and display name
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('user_id, display_name, username, email')
+        .eq('email', email.trim().toLowerCase())
+        .single();
+
+      console.log('[VaultDialog] Profile lookup for email:', email.trim().toLowerCase(), { profile, profileError });
+
+      const shareData: any = {
         vault_id: vault.id,
         shared_with_email: email.trim().toLowerCase(),
         shared_by: user.id,
         role: sharePermission,
-      });
+      };
+
+      // If we found a profile, add the user_id and display name
+      if (profile) {
+        shareData.shared_with_user_id = profile.user_id;
+        shareData.shared_with_name = profile.display_name || profile.username || profile.email;
+        console.log('[VaultDialog] Found profile, setting shared_with_name to:', shareData.shared_with_name);
+      } else {
+        console.log('[VaultDialog] No profile found for email, share will not have user_id or name');
+      }
+
+      console.log('[VaultDialog] Inserting share data:', shareData);
+      const { error } = await supabase.from('vault_shares').insert(shareData);
 
       if (error) throw error;
 
       toast({ title: 'user_added ✨' });
       setEmail('');
       setSharePermission('viewer');
-      fetchShares();
+      if (vault) fetchShares(vault.id);
       onUpdate?.();
     } catch (error) {
       toast({
@@ -411,7 +523,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       if (error) throw error;
 
       toast({ title: 'user_removed' });
-      fetchShares();
+      if (vault) fetchShares(vault.id);
       onUpdate?.();
     } catch (error) {
       toast({
@@ -432,7 +544,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       if (error) throw error;
 
       toast({ title: 'permission_updated' });
-      fetchShares();
+      if (vault) fetchShares(vault.id);
       onUpdate?.();
     } catch (error) {
       toast({
@@ -451,6 +563,18 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       if (req.requester_id) {
         // requester_id is auth.users.id; we can use it directly
         insertObj.shared_with_user_id = req.requester_id;
+        
+        // Look up the profile to get the display name
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('display_name, username, email')
+          .eq('user_id', req.requester_id)
+          .single();
+        
+        if (profile) {
+          insertObj.shared_with_name = profile.display_name || profile.username || profile.email;
+          insertObj.shared_with_email = profile.email;
+        }
       } else if (req.requester_email) {
         insertObj.shared_with_email = req.requester_email;
       }
@@ -463,7 +587,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
 
       toast({ title: 'Request approved' });
       fetchAccessRequests();
-      fetchShares();
+      if (vault) fetchShares(vault.id);
       onUpdate?.();
     } catch (error) {
       toast({ title: 'Error', description: (error as Error).message, variant: 'destructive' });
@@ -498,8 +622,18 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   ];
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full h-full sm:h-auto sm:w-[95vw] sm:max-w-2xl border-2 bg-card/95 backdrop-blur-xl sm:max-h-[90vh] overflow-hidden flex flex-col p-0">
+    <>
+      <UnsavedChangesDialog
+        open={showUnsavedDialog}
+        onDiscard={handleDiscardChanges}
+        onCancel={() => setShowUnsavedDialog(false)}
+        onSave={handleSaveAndClose}
+        saving={saving}
+        title="Unsaved Changes"
+        description="You have unsaved changes to this vault. Would you like to save them before closing?"
+      />
+      <Dialog open={open} onOpenChange={handleDialogClose}>
+        <DialogContent className="w-full h-full sm:h-auto sm:w-[95vw] sm:max-w-2xl border-2 bg-card/95 backdrop-blur-xl sm:max-h-[90vh] overflow-hidden flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle className="text-2xl font-bold font-mono">
             {vault ? (
@@ -725,22 +859,31 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                   {shares.map((share) => (
                     <div
                       key={share.id}
-                      className="flex items-center justify-between p-2 rounded-lg bg-background/50 border border-border"
+                      className="flex items-center justify-between p-3 rounded-lg bg-background/50 border border-border"
                     >
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-md bg-gradient-primary flex items-center justify-center text-xs font-bold text-white">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-md bg-gradient-primary flex items-center justify-center text-sm font-bold text-white shrink-0">
                           {(share.shared_with_name || share.shared_with_email || 'U').charAt(0).toUpperCase()}
                         </div>
-                        <span className="text-sm font-mono">
-                          {share.shared_with_name || share.shared_with_email || 'Unknown User'}
-                          {share.shared_with_email && share.shared_with_name !== share.shared_with_email && (
-                            <span className="text-xs text-muted-foreground/60 ml-1">
-                              ({share.shared_with_email})
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-sm font-mono font-medium truncate">
+                            {share.shared_with_name || 'Unknown User'}
+                          </span>
+                          {share.shared_with_email && (
+                            <span className="text-xs text-muted-foreground font-mono truncate">
+                              {share.shared_with_email}
                             </span>
                           )}
-                        </span>
+                          <span className="text-xs text-muted-foreground/60 font-mono">
+                            added {new Date(share.created_at).toLocaleDateString('en-US', { 
+                              month: 'short', 
+                              day: 'numeric', 
+                              year: 'numeric' 
+                            })}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 shrink-0">
                         <Select
                           value={(share as any).role || (share as any).permission || 'viewer'}
                           onValueChange={(value) => handleUpdatePermission(share.id, value as 'viewer' | 'editor')}
@@ -858,7 +1001,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
               <div className="hidden sm:block" />
             )}
             <div className="flex flex-col-reverse sm:flex-row gap-3 w-full sm:w-auto">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto font-mono">
+              <Button type="button" variant="outline" onClick={() => handleDialogClose(false)} className="w-full sm:w-auto font-mono">
                 cancel
               </Button>
               <Button type="submit" variant="glow" disabled={saving || !name.trim()} className="w-full sm:w-auto font-mono">
@@ -869,5 +1012,6 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
         </form>
       </DialogContent>
     </Dialog>
+    </>
   );
 }

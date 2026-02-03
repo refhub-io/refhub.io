@@ -1,10 +1,12 @@
+import { useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { BugReportButton } from "@/components/layout/BugReportButton";
+import { queryClient, initQueryPersistence } from "@/lib/queryClient";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
@@ -20,46 +22,48 @@ import SignupNextSteps from "./pages/SignupNextSteps";
 import ResetPassword from "./pages/ResetPassword";
 import { VaultContentProvider } from "./contexts/VaultContentContext";
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      retry: 1,
-      staleTime: 5 * 60 * 1000, // 5 minutes
-    },
-  },
-});
+const App = () => {
+  // Defer query persistence initialization to after first render
+  // This improves initial loading performance
+  useEffect(() => {
+    // Initialize persistence after the app shell renders
+    const timeoutId = setTimeout(() => {
+      initQueryPersistence();
+    }, 0);
+    
+    return () => clearTimeout(timeoutId);
+  }, []);
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <VaultContentProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BugReportButton />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/auth/callback" element={<AuthCallback />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/codex" element={<TheCodex />} />
-              <Route path="/users" element={<Users />} />
-              <Route path="/public/:slug" element={<PublicVault />} />
-              <Route path="/vault/:id" element={<VaultDetail />} />
-              <Route path="/opengraphpreview" element={<OpenGraphPreview />} />
-              <Route path="/profile-edit" element={<ProfileEdit />} />
-              <Route path="/signup-next-steps" element={<SignupNextSteps />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
-      </VaultContentProvider>
-    </AuthProvider>
-  </QueryClientProvider>
-);
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <VaultContentProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BugReportButton />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/auth/callback" element={<AuthCallback />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/codex" element={<TheCodex />} />
+                <Route path="/users" element={<Users />} />
+                <Route path="/public/:slug" element={<PublicVault />} />
+                <Route path="/vault/:id" element={<VaultDetail />} />
+                <Route path="/opengraphpreview" element={<OpenGraphPreview />} />
+                <Route path="/profile-edit" element={<ProfileEdit />} />
+                <Route path="/signup-next-steps" element={<SignupNextSteps />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </TooltipProvider>
+        </VaultContentProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;

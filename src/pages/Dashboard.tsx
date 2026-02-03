@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
@@ -13,7 +13,7 @@ import { VaultDialog } from '@/components/vaults/VaultDialog';
 import { RelationshipGraph } from '@/components/publications/RelationshipGraph';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { ExportDialog } from '@/components/publications/ExportDialog';
-import { LoadingSpinner } from '@/components/ui/loading';
+import { PhaseLoader, LoadingPhase } from '@/components/ui/loading';
 import { useToast } from '@/hooks/use-toast';
 import { Sparkles } from 'lucide-react';
 import {
@@ -29,7 +29,7 @@ import {
 
 export default function Dashboard() {
   const { user, loading: authLoading } = useAuth();
-  const { profile, refetch: refetchProfile } = useProfile();
+  const { profile, loading: profileLoading, refetch: refetchProfile } = useProfile();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -45,10 +45,35 @@ export default function Dashboard() {
   const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
   const [loading, setLoading] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [showLoader, setShowLoader] = useState(() => {
-    // Check if loader has already been shown this session
-    return !sessionStorage.getItem('loaderShown');
-  });
+  const [showLoader, setShowLoader] = useState(true); // Always show loader on initial mount
+  const [loaderProgress, setLoaderProgress] = useState(0); // Track fake progress
+  const [loaderComplete, setLoaderComplete] = useState(false); // Track when ready to hide
+
+  // Loading phases for the phase loader
+  const [loadingPhases, setLoadingPhases] = useState<LoadingPhase[]>([
+    { id: 'auth', label: 'authenticating_user', status: 'loading' },
+    { id: 'profile', label: 'loading_profile', status: 'pending' },
+    { id: 'vaults', label: 'fetching_vaults', status: 'pending' },
+    { id: 'publications', label: 'indexing_publications', status: 'pending' },
+    { id: 'tags', label: 'syncing_tags', status: 'pending' },
+    { id: 'relations', label: 'mapping_relations', status: 'pending' },
+  ]);
+
+  const updatePhase = useCallback((phaseId: string, status: LoadingPhase['status']) => {
+    setLoadingPhases(prev => {
+      const newPhases = prev.map(p => 
+        p.id === phaseId ? { ...p, status } : p
+      );
+      // Auto-start next pending phase when one completes
+      if (status === 'complete') {
+        const nextPendingIndex = newPhases.findIndex(p => p.status === 'pending');
+        if (nextPendingIndex !== -1) {
+          newPhases[nextPendingIndex] = { ...newPhases[nextPendingIndex], status: 'loading' };
+        }
+      }
+      return newPhases;
+    });
+  }, []);
 
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
@@ -69,18 +94,82 @@ export default function Dashboard() {
   const [deleteConfirmation, setDeleteConfirmation] = useState<Publication | null>(null);
   const [deleteVaultConfirmation, setDeleteVaultConfirmation] = useState<Vault | null>(null);
 
-  // Ensure loader shows for at least 3 seconds on initial session load only
+  // Track auth loading phase
   useEffect(() => {
-    const loaderShown = sessionStorage.getItem('loaderShown');
-    if (!loaderShown) {
-      setShowLoader(true);
+    if (!authLoading && user) {
+      updatePhase('auth', 'complete');
+    }
+  }, [authLoading, user, updatePhase]);
+
+  // Track profile loading phase - complete when loading finishes (profile may be null for new users)
+  useEffect(() => {
+    if (!profileLoading) {
+      updatePhase('profile', 'complete');
+    }
+  }, [profileLoading, updatePhase]);
+
+  // Smooth progress animation - fake progress that accelerates based on actual phase completion
+  useEffect(() => {
+    if (!showLoader) return;
+
+    const completedCount = loadingPhases.filter(p => p.status === 'complete').length;
+    const totalPhases = loadingPhases.length;
+    const actualProgress = (completedCount / totalPhases) * 100;
+    
+    // Use requestAnimationFrame for smoother updates
+    let animationId: number;
+    let lastTime = performance.now();
+    
+    const animate = (currentTime: number) => {
+      const deltaTime = currentTime - lastTime;
+      
+      // Only update every ~50ms for smooth but not excessive updates
+      if (deltaTime >= 50) {
+        lastTime = currentTime;
+        
+        setLoaderProgress(prev => {
+          // If all phases complete, rush to 100%
+          if (completedCount === totalPhases) {
+            const newProgress = Math.min(prev + 5, 100);
+            if (newProgress >= 100) {
+              setLoaderComplete(true);
+            }
+            return Math.round(newProgress);
+          }
+          
+          // Otherwise, progress smoothly
+          // Calculate how far we should be based on actual progress + buffer
+          const targetProgress = Math.min(actualProgress + 15, 95);
+          
+          if (prev >= targetProgress) {
+            return prev; // Don't go backwards or exceed target
+          }
+          
+          // Smooth easing - faster when far from target, slower when close
+          const distance = targetProgress - prev;
+          const increment = Math.max(0.5, distance * 0.1);
+          
+          return Math.round(Math.min(prev + increment, targetProgress));
+        });
+      }
+      
+      animationId = requestAnimationFrame(animate);
+    };
+    
+    animationId = requestAnimationFrame(animate);
+
+    return () => cancelAnimationFrame(animationId);
+  }, [showLoader, loadingPhases]);
+
+  // Hide loader after progress reaches 100% and shows completion briefly
+  useEffect(() => {
+    if (loaderComplete && loaderProgress >= 100) {
       const timer = setTimeout(() => {
         setShowLoader(false);
-        sessionStorage.setItem('loaderShown', 'true');
-      }, 3000);
+      }, 600); // Show completion state briefly
       return () => clearTimeout(timer);
     }
-  }, []);
+  }, [loaderComplete, loaderProgress]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -94,6 +183,9 @@ export default function Dashboard() {
       setLoading(true);
     }
     try {
+      // Start vaults phase
+      updatePhase('vaults', 'loading');
+
       // Fetch owned vaults, shared vaults, and other data
       const [pubsRes, ownedVaultsRes, sharedVaultsRes, vaultPubsRes, tagsRes, pubTagsRes, relationsRes] = await Promise.all([
         supabase.from('publications').select('*').order('created_at', { ascending: false }),
@@ -108,6 +200,10 @@ export default function Dashboard() {
         supabase.from('publication_tags').select('*'),
         supabase.from('publication_relations').select('*'),
       ]);
+
+      // Complete vaults phase
+      if (ownedVaultsRes.data) setVaults(ownedVaultsRes.data as Vault[]);
+      updatePhase('vaults', 'complete');
 
       // Combine original publications with vault-specific copies
       // For the dashboard, we want to show all publications the user has access to
@@ -296,11 +392,20 @@ export default function Dashboard() {
         relationsCountMap[vaultPubId2] = (relationsCountMap[vaultPubId2] || 0) + 1;
       });
 
+      // Complete publications phase after all processing
+      updatePhase('publications', 'complete');
+
+      // Complete tags phase
+      updatePhase('tags', 'complete');
+
       // Set the state with the processed data
       setPublications(allPublications);
       if (tagsRes.data) setTags(tagsRes.data as Tag[]);
       if (pubTagsRes.data) setPublicationTags(pubTagsRes.data as PublicationTag[]);
       if (relationsRes.data) setPublicationRelations(relationsRes.data as PublicationRelation[]);
+
+      // Complete relations phase
+      updatePhase('relations', 'complete');
 
       // Set the computed maps
       setPublicationTagsMap(publicationTagsMap);
@@ -331,7 +436,7 @@ export default function Dashboard() {
       setIsInitialLoad(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, isInitialLoad]);
+  }, [user, isInitialLoad, updatePhase]);
 
   useEffect(() => {
     if (user) {
@@ -664,8 +769,8 @@ export default function Dashboard() {
     }
   };
 
-  const handleBulkImport = async (publicationsToImport: Partial<Publication>[]) => {
-    if (!user) return;
+  const handleBulkImport = async (publicationsToImport: Partial<Publication>[], targetVaultId?: string | null): Promise<string[]> => {
+    if (!user) return [];
 
     const pubsToInsert = publicationsToImport.map(pub => ({
       ...pub,
@@ -679,19 +784,44 @@ export default function Dashboard() {
         description: 'All papers were duplicates',
         variant: 'destructive',
       });
-      return;
+      return [];
     }
 
-    const { data: insertedPubs, error } = await supabase
-      .from('publications')
-      .insert(pubsToInsert as Omit<Publication, 'id' | 'created_at' | 'updated_at'>[])
-      .select();
+    try {
+      const { data: insertedPubs, error } = await supabase
+        .from('publications')
+        .insert(pubsToInsert as Omit<Publication, 'id' | 'created_at' | 'updated_at'>[])
+        .select();
 
-    if (error) throw error;
+      if (error) throw error;
 
-    // Optimistic update
-    if (insertedPubs) {
-      setPublications(prev => [...(insertedPubs as Publication[]), ...prev]);
+      const insertedIds: string[] = [];
+
+      // Optimistic update
+      if (insertedPubs) {
+        setPublications(prev => [...(insertedPubs as Publication[]), ...prev]);
+        insertedIds.push(...insertedPubs.map(p => p.id));
+
+        // If a target vault is specified, add the papers to that vault
+        if (targetVaultId) {
+          for (const pub of insertedPubs) {
+            await supabase.rpc('copy_publication_to_vault', {
+              pub_id: pub.id,
+              target_vault_id: targetVaultId,
+              user_id: user.id
+            });
+          }
+        }
+      }
+
+      return insertedIds;
+    } catch (error) {
+      toast({
+        title: 'error_importing_papers',
+        description: (error as Error).message,
+        variant: 'destructive',
+      });
+      return [];
     }
   };
 
@@ -699,15 +829,36 @@ export default function Dashboard() {
     if (!user) return;
 
     try {
-      // Verify the publication exists and belongs to the user
-      const { data: publication, error: pubError } = await supabase
-        .from('publications')
-        .select('*')
-        .eq('id', publicationId)
-        .eq('user_id', user.id)
-        .single();
+      // The publicationId might be a vault_publications.id (when viewing a vault)
+      // or a publications.id (when viewing the library). We need to resolve it.
+      let sourcePublicationId = publicationId;
+      let sourcePublication: Record<string, unknown> | null = null;
 
-      if (pubError || !publication) throw new Error('Publication not found');
+      // First, check if this ID is a vault_publication
+      const { data: vaultPub } = await supabase
+        .from('vault_publications')
+        .select('*, original_publication_id')
+        .eq('id', publicationId)
+        .maybeSingle();
+
+      if (vaultPub) {
+        // This is a vault_publication - use it as the source data
+        // If it has an original_publication_id, use that for tracking
+        sourcePublicationId = vaultPub.original_publication_id || publicationId;
+        sourcePublication = vaultPub;
+      } else {
+        // Try to find it in the publications table
+        const { data: publication, error: pubError } = await supabase
+          .from('publications')
+          .select('*')
+          .eq('id', publicationId)
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (pubError) throw pubError;
+        if (!publication) throw new Error('Publication not found');
+        sourcePublication = publication;
+      }
 
       // For each vault, create a copy of the publication using the RPC function
       for (const vaultId of vaultIds) {
@@ -716,20 +867,38 @@ export default function Dashboard() {
           .from('vault_publications')
           .select('*')
           .eq('vault_id', vaultId)
-          .eq('original_publication_id', publicationId)
+          .or(`original_publication_id.eq.${sourcePublicationId},id.eq.${publicationId}`)
           .maybeSingle();
 
         if (checkError) throw checkError;
 
         // Only add if not already in vault as a copy
         if (!existingCopy) {
-          const { error: insertError } = await supabase.rpc('copy_publication_to_vault', {
-            pub_id: publicationId,
-            target_vault_id: vaultId,
-            user_id: user.id
-          });
+          // If we have a vault_publication, we need to copy its data directly
+          if (vaultPub) {
+            // Copy the vault_publication data to the new vault
+            const { id, vault_id, original_publication_id, created_at, updated_at, ...pubData } = vaultPub;
+            const { error: insertError } = await supabase
+              .from('vault_publications')
+              .insert({
+                ...pubData,
+                vault_id: vaultId,
+                original_publication_id: original_publication_id || null,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              });
 
-          if (insertError) throw insertError;
+            if (insertError) throw insertError;
+          } else {
+            // Use the RPC function for original publications
+            const { error: insertError } = await supabase.rpc('copy_publication_to_vault', {
+              pub_id: sourcePublicationId,
+              target_vault_id: vaultId,
+              user_id: user.id
+            });
+
+            if (insertError) throw insertError;
+          }
         }
       }
 
@@ -761,25 +930,39 @@ export default function Dashboard() {
         .maybeSingle();
 
       let deleteError;
+      let deletedCount = 0;
+
       if (vaultPub) {
         // This is a vault-specific copy, delete from vault_publications
-        const { error } = await supabase
+        const { error, count } = await supabase
           .from('vault_publications')
-          .delete()
+          .delete({ count: 'exact' })
           .eq('id', deletedId);
 
         deleteError = error;
+        deletedCount = count ?? 0;
       } else {
         // This is an original publication, delete from publications table
-        const { error } = await supabase
+        const { error, count } = await supabase
           .from('publications')
-          .delete()
+          .delete({ count: 'exact' })
           .eq('id', deletedId);
 
         deleteError = error;
+        deletedCount = count ?? 0;
       }
 
       if (deleteError) throw deleteError;
+
+      // Check if any rows were actually deleted (RLS might silently prevent deletion)
+      if (deletedCount === 0) {
+        toast({
+          title: 'Could not delete paper',
+          description: 'The paper could not be deleted. You may not have permission.',
+          variant: 'destructive',
+        });
+        return;
+      }
 
       // Optimistic update
       setPublications(prev => prev.filter(p => p.id !== deletedId));
@@ -1032,12 +1215,15 @@ export default function Dashboard() {
   };
 
   // Only show full loading screen on auth loading, not on data loading
-  // Show loader for minimum 3 seconds on first load
+  // Show loader for minimum time on first load with phase progress
   if (authLoading || showLoader) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <LoadingSpinner size="lg" />
-      </div>
+      <PhaseLoader
+        phases={loadingPhases}
+        title="initializing_refhub"
+        subtitle="loading your research library"
+        progress={loaderProgress}
+      />
     );
   }
 
