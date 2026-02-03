@@ -529,7 +529,55 @@ export const getVaultShares = async (vaultId: string) => {
     .select('*')
     .eq('vault_id', vaultId);
 
-  return { data, error };
+  if (error || !data) {
+    return { data, error };
+  }
+
+  // Enrich shares with profile data for those missing shared_with_name
+  const enrichedShares = await Promise.all(
+    data.map(async (share) => {
+      // If we already have a name, use it
+      if (share.shared_with_name) {
+        return share;
+      }
+      
+      // Try to look up profile by user_id first
+      if (share.shared_with_user_id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('display_name, username, email')
+          .eq('user_id', share.shared_with_user_id)
+          .single();
+        
+        if (profile) {
+          return {
+            ...share,
+            shared_with_name: profile.display_name || profile.username || profile.email,
+          };
+        }
+      }
+      
+      // Try to look up profile by email
+      if (share.shared_with_email) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('display_name, username, email')
+          .eq('email', share.shared_with_email)
+          .single();
+        
+        if (profile) {
+          return {
+            ...share,
+            shared_with_name: profile.display_name || profile.username || profile.email,
+          };
+        }
+      }
+      
+      return share;
+    })
+  );
+
+  return { data: enrichedShares, error: null };
 };
 
 // Helper function to get vault access requests

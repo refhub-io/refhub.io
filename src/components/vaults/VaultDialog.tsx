@@ -206,8 +206,56 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       .select('*')
       .eq('vault_id', vaultId);
 
+    console.log('[VaultDialog] fetchShares raw result:', { data, error });
+    
     if (data && !error) {
-      setShares(data as VaultShare[]);
+      // Enrich shares with profile data for those missing shared_with_name or shared_with_email
+      const enrichedShares = await Promise.all(
+        data.map(async (share) => {
+          // If we already have both name and email, use them
+          if (share.shared_with_name && share.shared_with_email) {
+            return share;
+          }
+          
+          let profile = null;
+          
+          // Try to look up profile by user_id first
+          if (share.shared_with_user_id) {
+            const { data: profileData } = await supabase
+              .from('profiles')
+              .select('display_name, username, email')
+              .eq('user_id', share.shared_with_user_id)
+              .single();
+            profile = profileData;
+          }
+          
+          // If no profile found by user_id, try by email
+          if (!profile && share.shared_with_email) {
+            const { data: profileData } = await supabase
+              .from('profiles')
+              .select('display_name, username, email')
+              .eq('email', share.shared_with_email)
+              .single();
+            profile = profileData;
+          }
+          
+          if (profile) {
+            const enrichedName = share.shared_with_name || profile.display_name || profile.username || profile.email;
+            const enrichedEmail = share.shared_with_email || profile.email;
+            console.log('[VaultDialog] Enriched share:', { share_id: share.id, enrichedName, enrichedEmail });
+            return {
+              ...share,
+              shared_with_name: enrichedName,
+              shared_with_email: enrichedEmail,
+            };
+          }
+          
+          return share;
+        })
+      );
+      
+      console.log('[VaultDialog] Final enriched shares:', enrichedShares);
+      setShares(enrichedShares as VaultShare[]);
     }
   }, []);
 
@@ -420,11 +468,13 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     setSaving(true);
     try {
       // Look up the user's profile by email to get their user_id and display name
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('user_id, display_name, username, email')
         .eq('email', email.trim().toLowerCase())
         .single();
+
+      console.log('[VaultDialog] Profile lookup for email:', email.trim().toLowerCase(), { profile, profileError });
 
       const shareData: any = {
         vault_id: vault.id,
@@ -437,8 +487,12 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       if (profile) {
         shareData.shared_with_user_id = profile.user_id;
         shareData.shared_with_name = profile.display_name || profile.username || profile.email;
+        console.log('[VaultDialog] Found profile, setting shared_with_name to:', shareData.shared_with_name);
+      } else {
+        console.log('[VaultDialog] No profile found for email, share will not have user_id or name');
       }
 
+      console.log('[VaultDialog] Inserting share data:', shareData);
       const { error } = await supabase.from('vault_shares').insert(shareData);
 
       if (error) throw error;
@@ -805,22 +859,31 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                   {shares.map((share) => (
                     <div
                       key={share.id}
-                      className="flex items-center justify-between p-2 rounded-lg bg-background/50 border border-border"
+                      className="flex items-center justify-between p-3 rounded-lg bg-background/50 border border-border"
                     >
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-md bg-gradient-primary flex items-center justify-center text-xs font-bold text-white">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-md bg-gradient-primary flex items-center justify-center text-sm font-bold text-white shrink-0">
                           {(share.shared_with_name || share.shared_with_email || 'U').charAt(0).toUpperCase()}
                         </div>
-                        <span className="text-sm font-mono">
-                          {share.shared_with_name || share.shared_with_email || 'Unknown User'}
-                          {share.shared_with_email && share.shared_with_name !== share.shared_with_email && (
-                            <span className="text-xs text-muted-foreground/60 ml-1">
-                              ({share.shared_with_email})
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-sm font-mono font-medium truncate">
+                            {share.shared_with_name || 'Unknown User'}
+                          </span>
+                          {share.shared_with_email && (
+                            <span className="text-xs text-muted-foreground font-mono truncate">
+                              {share.shared_with_email}
                             </span>
                           )}
-                        </span>
+                          <span className="text-xs text-muted-foreground/60 font-mono">
+                            added {new Date(share.created_at).toLocaleDateString('en-US', { 
+                              month: 'short', 
+                              day: 'numeric', 
+                              year: 'numeric' 
+                            })}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 shrink-0">
                         <Select
                           value={(share as any).role || (share as any).permission || 'viewer'}
                           onValueChange={(value) => handleUpdatePermission(share.id, value as 'viewer' | 'editor')}
