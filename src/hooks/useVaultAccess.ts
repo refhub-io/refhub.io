@@ -526,14 +526,7 @@ export const updateVaultShareRole = async (shareId: string, role: 'editor' | 'vi
 export const getVaultShares = async (vaultId: string) => {
   const { data, error } = await supabase
     .from('vault_shares')
-    .select(`
-      *,
-      profiles:shared_with_user_id(
-        display_name,
-        email,
-        avatar_url
-      )
-    `)
+    .select('*')
     .eq('vault_id', vaultId);
 
   return { data, error };

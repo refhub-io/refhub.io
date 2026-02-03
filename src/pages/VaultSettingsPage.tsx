@@ -278,14 +278,18 @@ const VaultSettingsPage: React.FC = () => {
             {shares.map((share) => (
               <div key={share.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-md">
                 <div className="flex items-center">
-                  <div className="w-8 h-8 bg-gray-300 rounded-full mr-3"></div>
+                  <div className="w-8 h-8 bg-gray-300 rounded-full mr-3 flex items-center justify-center text-sm font-bold text-gray-600">
+                    {(share.shared_with_name || share.shared_with_email || 'U').charAt(0).toUpperCase()}
+                  </div>
                   <div>
                     <p className="font-medium">
-                      {share.profiles?.display_name || share.shared_with_email || 'Unknown User'}
+                      {share.shared_with_name || share.shared_with_email || 'Unknown User'}
                     </p>
-                    <p className="text-sm text-gray-600">
-                      {share.profiles?.email || share.shared_with_email}
-                    </p>
+                    {share.shared_with_name && share.shared_with_email && share.shared_with_name !== share.shared_with_email && (
+                      <p className="text-sm text-gray-600">
+                        {share.shared_with_email}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
