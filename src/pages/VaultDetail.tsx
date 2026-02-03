@@ -94,6 +94,7 @@ export default function VaultDetail() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [favoritesCount, setFavoritesCount] = useState(0);
   const [forkCount, setForkCount] = useState(0);
+  const [vaultOwner, setVaultOwner] = useState<{ display_name: string | null; username: string | null } | null>(null);
 
   const [isPublicationDialogOpen, setIsPublicationDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
@@ -235,7 +236,7 @@ export default function VaultDetail() {
     const fetchVaultStats = async () => {
       if (!vault) return;
       
-      const [favRes, forkRes] = await Promise.all([
+      const [favRes, forkRes, ownerRes] = await Promise.all([
         supabase
           .from('vault_favorites')
           .select('*', { count: 'exact', head: true })
@@ -244,10 +245,17 @@ export default function VaultDetail() {
           .from('vault_forks')
           .select('*', { count: 'exact', head: true })
           .eq('original_vault_id', vault.id),
+        // Fetch vault owner profile for shared vaults
+        supabase
+          .from('profiles')
+          .select('display_name, username')
+          .eq('user_id', vault.user_id)
+          .maybeSingle(),
       ]);
       
       setFavoritesCount(favRes.count || 0);
       setForkCount(forkRes.count || 0);
+      setVaultOwner(ownerRes.data);
     };
     
     fetchVaultStats();
@@ -1265,6 +1273,7 @@ export default function VaultDetail() {
           publications={publications}
           tags={tags}
           vaults={vaults.concat(sharedVaults)}
+          vaultOwnerName={!isOwner && vaultOwner ? (vaultOwner.display_name || vaultOwner.username || undefined) : undefined}
           publicationTagsMap={publicationTagsMap}
           publicationVaultsMap={publicationVaultsMap}
           relationsCountMap={relationsCountMap}

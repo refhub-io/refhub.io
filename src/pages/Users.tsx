@@ -236,35 +236,10 @@ export default function Users() {
 
               <div className="flex-1 min-w-0">
                 <h1 className="text-lg sm:text-xl lg:text-2xl font-bold truncate font-mono leading-none">
-                  {/* Follow Button */}
-                      <div className="mt-4">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => {
-                            // TODO: Implement follow functionality
-                            console.log('Follow feature not implemented yet');
-                          }}
-                          className="font-mono"
-                        >
-                          follow
-                        </Button>
-                        {/* Add Paper Button */}
-                        <Button 
-                          variant="default" 
-                          size="sm"
-                          onClick={() => {
-                            // TODO: Implement add paper functionality
-                            console.log('Add Paper feature not implemented yet');
-                          }}
-                          className="font-mono ml-2"
-                        >
-                          add_paper
-                        </Button>
-                      </div>
+                  researchers_<span className="text-gradient">directory</span>
                 </h1>
                 <p className="text-xs text-muted-foreground mt-1 font-mono truncate leading-none">
-                  {filteredUsers.length} user{filteredUsers.length !== 1 ? 's' : ''} found
+                  {filteredUsers.length} researcher{filteredUsers.length !== 1 ? 's' : ''} found
                 </p>
               </div>
             </div>
@@ -390,7 +365,7 @@ export default function Users() {
                       </div>
 
                       {/* Social Links */}
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 pt-4 border-t border-border/50">
                         {researcher.github_url && (
                           <a
                             href={researcher.github_url}
@@ -436,33 +411,21 @@ export default function Users() {
                             </svg>
                           </a>
                         )}
-                      </div>
-
-                      {/* Follow Button */}
-                      <div className="mt-4">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => {
-                            // TODO: Implement follow functionality
-                            console.log('Follow feature not implemented yet');
-                          }}
-                          className="font-mono"
-                        >
-                          follow
-                        </Button>
-                        {/* Add Paper Button */}
-                        <Button 
-                          variant="default" 
-                          size="sm"
-                          onClick={() => {
-                            // TODO: Implement add paper functionality
-                            console.log('Add Paper feature not implemented yet');
-                          }}
-                          className="font-mono ml-2"
-                        >
-                          add_paper
-                        </Button>
+                        
+                        {/* View public vaults button */}
+                        {researcher.public_vault_count > 0 && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => {
+                              // Navigate to codex filtered by this user
+                              navigate(`/codex?user=${researcher.username || researcher.user_id}`);
+                            }}
+                            className="font-mono ml-auto text-xs"
+                          >
+                            view_vaults →
+                          </Button>
+                        )}
                       </div>
                     </CardContent>
                   </Card>

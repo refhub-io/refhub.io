@@ -1112,39 +1112,39 @@ export function PublicationDialog({
 
             {/* Fullscreen Notes Overlay */}
             {notesFullscreen && (
-              <div className="fixed inset-0 z-[100] bg-background">
+              <div className="fixed inset-0 z-[100] bg-background safe-area-inset">
                 <div className="h-full flex flex-col">
                   {/* Header */}
-                  <div className="border-b border-border bg-card/50 backdrop-blur-xl">
-                    <div className="px-6 py-4 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <h2 className="text-lg font-bold font-mono">notes_editor</h2>
-                        <span className="text-xs text-muted-foreground font-mono">(markdown_supported)</span>
+                  <div className="border-b border-border bg-card/50 backdrop-blur-xl shrink-0">
+                    <div className="px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
+                      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                        <h2 className="text-base sm:text-lg font-bold font-mono truncate">notes_editor</h2>
+                        <span className="text-xs text-muted-foreground font-mono hidden sm:inline">(markdown_supported)</span>
                       </div>
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
                         onClick={() => setNotesFullscreen(false)}
-                        className="font-mono"
+                        className="font-mono shrink-0"
                       >
-                        <Minimize className="w-4 h-4 mr-2" />
-                        exit_fullscreen
+                        <Minimize className="w-4 h-4 sm:mr-2" />
+                        <span className="hidden sm:inline">exit_fullscreen</span>
                       </Button>
                     </div>
                   </div>
 
                   {/* Tabs and Content */}
-                  <div className="flex-1 overflow-hidden">
+                  <div className="flex-1 overflow-hidden min-h-0">
                     <Tabs value={notesTab} onValueChange={(v) => setNotesTab(v as 'write' | 'preview')} className="h-full flex flex-col">
-                      <div className="border-b border-border px-6 pt-4">
+                      <div className="border-b border-border px-4 sm:px-6 pt-3 sm:pt-4 shrink-0">
                         <TabsList className="grid w-full max-w-md grid-cols-2">
-                          <TabsTrigger value="write" className="font-mono">write</TabsTrigger>
-                          <TabsTrigger value="preview" className="font-mono">preview</TabsTrigger>
+                          <TabsTrigger value="write" className="font-mono text-xs sm:text-sm">write</TabsTrigger>
+                          <TabsTrigger value="preview" className="font-mono text-xs sm:text-sm">preview</TabsTrigger>
                         </TabsList>
                       </div>
                       
-                      <TabsContent value="write" className="flex-1 px-6 py-4 overflow-hidden mt-0">
+                      <TabsContent value="write" className="flex-1 px-4 sm:px-6 py-3 sm:py-4 overflow-hidden mt-0 min-h-0">
                         <Textarea
                           value={formData.notes}
                           onChange={(e) => {
@@ -1156,7 +1156,7 @@ export function PublicationDialog({
                         />
                       </TabsContent>
                       
-                      <TabsContent value="preview" className="flex-1 px-6 py-4 overflow-auto mt-0">
+                      <TabsContent value="preview" className="flex-1 px-4 sm:px-6 py-3 sm:py-4 overflow-auto mt-0 min-h-0">
                         {formData.notes ? (
                           <div className="prose prose-sm dark:prose-invert max-w-4xl mx-auto break-words prose-ul:list-disc prose-ol:list-decimal prose-li:ml-4 prose-ul:space-y-1 prose-ol:space-y-1 prose-headings:font-bold prose-code:bg-muted prose-code:px-1 prose-code:rounded prose-pre:bg-muted prose-pre:p-3 prose-blockquote:border-l-4 prose-blockquote:border-primary prose-blockquote:pl-4 prose-table:border prose-th:border prose-td:border prose-th:p-2 prose-td:p-2">
                             <ReactMarkdown 

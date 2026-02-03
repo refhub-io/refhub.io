@@ -121,6 +121,9 @@ export function PublicationCard({
                     {show.year && publication.year && (
                       <span className="text-neon-green"> • {publication.year}</span>
                     )}
+                    {show.type && publication.publication_type && (
+                      <span className="text-cyber-blue"> • {publication.publication_type}</span>
+                    )}
                   </p>
                 )}
               </div>

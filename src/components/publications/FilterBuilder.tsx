@@ -143,7 +143,7 @@ export function FilterBuilder({ filters, onFiltersChange, tags, vaults }: Filter
             value={filter.value}
             onValueChange={(value) => updateFilter(filter.id, { value })}
           >
-            <SelectTrigger className="h-8 w-32 text-xs font-mono">
+            <SelectTrigger className="h-8 w-full sm:w-32 text-xs font-mono">
               <SelectValue placeholder="Select tag" />
             </SelectTrigger>
             <SelectContent>
@@ -161,7 +161,7 @@ export function FilterBuilder({ filters, onFiltersChange, tags, vaults }: Filter
             value={filter.value}
             onValueChange={(value) => updateFilter(filter.id, { value })}
           >
-            <SelectTrigger className="h-8 w-32 text-xs font-mono">
+            <SelectTrigger className="h-8 w-full sm:w-32 text-xs font-mono">
               <SelectValue placeholder="Select vault" />
             </SelectTrigger>
             <SelectContent>
@@ -179,7 +179,7 @@ export function FilterBuilder({ filters, onFiltersChange, tags, vaults }: Filter
             value={filter.value}
             onValueChange={(value) => updateFilter(filter.id, { value })}
           >
-            <SelectTrigger className="h-8 w-32 text-xs font-mono">
+            <SelectTrigger className="h-8 w-full sm:w-32 text-xs font-mono">
               <SelectValue placeholder="Select type" />
             </SelectTrigger>
             <SelectContent>
@@ -198,7 +198,7 @@ export function FilterBuilder({ filters, onFiltersChange, tags, vaults }: Filter
             value={filter.value}
             onChange={(e) => updateFilter(filter.id, { value: e.target.value })}
             placeholder="Year"
-            className="h-8 w-24 text-xs font-mono"
+            className="h-8 w-full sm:w-24 text-xs font-mono"
           />
         );
       default:
@@ -207,7 +207,7 @@ export function FilterBuilder({ filters, onFiltersChange, tags, vaults }: Filter
             value={filter.value}
             onChange={(e) => updateFilter(filter.id, { value: e.target.value })}
             placeholder="Value..."
-            className="h-8 w-32 text-xs font-mono"
+            className="h-8 w-full sm:w-32 text-xs font-mono"
           />
         );
     }
@@ -233,7 +233,13 @@ export function FilterBuilder({ filters, onFiltersChange, tags, vaults }: Filter
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-auto min-w-[400px] p-3 bg-popover border-2">
+      <PopoverContent 
+        align="start" 
+        side="bottom"
+        sideOffset={8}
+        collisionPadding={16}
+        className="w-[calc(100vw-2rem)] sm:w-auto sm:min-w-[400px] max-w-[calc(100vw-2rem)] p-3 bg-popover border-2"
+      >
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-semibold">Filters</h4>
@@ -255,63 +261,67 @@ export function FilterBuilder({ filters, onFiltersChange, tags, vaults }: Filter
               // no filters applied
             </p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {filters.map((filter, index) => (
-                <div key={filter.id} className="flex items-center gap-2 flex-wrap">
-                  {index > 0 && (
-                    <span className="text-xs text-muted-foreground font-mono w-8">and</span>
-                  )}
-                  {index === 0 && <span className="w-8" />}
+                <div key={filter.id} className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    {index > 0 && (
+                      <span className="text-xs text-muted-foreground font-mono w-8 shrink-0">and</span>
+                    )}
+                    {index === 0 && <span className="w-8 shrink-0 hidden sm:block" />}
+                  </div>
                   
-                  <Select
-                    value={filter.field}
-                    onValueChange={(value: FilterField) => {
-                      const operators = getOperatorsForField(value);
-                      updateFilter(filter.id, { 
-                        field: value, 
-                        operator: operators[0].value,
-                        value: '' 
-                      });
-                    }}
-                  >
-                    <SelectTrigger className="h-8 w-28 text-xs font-mono">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {FIELD_OPTIONS.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value} className="text-xs font-mono">
-                          {opt.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+                    <Select
+                      value={filter.field}
+                      onValueChange={(value: FilterField) => {
+                        const operators = getOperatorsForField(value);
+                        updateFilter(filter.id, { 
+                          field: value, 
+                          operator: operators[0].value,
+                          value: '' 
+                        });
+                      }}
+                    >
+                      <SelectTrigger className="h-8 w-full sm:w-28 text-xs font-mono">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {FIELD_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value} className="text-xs font-mono">
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
 
-                  <Select
-                    value={filter.operator}
-                    onValueChange={(value: FilterOperator) => updateFilter(filter.id, { operator: value })}
-                  >
-                    <SelectTrigger className="h-8 w-36 text-xs font-mono">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {getOperatorsForField(filter.field).map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value} className="text-xs font-mono">
-                          {opt.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    <Select
+                      value={filter.operator}
+                      onValueChange={(value: FilterOperator) => updateFilter(filter.id, { operator: value })}
+                    >
+                      <SelectTrigger className="h-8 w-full sm:w-36 text-xs font-mono">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getOperatorsForField(filter.field).map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value} className="text-xs font-mono">
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
 
-                  {renderValueInput(filter)}
+                    {renderValueInput(filter)}
 
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
-                    onClick={() => removeFilter(filter.id)}
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+                      onClick={() => removeFilter(filter.id)}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>

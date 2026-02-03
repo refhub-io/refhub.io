@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag, PublicationRelation, VaultShare } from '@/types/database';
 import { useVaultAccess } from '@/hooks/useVaultAccess';
+import { handleError } from '@/lib/toast';
 
 // Info about the last activity in the vault
 export type ActivityType = 'publication_added' | 'publication_updated' | 'publication_removed' | 'tag_added' | 'tag_updated' | 'tag_removed';
@@ -313,8 +314,12 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       
       console.log('[VaultContentContext] Completed fetch, all state updated');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load vault content');
-      console.error('Error loading vault content:', err);
+      // On error, show toast but keep existing data (graceful degradation)
+      const message = handleError(err, 'loading vault content', publications.length > 0);
+      // Only set error state if we have no cached data
+      if (publications.length === 0) {
+        setError(message);
+      }
     } finally {
       setLoading(false);
       console.log('[VaultContentContext] Loading set to false');
