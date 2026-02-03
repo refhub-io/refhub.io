@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag, PublicationRelation, VaultShare } from '@/types/database';
 import { generateBibtexKey } from '@/lib/bibtex';
 import { formatTimeAgo } from '@/lib/utils';
+import { logger } from '@/lib/logger';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationDialog } from '@/components/publications/PublicationDialog';
@@ -15,7 +16,7 @@ import { RelationshipGraph } from '@/components/publications/RelationshipGraph';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { ExportDialog } from '@/components/publications/ExportDialog';
 import { QRCodeDialog } from '@/components/vaults/QRCodeDialog';
-import { LoadingSpinner } from '@/components/ui/loading';
+import { LoadingSpinner, PhaseLoader, LoadingPhase } from '@/components/ui/loading';
 import { useToast } from '@/hooks/use-toast';
 import { useVaultAccess, requestVaultAccess } from '@/hooks/useVaultAccess';
 import { useVaultFavorites } from '@/hooks/useVaultFavorites';
@@ -96,6 +97,31 @@ export default function VaultDetail() {
   const [forkCount, setForkCount] = useState(0);
   const [vaultOwner, setVaultOwner] = useState<{ display_name: string | null; username: string | null } | null>(null);
 
+  // Loading phases for the vault loader
+  const [loadingPhases, setLoadingPhases] = useState<LoadingPhase[]>([
+    { id: 'auth', label: 'checking_access', status: 'loading' },
+    { id: 'vault', label: 'loading_vault_metadata', status: 'pending' },
+    { id: 'publications', label: 'fetching_publications', status: 'pending' },
+    { id: 'tags', label: 'syncing_tags', status: 'pending' },
+    { id: 'relations', label: 'mapping_connections', status: 'pending' },
+  ]);
+
+  const updatePhase = useCallback((phaseId: string, status: LoadingPhase['status']) => {
+    setLoadingPhases(prev => {
+      const newPhases = prev.map(p => 
+        p.id === phaseId ? { ...p, status } : p
+      );
+      // Auto-start next pending phase when one completes
+      if (status === 'complete') {
+        const nextPendingIndex = newPhases.findIndex(p => p.status === 'pending');
+        if (nextPendingIndex !== -1) {
+          newPhases[nextPendingIndex] = { ...newPhases[nextPendingIndex], status: 'loading' };
+        }
+      }
+      return newPhases;
+    });
+  }, []);
+
   const [isPublicationDialogOpen, setIsPublicationDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [editingPublication, setEditingPublication] = useState<Publication | null>(null);
@@ -110,6 +136,37 @@ export default function VaultDetail() {
 
   const [deleteConfirmation, setDeleteConfirmation] = useState<Publication | null>(null);
   const [deleteVaultConfirmation, setDeleteVaultConfirmation] = useState<Vault | null>(null);
+
+  // Track loading phase updates based on access status and content
+  useEffect(() => {
+    if (accessStatus === 'granted' || accessStatus === 'denied' || accessStatus === 'requestable' || accessStatus === 'pending') {
+      updatePhase('auth', 'complete');
+    }
+  }, [accessStatus, updatePhase]);
+
+  useEffect(() => {
+    if (vault) {
+      updatePhase('vault', 'complete');
+    }
+  }, [vault, updatePhase]);
+
+  useEffect(() => {
+    if (publications.length > 0 || (!contentLoading && vault)) {
+      updatePhase('publications', 'complete');
+    }
+  }, [publications, contentLoading, vault, updatePhase]);
+
+  useEffect(() => {
+    if (tags.length > 0 || (!contentLoading && vault)) {
+      updatePhase('tags', 'complete');
+    }
+  }, [tags, contentLoading, vault, updatePhase]);
+
+  useEffect(() => {
+    if (!contentLoading && vault) {
+      updatePhase('relations', 'complete');
+    }
+  }, [contentLoading, vault, updatePhase]);
 
   // Sync editingPublication with publications array for realtime updates
   // This ensures the dialog shows updated notes when another client makes changes
@@ -522,8 +579,11 @@ export default function VaultDetail() {
     }
   };
 
-  const handleBulkImport = async (publicationsToImport: Partial<Publication>[]) => {
-    if (!user || !vaultId || !canEdit) return; // Only allow importing if user has edit permission
+  const handleBulkImport = async (publicationsToImport: Partial<Publication>[], targetVaultId?: string | null): Promise<string[]> => {
+    if (!user || !canEdit) return []; // Only allow importing if user has edit permission
+
+    // Use the provided targetVaultId or fall back to current vaultId
+    const effectiveVaultId = targetVaultId || vaultId;
 
     const pubsToInsert = publicationsToImport.map(pub => ({
       ...pub,
@@ -537,7 +597,7 @@ export default function VaultDetail() {
         description: 'All papers were duplicates',
         variant: 'destructive',
       });
-      return;
+      return [];
     }
 
     try {
@@ -548,14 +608,17 @@ export default function VaultDetail() {
 
       if (error) throw error;
 
-      // Add imported publications to this vault using the copy-based model
-      if (insertedPubs) {
+      const insertedIds: string[] = [];
+
+      // Add imported publications to the target vault using the copy-based model
+      if (insertedPubs && effectiveVaultId) {
         for (const pub of insertedPubs) {
           await supabase.rpc('copy_publication_to_vault', {
             pub_id: pub.id,
-            target_vault_id: vaultId,
+            target_vault_id: effectiveVaultId,
             user_id: user.id
           });
+          insertedIds.push(pub.id);
         }
 
         // Don't manually update state here - realtime subscription will handle it
@@ -563,18 +626,19 @@ export default function VaultDetail() {
         
         // Update last activity for bulk import
         updateLastActivity('publication_added', user.id);
-        
-        toast({ 
-          title: 'papers_imported ✨',
-          description: `${insertedPubs.length} paper${insertedPubs.length > 1 ? 's' : ''} added to vault`
-        });
+      } else if (insertedPubs) {
+        // No vault specified, just return the IDs
+        insertedIds.push(...insertedPubs.map(p => p.id));
       }
+
+      return insertedIds;
     } catch (error) {
       toast({
         title: 'error_importing_papers',
         description: (error as Error).message,
         variant: 'destructive',
       });
+      return [];
     }
   };
 
@@ -582,15 +646,36 @@ export default function VaultDetail() {
     if (!user || !canEdit) return; // Only allow adding if user has edit permission
 
     try {
-      // Verify the publication exists and belongs to the user
-      const { data: publication, error: pubError } = await supabase
-        .from('publications')
-        .select('*')
-        .eq('id', publicationId)
-        .eq('user_id', user.id)
-        .single();
+      // The publicationId might be a vault_publications.id (when viewing a vault)
+      // or a publications.id (when viewing the library). We need to resolve it.
+      let sourcePublicationId = publicationId;
+      let sourcePublication: Record<string, unknown> | null = null;
 
-      if (pubError || !publication) throw new Error('Publication not found');
+      // First, check if this ID is a vault_publication
+      const { data: vaultPub } = await supabase
+        .from('vault_publications')
+        .select('*, original_publication_id')
+        .eq('id', publicationId)
+        .maybeSingle();
+
+      if (vaultPub) {
+        // This is a vault_publication - use it as the source data
+        // If it has an original_publication_id, use that for tracking
+        sourcePublicationId = vaultPub.original_publication_id || publicationId;
+        sourcePublication = vaultPub;
+      } else {
+        // Try to find it in the publications table
+        const { data: publication, error: pubError } = await supabase
+          .from('publications')
+          .select('*')
+          .eq('id', publicationId)
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (pubError) throw pubError;
+        if (!publication) throw new Error('Publication not found');
+        sourcePublication = publication;
+      }
 
       // For each vault, create a copy of the publication using the RPC function
       for (const vaultIdToAdd of vaultIds) {
@@ -599,20 +684,38 @@ export default function VaultDetail() {
           .from('vault_publications')
           .select('*')
           .eq('vault_id', vaultIdToAdd)
-          .eq('original_publication_id', publicationId)
+          .or(`original_publication_id.eq.${sourcePublicationId},id.eq.${publicationId}`)
           .maybeSingle();
 
         if (checkError) throw checkError;
 
         // Only add if not already in vault as a copy
         if (!existingCopy) {
-          const { error: insertError } = await supabase.rpc('copy_publication_to_vault', {
-            pub_id: publicationId,
-            target_vault_id: vaultIdToAdd,
-            user_id: user.id
-          });
+          // If we have a vault_publication, we need to copy its data directly
+          if (vaultPub) {
+            // Copy the vault_publication data to the new vault
+            const { id, vault_id, original_publication_id, created_at, updated_at, ...pubData } = vaultPub;
+            const { error: insertError } = await supabase
+              .from('vault_publications')
+              .insert({
+                ...pubData,
+                vault_id: vaultIdToAdd,
+                original_publication_id: original_publication_id || null,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              });
 
-          if (insertError) throw insertError;
+            if (insertError) throw insertError;
+          } else {
+            // Use the RPC function for original publications
+            const { error: insertError } = await supabase.rpc('copy_publication_to_vault', {
+              pub_id: sourcePublicationId,
+              target_vault_id: vaultIdToAdd,
+              user_id: user.id
+            });
+
+            if (insertError) throw insertError;
+          }
         }
       }
 
@@ -631,19 +734,93 @@ export default function VaultDetail() {
   };
 
   const handleDeletePublication = async () => {
-    if (!deleteConfirmation || !vaultId || !canEdit) return; // Only allow deletion if user has edit permission
+    if (!deleteConfirmation || !vaultId || !canEdit) {
+      logger.debug('[handleDeletePublication] Early return - missing required data', { 
+        hasDeleteConfirmation: !!deleteConfirmation, 
+        vaultId, 
+        canEdit 
+      });
+      return;
+    }
 
     const deletedId = deleteConfirmation.id;
+    logger.debug('[handleDeletePublication] Starting delete', { deletedId, vaultId });
 
     try {
-      // In the copy-based model, we're dealing with vault_publications records
-      // Delete the vault-specific copy
-      const { error } = await supabase
+      // Determine if this is a vault-specific copy or an original publication
+      // First check if the ID exists in vault_publications
+      const { data: vaultPub, error: vaultPubError } = await supabase
         .from('vault_publications')
-        .delete()
-        .eq('id', deletedId); // deletedId refers to vault_publications.id
+        .select('id, original_publication_id, vault_id')
+        .eq('id', deletedId)
+        .maybeSingle();
 
-      if (error) throw error;
+      logger.debug('[handleDeletePublication] vault_publications lookup', { 
+        vaultPub, 
+        vaultPubError,
+        lookupVaultId: vaultPub?.vault_id,
+        currentVaultId: vaultId
+      });
+
+      let deleteError;
+      let deletedCount = 0;
+
+      if (vaultPub) {
+        // This is a vault-specific copy, delete from vault_publications
+        // Also ensure it belongs to the current vault
+        logger.debug('[handleDeletePublication] Deleting from vault_publications', { 
+          deletedId, 
+          vaultId,
+          matchesVault: vaultPub.vault_id === vaultId
+        });
+        
+        const { error, count } = await supabase
+          .from('vault_publications')
+          .delete({ count: 'exact' })
+          .eq('id', deletedId)
+          .eq('vault_id', vaultId);
+
+        deleteError = error;
+        deletedCount = count ?? 0;
+        
+        logger.debug('[handleDeletePublication] Delete result', { deleteError, deletedCount });
+      } else {
+        // This might be an original publication ID, try to delete from publications
+        logger.debug('[handleDeletePublication] Trying publications table', { deletedId });
+        
+        const { error, count } = await supabase
+          .from('publications')
+          .delete({ count: 'exact' })
+          .eq('id', deletedId);
+
+        deleteError = error;
+        deletedCount = count ?? 0;
+        
+        logger.debug('[handleDeletePublication] Publications delete result', { deleteError, deletedCount });
+      }
+
+      if (deleteError) {
+        // Check if it's a permission error
+        if (deleteError.code === '42501' || deleteError.message?.includes('permission')) {
+          toast({
+            title: 'permission_denied',
+            description: 'You do not have permission to delete this paper.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        throw deleteError;
+      }
+
+      // Check if any rows were actually deleted (RLS might silently prevent deletion)
+      if (deletedCount === 0) {
+        toast({
+          title: 'Could not delete paper',
+          description: 'The paper could not be deleted. You may not have permission.',
+          variant: 'destructive',
+        });
+        return;
+      }
 
       // Optimistic update
       setPublications(prev => prev.filter(p => p.id !== deletedId));
@@ -960,22 +1137,11 @@ export default function VaultDetail() {
   // Only show "not found" after access check is complete and confirmed inaccessible
   if (shouldShowLoading || accessStatus === 'loading') {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-6 p-8 max-w-md mx-4">
-          <div className="w-20 h-20 rounded-2xl bg-gradient-primary flex items-center justify-center mx-auto shadow-lg relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
-            <Sparkles className="w-10 h-10 text-white relative z-10" />
-          </div>
-          <div className="space-y-2">
-            <h1 className="text-xl font-bold font-mono">initializing_vault<span className="animate-pulse">...</span></h1>
-            <div className="text-muted-foreground font-mono text-xs space-y-1">
-              <p className="animate-pulse">// loading_vault_contents</p>
-              <p className="text-muted-foreground/50">// fetching_publications</p>
-              <p className="text-muted-foreground/30">// syncing_tags</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      <PhaseLoader
+        phases={loadingPhases}
+        title="opening_vault"
+        subtitle={vault?.name || 'accessing your research collection'}
+      />
     );
   }
 
@@ -1278,6 +1444,7 @@ export default function VaultDetail() {
           publicationVaultsMap={publicationVaultsMap}
           relationsCountMap={relationsCountMap}
           selectedVault={currentVault}
+          isVaultContext={true}
           onAddPublication={canEdit ? () => {
             setEditingPublication(null);
             setIsPublicationDialogOpen(true);
@@ -1372,6 +1539,25 @@ export default function VaultDetail() {
         publications={exportPublications}
         vaultName={vault?.name}
       />
+
+      <AlertDialog open={!!deleteConfirmation} onOpenChange={() => setDeleteConfirmation(null)}>
+        <AlertDialogContent className="border-2 bg-card/95 backdrop-blur-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-bold font-mono">remove_from_vault?</AlertDialogTitle>
+            <AlertDialogDescription className="font-mono text-sm">
+              // this_will_remove "{deleteConfirmation?.title}" from this vault
+              <br />
+              // the original paper will remain in your all_papers collection
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="font-mono">cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeletePublication} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono">
+              remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!deleteVaultConfirmation} onOpenChange={() => setDeleteVaultConfirmation(null)}>
         <AlertDialogContent className="border-2 bg-card/95 backdrop-blur-xl">

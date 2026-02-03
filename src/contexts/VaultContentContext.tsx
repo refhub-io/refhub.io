@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag, PublicationRelation, VaultShare } from '@/types/database';
 import { useVaultAccess } from '@/hooks/useVaultAccess';
 import { handleError } from '@/lib/toast';
+import { debug, warn } from '@/lib/logger';
 
 // Info about the last activity in the vault
 export type ActivityType = 'publication_added' | 'publication_updated' | 'publication_removed' | 'tag_added' | 'tag_updated' | 'tag_removed';
@@ -96,18 +97,18 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       }
       
       if (error) {
-        console.warn('[VaultContentContext] Error fetching profile for user:', userId, error);
+        warn('VaultContentContext', 'Error fetching profile for user:', userId, error);
         return null;
       }
       
       const displayName = profile?.display_name || profile?.username || null;
-      console.log('[VaultContentContext] getUserDisplayName result:', { userId, displayName, profile });
+      debug('VaultContentContext', 'getUserDisplayName result:', { userId, displayName, profile });
       if (displayName) {
         userProfileCacheRef.current.set(userId, displayName);
       }
       return displayName;
     } catch (err) {
-      console.warn('[VaultContentContext] Failed to fetch user display name:', err);
+      warn('VaultContentContext', 'Failed to fetch user display name:', err);
       return null;
     }
   }, []);
@@ -120,12 +121,12 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
     timestamp?: string,
     isFromRealtime?: boolean
   ) => {
-    console.log('[VaultContentContext] updateLastActivity called:', { type, userId, timestamp, isFromRealtime });
+    debug('VaultContentContext', 'updateLastActivity called:', { type, userId, timestamp, isFromRealtime });
     
     // Skip realtime updates if we recently made a local update (within 2 seconds)
     // This prevents realtime from overwriting with incorrect user (e.g., created_by instead of actual updater)
     if (isFromRealtime && Date.now() - lastLocalActivityUpdateRef.current < 2000) {
-      console.log('[VaultContentContext] Skipping realtime activity update - recent local update');
+      debug('VaultContentContext', 'Skipping realtime activity update - recent local update');
       return;
     }
     
@@ -135,7 +136,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
     }
     
     const userName = userId ? await getUserDisplayName(userId) : null;
-    console.log('[VaultContentContext] Setting lastActivity with userName:', userName);
+    debug('VaultContentContext', 'Setting lastActivity with userName:', userName);
     setLastActivity({
       timestamp: timestamp || new Date().toISOString(),
       userId,
@@ -186,11 +187,11 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
   // Fetch vault content - extracted as a reusable function
   const fetchVaultContent = useCallback(async () => {
     if (!currentVaultId || !user || !canView) {
-      console.log('[VaultContentContext] Skipping fetch - conditions not met', { hasId: !!currentVaultId, hasUser: !!user, canView });
+      debug('VaultContentContext', 'Skipping fetch - conditions not met', { hasId: !!currentVaultId, hasUser: !!user, canView });
       return;
     }
 
-    console.log('[VaultContentContext] Starting fetch for vault:', currentVaultId);
+    debug('VaultContentContext', 'Starting fetch for vault:', currentVaultId);
     setLoading(true);
     setError(null);
 
@@ -312,7 +313,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         });
       }
       
-      console.log('[VaultContentContext] Completed fetch, all state updated');
+      debug('VaultContentContext', 'Completed fetch, all state updated');
     } catch (err) {
       // On error, show toast but keep existing data (graceful degradation)
       const message = handleError(err, 'loading vault content', publications.length > 0);
@@ -322,7 +323,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       }
     } finally {
       setLoading(false);
-      console.log('[VaultContentContext] Loading set to false');
+      debug('VaultContentContext', 'Loading set to false');
     }
   }, [currentVaultId, user, canView, formatVaultPublication]);
 
@@ -333,7 +334,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
 
   // Fetch vault content when vaultId changes
   useEffect(() => {
-    console.log('[VaultContentContext] Effect triggered', { currentVaultId, user: !!user, canView });
+    debug('VaultContentContext', 'Effect triggered', { currentVaultId, user: !!user, canView });
     if (!currentVaultId || !user || !canView) {
       return;
     }
@@ -347,12 +348,12 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
   // Set up a single real-time subscription for all vault-related changes
   useEffect(() => {
     if (!currentVaultId || !user) {
-      console.log('[VaultContentContext] Skipping real-time subscription - no vaultId or user', { currentVaultId: !!currentVaultId, user: !!user });
+      debug('VaultContentContext', 'Skipping real-time subscription - no vaultId or user', { currentVaultId: !!currentVaultId, user: !!user });
       setIsRealtimeConnected(false);
       return;
     }
 
-    console.log('[VaultContentContext] Setting up unified real-time subscription for vault', currentVaultId);
+    debug('VaultContentContext', 'Setting up unified real-time subscription for vault', currentVaultId);
 
     const channel = supabase
       .channel(`vault-content-sync-${currentVaultId}`)
@@ -365,7 +366,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
           filter: `vault_id=eq.${currentVaultId}`,
         },
         async (payload) => {
-          console.log('[VaultContentContext] Received realtime update for vault publications:', payload);
+          debug('VaultContentContext', 'Received realtime update for vault publications:', payload);
           const eventType = payload.eventType;
           const newRecord = payload.new as any;
           const oldRecord = payload.old as any;
@@ -373,7 +374,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
 
           // Skip if this is from our own pending optimistic update
           if (pendingUpdatesRef.current.has(recordId)) {
-            console.log('[VaultContentContext] Skipping realtime update for pending optimistic update:', recordId);
+            debug('VaultContentContext', 'Skipping realtime update for pending optimistic update:', recordId);
             return;
           }
 
@@ -399,7 +400,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
             );
             // Track activity - use updated_by if available (new field), fallback to created_by
             const updaterId = newRecord.updated_by || newRecord.created_by;
-            console.log('[VaultContentContext] UPDATE event - updated_by:', newRecord.updated_by, 'created_by:', newRecord.created_by, 'using:', updaterId);
+            debug('VaultContentContext', 'UPDATE event - updated_by:', newRecord.updated_by, 'created_by:', newRecord.created_by, 'using:', updaterId);
             updateLastActivity('publication_updated', updaterId, newRecord.updated_at, true);
           } else if (eventType === 'DELETE') {
             // Remove publication
@@ -426,7 +427,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
           filter: `vault_id=eq.${currentVaultId}`,
         },
         async (payload) => {
-          console.log('[VaultContentContext] Received realtime update for tags:', payload);
+          debug('VaultContentContext', 'Received realtime update for tags:', payload);
           const eventType = payload.eventType;
           const newRecord = payload.new as any;
           const oldRecord = payload.old as any;
@@ -434,7 +435,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
 
           // Skip if this is from our own pending optimistic update
           if (pendingUpdatesRef.current.has(recordId)) {
-            console.log('[VaultContentContext] Skipping realtime tag update for pending optimistic update:', recordId);
+            debug('VaultContentContext', 'Skipping realtime tag update for pending optimistic update:', recordId);
             return;
           }
 
@@ -473,7 +474,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
           table: 'publication_tags',
         },
         async (payload) => {
-          console.log('[VaultContentContext] Received realtime update for publication tags:', payload);
+          debug('VaultContentContext', 'Received realtime update for publication tags:', payload);
           const eventType = payload.eventType;
           const newRecord = payload.new as any;
           const oldRecord = payload.old as any;
@@ -529,7 +530,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
           filter: `vault_id=eq.${currentVaultId}`,
         },
         async (payload) => {
-          console.log('[VaultContentContext] Received realtime update for vault shares:', payload);
+          debug('VaultContentContext', 'Received realtime update for vault shares:', payload);
           const eventType = payload.eventType;
           const newRecord = payload.new as any;
           const oldRecord = payload.old as any;
@@ -563,7 +564,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
           table: 'publication_relations',
         },
         async (payload) => {
-          console.log('[VaultContentContext] Received realtime update for publication relations:', payload);
+          debug('VaultContentContext', 'Received realtime update for publication relations:', payload);
           const eventType = payload.eventType;
           const newRecord = payload.new as any;
           const oldRecord = payload.old as any;

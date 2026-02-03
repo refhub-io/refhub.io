@@ -1,6 +1,7 @@
 import { QueryClient } from '@tanstack/react-query';
 import { persistQueryClient } from '@tanstack/react-query-persist-client';
 import { get, set, del } from 'idb-keyval';
+import { warn } from '@/lib/logger';
 
 /**
  * Custom IndexedDB persister for React Query
@@ -11,14 +12,14 @@ const createIDBPersister = (idbValidKey: IDBValidKey = 'refhub-query-cache') => 
     try {
       await set(idbValidKey, client);
     } catch (error) {
-      console.warn('[QueryClient] Failed to persist cache:', error);
+      warn('QueryClient', 'Failed to persist cache:', error);
     }
   },
   restoreClient: async () => {
     try {
       return await get<Parameters<typeof persistQueryClient>[0]['persister']['restoreClient'] extends () => Promise<infer T> ? T : never>(idbValidKey);
     } catch (error) {
-      console.warn('[QueryClient] Failed to restore cache:', error);
+      warn('QueryClient', 'Failed to restore cache:', error);
       return undefined;
     }
   },
@@ -26,7 +27,7 @@ const createIDBPersister = (idbValidKey: IDBValidKey = 'refhub-query-cache') => 
     try {
       await del(idbValidKey);
     } catch (error) {
-      console.warn('[QueryClient] Failed to remove cache:', error);
+      warn('QueryClient', 'Failed to remove cache:', error);
     }
   },
 });

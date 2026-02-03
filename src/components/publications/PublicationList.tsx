@@ -52,6 +52,7 @@ interface PublicationListProps {
   relationsCountMap: Record<string, number>;
   selectedVault: Vault | null;
   vaultOwnerName?: string; // Display owner name next to item count
+  isVaultContext?: boolean; // If true, shows "remove from vault" instead of "delete"
   onAddPublication?: () => void;
   onImportPublications?: () => void;
   onEditPublication?: (pub: Publication) => void;
@@ -76,6 +77,7 @@ export function PublicationList({
   relationsCountMap,
   selectedVault,
   vaultOwnerName,
+  isVaultContext = false,
   onAddPublication,
   onImportPublications,
   onEditPublication,
@@ -497,6 +499,7 @@ export function PublicationList({
             relationsCountMap={relationsCountMap}
             selectedIds={selectedIds}
             visibleColumns={visibleColumns}
+            isVaultContext={isVaultContext}
             onToggleSelect={toggleSelection}
             onEdit={onEditPublication}
             onDelete={onDeletePublication}
@@ -519,6 +522,7 @@ export function PublicationList({
                   relationsCount={relationsCountMap[pub.id] || 0}
                   isSelected={selectedIds.has(pub.id)}
                   visibleColumns={visibleColumns}
+                  isVaultContext={isVaultContext}
                   onToggleSelect={() => toggleSelection(pub.id)}
                   onEdit={() => onEditPublication(pub)}
                   onDelete={() => onDeletePublication(pub)}

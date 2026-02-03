@@ -14,8 +14,16 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 import { Plus, X, Filter, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export type FilterField = 
   | 'title' 
@@ -108,6 +116,7 @@ const needsValueInput = (operator: FilterOperator): boolean => {
 
 export function FilterBuilder({ filters, onFiltersChange, tags, vaults }: FilterBuilderProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   const addFilter = () => {
     const newFilter: PublicationFilter = {
@@ -213,130 +222,156 @@ export function FilterBuilder({ filters, onFiltersChange, tags, vaults }: Filter
     }
   };
 
+  const filterTrigger = (
+    <Button
+      variant={filters.length > 0 ? 'default' : 'outline'}
+      size="sm"
+      className={cn(
+        'h-9 gap-2 font-mono text-xs',
+        filters.length > 0 && 'bg-primary/20 border-primary/50 text-primary hover:bg-primary/30'
+      )}
+    >
+      <Filter className="w-3.5 h-3.5" />
+      <span className="hidden sm:inline">Filter</span>
+      {filters.length > 0 && (
+        <span className="bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 text-[10px] font-bold">
+          {filters.length}
+        </span>
+      )}
+    </Button>
+  );
+
+  const filterContent = (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-semibold">Filters</h4>
+        {filters.length > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs text-muted-foreground hover:text-destructive"
+            onClick={clearAllFilters}
+          >
+            <Trash2 className="w-3 h-3 mr-1" />
+            Clear all
+          </Button>
+        )}
+      </div>
+
+      {filters.length === 0 ? (
+        <p className="text-xs text-muted-foreground font-mono py-2">
+          // no filters applied
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {filters.map((filter, index) => (
+            <div key={filter.id} className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                {index > 0 && (
+                  <span className="text-xs text-muted-foreground font-mono">and</span>
+                )}
+              </div>
+              
+              <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2">
+                <Select
+                  value={filter.field}
+                  onValueChange={(value: FilterField) => {
+                    const operators = getOperatorsForField(value);
+                    updateFilter(filter.id, { 
+                      field: value, 
+                      operator: operators[0].value,
+                      value: '' 
+                    });
+                  }}
+                >
+                  <SelectTrigger className="h-9 sm:h-8 w-full sm:w-28 text-xs font-mono">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FIELD_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value} className="text-xs font-mono">
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={filter.operator}
+                  onValueChange={(value: FilterOperator) => updateFilter(filter.id, { operator: value })}
+                >
+                  <SelectTrigger className="h-9 sm:h-8 w-full sm:w-36 text-xs font-mono">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {getOperatorsForField(filter.field).map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value} className="text-xs font-mono">
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="flex-1 sm:flex-initial">
+                    {renderValueInput(filter)}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 sm:h-8 w-9 sm:w-8 text-muted-foreground hover:text-destructive shrink-0"
+                    onClick={() => removeFilter(filter.id)}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full h-9 sm:h-8 text-xs font-mono"
+        onClick={addFilter}
+      >
+        <Plus className="w-3 h-3 mr-1" />
+        Add filter
+      </Button>
+    </div>
+  );
+
+  // Use Sheet on mobile, Popover on desktop
+  if (isMobile) {
+    return (
+      <Sheet open={isOpen} onOpenChange={setIsOpen}>
+        <SheetTrigger asChild>
+          {filterTrigger}
+        </SheetTrigger>
+        <SheetContent side="bottom" className="px-4 pb-8 pt-4 max-h-[80vh] overflow-y-auto">
+          <SheetHeader className="mb-4">
+            <SheetTitle className="font-mono text-left">filter_papers</SheetTitle>
+          </SheetHeader>
+          {filterContent}
+        </SheetContent>
+      </Sheet>
+    );
+  }
+
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <Button
-          variant={filters.length > 0 ? 'default' : 'outline'}
-          size="sm"
-          className={cn(
-            'h-9 gap-2 font-mono text-xs',
-            filters.length > 0 && 'bg-primary/20 border-primary/50 text-primary hover:bg-primary/30'
-          )}
-        >
-          <Filter className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Filter</span>
-          {filters.length > 0 && (
-            <span className="bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 text-[10px] font-bold">
-              {filters.length}
-            </span>
-          )}
-        </Button>
+        {filterTrigger}
       </PopoverTrigger>
       <PopoverContent 
         align="start" 
         side="bottom"
         sideOffset={8}
-        collisionPadding={16}
-        className="w-[calc(100vw-2rem)] sm:w-auto sm:min-w-[400px] max-w-[calc(100vw-2rem)] p-3 bg-popover border-2"
+        className="w-auto min-w-[400px] p-3 bg-popover border-2"
       >
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-semibold">Filters</h4>
-            {filters.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs text-muted-foreground hover:text-destructive"
-                onClick={clearAllFilters}
-              >
-                <Trash2 className="w-3 h-3 mr-1" />
-                Clear all
-              </Button>
-            )}
-          </div>
-
-          {filters.length === 0 ? (
-            <p className="text-xs text-muted-foreground font-mono py-2">
-              // no filters applied
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {filters.map((filter, index) => (
-                <div key={filter.id} className="flex flex-col sm:flex-row sm:items-center gap-2">
-                  <div className="flex items-center gap-2">
-                    {index > 0 && (
-                      <span className="text-xs text-muted-foreground font-mono w-8 shrink-0">and</span>
-                    )}
-                    {index === 0 && <span className="w-8 shrink-0 hidden sm:block" />}
-                  </div>
-                  
-                  <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
-                    <Select
-                      value={filter.field}
-                      onValueChange={(value: FilterField) => {
-                        const operators = getOperatorsForField(value);
-                        updateFilter(filter.id, { 
-                          field: value, 
-                          operator: operators[0].value,
-                          value: '' 
-                        });
-                      }}
-                    >
-                      <SelectTrigger className="h-8 w-full sm:w-28 text-xs font-mono">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {FIELD_OPTIONS.map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value} className="text-xs font-mono">
-                            {opt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    <Select
-                      value={filter.operator}
-                      onValueChange={(value: FilterOperator) => updateFilter(filter.id, { operator: value })}
-                    >
-                      <SelectTrigger className="h-8 w-full sm:w-36 text-xs font-mono">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {getOperatorsForField(filter.field).map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value} className="text-xs font-mono">
-                            {opt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    {renderValueInput(filter)}
-
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
-                      onClick={() => removeFilter(filter.id)}
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full h-8 text-xs font-mono"
-            onClick={addFilter}
-          >
-            <Plus className="w-3 h-3 mr-1" />
-            Add filter
-          </Button>
-        </div>
+        {filterContent}
       </PopoverContent>
     </Popover>
   );

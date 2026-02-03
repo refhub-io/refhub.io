@@ -39,6 +39,7 @@ interface PublicationTableProps {
   relationsCountMap: Record<string, number>;
   selectedIds: Set<string>;
   visibleColumns: VisibleColumns;
+  isVaultContext?: boolean; // If true, shows "remove from vault" instead of "delete"
   onToggleSelect: (id: string) => void;
   onEdit: (pub: Publication) => void;
   onDelete: (pub: Publication) => void;
@@ -54,6 +55,7 @@ export function PublicationTable({
   relationsCountMap,
   selectedIds,
   visibleColumns,
+  isVaultContext = false,
   onToggleSelect,
   onEdit,
   onDelete,
@@ -319,11 +321,11 @@ export function PublicationTable({
                     <DropdownMenuContent align="end" className="w-40">
                       <DropdownMenuItem onClick={() => onEdit(pub)}>
                         <Edit className="w-4 h-4 mr-2" />
-                        Edit
+                        edit
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => onExportBibtex(pub)}>
                         <Download className="w-4 h-4 mr-2" />
-                        Export BibTeX
+                        export bibtex
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
@@ -331,7 +333,7 @@ export function PublicationTable({
                         className="text-destructive focus:text-destructive"
                       >
                         <Trash2 className="w-4 h-4 mr-2" />
-                        Delete
+                        {isVaultContext ? 'remove from vault' : 'delete'}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>

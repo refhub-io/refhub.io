@@ -14,27 +14,79 @@ export default function ResetPassword() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [resetSuccess, setResetSuccess] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
   const { toast } = useToast();
   const navigate = useNavigate();
 
   // Detect if user is in a password recovery session
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session && session.user && session.user.email && session.user.aud === 'authenticated' && session.user.email_confirmed_at) {
-        // Not a recovery session
-        setIsRecovery(false);
-      } else if (session && session.user) {
-        // If session exists but not fully confirmed, treat as recovery
-        setIsRecovery(true);
-      } else {
-        // Try to detect recovery from URL (Supabase sets session automatically)
+    const checkRecoverySession = async () => {
+      setCheckingSession(true);
+      
+      try {
+        // Check URL hash for recovery token (Supabase PKCE flow)
         const hash = window.location.hash;
-        if (hash.includes('type=recovery')) {
-          setIsRecovery(true);
+        const params = new URLSearchParams(hash.substring(1));
+        const accessToken = params.get('access_token');
+        const type = params.get('type');
+        
+        // If we have a recovery token in the URL, handle it
+        if (accessToken && type === 'recovery') {
+          // Set the session from the URL parameters
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: params.get('refresh_token') || '',
+          });
+          
+          if (error) {
+            toast({
+              title: 'session_error',
+              description: 'Invalid or expired recovery link. Please request a new one.',
+              variant: 'destructive',
+            });
+            setIsRecovery(false);
+          } else if (data.session) {
+            setIsRecovery(true);
+            // Clear the hash from URL for cleaner UX
+            window.history.replaceState(null, '', window.location.pathname);
+          }
+        } else {
+          // Check for existing session
+          const { data: { session } } = await supabase.auth.getSession();
+          
+          if (session?.user) {
+            // Check if this is a recovery session by looking at auth events
+            // or if the user arrived here from a recovery link
+            const isRecoverySession = hash.includes('type=recovery') || 
+              sessionStorage.getItem('passwordRecovery') === 'true';
+            
+            if (isRecoverySession) {
+              setIsRecovery(true);
+              sessionStorage.removeItem('passwordRecovery');
+            }
+          }
         }
+      } catch (error) {
+        console.error('Error checking recovery session:', error);
+      } finally {
+        setCheckingSession(false);
+      }
+    };
+
+    // Listen for auth state changes (handles redirect flow)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsRecovery(true);
+        setCheckingSession(false);
       }
     });
-  }, []);
+
+    checkRecoverySession();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [toast]);
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,7 +142,11 @@ export default function ResetPassword() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
       <div className="max-w-md w-full bg-card/80 border-2 border-border/50 rounded-xl shadow-lg p-8 text-center animate-fade-in">
         <h1 className="text-2xl font-bold mb-4 text-gradient font-mono">reset_password();</h1>
-        {isRecovery ? (
+        {checkingSession ? (
+          <div className="text-muted-foreground font-mono text-sm">
+            // checking_session...
+          </div>
+        ) : isRecovery ? (
           resetSuccess ? (
             <div>
               <p className="text-muted-foreground mb-6 font-mono text-sm">
