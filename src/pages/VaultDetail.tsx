@@ -105,6 +105,9 @@ export default function VaultDetail() {
     { id: 'tags', label: 'syncing_tags', status: 'pending' },
     { id: 'relations', label: 'mapping_connections', status: 'pending' },
   ]);
+  const [loaderProgress, setLoaderProgress] = useState(0);
+  const [loaderComplete, setLoaderComplete] = useState(false);
+  const [dataReady, setDataReady] = useState(false); // Track when actual data loading is complete
 
   const updatePhase = useCallback((phaseId: string, status: LoadingPhase['status']) => {
     setLoadingPhases(prev => {
@@ -167,6 +170,63 @@ export default function VaultDetail() {
       updatePhase('relations', 'complete');
     }
   }, [contentLoading, vault, updatePhase]);
+
+  // Smooth progress animation - fake progress that accelerates based on actual phase completion
+  useEffect(() => {
+    // Don't animate if already complete
+    if (loaderComplete) return;
+
+    const completedCount = loadingPhases.filter(p => p.status === 'complete').length;
+    const totalPhases = loadingPhases.length;
+    const actualProgress = (completedCount / totalPhases) * 100;
+    const allPhasesComplete = completedCount === totalPhases;
+    
+    // Use requestAnimationFrame for smoother updates
+    let animationId: number;
+    let lastTime = performance.now();
+    
+    const animate = (currentTime: number) => {
+      const deltaTime = currentTime - lastTime;
+      
+      // Only update every ~50ms for smooth but not excessive updates
+      if (deltaTime >= 50) {
+        lastTime = currentTime;
+        
+        setLoaderProgress(prev => {
+          // If all phases complete OR data is ready, rush to 100%
+          if (allPhasesComplete || dataReady) {
+            const newProgress = Math.min(prev + 5, 100);
+            if (newProgress >= 100) {
+              setLoaderComplete(true);
+              // Mark all phases as complete for visual consistency
+              setLoadingPhases(phases => phases.map(p => ({ ...p, status: 'complete' as const })));
+            }
+            return Math.round(newProgress);
+          }
+          
+          // Otherwise, progress smoothly
+          // Calculate how far we should be based on actual progress + buffer
+          const targetProgress = Math.min(actualProgress + 15, 95);
+          
+          if (prev >= targetProgress) {
+            return prev; // Don't go backwards or exceed target
+          }
+          
+          // Smooth easing - faster when far from target, slower when close
+          const distance = targetProgress - prev;
+          const increment = Math.max(0.5, distance * 0.1);
+          
+          return Math.round(Math.min(prev + increment, targetProgress));
+        });
+      }
+      
+      animationId = requestAnimationFrame(animate);
+    };
+    
+    animationId = requestAnimationFrame(animate);
+
+    return () => cancelAnimationFrame(animationId);
+  }, [loadingPhases, loaderComplete, dataReady]);
 
   // Sync editingPublication with publications array for realtime updates
   // This ensures the dialog shows updated notes when another client makes changes
@@ -1115,12 +1175,20 @@ export default function VaultDetail() {
       setHasStartedInitialLoad(true);
     }
 
-    if (hasStartedInitialLoad && !isLoading && !finishedInitialLoad) {
-      // Mark when initial loading is complete
-      console.log('[VaultDetail] Initial loading completed');
+    if (hasStartedInitialLoad && !isLoading && !dataReady) {
+      // Mark when data is ready (but keep showing loader until animation completes)
+      console.log('[VaultDetail] Data ready, waiting for animation');
+      setDataReady(true);
+    }
+  }, [accessStatus, authLoading, contentLoading, hasStartedInitialLoad, dataReady]);
+
+  // Hide loader only after progress animation completes
+  useEffect(() => {
+    if (dataReady && loaderComplete && !finishedInitialLoad) {
+      console.log('[VaultDetail] Animation complete, hiding loader');
       setFinishedInitialLoad(true);
     }
-  }, [accessStatus, authLoading, contentLoading, hasStartedInitialLoad, finishedInitialLoad]);
+  }, [dataReady, loaderComplete, finishedInitialLoad]);
 
 
   // Determine if we should show the loading screen
@@ -1141,6 +1209,7 @@ export default function VaultDetail() {
         phases={loadingPhases}
         title="opening_vault"
         subtitle={vault?.name || 'accessing your research collection'}
+        progress={loaderProgress}
       />
     );
   }

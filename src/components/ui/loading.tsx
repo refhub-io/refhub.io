@@ -39,6 +39,7 @@ interface PhaseLoaderProps {
   title?: string;
   subtitle?: string;
   className?: string;
+  progress?: number; // Optional external progress override (0-100)
 }
 
 const loadingMessages = [
@@ -321,16 +322,19 @@ export function InlineLoaderCompat({ className }: { className?: string }) {
 }
 
 // Phase-based loader with progress visualization
-export function PhaseLoader({ phases, title = 'initializing_refhub', subtitle, className }: PhaseLoaderProps) {
+export function PhaseLoader({ phases, title = 'initializing_refhub', subtitle, className, progress: externalProgress }: PhaseLoaderProps) {
   const [dots, setDots] = useState('');
   const [glitchText, setGlitchText] = useState(false);
 
-  // Calculate progress based on phases
+  // Calculate progress based on phases, or use external progress if provided
   const progress = useMemo(() => {
+    if (externalProgress !== undefined) {
+      return Math.round(externalProgress);
+    }
     const completed = phases.filter(p => p.status === 'complete').length;
     const loading = phases.filter(p => p.status === 'loading').length;
     return Math.round(((completed + loading * 0.5) / phases.length) * 100);
-  }, [phases]);
+  }, [phases, externalProgress]);
 
   const currentPhase = useMemo(() => {
     return phases.find(p => p.status === 'loading') || phases.find(p => p.status === 'pending');
@@ -394,23 +398,16 @@ export function PhaseLoader({ phases, title = 'initializing_refhub', subtitle, c
             <div className="space-y-2">
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>progress</span>
-                <span className="text-primary">{progress}%</span>
+                <span className="text-primary tabular-nums">{progress}%</span>
               </div>
-              <div className="h-2 bg-muted rounded-full overflow-hidden relative">
+              <div className="h-2 bg-muted rounded-full overflow-hidden">
                 <div 
-                  className="h-full bg-gradient-to-r from-primary via-primary to-secondary transition-all duration-500 ease-out relative"
-                  style={{ width: `${progress}%` }}
-                >
-                  {/* Animated shine effect */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
-                </div>
-                {/* Pulsing glow at progress edge */}
-                {!allComplete && (
-                  <div 
-                    className="absolute top-0 bottom-0 w-4 bg-gradient-to-r from-primary/50 to-transparent animate-pulse"
-                    style={{ left: `calc(${progress}% - 8px)` }}
-                  />
-                )}
+                  className="h-full bg-gradient-to-r from-primary to-primary/80 rounded-full"
+                  style={{ 
+                    width: `${progress}%`,
+                    transition: 'width 150ms ease-out'
+                  }}
+                />
               </div>
             </div>
 

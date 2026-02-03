@@ -45,10 +45,9 @@ export default function Dashboard() {
   const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
   const [loading, setLoading] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [showLoader, setShowLoader] = useState(() => {
-    // Check if loader has already been shown this session
-    return !sessionStorage.getItem('loaderShown');
-  });
+  const [showLoader, setShowLoader] = useState(true); // Always show loader on initial mount
+  const [loaderProgress, setLoaderProgress] = useState(0); // Track fake progress
+  const [loaderComplete, setLoaderComplete] = useState(false); // Track when ready to hide
 
   // Loading phases for the phase loader
   const [loadingPhases, setLoadingPhases] = useState<LoadingPhase[]>([
@@ -109,26 +108,68 @@ export default function Dashboard() {
     }
   }, [profileLoading, updatePhase]);
 
-  // Ensure loader shows for at least 2 seconds on initial session load only
+  // Smooth progress animation - fake progress that accelerates based on actual phase completion
   useEffect(() => {
-    const loaderShown = sessionStorage.getItem('loaderShown');
-    if (!loaderShown) {
-      setShowLoader(true);
-    }
-  }, []);
+    if (!showLoader) return;
 
-  // Hide loader when all phases complete
+    const completedCount = loadingPhases.filter(p => p.status === 'complete').length;
+    const totalPhases = loadingPhases.length;
+    const actualProgress = (completedCount / totalPhases) * 100;
+    
+    // Use requestAnimationFrame for smoother updates
+    let animationId: number;
+    let lastTime = performance.now();
+    
+    const animate = (currentTime: number) => {
+      const deltaTime = currentTime - lastTime;
+      
+      // Only update every ~50ms for smooth but not excessive updates
+      if (deltaTime >= 50) {
+        lastTime = currentTime;
+        
+        setLoaderProgress(prev => {
+          // If all phases complete, rush to 100%
+          if (completedCount === totalPhases) {
+            const newProgress = Math.min(prev + 5, 100);
+            if (newProgress >= 100) {
+              setLoaderComplete(true);
+            }
+            return Math.round(newProgress);
+          }
+          
+          // Otherwise, progress smoothly
+          // Calculate how far we should be based on actual progress + buffer
+          const targetProgress = Math.min(actualProgress + 15, 95);
+          
+          if (prev >= targetProgress) {
+            return prev; // Don't go backwards or exceed target
+          }
+          
+          // Smooth easing - faster when far from target, slower when close
+          const distance = targetProgress - prev;
+          const increment = Math.max(0.5, distance * 0.1);
+          
+          return Math.round(Math.min(prev + increment, targetProgress));
+        });
+      }
+      
+      animationId = requestAnimationFrame(animate);
+    };
+    
+    animationId = requestAnimationFrame(animate);
+
+    return () => cancelAnimationFrame(animationId);
+  }, [showLoader, loadingPhases]);
+
+  // Hide loader after progress reaches 100% and shows completion briefly
   useEffect(() => {
-    const allComplete = loadingPhases.every(p => p.status === 'complete');
-    if (allComplete && showLoader) {
-      // Small delay to show completion state
+    if (loaderComplete && loaderProgress >= 100) {
       const timer = setTimeout(() => {
         setShowLoader(false);
-        sessionStorage.setItem('loaderShown', 'true');
-      }, 800);
+      }, 600); // Show completion state briefly
       return () => clearTimeout(timer);
     }
-  }, [loadingPhases, showLoader]);
+  }, [loaderComplete, loaderProgress]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -1181,6 +1222,7 @@ export default function Dashboard() {
         phases={loadingPhases}
         title="initializing_refhub"
         subtitle="loading your research library"
+        progress={loaderProgress}
       />
     );
   }
