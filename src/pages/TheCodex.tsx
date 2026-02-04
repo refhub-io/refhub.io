@@ -1,5 +1,5 @@
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Vault, VaultStats, VAULT_CATEGORIES } from '@/types/database';
@@ -15,6 +15,7 @@ import { LoadingSpinner } from '@/components/ui/loading';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { NotificationDropdown } from '@/components/notifications/NotificationDropdown';
 import { Sidebar } from '@/components/layout/Sidebar';
+import { getPageCache, setPageCache, hasPageCache } from '@/lib/pageCache';
 import { 
   BookOpen,
   Search, 
@@ -52,6 +53,12 @@ interface CodexVault extends Vault {
   };
 }
 
+interface CodexCache {
+  vaults: CodexVault[];
+  userVaults: Vault[];
+  sharedVaults: Vault[];
+}
+
 export default function TheCodex() {
   const { user } = useAuth();
   const { profile } = useProfile();
@@ -59,17 +66,21 @@ export default function TheCodex() {
   const { forkVault } = useVaultFork();
   const { toast } = useToast();
   const navigate = useNavigate();
+  
+  // Check for cached data to skip loading screen on return visits
+  const hasCachedData = useRef(hasPageCache('codex'));
+  
   const [vaults, setVaults] = useState<CodexVault[]>([]);
   const [userVaults, setUserVaults] = useState<Vault[]>([]);
   const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!hasCachedData.current);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [forkingId, setForkingId] = useState<string | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  const fetchPublicVaults = async () => {
-    setLoading(true);
+  const fetchPublicVaults = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       // Fetch public vaults with owner info
       const { data: vaultsData, error: vaultsError } = await supabase
@@ -175,8 +186,33 @@ export default function TheCodex() {
     }
   }, [user]);
 
+  // Save to cache whenever data changes
   useEffect(() => {
-    fetchPublicVaults();
+    if (user && vaults.length > 0 && !loading) {
+      setPageCache<CodexCache>('codex', {
+        vaults,
+        userVaults,
+        sharedVaults,
+      }, user.id);
+    }
+  }, [user, vaults, userVaults, sharedVaults, loading]);
+
+  // Restore from cache on mount if available
+  useEffect(() => {
+    if (hasCachedData.current && user) {
+      const cached = getPageCache<CodexCache>('codex', user.id);
+      if (cached) {
+        setVaults(cached.vaults);
+        setUserVaults(cached.userVaults);
+        setSharedVaults(cached.sharedVaults);
+      }
+    }
+  }, [user]);
+
+  useEffect(() => {
+    // If we have cached data, do a silent refresh in the background
+    const isSilent = hasCachedData.current;
+    fetchPublicVaults(isSilent);
     if (user) {
       fetchUserVaults();
     }

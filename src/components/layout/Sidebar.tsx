@@ -61,6 +61,13 @@ export function Sidebar({
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Derive active vault from URL for instant feedback on click
+  // This makes the vault appear selected immediately without waiting for data to load
+  const vaultIdFromUrl = location.pathname.startsWith('/vault/') 
+    ? location.pathname.split('/vault/')[1]?.split('/')[0] 
+    : null;
+  const activeVaultId = vaultIdFromUrl || selectedVaultId;
+
   const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
@@ -82,7 +89,8 @@ export function Sidebar({
 
   const isCodexActive = location.pathname === '/codex';
   const isUsersActive = location.pathname === '/users';
-  const isDashboardActive = location.pathname === '/dashboard' || (location.pathname === '/' && selectedVaultId === null);
+  // Dashboard is active when on /dashboard or on / without a vault selected
+  const isDashboardActive = location.pathname === '/dashboard' || (location.pathname === '/' && !activeVaultId);
 
   return (
     <>
@@ -215,7 +223,7 @@ export function Sidebar({
                     key={vault.id}
                     className={cn(
                       "w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm transition-all duration-200 group",
-                      selectedVaultId === vault.id
+                      activeVaultId === vault.id
                         ? "bg-gradient-to-br from-primary/15 to-violet-500/10 text-primary border-2 border-primary/30"
                         : "hover:bg-sidebar-accent/50 text-sidebar-foreground/70 border-2 border-transparent"
                     )}
@@ -296,7 +304,7 @@ export function Sidebar({
                       key={vault.id}
                       className={cn(
                         "w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm transition-all duration-200 group",
-                        selectedVaultId === vault.id
+                        activeVaultId === vault.id
                           ? "bg-gradient-to-br from-blue-500/15 to-cyan-500/10 text-blue-400 border-2 border-blue-400/30"
                           : "hover:bg-sidebar-accent/50 text-sidebar-foreground/70 border-2 border-transparent"
                       )}

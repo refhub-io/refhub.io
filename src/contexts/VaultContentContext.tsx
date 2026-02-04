@@ -5,6 +5,7 @@ import { Publication, Vault, Tag, PublicationTag, PublicationRelation, VaultShar
 import { useVaultAccess } from '@/hooks/useVaultAccess';
 import { handleError } from '@/lib/toast';
 import { debug, warn } from '@/lib/logger';
+import { getPageCache, setPageCache } from '@/lib/pageCache';
 
 // Info about the last activity in the vault
 export type ActivityType = 'publication_added' | 'publication_updated' | 'publication_removed' | 'tag_added' | 'tag_updated' | 'tag_removed';
@@ -14,6 +15,16 @@ export interface LastActivityInfo {
   userId: string | null;
   userName: string | null;
   type: ActivityType;
+}
+
+// Cache structure for vault content
+interface VaultContentCache {
+  currentVault: Vault | null;
+  publications: Publication[];
+  tags: Tag[];
+  publicationTags: PublicationTag[];
+  publicationRelations: PublicationRelation[];
+  vaultShares: VaultShare[];
 }
 
 interface VaultContentContextType {
@@ -184,6 +195,9 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
     original_publication_id: vp.original_publication_id,
   }), []);
 
+  // Track if we have cached data for the current vault
+  const hasCachedContentRef = useRef(false);
+
   // Fetch vault content - extracted as a reusable function
   const fetchVaultContent = useCallback(async () => {
     if (!currentVaultId || !user || !canView) {
@@ -191,8 +205,11 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       return;
     }
 
-    debug('VaultContentContext', 'Starting fetch for vault:', currentVaultId);
-    setLoading(true);
+    debug('VaultContentContext', 'Starting fetch for vault:', currentVaultId, 'hasCached:', hasCachedContentRef.current);
+    // Only show loading if we don't have cached data for this vault
+    if (!hasCachedContentRef.current) {
+      setLoading(true);
+    }
     setError(null);
 
     try {
@@ -298,6 +315,17 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       setPublicationRelations(relationsRes.data as PublicationRelation[]);
       setVaultShares(sharesRes.data as VaultShare[]);
       
+      // Save to cache for instant restore when switching back
+      const cacheKey = `vault-content-${currentVaultId}` as const;
+      setPageCache<VaultContentCache>(cacheKey, {
+        currentVault: vaultData as Vault,
+        publications: formattedVaultPublications,
+        tags: tagsRes.data as Tag[],
+        publicationTags: pubTagsRes.data as PublicationTag[],
+        publicationRelations: relationsRes.data as PublicationRelation[],
+        vaultShares: sharesRes.data as VaultShare[],
+      });
+      
       // Set initial lastActivity based on most recently updated publication
       // Now uses updated_by field if available to show who made the last update
       // Only set if we don't already have a more recent local activity
@@ -341,9 +369,27 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
     fetchVaultContent();
   }, [currentVaultId, user, canView, fetchVaultContent]);
 
-  const setCurrentVaultId = (vaultId: string) => {
+  const setCurrentVaultId = useCallback((vaultId: string) => {
+    // Check cache first for instant restore
+    const cacheKey = `vault-content-${vaultId}` as const;
+    const cached = getPageCache<VaultContentCache>(cacheKey);
+    
+    if (cached) {
+      debug('VaultContentContext', 'Restoring vault content from cache:', vaultId);
+      hasCachedContentRef.current = true;
+      setCurrentVault(cached.currentVault);
+      setPublications(cached.publications);
+      setTags(cached.tags);
+      setPublicationTags(cached.publicationTags);
+      setPublicationRelations(cached.publicationRelations);
+      setVaultShares(cached.vaultShares);
+      // Don't set loading - we have cached data
+    } else {
+      hasCachedContentRef.current = false;
+    }
+    
     setCurrentVaultIdState(vaultId);
-  };
+  }, []);
 
   // Set up a single real-time subscription for all vault-related changes
   useEffect(() => {

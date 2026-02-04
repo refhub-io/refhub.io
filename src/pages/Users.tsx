@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Loader } from '@/components/ui/loader';
 import { Card, CardContent } from '@/components/ui/card';
+import { getPageCache, setPageCache, hasPageCache } from '@/lib/pageCache';
 import { 
   Search, 
   Users as UsersIcon,
@@ -34,14 +35,24 @@ interface UserWithStats extends Profile {
   publication_count: number;
 }
 
+interface UsersCache {
+  users: UserWithStats[];
+  vaults: Vault[];
+  sharedVaults: Vault[];
+}
+
 export default function Users() {
   const { user, loading: authLoading } = useAuth();
   const { profile, refetch: refetchProfile } = useProfile();
   const navigate = useNavigate();
+  
+  // Check for cached data to skip loading screen on return visits
+  const hasCachedData = useRef(hasPageCache('users'));
+  
   const [users, setUsers] = useState<UserWithStats[]>([]);
   const [vaults, setVaults] = useState<Vault[]>([]);
   const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!hasCachedData.current);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'publications' | 'vaults' | 'joined'>('joined');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -94,15 +105,40 @@ export default function Users() {
     }
   }, [user]);
 
+  // Save to cache whenever data changes
+  useEffect(() => {
+    if (user && users.length > 0 && !loading) {
+      setPageCache<UsersCache>('users', {
+        users,
+        vaults,
+        sharedVaults,
+      }, user.id);
+    }
+  }, [user, users, vaults, sharedVaults, loading]);
+
+  // Restore from cache on mount if available
+  useEffect(() => {
+    if (hasCachedData.current && user) {
+      const cached = getPageCache<UsersCache>('users', user.id);
+      if (cached) {
+        setUsers(cached.users);
+        setVaults(cached.vaults);
+        setSharedVaults(cached.sharedVaults);
+      }
+    }
+  }, [user]);
+
   useEffect(() => {
     if (user) {
-      fetchUsers();
+      // If we have cached data, do a silent refresh in the background
+      const isSilent = hasCachedData.current;
+      fetchUsers(isSilent);
       fetchVaults();
     }
   }, [user, fetchVaults]);
 
-  const fetchUsers = async () => {
-    setLoading(true);
+  const fetchUsers = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       // Fetch all profiles
       const { data: profilesData, error: profilesError } = await supabase
