@@ -79,6 +79,9 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
   
   // Cache for user profile names to avoid repeated lookups
   const userProfileCacheRef = useRef<Map<string, string>>(new Map());
+  
+  // Track if we have cached data for the current vault (to skip loading state)
+  const hasCachedContentRef = useRef(false);
 
   const { canView, refresh } = useVaultAccess(currentVaultId || '');
   
@@ -194,9 +197,6 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
     updated_at: vp.updated_at,
     original_publication_id: vp.original_publication_id,
   }), []);
-
-  // Track if we have cached data for the current vault
-  const hasCachedContentRef = useRef(false);
 
   // Fetch vault content - extracted as a reusable function
   const fetchVaultContent = useCallback(async () => {
@@ -385,7 +385,14 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       setVaultShares(cached.vaultShares);
       // Don't set loading - we have cached data
     } else {
+      // No cache - clear old data to prevent showing stale content
       hasCachedContentRef.current = false;
+      setCurrentVault(null);
+      setPublications([]);
+      setTags([]);
+      setPublicationTags([]);
+      setPublicationRelations([]);
+      setVaultShares([]);
     }
     
     setCurrentVaultIdState(vaultId);

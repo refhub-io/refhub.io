@@ -52,8 +52,18 @@ export const useVaultAccess = (vaultSlug: string) => {
       setResult(cached.result);
       setIsSilentRefresh(true); // Subsequent fetch should be silent
     } else {
-      // No cache - show loading state
-      setResult(prev => ({ ...prev, accessStatus: 'loading' }));
+      // No cache - reset to loading state with cleared data
+      // This prevents showing old vault data while new vault loads
+      setResult({
+        canView: false,
+        canEdit: false,
+        isOwner: false,
+        permission: null,
+        accessStatus: 'loading',
+        vault: null,
+        userRole: null,
+        error: null,
+      });
       setIsSilentRefresh(false);
     }
   }, [vaultSlug, cacheKey]);
