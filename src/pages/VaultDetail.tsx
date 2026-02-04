@@ -45,7 +45,7 @@ export default function VaultDetail() {
   const { profile } = useProfile();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { canView, canEdit, isOwner, userRole, accessStatus, vault, error: accessError, refresh } = useVaultAccess(vaultId || '');
+  const { canView, canEdit, isOwner, userRole, accessStatus, vault, error: accessError, refresh, silentRefresh } = useVaultAccess(vaultId || '');
   const { isFavorite, toggleFavorite } = useVaultFavorites();
   const { forkVault } = useVaultFork();
   const [forking, setForking] = useState(false);
@@ -500,7 +500,7 @@ export default function VaultDetail() {
 
   const refetchVault = async () => {
     if (!user || !vaultId) return;
-    refresh(); // Use the refresh function from the hook
+    silentRefresh(); // Use silent refresh to avoid showing loading screen
     fetchUserVaults(); // Also refresh sidebar vaults to update visibility icons
   };
 
@@ -771,8 +771,8 @@ export default function VaultDetail() {
 
       toast({ title: `added_to_${vaultIds.length}_vault${vaultIds.length > 1 ? 's' : ''} ✨` });
 
-      // Refresh the data to reflect the changes
-      refresh();
+      // Refresh the data in background (toast provides feedback)
+      silentRefresh();
     } catch (error) {
       toast({
         title: 'Error adding paper',
@@ -1109,8 +1109,8 @@ export default function VaultDetail() {
         // Update the editingVault state with the fresh data from the database
         setEditingVault(updatedVault as Vault);
         
-        // Update the vault in the hook's state
-        refresh();
+        // Update the vault in the hook's state (silent - toast provides feedback)
+        silentRefresh();
         toast({ title: 'vault_updated ✨' });
       } else {
         const { data: newVault, error } = await supabase
@@ -1121,8 +1121,8 @@ export default function VaultDetail() {
 
         if (error) throw error;
 
-        // Update the vault in the hook's state
-        refresh();
+        // Update the vault in the hook's state (silent - toast provides feedback)
+        silentRefresh();
         toast({ title: 'vault_created ✨' });
       }
 

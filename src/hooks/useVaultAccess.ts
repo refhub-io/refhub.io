@@ -26,13 +26,22 @@ export const useVaultAccess = (vaultSlug: string) => {
   });
 
   const [refreshKey, setRefreshKey] = useState(0);
+  const [isSilentRefresh, setIsSilentRefresh] = useState(false);
 
+  // Regular refresh - shows loading state (for initial load or when user explicitly wants loading feedback)
   const refresh = () => {
+    setIsSilentRefresh(false);
+    setRefreshKey(prev => prev + 1);
+  };
+
+  // Silent refresh - updates data in background without showing loading state
+  const silentRefresh = () => {
+    setIsSilentRefresh(true);
     setRefreshKey(prev => prev + 1);
   };
 
   useEffect(() => {
-    console.log('[useVaultAccess] Effect triggered with vaultSlug:', vaultSlug, 'and refreshKey:', refreshKey);
+    console.log('[useVaultAccess] Effect triggered with vaultSlug:', vaultSlug, 'and refreshKey:', refreshKey, 'silent:', isSilentRefresh);
     let mounted = true;
 
     const checkAccess = async () => {
@@ -46,7 +55,10 @@ export const useVaultAccess = (vaultSlug: string) => {
       }
 
       try {
-        setResult(prev => ({ ...prev, accessStatus: 'loading', error: null }));
+        // Only show loading state if this is NOT a silent refresh
+        if (!isSilentRefresh) {
+          setResult(prev => ({ ...prev, accessStatus: 'loading', error: null }));
+        }
 
         // Get current user
         const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -358,6 +370,7 @@ export const useVaultAccess = (vaultSlug: string) => {
   return {
     ...result,
     refresh,
+    silentRefresh,
   };
 };
 

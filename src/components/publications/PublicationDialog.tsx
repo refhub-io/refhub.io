@@ -401,8 +401,14 @@ export function PublicationDialog({
 
   // Handle dialog close with unsaved changes check
   // Dialog calls onOpenChange(false) when user clicks X or outside
-  const handleDialogClose = useCallback((open: boolean) => {
-    if (open) {
+  const handleDialogClose = useCallback((requestedOpen: boolean) => {
+    // If fullscreen is active, ignore close requests from the Dialog
+    // (The Dialog's open prop changing to false triggers this, but we don't want to actually close)
+    if (notesFullscreen && !requestedOpen) {
+      return;
+    }
+    
+    if (requestedOpen) {
       // Dialog is opening, just pass through
       onOpenChange(true);
       return;
@@ -415,7 +421,7 @@ export function PublicationDialog({
     } else {
       onOpenChange(false);
     }
-  }, [modifiedFields.size, onOpenChange]);
+  }, [modifiedFields.size, onOpenChange, notesFullscreen]);
 
   // Handle discard changes
   const handleDiscardChanges = useCallback(() => {
