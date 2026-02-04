@@ -504,16 +504,6 @@ export default function VaultDetail() {
     fetchUserVaults(); // Also refresh sidebar vaults to update visibility icons
   };
 
-  const refetchRelations = async () => {
-    if (!user || !vaultId) return;
-    try {
-      // Just call the refresh function to update all data including relations
-      refresh();
-    } catch (error) {
-      console.error('Error refetching publication relations:', error);
-    }
-  };
-
   const checkForDuplicate = (newPub: Partial<Publication>, existingPubs: Publication[], excludeId?: string) => {
     const duplicate = existingPubs.find(pub => {
       if (excludeId && pub.id === excludeId) return false;
@@ -1546,7 +1536,7 @@ export default function VaultDetail() {
           if (!open) {
             setEditingPublication(null);
             currentlyEditingPublicationId.current = null;
-            refetchRelations();
+            // Don't trigger a full refetch when closing - optimistic updates and realtime sync handle data changes
           }
         }}
         publication={editingPublication}
