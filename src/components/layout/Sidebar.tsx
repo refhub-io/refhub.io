@@ -61,6 +61,13 @@ export function Sidebar({
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Derive active vault from URL for instant feedback on click
+  // This makes the vault appear selected immediately without waiting for data to load
+  const vaultIdFromUrl = location.pathname.startsWith('/vault/') 
+    ? location.pathname.split('/vault/')[1]?.split('/')[0] 
+    : null;
+  const activeVaultId = vaultIdFromUrl || selectedVaultId;
+
   const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
@@ -82,7 +89,8 @@ export function Sidebar({
 
   const isCodexActive = location.pathname === '/codex';
   const isUsersActive = location.pathname === '/users';
-  const isDashboardActive = location.pathname === '/dashboard' || (location.pathname === '/' && selectedVaultId === null);
+  // Dashboard is active when on /dashboard or on / without a vault selected
+  const isDashboardActive = location.pathname === '/dashboard' || (location.pathname === '/' && !activeVaultId);
 
   return (
     <>
@@ -135,17 +143,19 @@ export function Sidebar({
               onMobileClose();
             }}
             className={cn(
-              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200",
+              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border-2",
               isDashboardActive && !isCodexActive && !isUsersActive
-                ? "bg-sidebar-accent text-sidebar-primary border-2 border-sidebar-primary/30"
-                : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 border-2 border-transparent"
+                ? "bg-gradient-to-br from-emerald-500/10 to-green-500/10 text-emerald-500 border-emerald-500/30"
+                : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 border-transparent"
             )}
           >
             <div className={cn(
               "w-8 h-8 rounded-lg flex items-center justify-center",
-              isDashboardActive && !isCodexActive && !isUsersActive ? "bg-sidebar-primary/20" : "bg-sidebar-accent"
+              isDashboardActive && !isCodexActive && !isUsersActive 
+                ? "bg-gradient-to-br from-emerald-500/30 to-green-500/30" 
+                : "bg-gradient-to-br from-emerald-500/20 to-green-500/20"
             )}>
-              <Zap className={cn("w-4 h-4", isDashboardActive && !isCodexActive && !isUsersActive ? "text-sidebar-primary" : "text-sidebar-foreground/60")} />
+              <Zap className={cn("w-4 h-4", isDashboardActive && !isCodexActive && !isUsersActive ? "text-emerald-400" : "text-emerald-500")} />
             </div>
             <span className="font-mono">all_papers</span>
           </Link>
@@ -175,15 +185,17 @@ export function Sidebar({
             className={cn(
               "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border-2",
               location.pathname === '/users'
-                ? "bg-gradient-to-br from-primary/10 to-primary/5 text-primary border-primary/30"
+                ? "bg-gradient-to-br from-rose-500/10 to-pink-500/10 text-rose-500 border-rose-500/30"
                 : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 border-transparent"
             )}
           >
             <div className={cn(
               "w-8 h-8 rounded-lg flex items-center justify-center",
-              location.pathname === '/users' ? "bg-primary/20" : "bg-sidebar-accent"
+              location.pathname === '/users' 
+                ? "bg-gradient-to-br from-rose-500/30 to-pink-500/30" 
+                : "bg-gradient-to-br from-rose-500/20 to-pink-500/20"
             )}>
-              <Users className={cn("w-4 h-4", location.pathname === '/users' ? "text-primary" : "text-sidebar-foreground/60")} />
+              <Users className={cn("w-4 h-4", location.pathname === '/users' ? "text-rose-400" : "text-rose-500")} />
             </div>
             <span className="font-mono">researchers</span>
           </Link>
@@ -211,8 +223,8 @@ export function Sidebar({
                     key={vault.id}
                     className={cn(
                       "w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm transition-all duration-200 group",
-                      selectedVaultId === vault.id
-                        ? "bg-sidebar-accent text-sidebar-foreground border-2 border-primary/30"
+                      activeVaultId === vault.id
+                        ? "bg-gradient-to-br from-primary/15 to-violet-500/10 text-primary border-2 border-primary/30"
                         : "hover:bg-sidebar-accent/50 text-sidebar-foreground/70 border-2 border-transparent"
                     )}
                   >
@@ -292,8 +304,8 @@ export function Sidebar({
                       key={vault.id}
                       className={cn(
                         "w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm transition-all duration-200 group",
-                        selectedVaultId === vault.id
-                          ? "bg-sidebar-accent text-sidebar-foreground border-2 border-blue-400/30"
+                        activeVaultId === vault.id
+                          ? "bg-gradient-to-br from-blue-500/15 to-cyan-500/10 text-blue-400 border-2 border-blue-400/30"
                           : "hover:bg-sidebar-accent/50 text-sidebar-foreground/70 border-2 border-transparent"
                       )}
                     >

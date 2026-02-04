@@ -7,6 +7,7 @@ import { Publication, Vault, Tag, PublicationTag, PublicationRelation, VaultShar
 import { generateBibtexKey } from '@/lib/bibtex';
 import { formatTimeAgo } from '@/lib/utils';
 import { logger } from '@/lib/logger';
+import { hasPageCache } from '@/lib/pageCache';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationDialog } from '@/components/publications/PublicationDialog';
@@ -43,9 +44,14 @@ export default function VaultDetail() {
   const { id: vaultId } = useParams<{ id: string }>();
   const { user, loading: authLoading } = useAuth();
   const { profile } = useProfile();
+  
+  // Check if we have cached data for this vault (for instant navigation)
+  const hasCachedVaultData = useRef(
+    vaultId ? (hasPageCache(`vault-access-${vaultId}` as const) && hasPageCache(`vault-content-${vaultId}` as const)) : false
+  );
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { canView, canEdit, isOwner, userRole, accessStatus, vault, error: accessError, refresh } = useVaultAccess(vaultId || '');
+  const { canView, canEdit, isOwner, userRole, accessStatus, vault, error: accessError, refresh, silentRefresh } = useVaultAccess(vaultId || '');
   const { isFavorite, toggleFavorite } = useVaultFavorites();
   const { forkVault } = useVaultFork();
   const [forking, setForking] = useState(false);
@@ -500,18 +506,8 @@ export default function VaultDetail() {
 
   const refetchVault = async () => {
     if (!user || !vaultId) return;
-    refresh(); // Use the refresh function from the hook
+    silentRefresh(); // Use silent refresh to avoid showing loading screen
     fetchUserVaults(); // Also refresh sidebar vaults to update visibility icons
-  };
-
-  const refetchRelations = async () => {
-    if (!user || !vaultId) return;
-    try {
-      // Just call the refresh function to update all data including relations
-      refresh();
-    } catch (error) {
-      console.error('Error refetching publication relations:', error);
-    }
   };
 
   const checkForDuplicate = (newPub: Partial<Publication>, existingPubs: Publication[], excludeId?: string) => {
@@ -781,8 +777,8 @@ export default function VaultDetail() {
 
       toast({ title: `added_to_${vaultIds.length}_vault${vaultIds.length > 1 ? 's' : ''} ✨` });
 
-      // Refresh the data to reflect the changes
-      refresh();
+      // Refresh the data in background (toast provides feedback)
+      silentRefresh();
     } catch (error) {
       toast({
         title: 'Error adding paper',
@@ -1119,8 +1115,8 @@ export default function VaultDetail() {
         // Update the editingVault state with the fresh data from the database
         setEditingVault(updatedVault as Vault);
         
-        // Update the vault in the hook's state
-        refresh();
+        // Update the vault in the hook's state (silent - toast provides feedback)
+        silentRefresh();
         toast({ title: 'vault_updated ✨' });
       } else {
         const { data: newVault, error } = await supabase
@@ -1131,8 +1127,8 @@ export default function VaultDetail() {
 
         if (error) throw error;
 
-        // Update the vault in the hook's state
-        refresh();
+        // Update the vault in the hook's state (silent - toast provides feedback)
+        silentRefresh();
         toast({ title: 'vault_created ✨' });
       }
 
@@ -1154,7 +1150,36 @@ export default function VaultDetail() {
 
   // State to track loading state to prevent flickering
   const [hasStartedInitialLoad, setHasStartedInitialLoad] = useState(false);
-  const [finishedInitialLoad, setFinishedInitialLoad] = useState(false);
+  const [finishedInitialLoad, setFinishedInitialLoad] = useState(hasCachedVaultData.current); // Skip if cached
+  
+  // Reset loading states when vaultId changes
+  useEffect(() => {
+    const hasCached = vaultId ? (hasPageCache(`vault-access-${vaultId}` as const) && hasPageCache(`vault-content-${vaultId}` as const)) : false;
+    hasCachedVaultData.current = hasCached;
+    
+    if (hasCached) {
+      // Skip loading animation for cached vaults
+      setHasStartedInitialLoad(true);
+      setFinishedInitialLoad(true);
+      setDataReady(true);
+      setLoaderComplete(true);
+      setLoaderProgress(100);
+    } else {
+      // Reset for fresh load
+      setHasStartedInitialLoad(false);
+      setFinishedInitialLoad(false);
+      setDataReady(false);
+      setLoaderComplete(false);
+      setLoaderProgress(0);
+      setLoadingPhases([
+        { id: 'auth', label: 'checking_access', status: 'loading' },
+        { id: 'vault', label: 'loading_vault_metadata', status: 'pending' },
+        { id: 'publications', label: 'fetching_publications', status: 'pending' },
+        { id: 'tags', label: 'syncing_tags', status: 'pending' },
+        { id: 'relations', label: 'mapping_connections', status: 'pending' },
+      ]);
+    }
+  }, [vaultId]);
 
   // Track loading state changes to prevent flickering
   useEffect(() => {
@@ -1546,7 +1571,7 @@ export default function VaultDetail() {
           if (!open) {
             setEditingPublication(null);
             currentlyEditingPublicationId.current = null;
-            refetchRelations();
+            // Don't trigger a full refetch when closing - optimistic updates and realtime sync handle data changes
           }
         }}
         publication={editingPublication}

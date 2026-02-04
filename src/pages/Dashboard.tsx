@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
@@ -16,6 +16,7 @@ import { ExportDialog } from '@/components/publications/ExportDialog';
 import { PhaseLoader, LoadingPhase } from '@/components/ui/loading';
 import { useToast } from '@/hooks/use-toast';
 import { Sparkles } from 'lucide-react';
+import { getPageCache, setPageCache, hasPageCache } from '@/lib/pageCache';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,11 +28,27 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
+// Cache structure for Dashboard data
+interface DashboardCache {
+  publications: Publication[];
+  vaults: Vault[];
+  sharedVaults: Vault[];
+  tags: Tag[];
+  publicationTags: PublicationTag[];
+  publicationRelations: PublicationRelation[];
+  publicationVaultsMap: Record<string, string[]>;
+  publicationTagsMap: Record<string, string[]>;
+  relationsCountMap: Record<string, number>;
+}
+
 export default function Dashboard() {
   const { user, loading: authLoading } = useAuth();
   const { profile, loading: profileLoading, refetch: refetchProfile } = useProfile();
   const navigate = useNavigate();
   const { toast } = useToast();
+  
+  // Check if we have cached data to determine if this is a "return visit"
+  const hasCachedData = useRef(user ? hasPageCache('dashboard') : false);
 
   const [publications, setPublications] = useState<Publication[]>([]);
   const [vaults, setVaults] = useState<Vault[]>([]);
@@ -45,7 +62,8 @@ export default function Dashboard() {
   const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
   const [loading, setLoading] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [showLoader, setShowLoader] = useState(true); // Always show loader on initial mount
+  // Only show loader if we don't have cached data (true first visit)
+  const [showLoader, setShowLoader] = useState(!hasCachedData.current);
   const [loaderProgress, setLoaderProgress] = useState(0); // Track fake progress
   const [loaderComplete, setLoaderComplete] = useState(false); // Track when ready to hide
 
@@ -412,6 +430,7 @@ export default function Dashboard() {
       setRelationsCountMap(relationsCountMap);
 
       // Fetch shared vault details
+      let processedSharedVaults: Vault[] = [];
       if (sharedVaultsRes.data && sharedVaultsRes.data.length > 0) {
         const sharedVaultIds = sharedVaultsRes.data.map(s => s.vault_id);
         const { data: sharedVaultDetails } = await supabase
@@ -420,11 +439,26 @@ export default function Dashboard() {
           .in('id', sharedVaultIds)
 
         if (sharedVaultDetails) {
-          setSharedVaults(sharedVaultDetails as Vault[]);
+          processedSharedVaults = sharedVaultDetails as Vault[];
+          setSharedVaults(processedSharedVaults);
         }
       } else {
         setSharedVaults([]);
       }
+      
+      // Save to cache for future visits
+      setPageCache<DashboardCache>('dashboard', {
+        publications: allPublications,
+        vaults: ownedVaultsRes.data as Vault[] || [],
+        sharedVaults: processedSharedVaults,
+        tags: tagsRes.data as Tag[] || [],
+        publicationTags: pubTagsRes.data as PublicationTag[] || [],
+        publicationRelations: relationsRes.data as PublicationRelation[] || [],
+        publicationVaultsMap: newPublicationVaultsMap,
+        publicationTagsMap,
+        relationsCountMap,
+      }, user?.id);
+      
     } catch (error) {
       toast({
         title: 'error_loading_data',
@@ -438,8 +472,28 @@ export default function Dashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, isInitialLoad, updatePhase]);
 
+  // Restore from cache on mount if available (for instant navigation)
   useEffect(() => {
     if (user) {
+      const cached = getPageCache<DashboardCache>('dashboard', user.id);
+      if (cached) {
+        // Restore cached data immediately - no loading screen needed
+        setPublications(cached.publications);
+        setVaults(cached.vaults);
+        setSharedVaults(cached.sharedVaults);
+        setTags(cached.tags);
+        setPublicationTags(cached.publicationTags);
+        setPublicationRelations(cached.publicationRelations);
+        setPublicationVaultsMap(cached.publicationVaultsMap);
+        setPublicationTagsMap(cached.publicationTagsMap);
+        setRelationsCountMap(cached.relationsCountMap);
+        setLoading(false);
+        setIsInitialLoad(false);
+        // Skip loader animation for cached data
+        setLoaderComplete(true);
+        setLoaderProgress(100);
+      }
+      // Always fetch fresh data (will update silently if we have cache)
       fetchData();
     }
   }, [user, fetchData]);

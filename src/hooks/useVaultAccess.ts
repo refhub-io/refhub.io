@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../integrations/supabase/client';
 import { VaultVisibility, VaultRole } from '../types/vault-extensions';
+import { getPageCache, setPageCache, hasPageCache } from '../lib/pageCache';
 
 interface VaultAccessResult {
   canView: boolean;
@@ -13,26 +14,81 @@ interface VaultAccessResult {
   error: string | null;
 }
 
+// Cache structure for vault access
+interface VaultAccessCache {
+  result: VaultAccessResult;
+  userId?: string;
+}
+
 export const useVaultAccess = (vaultSlug: string) => {
-  const [result, setResult] = useState<VaultAccessResult>({
-    canView: false,
-    canEdit: false,
-    isOwner: false,
-    permission: null,
-    accessStatus: 'loading',
-    vault: null,
-    userRole: null,
-    error: null,
-  });
+  // Check for cached data before initializing state
+  const cacheKey = `vault-access-${vaultSlug}` as const;
+  const cachedData = vaultSlug ? getPageCache<VaultAccessCache>(cacheKey) : null;
+  const hasCachedData = useRef(!!cachedData);
+  
+  const [result, setResult] = useState<VaultAccessResult>(
+    cachedData?.result || {
+      canView: false,
+      canEdit: false,
+      isOwner: false,
+      permission: null,
+      accessStatus: 'loading',
+      vault: null,
+      userRole: null,
+      error: null,
+    }
+  );
 
   const [refreshKey, setRefreshKey] = useState(0);
+  const [isSilentRefresh, setIsSilentRefresh] = useState(hasCachedData.current); // Start silent if cached
+  
+  // Restore from cache when vaultSlug changes (for switching between vaults)
+  useEffect(() => {
+    if (!vaultSlug) return;
+    
+    const cached = getPageCache<VaultAccessCache>(cacheKey);
+    if (cached) {
+      // Restore cached result immediately for instant UI update
+      setResult(cached.result);
+      setIsSilentRefresh(true); // Subsequent fetch should be silent
+    } else {
+      // No cache - reset to loading state with cleared data
+      // This prevents showing old vault data while new vault loads
+      setResult({
+        canView: false,
+        canEdit: false,
+        isOwner: false,
+        permission: null,
+        accessStatus: 'loading',
+        vault: null,
+        userRole: null,
+        error: null,
+      });
+      setIsSilentRefresh(false);
+    }
+  }, [vaultSlug, cacheKey]);
 
+  // Regular refresh - shows loading state (for initial load or when user explicitly wants loading feedback)
   const refresh = () => {
+    setIsSilentRefresh(false);
     setRefreshKey(prev => prev + 1);
   };
 
+  // Silent refresh - updates data in background without showing loading state
+  const silentRefresh = () => {
+    setIsSilentRefresh(true);
+    setRefreshKey(prev => prev + 1);
+  };
+
+  // Save to cache whenever access status is resolved (not loading)
   useEffect(() => {
-    console.log('[useVaultAccess] Effect triggered with vaultSlug:', vaultSlug, 'and refreshKey:', refreshKey);
+    if (vaultSlug && result.accessStatus !== 'loading') {
+      setPageCache<VaultAccessCache>(cacheKey, { result });
+    }
+  }, [vaultSlug, result, cacheKey]);
+
+  useEffect(() => {
+    console.log('[useVaultAccess] Effect triggered with vaultSlug:', vaultSlug, 'and refreshKey:', refreshKey, 'silent:', isSilentRefresh);
     let mounted = true;
 
     const checkAccess = async () => {
@@ -46,7 +102,10 @@ export const useVaultAccess = (vaultSlug: string) => {
       }
 
       try {
-        setResult(prev => ({ ...prev, accessStatus: 'loading', error: null }));
+        // Only show loading state if this is NOT a silent refresh
+        if (!isSilentRefresh) {
+          setResult(prev => ({ ...prev, accessStatus: 'loading', error: null }));
+        }
 
         // Get current user
         const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -358,6 +417,7 @@ export const useVaultAccess = (vaultSlug: string) => {
   return {
     ...result,
     refresh,
+    silentRefresh,
   };
 };
 
