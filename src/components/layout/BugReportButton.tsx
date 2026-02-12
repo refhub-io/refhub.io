@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 
 export function BugReportButton() {
   const handleBugReport = () => {
-    window.open('https://github.com/velitchko/refhub.io/issues/new', '_blank', 'noopener,noreferrer');
+    window.open('https://github.com/velitchko/refhub.io/issues/new?template=bug_report.md', '_blank', 'noopener,noreferrer');
   };
 
   return (
