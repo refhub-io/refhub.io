@@ -100,8 +100,8 @@ export interface UseKeyboardNavigationReturn {
   };
   /** Manually set the focused index. */
   setFocusedIndex: (index: number) => void;
-  /** Manually set selected IDs. */
-  setSelectedIds: (ids: Set<string>) => void;
+  /** Manually set selected IDs (accepts a value or an updater function). */
+  setSelectedIds: (ids: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
   /** Clear all selections. */
   clearSelection: () => void;
   /** Select all items. */
@@ -170,20 +170,47 @@ export function useKeyboardNavigation(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kb.enabled, kb.setActiveContext, context]);
 
-  // Auto-activate whenever this list has items. No one-shot guard needed
-  // because activate() is idempotent and deps prevent infinite re-runs.
-  useEffect(() => {
-    if (activateOnMount && kb.enabled && itemIds.length > 0) {
-      activate();
-    }
-  }, [activateOnMount, kb.enabled, itemIds.length, activate]);
+  // Like activate() but preserves selection — used when the item list changes
+  // due to search/filter (not a vault/page transition).
+  const activateKeepSelection = useCallback(() => {
+    if (!kb.enabled) return;
+    kb.setActiveContext(context);
+    // Clamp focused index in case the list shrank
+    setLocalFocusedIndex(prev =>
+      itemIdsRef.current.length === 0 ? 0 : Math.min(prev, itemIdsRef.current.length - 1)
+    );
+    // Do NOT touch localSelectedIds — selections persist through filter changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kb.enabled, kb.setActiveContext, context]);
 
-  // Reset navigation state when the page identity changes (vault ↔ dashboard).
+  // Track whether we have done the initial activation yet.
+  const hasActivatedRef = useRef(false);
+
+  // Auto-activate when items first appear. On subsequent item-count changes
+  // (search narrowing/widening), keep context active but preserve selection.
+  useEffect(() => {
+    if (!activateOnMount || !kb.enabled || itemIds.length === 0) return;
+
+    if (!hasActivatedRef.current) {
+      // First time items appear → full reset (focus=0, selection cleared).
+      hasActivatedRef.current = true;
+      activate();
+    } else {
+      // Items changed because of search/filter → keep context active, preserve selection.
+      activateKeepSelection();
+    }
+  }, [activateOnMount, kb.enabled, itemIds.length, activate, activateKeepSelection]);
+
+  // When switching vaults/pages (resetKey changes) → always do a full reset.
+  // Also reset our "has activated" guard so the next item load is treated as fresh.
   const prevResetKeyRef = useRef(resetKey);
   useEffect(() => {
     if (resetKey !== undefined && resetKey !== prevResetKeyRef.current) {
       prevResetKeyRef.current = resetKey;
       if (kb.enabled) {
+        // Full reset — clear selection and focused index for the new vault/page.
+        // Also clear the "has activated" guard so the incoming item list is treated fresh.
+        hasActivatedRef.current = false;
         activate();
       }
     }

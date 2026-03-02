@@ -93,7 +93,6 @@ export function PublicationList({
   onCreateTag,
 }: PublicationListProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   const listContainerRef = useRef<HTMLDivElement>(null);
 
@@ -175,32 +174,9 @@ export function PublicationList({
     }
   });
 
-  const toggleSelection = (id: string) => {
-    const newSelected = new Set(selectedIds);
-    if (newSelected.has(id)) {
-      newSelected.delete(id);
-    } else {
-      newSelected.add(id);
-    }
-    setSelectedIds(newSelected);
-  };
-
-  const selectAll = () => {
-    if (selectedIds.size === filteredPublications.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(filteredPublications.map((p) => p.id)));
-    }
-  };
-
-  const getPublicationTags = (pubId: string): Tag[] => {
-    const tagIds = publicationTagsMap[pubId] || [];
-    return tags.filter((t) => tagIds.includes(t.id));
-  };
-
-  const selectedPublications = publications.filter((p) => selectedIds.has(p.id));
-
   // ─── Keyboard navigation ─────────────────────────────────────────────────
+  // kbNav is declared first so toggleSelection/selectAll can use it as the
+  // single source of truth for selection, eliminating the dual-state problem.
   const kbContext = viewMode === 'table' ? 'publication-table' as const : 'publication-list' as const;
   const itemIds = useMemo(() => filteredPublications.map((p) => p.id), [filteredPublications]);
 
@@ -246,13 +222,36 @@ export function PublicationList({
     resetKey: selectedVault?.id ?? 'all_papers',
   });
 
-  // No extra activation effect needed — the hook's own activateOnMount
-  // and resetKey effects handle all cases.
+  // kbNav.selectedIds is the single source of truth for selection.
+  // Both keyboard (Space) and click-based selection update kbNav directly.
+  const selectedIds = kbNav.selectedIds;
 
-  // Sync keyboard selection with local selectedIds
-  useEffect(() => {
-    setSelectedIds(kbNav.selectedIds);
-  }, [kbNav.selectedIds]);
+  const toggleSelection = useCallback((id: string) => {
+    kbNav.setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, [kbNav.setSelectedIds]);
+
+  const selectAll = useCallback(() => {
+    const allFilteredSelected =
+      filteredPublications.length > 0 &&
+      filteredPublications.every((p) => kbNav.selectedIds.has(p.id));
+    if (allFilteredSelected) {
+      kbNav.clearSelection();
+    } else {
+      kbNav.setSelectedIds(new Set(filteredPublications.map((p) => p.id)));
+    }
+  }, [filteredPublications, kbNav.selectedIds, kbNav.clearSelection, kbNav.setSelectedIds]);
+
+  const getPublicationTags = (pubId: string): Tag[] => {
+    const tagIds = publicationTagsMap[pubId] || [];
+    return tags.filter((t) => tagIds.includes(t.id));
+  };
+
+  const selectedPublications = publications.filter((p) => selectedIds.has(p.id));
 
   // Meta+K / Ctrl+K → focus search (registered through keyboard system)
   useHotkeys(

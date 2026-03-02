@@ -79,7 +79,7 @@ interface KeyboardContextValue extends KeyboardState {
   /** Set the focused index for list navigation. */
   setFocusedIndex: (index: number) => void;
   /** Replace the selected-IDs set entirely. */
-  setSelectedIds: (ids: Set<string>) => void;
+  setSelectedIds: (ids: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
   /** Toggle a single ID in the selected set. */
   toggleSelectedId: (id: string) => void;
   /** Range-select from anchor to target index. Supply the ordered list of IDs. */
@@ -236,9 +236,13 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
         // Only fire shortcuts from the active context or from 'global'
         if (def.context !== currentContext && def.context !== 'global') continue;
 
-        // If it's a single-letter shortcut and we're in an input, skip
+        // If it's a single-key shortcut and we're in an input, skip.
+        // Covers single chars (j, k, v...) and named single-press keys (Space).
         const parsed = parseCombo(def.combo);
-        const isSingleKey = parsed.modifiers.size === 0 && parsed.key.length === 1;
+        const SINGLE_PRESS_NAMES = new Set(['space', 'backspace']);
+        const isSingleKey =
+          parsed.modifiers.size === 0 &&
+          (parsed.key.length === 1 || SINGLE_PRESS_NAMES.has(parsed.key));
         if (isSingleKey && inInput && !def.allowInInput) continue;
 
         if (matchesCombo(e, parsed)) {
