@@ -241,6 +241,7 @@ export function PublicationList({
     onToggleView: handleKbToggleView,
     onExport: handleKbExport,
     activateOnMount: true,
+    bootstrapOnNav: true,
     containerRef: listContainerRef as React.RefObject<HTMLElement>,
     resetKey: selectedVault?.id ?? 'all_papers',
   });

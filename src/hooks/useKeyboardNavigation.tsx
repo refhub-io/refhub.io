@@ -65,6 +65,13 @@ export interface UseKeyboardNavigationOptions {
   containerRef?: React.RefObject<HTMLElement>;
   /** When this key changes, force-reactivate the context and reset navigation state. */
   resetKey?: string;
+  /**
+   * When true, installs a window keydown listener that activates this context
+   * the first time a navigation key (j/k/arrows) is pressed, even before the
+   * user has clicked anything. Only enable this for the primary content list;
+   * do NOT enable for sidebar / secondary lists to avoid context conflicts.
+   */
+  bootstrapOnNav?: boolean;
 }
 
 export interface UseKeyboardNavigationReturn {
@@ -120,6 +127,7 @@ export function useKeyboardNavigation(
     activateOnMount = false,
     containerRef,
     resetKey,
+    bootstrapOnNav = false,
   } = options;
 
   const kb = useKeyboardContext();
@@ -270,6 +278,55 @@ export function useKeyboardNavigation(
       chordRef.current.updateDefs(chordDefs);
     }
   }, [jumpTo]);
+
+  // ─── Bootstrap listener ───────────────────────────────────────────────────
+  // If the user presses a navigation key (j/k/arrows) but this context isn't
+  // yet active (e.g. just navigated to the page), auto-activate it so the
+  // first keypress works without requiring a click on the list first.
+  // Only installed when bootstrapOnNav is explicitly enabled.
+  useEffect(() => {
+    if (!bootstrapOnNav) return;
+    if (!kb.enabled) return;
+
+    const NAV_KEYS = new Set(['j', 'k', 'ArrowDown', 'ArrowUp', 'Home', 'End']);
+
+    const handleBootstrap = (e: KeyboardEvent) => {
+      if (!NAV_KEYS.has(e.key)) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (shouldSuppressSingleKey()) return;
+      if (itemIdsRef.current.length === 0) return;
+      // Already active — normal hotkey handler will take care of it.
+      if (kb.activeContext === context) return;
+      // Another specific context is already in control (e.g. vault-list while
+      // we are publication-list). Don't steal it — only bootstrap from the
+      // neutral 'global' baseline.
+      if (kb.activeContext !== 'global') return;
+
+      // Force-activate this context so the registered hotkeys can fire.
+      kb.setActiveContext(context);
+
+      // Also handle the movement ourselves for this keypress because the
+      // registered hotkey handler checks activeContext synchronously and
+      // would have already been skipped before we changed it.
+      if (e.key === 'j' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        moveFocus(1);
+      } else if (e.key === 'k' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        // Already at 0; nothing to move, but focus is now visible.
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        jumpTo(0);
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        jumpTo(itemIdsRef.current.length - 1);
+      }
+    };
+
+    // Use capture phase so we run before other listeners.
+    window.addEventListener('keydown', handleBootstrap, true);
+    return () => window.removeEventListener('keydown', handleBootstrap, true);
+  }, [bootstrapOnNav, kb.enabled, kb.activeContext, kb.setActiveContext, context, moveFocus, jumpTo]);
 
   // Register keyboard shortcuts
   useHotkeys(
