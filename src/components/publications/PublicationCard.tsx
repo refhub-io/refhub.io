@@ -3,11 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { VisibleColumns } from './ViewSettings';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import remarkBreaks from 'remark-breaks';
-import rehypeRaw from 'rehype-raw';
-import rehypeSanitize from 'rehype-sanitize';
+import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 import { useState } from 'react';
 import { 
   FileText, 
@@ -38,6 +34,7 @@ interface PublicationCardProps {
   publicationVaults?: string[]; // IDs of vaults this publication belongs to
   relationsCount?: number;
   isSelected: boolean;
+  isFocused?: boolean; // keyboard roving focus
   visibleColumns?: VisibleColumns;
   isVaultContext?: boolean; // If true, shows "remove from vault" instead of "delete"
   onToggleSelect: () => void;
@@ -54,6 +51,7 @@ export function PublicationCard({
   publicationVaults,
   relationsCount = 0,
   isSelected,
+  isFocused = false,
   visibleColumns,
   isVaultContext = false,
   onToggleSelect,
@@ -92,7 +90,8 @@ export function PublicationCard({
         "group transition-all duration-300 cursor-pointer border-2",
         isSelected 
           ? "border-primary/50 bg-primary/5 shadow-lg glow-purple" 
-          : "border-border hover:border-primary/30"
+          : "border-border hover:border-primary/30",
+        isFocused && "ring-2 ring-[hsl(var(--cyber-blue))]/50 ring-offset-1 ring-offset-background"
       )}
       onClick={onEdit}
     >
@@ -261,24 +260,10 @@ export function PublicationCard({
                   <StickyNote className="w-3.5 h-3.5 text-neon-orange" />
                   <span className="text-xs font-mono text-muted-foreground">// notes</span>
                 </div>
-                <div className="prose prose-sm dark:prose-invert max-w-none p-3 rounded-md bg-muted/30 border border-border/50 prose-ul:list-disc prose-ol:list-decimal prose-li:ml-4 prose-ul:space-y-1 prose-ol:space-y-1 prose-headings:font-bold prose-code:bg-muted prose-code:px-1 prose-code:rounded prose-pre:bg-muted prose-pre:p-3 prose-blockquote:border-l-4 prose-blockquote:border-primary prose-blockquote:pl-4 prose-table:border prose-th:border prose-td:border prose-th:p-2 prose-td:p-2">
-                  <ReactMarkdown 
-                    remarkPlugins={[remarkGfm, remarkBreaks]}
-                    rehypePlugins={[rehypeRaw, rehypeSanitize]}
-                    components={{
-                      ul: ({ node, ...props }) => <ul className="list-disc pl-6 space-y-1 my-2" {...props} />,
-                      ol: ({ node, ...props }) => <ol className="list-decimal pl-6 space-y-1 my-2" {...props} />,
-                      li: ({ node, ...props }) => <li className="ml-0" {...props} />,
-                      h1: ({ node, ...props }) => <h1 className="text-xl font-bold mt-4 mb-2" {...props} />,
-                      h2: ({ node, ...props }) => <h2 className="text-lg font-bold mt-3 mb-2" {...props} />,
-                      h3: ({ node, ...props }) => <h3 className="text-base font-bold mt-2 mb-1" {...props} />,
-                      code: ({ node, inline, ...props }: { node: unknown; inline?: boolean; [key: string]: unknown }) => 
-                        inline ? <code className="bg-muted px-1 py-0.5 rounded text-sm" {...props} /> : <code {...props} />,
-                      blockquote: ({ node, ...props }) => <blockquote className="border-l-4 border-primary pl-4 italic my-2" {...props} />,
-                    }}
-                  >
+                <div className="prose prose-sm dark:prose-invert max-w-none p-3 rounded-md bg-muted/30 border border-border/50">
+                  <MarkdownRenderer compact>
                     {publication.notes}
-                  </ReactMarkdown>
+                  </MarkdownRenderer>
                 </div>
               </div>
             )}

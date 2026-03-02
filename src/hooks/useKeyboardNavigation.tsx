@@ -1,0 +1,473 @@
+import { useEffect, useCallback, useRef, useState } from 'react';
+import { useKeyboardContext } from '@/contexts/KeyboardContext';
+import {
+  KeyboardContextName,
+  ShortcutDef,
+  ChordMachine,
+  ChordDef,
+  shouldSuppressSingleKey,
+} from '@/lib/keyboard';
+
+// ─── useHotkeys ──────────────────────────────────────────────────────────────
+
+export interface HotkeyDef {
+  combo: string;
+  description: string;
+  handler: (e: KeyboardEvent) => boolean | void;
+  allowInInput?: boolean;
+}
+
+/**
+ * Register hotkeys scoped to a keyboard context.
+ * Shortcuts are automatically unregistered on unmount.
+ */
+export function useHotkeys(
+  context: KeyboardContextName,
+  defs: HotkeyDef[],
+  deps: unknown[] = [],
+) {
+  const { registerShortcuts, enabled } = useKeyboardContext();
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    const shortcutDefs: ShortcutDef[] = defs.map((d) => ({
+      combo: d.combo,
+      description: d.description,
+      context,
+      handler: d.handler,
+      allowInInput: d.allowInInput,
+    }));
+
+    return registerShortcuts(shortcutDefs);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, context, registerShortcuts, ...deps]);
+}
+
+// ─── useKeyboardNavigation ───────────────────────────────────────────────────
+
+export interface UseKeyboardNavigationOptions {
+  /** The keyboard context to register under. */
+  context: KeyboardContextName;
+  /** Ordered list of item IDs, matching the visual order on screen. */
+  itemIds: string[];
+  /** Called when the user presses Enter on the focused item. */
+  onOpen?: (id: string, index: number) => void;
+  /** Called when the user presses 'd' or Delete on selected items. */
+  onDelete?: (ids: string[]) => void;
+  /** Called when the user presses 'v' to toggle view. */
+  onToggleView?: () => void;
+  /** Called when user presses Ctrl+E for export. */
+  onExport?: (ids: string[]) => void;
+  /** Whether to activate this context when the hook mounts. Default: false. */
+  activateOnMount?: boolean;
+  /** Ref to the list container for aria-activedescendant management. */
+  containerRef?: React.RefObject<HTMLElement>;
+  /** When this key changes, force-reactivate the context and reset navigation state. */
+  resetKey?: string;
+}
+
+export interface UseKeyboardNavigationReturn {
+  /** Currently focused index (0-based). */
+  focusedIndex: number;
+  /** Set of selected item IDs. */
+  selectedIds: Set<string>;
+  /** Whether a specific index is the focused one. */
+  isFocused: (index: number) => boolean;
+  /** Whether a specific ID is selected. */
+  isSelected: (id: string) => boolean;
+  /** Props to spread onto the list container element. */
+  containerProps: {
+    role: string;
+    'aria-activedescendant': string | undefined;
+  };
+  /** Generate props for each list item. */
+  itemProps: (index: number, id: string) => {
+    id: string;
+    role: string;
+    'aria-selected': boolean;
+    tabIndex: number;
+    'data-focused': boolean;
+    onClick: (e: React.MouseEvent) => void;
+    onDoubleClick: () => void;
+  };
+  /** Manually set the focused index. */
+  setFocusedIndex: (index: number) => void;
+  /** Manually set selected IDs. */
+  setSelectedIds: (ids: Set<string>) => void;
+  /** Clear all selections. */
+  clearSelection: () => void;
+  /** Select all items. */
+  selectAll: () => void;
+  /** Explicitly activate this context so j/k shortcuts work. Call after data loads. */
+  activate: () => void;
+}
+
+/**
+ * Full keyboard navigation hook for lists.
+ * Provides roving focus, multi-select, chord support, and accessibility attributes.
+ */
+export function useKeyboardNavigation(
+  options: UseKeyboardNavigationOptions,
+): UseKeyboardNavigationReturn {
+  const {
+    context,
+    itemIds,
+    onOpen,
+    onDelete,
+    onToggleView,
+    onExport,
+    activateOnMount = false,
+    containerRef,
+    resetKey,
+  } = options;
+
+  const kb = useKeyboardContext();
+  const [localFocusedIndex, setLocalFocusedIndex] = useState(0);
+  const [localSelectedIds, setLocalSelectedIds] = useState<Set<string>>(new Set());
+  const [rangeAnchor, setRangeAnchor] = useState<number | null>(null);
+
+  const itemIdsRef = useRef(itemIds);
+  itemIdsRef.current = itemIds;
+
+  const focusedIndexRef = useRef(localFocusedIndex);
+  focusedIndexRef.current = localFocusedIndex;
+
+  const selectedIdsRef = useRef(localSelectedIds);
+  selectedIdsRef.current = localSelectedIds;
+
+  // Keep focused index in bounds when item count changes
+  useEffect(() => {
+    if (localFocusedIndex >= itemIds.length && itemIds.length > 0) {
+      setLocalFocusedIndex(itemIds.length - 1);
+    }
+  }, [itemIds.length, localFocusedIndex]);
+
+  // ─── Context activation ──────────────────────────────────────────────────
+  // Shortcuts are captured on `window` by the global keydown handler in
+  // KeyboardContext — DOM focus on the list container is NOT required.
+  // All we need is `activeContext === context` and items in the list.
+  //
+  // activate() is IDEMPOTENT: calling it when already active is a no-op
+  // (no extra re-renders), so it's safe to call liberally.
+
+  const activate = useCallback(() => {
+    if (!kb.enabled) return;
+    // Always update the ref (even if state value is the same — ref write is free)
+    kb.setActiveContext(context);
+    setLocalFocusedIndex(0);
+    // Avoid creating a new Set reference when already empty
+    setLocalSelectedIds(prev => prev.size === 0 ? prev : new Set());
+    setRangeAnchor(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kb.enabled, kb.setActiveContext, context]);
+
+  // Auto-activate whenever this list has items. No one-shot guard needed
+  // because activate() is idempotent and deps prevent infinite re-runs.
+  useEffect(() => {
+    if (activateOnMount && kb.enabled && itemIds.length > 0) {
+      activate();
+    }
+  }, [activateOnMount, kb.enabled, itemIds.length, activate]);
+
+  // Reset navigation state when the page identity changes (vault ↔ dashboard).
+  const prevResetKeyRef = useRef(resetKey);
+  useEffect(() => {
+    if (resetKey !== undefined && resetKey !== prevResetKeyRef.current) {
+      prevResetKeyRef.current = resetKey;
+      if (kb.enabled) {
+        activate();
+      }
+    }
+  }, [resetKey, kb.enabled, activate]);
+
+  // Scroll focused item into view
+  const scrollIntoView = useCallback(
+    (index: number) => {
+      const itemId = `kb-item-${context}-${index}`;
+      const el = document.getElementById(itemId);
+      if (el) {
+        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    },
+    [context],
+  );
+
+  const moveFocus = useCallback(
+    (delta: number) => {
+      setLocalFocusedIndex((prev) => {
+        const next = Math.max(0, Math.min(itemIdsRef.current.length - 1, prev + delta));
+        scrollIntoView(next);
+        return next;
+      });
+    },
+    [scrollIntoView],
+  );
+
+  const jumpTo = useCallback(
+    (index: number) => {
+      const clamped = Math.max(0, Math.min(itemIdsRef.current.length - 1, index));
+      setLocalFocusedIndex(clamped);
+      scrollIntoView(clamped);
+    },
+    [scrollIntoView],
+  );
+
+  const toggleSelection = useCallback(
+    (index: number) => {
+      const id = itemIdsRef.current[index];
+      if (!id) return;
+      setLocalSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+      setRangeAnchor(index);
+    },
+    [],
+  );
+
+  const doRangeSelect = useCallback(
+    (toIndex: number) => {
+      const anchor = rangeAnchor ?? focusedIndexRef.current;
+      const start = Math.min(anchor, toIndex);
+      const end = Math.max(anchor, toIndex);
+      setLocalSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (let i = start; i <= end; i++) {
+          const id = itemIdsRef.current[i];
+          if (id) next.add(id);
+        }
+        return next;
+      });
+    },
+    [rangeAnchor],
+  );
+
+  const selectAll = useCallback(() => {
+    setLocalSelectedIds(new Set(itemIdsRef.current));
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setLocalSelectedIds(new Set());
+    setRangeAnchor(null);
+  }, []);
+
+  // Set up chord machine for g-g and G
+  const chordRef = useRef<ChordMachine | null>(null);
+
+  useEffect(() => {
+    const chordDefs: ChordDef[] = [
+      {
+        sequence: ['g', 'g'],
+        callback: () => jumpTo(0),
+      },
+    ];
+    if (!chordRef.current) {
+      chordRef.current = new ChordMachine(chordDefs);
+    } else {
+      chordRef.current.updateDefs(chordDefs);
+    }
+  }, [jumpTo]);
+
+  // Register keyboard shortcuts
+  useHotkeys(
+    context,
+    [
+      // Navigation
+      {
+        combo: 'j',
+        description: 'Move focus down',
+        handler: () => { moveFocus(1); return true; },
+      },
+      {
+        combo: 'ArrowDown',
+        description: 'Move focus down',
+        handler: () => { moveFocus(1); return true; },
+      },
+      {
+        combo: 'k',
+        description: 'Move focus up',
+        handler: () => { moveFocus(-1); return true; },
+      },
+      {
+        combo: 'ArrowUp',
+        description: 'Move focus up',
+        handler: () => { moveFocus(-1); return true; },
+      },
+      // Jump to ends
+      {
+        combo: 'Home',
+        description: 'Jump to first item',
+        handler: () => { jumpTo(0); return true; },
+      },
+      {
+        combo: 'End',
+        description: 'Jump to last item',
+        handler: () => { jumpTo(itemIdsRef.current.length - 1); return true; },
+      },
+      // G (Shift+G) = jump to last
+      {
+        combo: 'Shift+g',
+        description: 'Jump to last item',
+        handler: () => { jumpTo(itemIdsRef.current.length - 1); return true; },
+      },
+      // Enter: open
+      {
+        combo: 'Enter',
+        description: 'Open focused item',
+        handler: () => {
+          const id = itemIdsRef.current[focusedIndexRef.current];
+          if (id && onOpen) onOpen(id, focusedIndexRef.current);
+          return true;
+        },
+      },
+      // Space: toggle selection
+      {
+        combo: 'Space',
+        description: 'Toggle selection',
+        handler: (e) => {
+          if (e.shiftKey) {
+            // Range select
+            doRangeSelect(focusedIndexRef.current);
+          } else {
+            toggleSelection(focusedIndexRef.current);
+          }
+          return true;
+        },
+      },
+      // v: toggle view
+      {
+        combo: 'v',
+        description: 'Toggle view mode',
+        handler: () => {
+          onToggleView?.();
+          return true;
+        },
+      },
+      // Ctrl+A: select all
+      {
+        combo: 'Ctrl+a',
+        description: 'Select all',
+        handler: (e) => { e.preventDefault(); selectAll(); return true; },
+        allowInInput: false,
+      },
+      // Ctrl+E: export
+      {
+        combo: 'Ctrl+e',
+        description: 'Export selected',
+        handler: (e) => {
+          e.preventDefault();
+          const ids = Array.from(selectedIdsRef.current);
+          onExport?.(ids.length > 0 ? ids : itemIdsRef.current);
+          return true;
+        },
+        allowInInput: false,
+      },
+      // d or Delete: delete selected
+      {
+        combo: 'd',
+        description: 'Delete selected',
+        handler: () => {
+          const ids = Array.from(selectedIdsRef.current);
+          if (ids.length > 0) onDelete?.(ids);
+          return true;
+        },
+      },
+      {
+        combo: 'Delete',
+        description: 'Delete selected',
+        handler: () => {
+          const ids = Array.from(selectedIdsRef.current);
+          if (ids.length > 0) onDelete?.(ids);
+          return true;
+        },
+      },
+      // Shift+ArrowDown: range select downward
+      {
+        combo: 'Shift+ArrowDown',
+        description: 'Range select down',
+        handler: () => {
+          moveFocus(1);
+          // Use a microtask so focusedIndex is updated
+          queueMicrotask(() => doRangeSelect(focusedIndexRef.current));
+          return true;
+        },
+      },
+      // Shift+ArrowUp: range select upward
+      {
+        combo: 'Shift+ArrowUp',
+        description: 'Range select up',
+        handler: () => {
+          moveFocus(-1);
+          queueMicrotask(() => doRangeSelect(focusedIndexRef.current));
+          return true;
+        },
+      },
+    ],
+    [moveFocus, jumpTo, toggleSelection, doRangeSelect, selectAll, onOpen, onDelete, onToggleView, onExport],
+  );
+
+  // Feed single non-modifier keys into chord machine
+  useEffect(() => {
+    if (!kb.enabled) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (shouldSuppressSingleKey()) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (kb.activeContext !== context) return;
+      chordRef.current?.feed(e.key);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [kb.enabled, kb.activeContext, context]);
+
+  // Item props generator
+  const itemProps = useCallback(
+    (index: number, id: string) => ({
+      id: `kb-item-${context}-${index}`,
+      role: 'option' as const,
+      'aria-selected': localSelectedIds.has(id),
+      tabIndex: index === localFocusedIndex ? 0 : -1,
+      'data-focused': index === localFocusedIndex,
+      onClick: (e: React.MouseEvent) => {
+        if (e.shiftKey) {
+          doRangeSelect(index);
+        } else if (e.ctrlKey || e.metaKey) {
+          toggleSelection(index);
+        } else {
+          setLocalFocusedIndex(index);
+        }
+      },
+      onDoubleClick: () => {
+        const itemId = itemIdsRef.current[index];
+        if (itemId && onOpen) onOpen(itemId, index);
+      },
+    }),
+    [context, localFocusedIndex, localSelectedIds, toggleSelection, doRangeSelect, onOpen],
+  );
+
+  const activeDescendant =
+    itemIds.length > 0 ? `kb-item-${context}-${localFocusedIndex}` : undefined;
+
+  const containerProps = {
+    role: 'listbox',
+    'aria-activedescendant': activeDescendant,
+  };
+
+  return {
+    focusedIndex: localFocusedIndex,
+    selectedIds: localSelectedIds,
+    isFocused: (index: number) => kb.activeContext === context && index === localFocusedIndex,
+    isSelected: (id: string) => localSelectedIds.has(id),
+    containerProps,
+    itemProps,
+    setFocusedIndex: setLocalFocusedIndex,
+    setSelectedIds: setLocalSelectedIds,
+    clearSelection,
+    selectAll,
+    activate,
+  };
+}

@@ -8,7 +8,7 @@ import { generateBibtexKey } from '@/lib/bibtex';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationDialog } from '@/components/publications/PublicationDialog';
-import { ImportDialog } from '@/components/publications/ImportDialog';
+import { AddImportDialog } from '@/components/publications/AddImportDialog';
 import { VaultDialog } from '@/components/vaults/VaultDialog';
 import { RelationshipGraph } from '@/components/publications/RelationshipGraph';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
@@ -1143,7 +1143,11 @@ export default function Dashboard() {
 
       if (error) throw error;
 
-      setTags(prev => [...prev, data as Tag]);
+      // Use functional updater with dedupe check to prevent race with realtime
+      setTags(prev => {
+        if (prev.some(t => t.id === (data as Tag).id)) return prev;
+        return [...prev, data as Tag];
+      });
       return data as Tag;
     } catch (error) {
       // Check if the error is due to the unique constraint violation
@@ -1311,11 +1315,7 @@ export default function Dashboard() {
         publicationVaultsMap={publicationVaultsMap}
         relationsCountMap={relationsCountMap}
         selectedVault={null}
-        onAddPublication={() => {
-          setEditingPublication(null);
-          setIsPublicationDialogOpen(true);
-        }}
-        onImportPublications={() => setIsImportDialogOpen(true)}
+        onAddPublication={() => setIsImportDialogOpen(true)}
         onEditPublication={(pub) => {
           setEditingPublication(pub);
           setIsPublicationDialogOpen(true);
@@ -1352,7 +1352,7 @@ export default function Dashboard() {
         onAddToVaults={handleAddToVaults}
       />
 
-      <ImportDialog
+      <AddImportDialog
         open={isImportDialogOpen}
         onOpenChange={setIsImportDialogOpen}
         vaults={vaults}
@@ -1401,7 +1401,9 @@ export default function Dashboard() {
         open={isExportDialogOpen}
         onOpenChange={setIsExportDialogOpen}
         publications={exportPublications}
-        vaultName={null}
+        vaultName={undefined}
+        tags={tags}
+        publicationTags={publicationTags}
       />
 
       <AlertDialog open={!!deleteConfirmation} onOpenChange={() => setDeleteConfirmation(null)}>

@@ -1,5 +1,5 @@
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Publication, Tag, Vault } from '@/types/database';
 import { PublicationCard } from './PublicationCard';
 import { PublicationTable } from './PublicationTable';
@@ -12,6 +12,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { NotificationDropdown } from '@/components/notifications/NotificationDropdown';
 import { PersistentFilterBuilder } from './PersistentFilterBuilder';
+import { useKeyboardNavigation, useHotkeys } from '@/hooks/useKeyboardNavigation';
+import { KbdFooterHint, KbdHint } from '@/components/ui/KbdHint';
+import { useKeyboardContext } from '@/contexts/KeyboardContext';
 import {
   Sheet,
   SheetContent,
@@ -29,8 +32,6 @@ import {
   CheckSquare,
   Square,
   Sparkles,
-  Command,
-  Upload,
   Network,
   Settings,
   MoreVertical,
@@ -54,7 +55,6 @@ interface PublicationListProps {
   vaultOwnerName?: string; // Display owner name next to item count
   isVaultContext?: boolean; // If true, shows "remove from vault" instead of "delete"
   onAddPublication?: () => void;
-  onImportPublications?: () => void;
   onEditPublication?: (pub: Publication) => void;
   onDeletePublication?: (pub: Publication) => void;
   onExportBibtex: (pubs: Publication[]) => void;
@@ -66,6 +66,7 @@ interface PublicationListProps {
   canEditTags?: boolean;
   onUpdateTag?: (tagId: string, updates: Partial<Tag>) => Promise<Tag | null>;
   onDeleteTag?: (tagId: string) => Promise<{ success: boolean; error?: Error }>;
+  onCreateTag?: (name: string, parentId?: string) => Promise<Tag | null>;
 }
 
 export function PublicationList({
@@ -79,7 +80,6 @@ export function PublicationList({
   vaultOwnerName,
   isVaultContext = false,
   onAddPublication,
-  onImportPublications,
   onEditPublication,
   onDeletePublication,
   onExportBibtex,
@@ -90,10 +90,12 @@ export function PublicationList({
   canEditTags,
   onUpdateTag,
   onDeleteTag,
+  onCreateTag,
 }: PublicationListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
+  const listContainerRef = useRef<HTMLDivElement>(null);
 
   // Calculate tag usage counts
   const tagUsageCounts = useMemo(() => {
@@ -146,19 +148,6 @@ export function PublicationList({
   }, [filters, updateFilters]);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Keyboard shortcut to focus search (Ctrl+K or Cmd+K)
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'k' && (event.metaKey || event.ctrlKey)) {
-        event.preventDefault();
-        searchInputRef.current?.focus();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
   // Apply search filter
   const searchFiltered = publications.filter((pub) => {
     if (!searchQuery) return true;
@@ -210,6 +199,77 @@ export function PublicationList({
   };
 
   const selectedPublications = publications.filter((p) => selectedIds.has(p.id));
+
+  // ─── Keyboard navigation ─────────────────────────────────────────────────
+  const kbContext = viewMode === 'table' ? 'publication-table' as const : 'publication-list' as const;
+  const itemIds = useMemo(() => filteredPublications.map((p) => p.id), [filteredPublications]);
+
+  const handleKbOpen = useCallback(
+    (id: string) => {
+      const pub = filteredPublications.find((p) => p.id === id);
+      if (pub && onEditPublication) onEditPublication(pub);
+    },
+    [filteredPublications, onEditPublication],
+  );
+
+  const handleKbDelete = useCallback(
+    (ids: string[]) => {
+      if (!onDeletePublication) return;
+      const pub = publications.find((p) => ids.includes(p.id));
+      if (pub) onDeletePublication(pub);
+    },
+    [publications, onDeletePublication],
+  );
+
+  const handleKbToggleView = useCallback(() => {
+    setViewMode((prev) => (prev === 'cards' ? 'table' : 'cards'));
+  }, []);
+
+  const handleKbExport = useCallback(
+    (ids: string[]) => {
+      const pubs = publications.filter((p) => ids.includes(p.id));
+      if (pubs.length > 0) onExportBibtex(pubs);
+    },
+    [publications, onExportBibtex],
+  );
+
+  const kbNav = useKeyboardNavigation({
+    context: kbContext,
+    itemIds,
+    onOpen: handleKbOpen,
+    onDelete: handleKbDelete,
+    onToggleView: handleKbToggleView,
+    onExport: handleKbExport,
+    activateOnMount: true,
+    containerRef: listContainerRef as React.RefObject<HTMLElement>,
+    resetKey: selectedVault?.id ?? 'all_papers',
+  });
+
+  // No extra activation effect needed — the hook's own activateOnMount
+  // and resetKey effects handle all cases.
+
+  // Sync keyboard selection with local selectedIds
+  useEffect(() => {
+    setSelectedIds(kbNav.selectedIds);
+  }, [kbNav.selectedIds]);
+
+  // Meta+K / Ctrl+K → focus search (registered through keyboard system)
+  useHotkeys(
+    'global',
+    [
+      {
+        combo: 'Meta+k',
+        description: 'Focus search',
+        handler: (e) => {
+          e.preventDefault();
+          searchInputRef.current?.focus();
+          return true;
+        },
+        allowInInput: true,
+      },
+    ],
+    [],
+  );
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-x-hidden">
@@ -269,17 +329,6 @@ export function PublicationList({
               </Button>
             )}
 
-            {onImportPublications && (
-              <Button 
-                onClick={onImportPublications} 
-                variant="outline" 
-                className="h-9 font-mono hidden lg:flex"
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                import_papers
-              </Button>
-            )}
-
             {selectedVault && onEditVault && (
               <Button 
                 onClick={() => onEditVault(selectedVault)} 
@@ -316,6 +365,7 @@ export function PublicationList({
                       canEdit={canEditTags}
                       onUpdateTag={onUpdateTag}
                       onDeleteTag={onDeleteTag}
+                      onCreateTag={onCreateTag}
                       tagUsageCounts={tagUsageCounts}
                     />
                   </div>
@@ -324,7 +374,7 @@ export function PublicationList({
             )}
 
             {/* Mobile dropdown with gradient styling */}
-            {(onOpenGraph || onImportPublications || (selectedVault && onEditVault) || (canEditTags && onUpdateTag && onDeleteTag)) && (
+            {(onOpenGraph || (selectedVault && onEditVault) || (canEditTags && onUpdateTag && onDeleteTag)) && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="glow" size="icon" className="h-9 w-9 lg:hidden" title="More actions">
@@ -336,12 +386,6 @@ export function PublicationList({
                     <DropdownMenuItem onClick={onOpenGraph}>
                       <Network className="w-4 h-4 mr-2" />
                       relationship_graph
-                    </DropdownMenuItem>
-                  )}
-                  {onImportPublications && (
-                    <DropdownMenuItem onClick={onImportPublications}>
-                      <Upload className="w-4 h-4 mr-2" />
-                      import_papers
                     </DropdownMenuItem>
                   )}
                   {selectedVault && onEditVault && (
@@ -380,9 +424,8 @@ export function PublicationList({
               placeholder="search_papers..."
               className="pl-11 font-mono"
             />
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 hidden lg:flex items-center gap-1 text-xs text-muted-foreground border border-border rounded-md px-1.5 py-0.5">
-              <Command className="w-3 h-3" />
-              <span>K</span>
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 hidden lg:flex">
+              <KbdHint shortcut="Meta+K" size="sm" />
             </div>
           </div>
 
@@ -430,45 +473,69 @@ export function PublicationList({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <ViewSettings
-            viewMode={viewMode}
-            onViewModeChange={setViewMode}
-            visibleColumns={visibleColumns}
-            onVisibleColumnsChange={setVisibleColumns}
-            isViewModeChanged={viewMode !== 'cards'}
-            isVisibleColumnsChanged={JSON.stringify(visibleColumns) !== JSON.stringify(DEFAULT_VISIBLE_COLUMNS)}
-          />
+          <div className="relative group">
+            <ViewSettings
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              visibleColumns={visibleColumns}
+              onVisibleColumnsChange={setVisibleColumns}
+              isViewModeChanged={viewMode !== 'cards'}
+              isVisibleColumnsChanged={JSON.stringify(visibleColumns) !== JSON.stringify(DEFAULT_VISIBLE_COLUMNS)}
+            />
+            <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 hidden lg:block opacity-0 group-hover:opacity-100 transition-opacity">
+              <KbdHint shortcut="v" size="sm" />
+            </span>
+          </div>
 
           {filteredPublications.length > 0 && (
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-9 w-9"
-              onClick={selectAll}
-              title={selectedIds.size === filteredPublications.length ? 'deselect_all' : 'select_all'}
-            >
-              {selectedIds.size === filteredPublications.length ? (
-                <CheckSquare className="w-4 h-4 text-neon-green" />
-              ) : (
-                <Square className="w-4 h-4" />
-              )}
-            </Button>
+            <div className="relative group">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-9 w-9"
+                onClick={selectAll}
+                title={selectedIds.size === filteredPublications.length ? 'deselect_all' : 'select_all'}
+              >
+                {selectedIds.size === filteredPublications.length ? (
+                  <CheckSquare className="w-4 h-4 text-neon-green" />
+                ) : (
+                  <Square className="w-4 h-4" />
+                )}
+              </Button>
+              <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 hidden lg:block opacity-0 group-hover:opacity-100 transition-opacity">
+                <KbdHint shortcut="Ctrl+A" size="sm" />
+              </span>
+            </div>
           )}
 
           {selectedIds.size > 0 && (
-            <Button
-              variant="accent"
-              onClick={() => onExportBibtex(selectedPublications)}
-            >
-              <Download className="w-4 h-4 lg:mr-2" />
-              <span className="hidden lg:inline font-mono">export({selectedIds.size})</span>
-            </Button>
+            <div className="relative group">
+              <Button
+                variant="accent"
+                onClick={() => onExportBibtex(selectedPublications)}
+              >
+                <Download className="w-4 h-4 lg:mr-2" />
+                <span className="hidden lg:inline font-mono">export({selectedIds.size})</span>
+              </Button>
+              <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 hidden lg:block opacity-0 group-hover:opacity-100 transition-opacity">
+                <KbdHint shortcut="Ctrl+E" size="sm" />
+              </span>
+            </div>
           )}
         </div>
       </header>
 
+      {/* Keyboard navigation hint bar */}
+      {filteredPublications.length > 0 && (
+        <KbdFooterHint className="shrink-0 hidden md:flex" />
+      )}
+
       {/* Publication list */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin overflow-x-hidden p-4 lg:p-8">
+      <div
+        ref={listContainerRef}
+        className="flex-1 overflow-y-auto scrollbar-thin overflow-x-hidden p-4 lg:p-8 outline-none"
+        {...kbNav.containerProps}
+      >
         {filteredPublications.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-20 h-20 rounded-3xl bg-gradient-primary flex items-center justify-center mb-6 shadow-lg glow-purple">
@@ -504,6 +571,8 @@ export function PublicationList({
             onEdit={onEditPublication}
             onDelete={onDeletePublication}
             onExportBibtex={(pub) => onExportBibtex([pub])}
+            focusedIndex={kbNav.focusedIndex}
+            kbItemProps={kbNav.itemProps}
           />
         ) : (
           <div className="space-y-4 max-w-4xl mx-auto">
@@ -512,6 +581,7 @@ export function PublicationList({
                 key={pub.id}
                 className="animate-slide-up"
                 style={{ animationDelay: `${index * 50}ms` }}
+                {...kbNav.itemProps(index, pub.id)}
               >
                 <PublicationCard
                   publication={pub}
@@ -521,6 +591,7 @@ export function PublicationList({
                   publicationVaults={publicationVaultsMap ? publicationVaultsMap[pub.id] || [] : []}
                   relationsCount={relationsCountMap[pub.id] || 0}
                   isSelected={selectedIds.has(pub.id)}
+                  isFocused={kbNav.isFocused(index)}
                   visibleColumns={visibleColumns}
                   isVaultContext={isVaultContext}
                   onToggleSelect={() => toggleSelection(pub.id)}
@@ -532,6 +603,11 @@ export function PublicationList({
             ))}
           </div>
         )}
+      </div>
+
+      {/* ARIA live region for selection announcements */}
+      <div className="sr-only" aria-live="polite" aria-atomic="true">
+        {selectedIds.size > 0 && `${selectedIds.size} item${selectedIds.size !== 1 ? 's' : ''} selected`}
       </div>
     </div>
   );

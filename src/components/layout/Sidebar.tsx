@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { 
   FolderOpen, 
@@ -27,6 +27,9 @@ import { ProfileAvatar } from '@/components/profile/ProfileAvatar';
 import { Profile } from '@/hooks/useProfile';
 import { useVaultFavorites } from '@/hooks/useVaultFavorites';
 import { ThemeToggle } from './ThemeToggle';
+import { useKeyboardNavigation, useHotkeys } from '@/hooks/useKeyboardNavigation';
+import { KbdHint } from '@/components/ui/KbdHint';
+import { KeyboardShortcutsButton } from '@/components/ui/KeyboardHelpOverlay';
 
 interface SidebarProps {
   vaults: Vault[];
@@ -91,6 +94,41 @@ export function Sidebar({
   const isUsersActive = location.pathname === '/users';
   // Dashboard is active when on /dashboard or on / without a vault selected
   const isDashboardActive = location.pathname === '/dashboard' || (location.pathname === '/' && !activeVaultId);
+
+  // ─── Vault list keyboard navigation ─────────────────────────────────────────
+  const vaultIds = useMemo(() => vaults.map((v) => v.id), [vaults]);
+
+  const handleVaultOpen = useCallback(
+    (id: string) => {
+      navigate(`/vault/${id}`);
+      onMobileClose();
+    },
+    [navigate, onMobileClose],
+  );
+
+  const vaultKb = useKeyboardNavigation({
+    context: 'vault-list',
+    itemIds: vaultIds,
+    onOpen: handleVaultOpen,
+    activateOnMount: false,
+  });
+
+  // Global 1-9 shortcuts to jump directly to vaults
+  const vaultNumberDefs = useMemo(
+    () =>
+      vaults.slice(0, 9).map((vault, i) => ({
+        combo: String(i + 1),
+        description: `Open vault ${i + 1}`,
+        handler: () => {
+          navigate(`/vault/${vault.id}`);
+          onMobileClose();
+          return true;
+        },
+      })),
+    [vaults, navigate, onMobileClose],
+  );
+
+  useHotkeys('global', vaultNumberDefs, [vaultNumberDefs]);
 
   return (
     <>
@@ -208,6 +246,9 @@ export function Sidebar({
               <span className="flex items-center gap-2">
                 <FolderOpen className="w-3.5 h-3.5" />
                 my_vaults
+                <span className="hidden lg:inline-flex">
+                  <KbdHint shortcut={['1', '‥', '9']} size="sm" />
+                </span>
               </span>
               {isVaultsExpanded ? (
                 <ChevronDown className="w-3.5 h-3.5" />
@@ -217,15 +258,17 @@ export function Sidebar({
             </button>
 
             {isVaultsExpanded && (
-              <div className="mt-2 space-y-1">
-                {vaults.map((vault) => (
+              <div className="mt-2 space-y-1" role="listbox" aria-label="My vaults">
+                {vaults.map((vault, index) => (
                   <div
                     key={vault.id}
+                    {...vaultKb.itemProps(index, vault.id)}
                     className={cn(
                       "w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm transition-all duration-200 group",
                       activeVaultId === vault.id
                         ? "bg-gradient-to-br from-primary/15 to-violet-500/10 text-primary border-2 border-primary/30"
-                        : "hover:bg-sidebar-accent/50 text-sidebar-foreground/70 border-2 border-transparent"
+                        : "hover:bg-sidebar-accent/50 text-sidebar-foreground/70 border-2 border-transparent",
+                      vaultKb.isFocused(index) && "ring-2 ring-[hsl(var(--cyber-blue))]/50 ring-offset-1 ring-offset-background"
                     )}
                   >
                     <button
@@ -235,6 +278,11 @@ export function Sidebar({
                       }}
                       className="flex items-center gap-3 flex-1 min-w-0"
                     >
+                      {index < 9 && (
+                        <kbd className="hidden lg:inline-flex items-center justify-center rounded border border-border/60 bg-background/60 font-mono text-muted-foreground/50 text-[9px] min-w-[1rem] h-4 px-0.5 leading-none shadow-sm select-none shrink-0">
+                          {index + 1}
+                        </kbd>
+                      )}
                       <div 
                         className="w-3 h-3 rounded-md shrink-0 shadow-sm" 
                         style={{ backgroundColor: vault.color }}
@@ -391,6 +439,7 @@ export function Sidebar({
                 )}
               </div>
               <ThemeToggle />
+              <KeyboardShortcutsButton />
               {onEditProfile && (
                 <Button
                   variant="ghost"

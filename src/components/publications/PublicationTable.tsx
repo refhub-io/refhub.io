@@ -44,6 +44,9 @@ interface PublicationTableProps {
   onEdit: (pub: Publication) => void;
   onDelete: (pub: Publication) => void;
   onExportBibtex: (pub: Publication) => void;
+  // Keyboard navigation props
+  focusedIndex?: number;
+  kbItemProps?: (index: number, id: string) => Record<string, any>;
 }
 
 export function PublicationTable({
@@ -60,6 +63,8 @@ export function PublicationTable({
   onEdit,
   onDelete,
   onExportBibtex,
+  focusedIndex,
+  kbItemProps,
 }: PublicationTableProps) {
   const getPublicationTags = (pubId: string): Tag[] => {
     const tagIds = publicationTagsMap[pubId] || [];
@@ -135,19 +140,23 @@ export function PublicationTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {publications.map((pub) => {
+          {publications.map((pub, index) => {
             const pubTags = getPublicationTags(pub.id);
             const isSelected = selectedIds.has(pub.id);
+            const isFocused = focusedIndex === index;
             const relCount = relationsCountMap[pub.id] || 0;
+            const kbProps = kbItemProps ? kbItemProps(index, pub.id) : {};
 
             return (
               <TableRow
                 key={pub.id}
                 className={cn(
                   'cursor-pointer transition-colors',
-                  isSelected && 'bg-primary/5'
+                  isSelected && 'bg-primary/5',
+                  isFocused && 'ring-2 ring-inset ring-[hsl(var(--cyber-blue))]/50'
                 )}
                 onClick={() => onEdit(pub)}
+                {...kbProps}
               >
                 <TableCell onClick={(e) => e.stopPropagation()}>
                   <Checkbox

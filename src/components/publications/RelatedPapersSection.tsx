@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Publication, RELATION_TYPES, RelationType } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,19 +11,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 import { Link2, Plus, X, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -52,8 +39,10 @@ export function RelatedPapersSection({
   const [isAddingRelation, setIsAddingRelation] = useState(false);
   const [selectedPublicationId, setSelectedPublicationId] = useState<string>('');
   const [selectedRelationType, setSelectedRelationType] = useState<string>('cites');
-  const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Filter out current publication and already-related publications
   const availablePublications = allPublications.filter(
@@ -68,6 +57,14 @@ export function RelatedPapersSection({
   );
 
   const selectedPublication = availablePublications.find((p) => p.id === selectedPublicationId);
+
+  // Scroll highlighted item into view when using keyboard
+  useEffect(() => {
+    if (listRef.current) {
+      const items = listRef.current.querySelectorAll('[data-item]');
+      items[highlightedIndex]?.scrollIntoView({ block: 'nearest' });
+    }
+  }, [highlightedIndex]);
 
   const handleAddRelation = async () => {
     if (!selectedPublicationId) return;
@@ -100,7 +97,7 @@ export function RelatedPapersSection({
   }
 
   return (
-    <div className="space-y-3 min-w-0">
+    <div className="space-y-3 min-w-0 w-full overflow-hidden">
       <div className="flex items-center justify-between gap-2">
         <Label className="font-semibold flex items-center gap-2">
           <Link2 className="w-4 h-4 shrink-0" />
@@ -122,11 +119,11 @@ export function RelatedPapersSection({
 
       {/* Existing relations */}
       {relations.length > 0 && (
-        <div className="space-y-2 min-w-0">
+        <div className="space-y-2 max-h-[200px] overflow-y-auto overflow-x-hidden">
           {relations.map((rel) => (
             <div
               key={rel.relation_id}
-              className="flex items-center gap-2 p-2 rounded-lg border bg-muted/30 group min-w-0"
+              className="flex items-center gap-2 p-2 rounded-lg border bg-muted/30 group max-w-full"
             >
               <Badge
                 variant="outline"
@@ -139,7 +136,7 @@ export function RelatedPapersSection({
               >
                 {getRelationLabel(rel.relation_type)}
               </Badge>
-              <span className="text-sm truncate flex-1" title={rel.title}>
+              <span className="text-sm w-0 flex-1 truncate" title={rel.title}>
                 {rel.title}
               </span>
               <span className="text-xs text-muted-foreground font-mono">
@@ -168,60 +165,81 @@ export function RelatedPapersSection({
       {/* Add new relation */}
       {isAddingRelation && (
         <div className="space-y-3 p-3 rounded-lg border-2 border-dashed bg-muted/20 min-w-0">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 min-w-0">
-            <div className="sm:col-span-2 min-w-0">
-              <Popover open={searchOpen} onOpenChange={setSearchOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal focus-visible:ring-0 focus-visible:ring-offset-0 min-w-0 text-xs sm:text-sm"
-                    disabled={availablePublications.length === 0}
+          {/* Paper list — above the search bar */}
+          <div
+            ref={listRef}
+            className="max-h-[240px] overflow-y-auto overscroll-contain rounded-md border bg-popover shadow-md"
+          >
+            {filteredPublications.length === 0 ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">No papers found.</p>
+            ) : (
+              <div className="p-1">
+                {filteredPublications.slice(0, 50).map((pub, idx) => (
+                  <div
+                    key={pub.id}
+                    data-item
+                    onClick={() => {
+                      setSelectedPublicationId(pub.id);
+                      setSearchQuery(pub.title);
+                      inputRef.current?.focus();
+                    }}
+                    onMouseEnter={() => setHighlightedIndex(idx)}
+                    className={cn(
+                      "px-3 py-2.5 rounded-sm cursor-pointer transition-colors",
+                      idx === highlightedIndex && "bg-accent text-accent-foreground",
+                      idx !== highlightedIndex && "hover:bg-accent/50",
+                      selectedPublicationId === pub.id && "ring-1 ring-primary/50"
+                    )}
                   >
-                    <Search className="w-4 h-4 mr-2 shrink-0" />
-                    <span className="truncate text-muted-foreground">
-                      {selectedPublication?.title || 'search by title or author...'}
-                    </span>
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[calc(100vw-2rem)] sm:w-96 p-0" align="start">
-                  <Command>
-                    <CommandInput
-                      placeholder="type to search..."
-                      value={searchQuery}
-                      onValueChange={setSearchQuery}
-                      className="h-12 border-b focus-visible:ring-0"
-                    />
-                    <CommandList>
-                      <CommandEmpty className="py-6 text-center text-sm">No papers found.</CommandEmpty>
-                      <CommandGroup className="p-2">
-                        {filteredPublications.slice(0, 10).map((pub) => (
-                          <CommandItem
-                            key={pub.id}
-                            value={pub.id}
-                            onSelect={() => {
-                              setSelectedPublicationId(pub.id);
-                              setSearchOpen(false);
-                              setSearchQuery('');
-                            }}
-                            className="px-3 py-3 cursor-pointer data-[selected=true]:bg-accent/50 data-[selected=true]:text-accent-foreground hover:bg-accent/50 aria-selected:bg-transparent"
-                          >
-                            <div className="flex flex-col gap-1">
-                              <span className="text-sm line-clamp-2 leading-snug">{pub.title}</span>
-                              <span className="text-xs text-muted-foreground font-mono">
-                                {pub.authors[0] || 'Unknown'} {pub.year ? `• ${pub.year}` : ''}
-                              </span>
-                            </div>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-sm line-clamp-2 leading-snug">{pub.title}</span>
+                      <span className="text-xs text-muted-foreground font-mono">
+                        {pub.authors[0] || 'Unknown'} {pub.year ? `• ${pub.year}` : ''}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Search input + relation type */}
+          <div className="flex gap-2">
+            <div className="flex-1 min-w-0 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              <Input
+                ref={inputRef}
+                autoFocus
+                placeholder="search by title or author..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setHighlightedIndex(0);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setHighlightedIndex((i) => Math.min(i + 1, filteredPublications.length - 1));
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setHighlightedIndex((i) => Math.max(i - 1, 0));
+                  } else if (e.key === 'Enter' && filteredPublications.length > 0) {
+                    e.preventDefault();
+                    const pub = filteredPublications[highlightedIndex];
+                    if (pub) {
+                      setSelectedPublicationId(pub.id);
+                      setSearchQuery(pub.title);
+                    }
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setSearchQuery('');
+                  }
+                }}
+                className="pl-9 text-xs sm:text-sm h-10"
+              />
             </div>
             <Select value={selectedRelationType} onValueChange={setSelectedRelationType}>
-              <SelectTrigger className="text-xs">
+              <SelectTrigger className="text-xs w-[120px] shrink-0">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -233,6 +251,8 @@ export function RelatedPapersSection({
               </SelectContent>
             </Select>
           </div>
+
+          {/* Action buttons */}
           <div className="flex gap-2">
             <Button
               type="button"
@@ -241,6 +261,7 @@ export function RelatedPapersSection({
               onClick={() => {
                 setIsAddingRelation(false);
                 setSelectedPublicationId('');
+                setSearchQuery('');
               }}
               className="flex-1"
             >

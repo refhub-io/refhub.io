@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Publication, Vault, Tag, PUBLICATION_TYPES } from '@/types/database';
 import { UnsavedChangesDialog } from '@/components/ui/unsaved-changes-dialog';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import remarkBreaks from 'remark-breaks';
-import rehypeRaw from 'rehype-raw';
-import rehypeSanitize from 'rehype-sanitize';
-import { Maximize, Minimize } from 'lucide-react';
+import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
+import { useHotkeys } from '@/hooks/useKeyboardNavigation';
+import { useKeyboardContext } from '@/contexts/KeyboardContext';
+import { KbdHint } from '@/components/ui/KbdHint';
+import { formatTimeAgo } from '@/lib/utils';
+import { Maximize, Minimize, Save } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -39,11 +39,14 @@ interface PublicationDialogProps {
   tags: Tag[];
   publicationTags: string[];
   allPublications: Publication[];
+  vaultPublications?: Publication[]; // Current vault's papers for linking
   publicationVaults?: string[]; // IDs of vaults this publication is already in
   currentVaultId?: string; // Current vault ID to pre-select when adding new paper
   onSave: (data: Partial<Publication>, tagIds: string[], vaultIds?: string[], isAutoSave?: boolean) => Promise<void>;
   onCreateTag: (name: string, parentId?: string) => Promise<Tag | null>;
   onAddToVaults?: (publicationId: string, vaultIds: string[]) => Promise<void>;
+  /** When false, dialog stays open after save (default: true). */
+  closeOnSave?: boolean;
 }
 
 export function PublicationDialog({
@@ -54,11 +57,13 @@ export function PublicationDialog({
   tags,
   publicationTags,
   allPublications,
+  vaultPublications,
   publicationVaults,
   currentVaultId,
   onSave,
   onCreateTag,
   onAddToVaults,
+  closeOnSave = true,
 }: PublicationDialogProps) {
   const { user } = useAuth();
   const {
@@ -108,9 +113,13 @@ export function PublicationDialog({
   const [saving, setSaving] = useState(false);
   const [notesTab, setNotesTab] = useState<'write' | 'preview'>('write');
   const [notesFullscreen, setNotesFullscreen] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [, setTick] = useState(0); // Force re-render for relative time display
   const [duplicateWarning, setDuplicateWarning] = useState<Publication | null>(null);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [pendingClose, setPendingClose] = useState(false);
+  const [pendingExitFullscreen, setPendingExitFullscreen] = useState(false);
+  const fullscreenCleanNotesRef = useRef<string>(''); // snapshot of notes when entering fullscreen
   const duplicateCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadRef = useRef(true);
   const publicationRef = useRef(publication);
@@ -119,6 +128,151 @@ export function PublicationDialog({
   const authorsInputRef = useRef(authorsInput);
   const selectedTagsRef = useRef(selectedTags);
   const lastPublicationIdRef = useRef<string | null>(null);
+
+  // ─── Keyboard context for dialog ────────────────────────────────────────────
+  const kbCtx = useKeyboardContext();
+
+  // Push/pop dialog context when opened/closed
+  useEffect(() => {
+    if (open) {
+      kbCtx.saveFocus();
+      kbCtx.pushContext('dialog');
+    } else {
+      kbCtx.popContext();
+      kbCtx.restoreFocus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Ctrl+S save without closing
+  useHotkeys(
+    'dialog',
+    [
+      {
+        combo: 'Ctrl+s',
+        description: 'Save changes',
+        handler: (e) => {
+          if (!open) return false;
+          e.preventDefault();
+          // Trigger form save without closing
+          const doSave = async () => {
+            setSaving(true);
+            try {
+              const authors = authorsInputRef.current
+                .split(',')
+                .map((a) => a.trim())
+                .filter((a) => a.length > 0);
+              const editor = editorInputRef2.current
+                .split(',')
+                .map((e) => e.trim())
+                .filter((e) => e.length > 0);
+              const kw = keywordsInputRef2.current
+                .split(',')
+                .map((k) => k.trim())
+                .filter((k) => k.length > 0);
+              await onSave(
+                { ...formDataRef.current, authors, editor, keywords: kw },
+                selectedTagsRef.current,
+                publication ? undefined : selectedVaultIds,
+                true, // isAutoSave
+              );
+              setModifiedFields(new Set());
+              setLastSavedAt(new Date());
+            } finally {
+              setSaving(false);
+            }
+          };
+          doSave();
+          return true;
+        },
+        allowInInput: true,
+      },
+    ],
+    [open, publication, selectedVaultIds, onSave],
+  );
+
+  // Keep refs in sync for the hotkey handler
+  const editorInputRef2 = useRef(editorInput);
+  const keywordsInputRef2 = useRef(keywordsInput);
+  useEffect(() => { authorsInputRef.current = authorsInput; }, [authorsInput]);
+  useEffect(() => { editorInputRef2.current = editorInput; }, [editorInput]);
+  useEffect(() => { keywordsInputRef2.current = keywordsInput; }, [keywordsInput]);
+  useEffect(() => { formDataRef.current = formData; }, [formData]);
+  useEffect(() => { selectedTagsRef.current = selectedTags; }, [selectedTags]);
+
+  // ─── Last-save indicator timer (fullscreen notes) ──────────────────────────
+  // Initialize from publication timestamp when opened
+  useEffect(() => {
+    if (open && publication?.updated_at) {
+      setLastSavedAt(new Date(publication.updated_at));
+    } else if (open) {
+      setLastSavedAt(null);
+    }
+  }, [open, publication?.updated_at]);
+
+  // Tick interval to keep the relative time display fresh
+  useEffect(() => {
+    if (!notesFullscreen || !lastSavedAt) return;
+    const diffSec = Math.floor((Date.now() - lastSavedAt.getTime()) / 1000);
+    const intervalMs = diffSec < 60 ? 1000 : 30000;
+    const id = setInterval(() => setTick(t => t + 1), intervalMs);
+    return () => clearInterval(id);
+  }, [notesFullscreen, lastSavedAt]);
+
+  // ─── Fullscreen notes save handler ─────────────────────────────────────────
+  const handleFullscreenSave = useCallback(async () => {
+    setSaving(true);
+    try {
+      const authors = authorsInputRef.current
+        .split(',')
+        .map((a: string) => a.trim())
+        .filter((a: string) => a.length > 0);
+      const editor = editorInputRef2.current
+        .split(',')
+        .map((e: string) => e.trim())
+        .filter((e: string) => e.length > 0);
+      const kw = keywordsInputRef2.current
+        .split(',')
+        .map((k: string) => k.trim())
+        .filter((k: string) => k.length > 0);
+      await onSave(
+        { ...formDataRef.current, authors, editor, keywords: kw },
+        selectedTagsRef.current,
+        publication ? undefined : selectedVaultIds,
+        true,
+      );
+      setModifiedFields(new Set());
+      setLastSavedAt(new Date());
+    } finally {
+      setSaving(false);
+    }
+  }, [onSave, publication, selectedVaultIds]);
+
+  // ─── Exit fullscreen helper ────────────────────────────────────────────────
+  const handleExitFullscreen = useCallback(() => {
+    // Check if notes actually changed since entering fullscreen
+    const notesDirty = formData.notes !== fullscreenCleanNotesRef.current;
+    if (notesDirty) {
+      setPendingExitFullscreen(true);
+      setShowUnsavedDialog(true);
+    } else {
+      setNotesFullscreen(false);
+    }
+  }, [formData.notes]);
+
+  // Escape key to exit fullscreen
+  useEffect(() => {
+    if (!notesFullscreen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        handleExitFullscreen();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [notesFullscreen, handleExitFullscreen]);
 
   // Duplicate checker helper wrapped in useCallback
   const checkForDuplicate = useCallback((checkData: Partial<Publication>) => {
@@ -393,7 +547,10 @@ export function PublicationDialog({
       // Pass vaultIds only for new publications (when publication is null)
       await onSave({ ...formData, authors, editor, keywords }, selectedTags, publication ? undefined : selectedVaultIds);
       setModifiedFields(new Set()); // Clear dirty state
-      onOpenChange(false);
+      setLastSavedAt(new Date());
+      if (closeOnSave) {
+        onOpenChange(false);
+      }
     } finally {
       setSaving(false);
     }
@@ -426,10 +583,23 @@ export function PublicationDialog({
   // Handle discard changes
   const handleDiscardChanges = useCallback(() => {
     setShowUnsavedDialog(false);
-    setModifiedFields(new Set());
-    setPendingClose(false);
-    onOpenChange(false);
-  }, [onOpenChange]);
+    if (pendingExitFullscreen) {
+      // Just exit fullscreen, keep dialog open — revert notes to snapshot
+      setFormData(prev => ({ ...prev, notes: fullscreenCleanNotesRef.current }));
+      // Remove 'notes' from modified if it was the only change
+      setModifiedFields(prev => {
+        const next = new Set(prev);
+        next.delete('notes');
+        return next;
+      });
+      setPendingExitFullscreen(false);
+      setNotesFullscreen(false);
+    } else {
+      setModifiedFields(new Set());
+      setPendingClose(false);
+      onOpenChange(false);
+    }
+  }, [onOpenChange, pendingExitFullscreen]);
 
   // Handle save and close
   const handleSaveAndClose = useCallback(async () => {
@@ -453,14 +623,22 @@ export function PublicationDialog({
       await onSave({ ...formData, authors, editor, keywords }, selectedTags, publication ? undefined : selectedVaultIds);
       setModifiedFields(new Set()); // Clear dirty state
       setShowUnsavedDialog(false);
-      setPendingClose(false);
-      onOpenChange(false);
+      setLastSavedAt(new Date());
+      if (pendingExitFullscreen) {
+        // Save succeeded — update snapshot and exit fullscreen, keep dialog open
+        fullscreenCleanNotesRef.current = formData.notes;
+        setPendingExitFullscreen(false);
+        setNotesFullscreen(false);
+      } else {
+        setPendingClose(false);
+        onOpenChange(false);
+      }
     } catch (error) {
       // Keep dialog open on error
     } finally {
       setSaving(false);
     }
-  }, [authorsInput, editorInput, keywordsInput, formData, selectedTags, selectedVaultIds, publication, onSave, onOpenChange]);
+  }, [authorsInput, editorInput, keywordsInput, formData, selectedTags, selectedVaultIds, publication, onSave, onOpenChange, pendingExitFullscreen]);
 
   const toggleTag = (tagId: string) => {
     setSelectedTags(
@@ -478,6 +656,7 @@ export function PublicationDialog({
         onCancel={() => {
           setShowUnsavedDialog(false);
           setPendingClose(false);
+          setPendingExitFullscreen(false);
         }}
         onSave={handleSaveAndClose}
         saving={saving}
@@ -489,21 +668,47 @@ export function PublicationDialog({
       {notesFullscreen && open && (
         <div className="fixed inset-0 bg-background z-50">
           <div className="h-full flex flex-col relative">
-            {/* Header */}
+            {/* Header with Save, Last-saved indicator, and Close */}
             <div className="border-b border-border bg-card/50 backdrop-blur-xl shrink-0">
               <div className="px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
                 <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                   <h2 className="text-base sm:text-lg font-bold font-mono truncate">notes_editor</h2>
                   <span className="text-xs text-muted-foreground font-mono hidden sm:inline">(markdown_supported)</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setNotesFullscreen(false)}
-                  className="inline-flex items-center justify-center rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3 font-mono shrink-0"
-                >
-                  <Minimize className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">exit_fullscreen</span>
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  {/* Last-saved indicator */}
+                  <span
+                    className="text-xs text-muted-foreground font-mono hidden sm:inline"
+                    aria-live="polite"
+                  >
+                    {lastSavedAt ? formatTimeAgo(lastSavedAt) : 'not saved yet'}
+                  </span>
+                  {/* Save button */}
+                  <Button
+                    type="button"
+                    variant="glow"
+                    size="sm"
+                    onClick={handleFullscreenSave}
+                    disabled={saving}
+                    className="h-9 px-3 font-mono shrink-0"
+                  >
+                    <Save className="w-4 h-4 sm:mr-2" />
+                    <span className="hidden sm:inline">{saving ? 'saving...' : 'save'}</span>
+                    <KbdHint shortcut="Ctrl+S" className="ml-1.5 hidden sm:inline-flex [&_kbd]:bg-white/20 [&_kbd]:border-white/30 [&_kbd]:text-primary-foreground [&_kbd]:shadow-none" size="sm" />
+                  </Button>
+                  {/* Exit fullscreen */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExitFullscreen}
+                    className="h-9 px-3 font-mono shrink-0"
+                  >
+                    <Minimize className="w-4 h-4 sm:mr-2" />
+                    <span className="hidden sm:inline">exit_fullscreen</span>
+                    <KbdHint shortcut="Escape" className="ml-1.5 hidden sm:inline-flex" size="sm" />
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -565,13 +770,8 @@ export function PublicationDialog({
               {notesTab === 'preview' && (
                 <div className="flex-1 px-4 sm:px-6 py-3 sm:py-4 overflow-auto min-h-0">
                   {formData.notes ? (
-                    <div className="prose prose-sm dark:prose-invert max-w-4xl mx-auto break-words">
-                      <ReactMarkdown 
-                        remarkPlugins={[remarkGfm, remarkBreaks]}
-                        rehypePlugins={[rehypeRaw, rehypeSanitize]}
-                      >
-                        {formData.notes}
-                      </ReactMarkdown>
+                    <div className="max-w-4xl mx-auto">
+                      <MarkdownRenderer compact>{formData.notes}</MarkdownRenderer>
                     </div>
                   ) : (
                     <p className="text-muted-foreground text-center font-mono mt-12">// no_notes_yet</p>
@@ -610,7 +810,7 @@ export function PublicationDialog({
         )}
 
         <ScrollArea className="flex-1 overflow-auto w-full min-w-0">
-          <form onSubmit={handleSubmit} className="px-2 py-3 sm:p-6 sm:pt-4 space-y-3 sm:space-y-5 w-full min-w-full box-border overflow-x-hidden">
+          <form onSubmit={handleSubmit} className="px-2 py-3 sm:p-6 sm:pt-4 space-y-3 sm:space-y-5 w-full box-border overflow-hidden">
             {/* Title */}
             <div className="space-y-1 sm:space-y-2 w-full box-border overflow-hidden">
               <div className="flex items-center gap-2">
@@ -1192,6 +1392,7 @@ export function PublicationDialog({
                   onClick={() => {
                     // Mark notes as modified to prevent realtime sync from overwriting
                     trackFieldModification('notes');
+                    fullscreenCleanNotesRef.current = formData.notes; // snapshot for dirty check
                     setNotesFullscreen(true);
                   }}
                   className="h-7 font-mono text-xs"
@@ -1221,25 +1422,7 @@ export function PublicationDialog({
                 <TabsContent value="preview" className="mt-2 min-w-0">
                   <div className="min-h-[150px] max-h-[300px] p-4 rounded-md border border-input bg-muted/30 overflow-auto">
                     {formData.notes ? (
-                      <div className="prose prose-sm dark:prose-invert max-w-none break-words prose-ul:list-disc prose-ol:list-decimal prose-li:ml-4 prose-ul:space-y-1 prose-ol:space-y-1 prose-headings:font-bold prose-code:bg-muted prose-code:px-1 prose-code:rounded prose-pre:bg-muted prose-pre:p-3 prose-blockquote:border-l-4 prose-blockquote:border-primary prose-blockquote:pl-4 prose-table:border prose-th:border prose-td:border prose-th:p-2 prose-td:p-2">
-                        <ReactMarkdown 
-                          remarkPlugins={[remarkGfm, remarkBreaks]}
-                          rehypePlugins={[rehypeRaw, rehypeSanitize]}
-                          components={{
-                            ul: ({ node, ...props }) => <ul className="list-disc pl-6 space-y-1 my-2" {...props} />,
-                            ol: ({ node, ...props }) => <ol className="list-decimal pl-6 space-y-1 my-2" {...props} />,
-                            li: ({ node, ...props }) => <li className="ml-0" {...props} />,
-                            h1: ({ node, ...props }) => <h1 className="text-xl font-bold mt-4 mb-2" {...props} />,
-                            h2: ({ node, ...props }) => <h2 className="text-lg font-bold mt-3 mb-2" {...props} />,
-                            h3: ({ node, ...props }) => <h3 className="text-base font-bold mt-2 mb-1" {...props} />,
-                            code: ({ node, inline, ...props }: { node: unknown; inline?: boolean; [key: string]: unknown }) => 
-                              inline ? <code className="bg-muted px-1 py-0.5 rounded text-sm" {...props} /> : <code {...props} />,
-                            blockquote: ({ node, ...props }) => <blockquote className="border-l-4 border-primary pl-4 italic my-2" {...props} />,
-                          }}
-                        >
-                          {formData.notes}
-                        </ReactMarkdown>
-                      </div>
+                      <MarkdownRenderer compact>{formData.notes}</MarkdownRenderer>
                     ) : (
                       <p className="text-muted-foreground text-sm font-mono">// no_notes_yet</p>
                     )}
@@ -1267,7 +1450,7 @@ export function PublicationDialog({
             {publication && (
               <RelatedPapersSection
                 relations={relations}
-                allPublications={allPublications}
+                allPublications={vaultPublications || allPublications}
                 currentPublicationId={publication.id}
                 loading={relationsLoading}
                 onAddRelation={addRelation}
@@ -1282,6 +1465,7 @@ export function PublicationDialog({
               </Button>
               <Button type="submit" variant="glow" disabled={saving} className="font-mono w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10">
                 {saving ? 'saving...' : publication ? 'update_paper' : 'add_paper'}
+                <KbdHint shortcut="Ctrl+S" className="ml-1.5 hidden sm:inline-flex [&_kbd]:bg-white/20 [&_kbd]:border-white/30 [&_kbd]:text-primary-foreground [&_kbd]:shadow-none" size="sm" />
               </Button>
             </div>
           </form>

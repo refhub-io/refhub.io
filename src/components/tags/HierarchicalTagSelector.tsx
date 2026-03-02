@@ -18,7 +18,7 @@ import {
   HierarchicalTag 
 } from '@/lib/tagHierarchy';
 import { HierarchicalTagBadge } from './HierarchicalTagBadge';
-import { Hash, Plus, X, ChevronRight } from 'lucide-react';
+import { Hash, Plus, X, ChevronRight, Palette } from 'lucide-react';
 
 interface HierarchicalTagSelectorProps {
   tags: Tag[];

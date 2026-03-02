@@ -494,7 +494,29 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
 
           if (eventType === 'INSERT') {
             setTags(prev => {
+              // Dedupe by ID (skip if already present)
               if (prev.some(t => t.id === newRecord.id)) {
+                return prev;
+              }
+              // Dedupe by name within same vault to handle race between
+              // optimistic create (temp ID) and realtime INSERT (server ID)
+              const tempMatch = prev.find(t =>
+                t.name === newRecord.name &&
+                (t as any).vault_id === newRecord.vault_id &&
+                t.id.startsWith('temp_')
+              );
+              if (tempMatch) {
+                // Replace the temp tag with the real server record
+                return prev.map(t => t.id === tempMatch.id ? (newRecord as Tag) : t);
+              }
+              // Also dedupe by exact name+vault to prevent duplicates from concurrent clients
+              const nameMatch = prev.find(t =>
+                t.name.toLowerCase() === newRecord.name.toLowerCase() &&
+                (t as any).vault_id === newRecord.vault_id &&
+                !t.id.startsWith('temp_')
+              );
+              if (nameMatch) {
+                // Keep the existing one, ignore the duplicate
                 return prev;
               }
               return [...prev, newRecord as Tag];

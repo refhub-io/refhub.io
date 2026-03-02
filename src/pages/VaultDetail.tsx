@@ -11,7 +11,7 @@ import { hasPageCache } from '@/lib/pageCache';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationDialog } from '@/components/publications/PublicationDialog';
-import { ImportDialog } from '@/components/publications/ImportDialog';
+import { AddImportDialog } from '@/components/publications/AddImportDialog';
 import { VaultDialog } from '@/components/vaults/VaultDialog';
 import { RelationshipGraph } from '@/components/publications/RelationshipGraph';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
@@ -969,21 +969,15 @@ export default function VaultDetail() {
     if (!user || !vaultId || !canEdit) return null; // Only allow creating tags if user has edit permission
 
     try {
-      // Check if a tag with the same name already exists in this vault
-      const { data: existingTag, error: existingTagError } = await supabase
-        .from('tags')
-        .select('id')
-        .eq('vault_id', vaultId)
-        .eq('name', name)
-        .maybeSingle();
-
-      if (existingTag) {
+      // Check if a tag with the same name already exists in this vault (client-side guard)
+      const existingLocal = tags.find(t => t.name.toLowerCase() === name.toLowerCase());
+      if (existingLocal) {
         toast({
           title: 'Tag already exists',
           description: `A tag with the name "${name}" already exists in this vault.`,
           variant: 'destructive',
         });
-        return null;
+        return existingLocal;
       }
 
       const colors = ['#a855f7', '#ec4899', '#f43f5e', '#22c55e', '#06b6d4', '#3b82f6', '#f97316'];
@@ -1005,7 +999,11 @@ export default function VaultDetail() {
 
       if (error) throw error;
 
-      setTags(prev => [...prev, data as Tag]);
+      // Use functional updater with dedupe check to prevent race with realtime
+      setTags(prev => {
+        if (prev.some(t => t.id === (data as Tag).id)) return prev;
+        return [...prev, data as Tag];
+      });
       return data as Tag;
     } catch (error) {
       // Check if the error is due to the unique constraint violation
@@ -1539,11 +1537,7 @@ export default function VaultDetail() {
           relationsCountMap={relationsCountMap}
           selectedVault={currentVault}
           isVaultContext={true}
-          onAddPublication={canEdit ? () => {
-            setEditingPublication(null);
-            setIsPublicationDialogOpen(true);
-          } : undefined}
-          onImportPublications={canEdit ? () => setIsImportDialogOpen(true) : undefined}
+          onAddPublication={canEdit ? () => setIsImportDialogOpen(true) : undefined}
           onEditPublication={canEdit ? (pub) => {
             setEditingPublication(pub);
             currentlyEditingPublicationId.current = pub.id;
@@ -1561,6 +1555,7 @@ export default function VaultDetail() {
           canEditTags={canEdit}
           onUpdateTag={canEdit ? handleUpdateTag : undefined}
           onDeleteTag={canEdit ? handleDeleteTag : undefined}
+          onCreateTag={canEdit ? handleCreateTag : undefined}
         />
       </div>
 
@@ -1578,7 +1573,8 @@ export default function VaultDetail() {
         vaults={vaults.concat(sharedVaults)} // Pass all user's vaults and shared vaults
         tags={tags}
         publicationTags={editingPublication ? publicationTagsMap[editingPublication.id] || [] : []}
-        allPublications={allPublications} // Use all publications to show in which vaults this publication exists
+        allPublications={allPublications} // Use all publications for duplicate checking
+        vaultPublications={publications} // Use current vault's publications for paper linking
         publicationVaults={editingPublication ? publicationVaultsMap[editingPublication.id] || [] : []} // Show which vaults this publication is already in
         currentVaultId={vaultId} // Pass current vault ID to pre-select when adding new paper
         onSave={canEdit ? handleSavePublication : undefined}
@@ -1586,7 +1582,7 @@ export default function VaultDetail() {
         onAddToVaults={canEdit ? handleAddToVaults : undefined}
       />
 
-      <ImportDialog
+      <AddImportDialog
         open={isImportDialogOpen}
         onOpenChange={setIsImportDialogOpen}
         vaults={[vault]}
@@ -1632,6 +1628,8 @@ export default function VaultDetail() {
         onOpenChange={setIsExportDialogOpen}
         publications={exportPublications}
         vaultName={vault?.name}
+        tags={tags}
+        publicationTags={publicationTags}
       />
 
       <AlertDialog open={!!deleteConfirmation} onOpenChange={() => setDeleteConfirmation(null)}>

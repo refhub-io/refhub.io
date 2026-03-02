@@ -134,7 +134,7 @@ export default function SharedVault() {
       return null;
     }
     
-    return result.data || null;
+    return result.tag || null;
   };
 
   const handleUpdateTag = async (tagId: string, updates: Partial<Tag>): Promise<Tag | null> => {
@@ -148,7 +148,7 @@ export default function SharedVault() {
       return null;
     }
     
-    return result.data || null;
+    return result.tag || null;
   };
 
   const handleSavePublicationTags = async (publicationId: string, tagIds: string[]): Promise<void> => {
