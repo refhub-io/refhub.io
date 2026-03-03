@@ -269,11 +269,10 @@ export function useKeyboardNavigation(
       if (anchor == null) return;
       const start = Math.min(anchor, toIndex);
       const end = Math.max(anchor, toIndex);
-      // Replace selection with exactly the range, excluding the anchor item.
+      // Replace selection with exactly the range (including the anchor).
       // This ensures moving back (Shift+K after Shift+J) deselects items.
       const next = new Set<string>();
       for (let i = start; i <= end; i++) {
-        if (i === anchor) continue; // anchor itself stays unselected
         const id = itemIdsRef.current[i];
         if (id) next.add(id);
       }

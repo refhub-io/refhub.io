@@ -1,6 +1,7 @@
 import { Bug } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { version } from '../../../package.json';
 
 export function BugReportButton() {
   const handleBugReport = () => {
@@ -13,7 +14,7 @@ export function BugReportButton() {
         variant="outline" 
         className="gap-1 font-mono text-xs bg-background/95 backdrop-blur-sm border-primary/30 text-primary animate-pulse"
       >
-        <span className="text-[10px]">v1.1.0-beta</span>
+        <span className="text-[10px]">v{version}</span>
       </Badge>
       <Button
         onClick={handleBugReport}
