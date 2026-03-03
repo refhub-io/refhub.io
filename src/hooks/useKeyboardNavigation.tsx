@@ -133,7 +133,7 @@ export function useKeyboardNavigation(
   const kb = useKeyboardContext();
   const [localFocusedIndex, setLocalFocusedIndex] = useState(0);
   const [localSelectedIds, setLocalSelectedIds] = useState<Set<string>>(new Set());
-  const [rangeAnchor, setRangeAnchor] = useState<number | null>(null);
+  const rangeAnchorRef = useRef<number | null>(null);
 
   const itemIdsRef = useRef(itemIds);
   itemIdsRef.current = itemIds;
@@ -166,7 +166,7 @@ export function useKeyboardNavigation(
     setLocalFocusedIndex(0);
     // Avoid creating a new Set reference when already empty
     setLocalSelectedIds(prev => prev.size === 0 ? prev : new Set());
-    setRangeAnchor(null);
+    rangeAnchorRef.current = null;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kb.enabled, kb.setActiveContext, context]);
 
@@ -258,26 +258,28 @@ export function useKeyboardNavigation(
         else next.add(id);
         return next;
       });
-      setRangeAnchor(index);
+      rangeAnchorRef.current = index;
     },
     [],
   );
 
   const doRangeSelect = useCallback(
     (toIndex: number) => {
-      const anchor = rangeAnchor ?? focusedIndexRef.current;
+      const anchor = rangeAnchorRef.current;
+      if (anchor == null) return;
       const start = Math.min(anchor, toIndex);
       const end = Math.max(anchor, toIndex);
-      setLocalSelectedIds((prev) => {
-        const next = new Set(prev);
-        for (let i = start; i <= end; i++) {
-          const id = itemIdsRef.current[i];
-          if (id) next.add(id);
-        }
-        return next;
-      });
+      // Replace selection with exactly the range, excluding the anchor item.
+      // This ensures moving back (Shift+K after Shift+J) deselects items.
+      const next = new Set<string>();
+      for (let i = start; i <= end; i++) {
+        if (i === anchor) continue; // anchor itself stays unselected
+        const id = itemIdsRef.current[i];
+        if (id) next.add(id);
+      }
+      setLocalSelectedIds(next);
     },
-    [rangeAnchor],
+    [],
   );
 
   const selectAll = useCallback(() => {
@@ -286,7 +288,7 @@ export function useKeyboardNavigation(
 
   const clearSelection = useCallback(() => {
     setLocalSelectedIds(new Set());
-    setRangeAnchor(null);
+    rangeAnchorRef.current = null;
   }, []);
 
   // Set up chord machine for g-g and G
@@ -473,9 +475,7 @@ export function useKeyboardNavigation(
         combo: 'Shift+ArrowDown',
         description: 'Range select down',
         handler: () => {
-          // Set the anchor to the current position BEFORE moving so the
-          // starting element is included in the range.
-          if (rangeAnchor == null) setRangeAnchor(focusedIndexRef.current);
+          if (rangeAnchorRef.current == null) rangeAnchorRef.current = focusedIndexRef.current;
           moveFocus(1);
           queueMicrotask(() => doRangeSelect(focusedIndexRef.current));
           return true;
@@ -486,7 +486,7 @@ export function useKeyboardNavigation(
         combo: 'Shift+ArrowUp',
         description: 'Range select up',
         handler: () => {
-          if (rangeAnchor == null) setRangeAnchor(focusedIndexRef.current);
+          if (rangeAnchorRef.current == null) rangeAnchorRef.current = focusedIndexRef.current;
           moveFocus(-1);
           queueMicrotask(() => doRangeSelect(focusedIndexRef.current));
           return true;
@@ -497,7 +497,7 @@ export function useKeyboardNavigation(
         combo: 'Shift+j',
         description: 'Range select down',
         handler: () => {
-          if (rangeAnchor == null) setRangeAnchor(focusedIndexRef.current);
+          if (rangeAnchorRef.current == null) rangeAnchorRef.current = focusedIndexRef.current;
           moveFocus(1);
           queueMicrotask(() => doRangeSelect(focusedIndexRef.current));
           return true;
@@ -508,7 +508,7 @@ export function useKeyboardNavigation(
         combo: 'Shift+k',
         description: 'Range select up',
         handler: () => {
-          if (rangeAnchor == null) setRangeAnchor(focusedIndexRef.current);
+          if (rangeAnchorRef.current == null) rangeAnchorRef.current = focusedIndexRef.current;
           moveFocus(-1);
           queueMicrotask(() => doRangeSelect(focusedIndexRef.current));
           return true;
@@ -527,7 +527,7 @@ export function useKeyboardNavigation(
         allowInInput: false,
       },
     ],
-    [moveFocus, jumpTo, toggleSelection, doRangeSelect, selectAll, clearSelection, rangeAnchor, onOpen, onDelete, onToggleView, onExport],
+    [moveFocus, jumpTo, toggleSelection, doRangeSelect, selectAll, clearSelection, onOpen, onDelete, onToggleView, onExport],
   );
 
   // Feed single non-modifier keys into chord machine

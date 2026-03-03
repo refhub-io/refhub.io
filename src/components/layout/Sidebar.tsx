@@ -416,21 +416,30 @@ export function Sidebar({
 
               {isFavoritesExpanded && (
                 <div className="mt-2 space-y-1">
-                  {favoriteVaults.map((vault) => (
-                    <Link
-                      key={vault.id}
-                      to={`/public/${vault.public_slug}`}
-                      onClick={onMobileClose}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm hover:bg-sidebar-accent/50 text-sidebar-foreground/70 border-2 border-transparent transition-all duration-200"
-                    >
-                      <div 
-                        className="w-3 h-3 rounded-md shrink-0 shadow-sm" 
-                        style={{ backgroundColor: vault.color || '#6366f1' }}
-                      />
-                      <span className="truncate font-medium">{vault.name}</span>
-                      <Globe className="w-3 h-3 text-muted-foreground shrink-0" />
-                    </Link>
-                  ))}
+                  {favoriteVaults.map((vault) => {
+                    const href = vault.public_slug
+                      ? `/public/${vault.public_slug}`
+                      : `/vault/${vault.id}`;
+                    return (
+                      <Link
+                        key={vault.id}
+                        to={href}
+                        onClick={onMobileClose}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm hover:bg-sidebar-accent/50 text-sidebar-foreground/70 border-2 border-transparent transition-all duration-200"
+                      >
+                        <div 
+                          className="w-3 h-3 rounded-md shrink-0 shadow-sm" 
+                          style={{ backgroundColor: vault.color || '#6366f1' }}
+                        />
+                        <span className="truncate font-medium">{vault.name}</span>
+                        {vault.public_slug ? (
+                          <Globe className="w-3 h-3 text-muted-foreground shrink-0" />
+                        ) : (
+                          <Share2 className="w-3 h-3 text-muted-foreground shrink-0" />
+                        )}
+                      </Link>
+                    );
+                  })}
                 </div>
               )}
             </div>
