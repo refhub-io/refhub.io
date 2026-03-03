@@ -84,7 +84,7 @@ export function parseCombo(
  * on macOS and spells out modifiers otherwise.
  */
 export function formatCombo(raw: string): string {
-  const { modifiers, key } = parseCombo(raw, false);
+  const { modifiers, key } = parseCombo(raw, true);
   const parts: string[] = [];
 
   if (isMac) {
@@ -127,8 +127,10 @@ const KEY_DISPLAY: Record<string, string> = {
 // Characters that are produced by pressing Shift on standard layouts.
 // When the combo key is one of these, we ignore the shiftKey mismatch
 // because shift is inherent in producing the character itself.
+// NOTE: Uppercase A-Z are intentionally EXCLUDED so that a plain `j` combo
+// does NOT swallow Shift+j — allowing explicit Shift+<letter> combos to work.
 const SHIFT_PRODUCED_CHARS = new Set(
-  '~!@#$%^&*()_+{}|:"<>?ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''),
+  '~!@#$%^&*()_+{}|:"<>?'.split(''),
 );
 
 /** Check whether a KeyboardEvent matches a parsed combo. */
@@ -175,6 +177,25 @@ export function isEditableElement(el?: Element | null): boolean {
 /** Should single-letter (vim-style) shortcuts be suppressed? */
 export function shouldSuppressSingleKey(): boolean {
   return isEditableElement(document.activeElement);
+}
+
+/**
+ * Check whether a keyboard event originated from an editable target or from
+ * an element (or ancestor) marked with `data-keyboard-ignore`.  Use this in
+ * the global keydown handler instead of `shouldSuppressSingleKey()` for
+ * accurate target-based detection (especially in the capture phase).
+ */
+export function isEditableTarget(e: KeyboardEvent): boolean {
+  const target = e.target as Element | null;
+  if (!target) return false;
+  if (isEditableElement(target)) return true;
+  // Walk up to check for data-keyboard-ignore
+  let el: Element | null = target;
+  while (el) {
+    if ((el as HTMLElement).dataset?.keyboardIgnore !== undefined) return true;
+    el = el.parentElement;
+  }
+  return false;
 }
 
 // ─── Chorded key state machine ───────────────────────────────────────────────

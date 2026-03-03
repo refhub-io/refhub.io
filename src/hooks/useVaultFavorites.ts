@@ -40,8 +40,7 @@ export function useVaultFavorites() {
           const { data: vaultsData } = await supabase
             .from('vaults')
             .select('*')
-            .in('id', vaultIds)
-            .eq('visibility', 'public');
+            .in('id', vaultIds);
 
           if (vaultsData) {
             // Enrich with publication counts and owner info

@@ -5,7 +5,7 @@ import { PublicationCard } from './PublicationCard';
 import { PublicationTable } from './PublicationTable';
 import { FilterBuilder, PublicationFilter, applyFilters } from './FilterBuilder';
 import { ViewSettings, ViewMode, VisibleColumns, DEFAULT_VISIBLE_COLUMNS } from './ViewSettings';
-import { useViewSettingsPersistence } from '@/hooks/useViewSettingsPersistence';
+import { useViewSettingsPersistence, SortField, SortDirection } from '@/hooks/useViewSettingsPersistence';
 import { QRCodeDialog } from '@/components/vaults/QRCodeDialog';
 import { TagManager } from '@/components/tags/TagManager';
 import { Button } from '@/components/ui/button';
@@ -111,6 +111,7 @@ export function PublicationList({
     viewMode: persistedViewMode,
     visibleColumns: persistedVisibleColumns,
     sortBy: persistedSortBy,
+    sortDirection: persistedSortDirection,
     filters: persistedFilters,
     updateViewMode,
     updateVisibleColumns,
@@ -121,7 +122,8 @@ export function PublicationList({
   const [viewMode, setViewMode] = useState<ViewMode>(persistedViewMode);
   const [visibleColumns, setVisibleColumns] = useState<VisibleColumns>(persistedVisibleColumns);
   // Use the persisted value as initial state for sortBy
-  const [sortBy, setSortBy] = useState<'title' | 'year' | 'created'>(persistedSortBy);
+  const [sortBy, setSortBy] = useState<SortField>(persistedSortBy);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(persistedSortDirection);
   const [filters, setFilters] = useState<PublicationFilter[]>(persistedFilters);
 
   // Sync local state with persisted state when it changes
@@ -139,8 +141,8 @@ export function PublicationList({
   }, [visibleColumns, updateVisibleColumns]);
 
   useEffect(() => {
-    updateSortBy(sortBy);
-  }, [sortBy, updateSortBy]);
+    updateSortBy(sortBy, sortDirection);
+  }, [sortBy, sortDirection, updateSortBy]);
 
   useEffect(() => {
     updateFilters(filters);
@@ -162,17 +164,44 @@ export function PublicationList({
   const customFiltered = applyFilters(searchFiltered, persistedFilters, publicationTagsMap);
 
   // Apply sorting
+  const dir = sortDirection === 'asc' ? 1 : -1;
   const filteredPublications = customFiltered.sort((a, b) => {
     switch (sortBy) {
       case 'title':
-        return a.title.localeCompare(b.title);
+        return dir * a.title.localeCompare(b.title);
+      case 'authors': {
+        const aFirst = a.authors[0] || '';
+        const bFirst = b.authors[0] || '';
+        return dir * aFirst.localeCompare(bFirst);
+      }
       case 'year':
-        return (b.year || 0) - (a.year || 0);
+        return dir * ((a.year || 0) - (b.year || 0));
+      case 'journal': {
+        const aJ = a.journal || '';
+        const bJ = b.journal || '';
+        return dir * aJ.localeCompare(bJ);
+      }
+      case 'type': {
+        const aT = a.publication_type || '';
+        const bT = b.publication_type || '';
+        return dir * aT.localeCompare(bT);
+      }
       case 'created':
       default:
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        return dir * (new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
     }
   });
+
+  // Handler for table header sort clicks
+  const handleTableSort = useCallback((field: SortField) => {
+    if (sortBy === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(field);
+      // Default direction per field: year/created default desc, others default asc
+      setSortDirection(field === 'year' || field === 'created' ? 'desc' : 'asc');
+    }
+  }, [sortBy]);
 
   // ─── Keyboard navigation ─────────────────────────────────────────────────
   // kbNav is declared first so toggleSelection/selectAll can use it as the
@@ -421,8 +450,16 @@ export function PublicationList({
               ref={searchInputRef}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setSearchQuery('');
+                  searchInputRef.current?.blur();
+                }
+              }}
               placeholder="search_papers..."
               className="pl-11 font-mono"
+              data-keyboard-ignore
             />
             <div className="absolute right-3 top-1/2 -translate-y-1/2 hidden lg:flex">
               <KbdHint shortcut="Meta+K" size="sm" />
@@ -461,13 +498,13 @@ export function PublicationList({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="font-mono">
-              <DropdownMenuItem onClick={() => setSortBy('created')}>
+              <DropdownMenuItem onClick={() => { setSortBy('created'); setSortDirection('desc'); }}>
                 recently_added
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setSortBy('year')}>
+              <DropdownMenuItem onClick={() => { setSortBy('year'); setSortDirection('desc'); }}>
                 publication_year
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setSortBy('title')}>
+              <DropdownMenuItem onClick={() => { setSortBy('title'); setSortDirection('asc'); }}>
                 title_asc
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -571,6 +608,9 @@ export function PublicationList({
             onEdit={onEditPublication}
             onDelete={onDeletePublication}
             onExportBibtex={(pub) => onExportBibtex([pub])}
+            sortBy={sortBy}
+            sortDirection={sortDirection}
+            onSort={handleTableSort}
             focusedIndex={kbNav.focusedIndex}
             kbItemProps={kbNav.itemProps}
           />

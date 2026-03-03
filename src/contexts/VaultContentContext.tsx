@@ -73,6 +73,12 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
   
   // Track pending optimistic updates to avoid overwriting them with realtime data
   const pendingUpdatesRef = useRef<Set<string>>(new Set());
+
+  // Stable ref to the latest publications array so the realtime subscription
+  // callback can check relevance without causing the subscription to be torn
+  // down and re-created whenever publications change.
+  const publicationsRef = useRef<Publication[]>(publications);
+  publicationsRef.current = publications;
   
   // Track when we made a local activity update to prevent realtime from overwriting it
   const lastLocalActivityUpdateRef = useRef<number>(0);
@@ -559,7 +565,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
           
           if (vaultPublicationId) {
             // Verify the publication belongs to this vault
-            const belongsToVault = publications.some(p => p.id === vaultPublicationId);
+            const belongsToVault = publicationsRef.current.some(p => p.id === vaultPublicationId);
             if (!belongsToVault) {
               return; // Not relevant to this vault
             }
@@ -569,7 +575,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
             if (!publicationId) return;
             
             // Check if any vault publication references this original
-            const isRelevant = publications.some(p => 
+            const isRelevant = publicationsRef.current.some(p => 
               (p as any).original_publication_id === publicationId
             );
             if (!isRelevant) return;
@@ -648,7 +654,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
           const pubId = newRecord?.publication_id || oldRecord?.publication_id;
           const relatedPubId = newRecord?.related_publication_id || oldRecord?.related_publication_id;
           
-          const isRelevant = publications.some(p => 
+          const isRelevant = publicationsRef.current.some(p => 
             p.id === pubId || 
             p.id === relatedPubId ||
             (p as any).original_publication_id === pubId ||
@@ -692,7 +698,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       setIsRealtimeConnected(false);
       supabase.removeChannel(channel);
     };
-  }, [currentVaultId, user, publications, formatVaultPublication]);
+  }, [currentVaultId, user, formatVaultPublication]);
 
   return (
     <VaultContentContext.Provider

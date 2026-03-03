@@ -4,10 +4,14 @@ import { PublicationFilter } from '@/components/publications/FilterBuilder';
 
 const VIEW_SETTINGS_STORAGE_KEY = 'refhub-view-settings';
 
+export type SortField = 'title' | 'authors' | 'year' | 'journal' | 'type' | 'created';
+export type SortDirection = 'asc' | 'desc';
+
 interface StoredViewSettings {
   viewMode: ViewMode;
   visibleColumns: VisibleColumns;
-  sortBy: 'title' | 'year' | 'created';
+  sortBy: SortField;
+  sortDirection: SortDirection;
   filters: PublicationFilter[];
 }
 
@@ -20,6 +24,7 @@ export const useViewSettingsPersistence = () => {
         return {
           viewMode: parsed.viewMode || 'cards',
           sortBy: parsed.sortBy || 'created',
+          sortDirection: parsed.sortDirection || 'desc',
           visibleColumns: {
             ...DEFAULT_VISIBLE_COLUMNS,
             ...parsed.visibleColumns
@@ -29,7 +34,8 @@ export const useViewSettingsPersistence = () => {
       }
       return {
         viewMode: 'cards' as ViewMode,
-        sortBy: 'created',
+        sortBy: 'created' as SortField,
+        sortDirection: 'desc' as SortDirection,
         visibleColumns: DEFAULT_VISIBLE_COLUMNS,
         filters: []
       };
@@ -37,7 +43,8 @@ export const useViewSettingsPersistence = () => {
       console.error('Error loading view settings from localStorage:', error);
       return {
         viewMode: 'cards' as ViewMode,
-        sortBy: 'created',
+        sortBy: 'created' as SortField,
+        sortDirection: 'desc' as SortDirection,
         visibleColumns: DEFAULT_VISIBLE_COLUMNS,
         filters: []
       };
@@ -58,45 +65,50 @@ export const useViewSettingsPersistence = () => {
       viewMode: mode,
       visibleColumns: storedSettings.visibleColumns,
       sortBy: storedSettings.sortBy,
+      sortDirection: storedSettings.sortDirection,
       filters: storedSettings.filters
     };
     saveSettings(newSettings);
-  }, [storedSettings.visibleColumns, storedSettings.sortBy, storedSettings.filters, saveSettings]);
+  }, [storedSettings.visibleColumns, storedSettings.sortBy, storedSettings.sortDirection, storedSettings.filters, saveSettings]);
 
   const updateVisibleColumns = useCallback((columns: VisibleColumns) => {
     const newSettings = {
       viewMode: storedSettings.viewMode,
       visibleColumns: columns,
       sortBy: storedSettings.sortBy,
+      sortDirection: storedSettings.sortDirection,
       filters: storedSettings.filters
     };
     saveSettings(newSettings);
-  }, [storedSettings.viewMode, storedSettings.sortBy, storedSettings.filters, saveSettings]);
+  }, [storedSettings.viewMode, storedSettings.sortBy, storedSettings.sortDirection, storedSettings.filters, saveSettings]);
 
-  const updateSortBy = useCallback((sortBy: 'title' | 'year' | 'created') => {
+  const updateSortBy = useCallback((sortBy: SortField, sortDirection?: SortDirection) => {
     const newSettings = {
       viewMode: storedSettings.viewMode,
       visibleColumns: storedSettings.visibleColumns,
       sortBy,
+      sortDirection: sortDirection ?? storedSettings.sortDirection,
       filters: storedSettings.filters
     };
     saveSettings(newSettings);
-  }, [storedSettings.viewMode, storedSettings.visibleColumns, storedSettings.filters, saveSettings]);
+  }, [storedSettings.viewMode, storedSettings.visibleColumns, storedSettings.sortDirection, storedSettings.filters, saveSettings]);
 
   const updateFilters = useCallback((filters: PublicationFilter[]) => {
     const newSettings = {
       viewMode: storedSettings.viewMode,
       visibleColumns: storedSettings.visibleColumns,
       sortBy: storedSettings.sortBy,
+      sortDirection: storedSettings.sortDirection,
       filters
     };
     saveSettings(newSettings);
-  }, [storedSettings.viewMode, storedSettings.visibleColumns, storedSettings.sortBy, saveSettings]);
+  }, [storedSettings.viewMode, storedSettings.visibleColumns, storedSettings.sortBy, storedSettings.sortDirection, saveSettings]);
 
   return {
     viewMode: storedSettings.viewMode,
     visibleColumns: storedSettings.visibleColumns,
     sortBy: storedSettings.sortBy,
+    sortDirection: storedSettings.sortDirection,
     filters: storedSettings.filters,
     updateViewMode,
     updateVisibleColumns,

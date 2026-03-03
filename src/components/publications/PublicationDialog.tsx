@@ -6,7 +6,7 @@ import { useHotkeys } from '@/hooks/useKeyboardNavigation';
 import { useKeyboardContext } from '@/contexts/KeyboardContext';
 import { KbdHint } from '@/components/ui/KbdHint';
 import { formatTimeAgo } from '@/lib/utils';
-import { Maximize, Minimize, Save } from 'lucide-react';
+import { Maximize, Minimize, Save, X, Plus } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -63,7 +63,7 @@ export function PublicationDialog({
   onSave,
   onCreateTag,
   onAddToVaults,
-  closeOnSave = true,
+  closeOnSave = false,
 }: PublicationDialogProps) {
   const { user } = useAuth();
   const {
@@ -1390,8 +1390,6 @@ export function PublicationDialog({
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    // Mark notes as modified to prevent realtime sync from overwriting
-                    trackFieldModification('notes');
                     fullscreenCleanNotesRef.current = formData.notes; // snapshot for dirty check
                     setNotesFullscreen(true);
                   }}
@@ -1461,10 +1459,17 @@ export function PublicationDialog({
             {/* Actions */}
             <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-3 sm:pt-4 border-t border-border w-full box-border">
               <Button type="button" variant="outline" onClick={() => handleDialogClose(false)} className="font-mono w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10">
-                cancel
+                <X className="w-3 h-3 mr-1.5" />
+                close
               </Button>
               <Button type="submit" variant="glow" disabled={saving} className="font-mono w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10">
-                {saving ? 'saving...' : publication ? 'update_paper' : 'add_paper'}
+                {saving ? (
+                  'saving...'
+                ) : publication ? (
+                  <><Save className="w-3 h-3 mr-1.5" />save</>
+                ) : (
+                  <><Plus className="w-3 h-3 mr-1.5" />add_paper</>
+                )}
                 <KbdHint shortcut="Ctrl+S" className="ml-1.5 hidden sm:inline-flex [&_kbd]:bg-white/20 [&_kbd]:border-white/30 [&_kbd]:text-primary-foreground [&_kbd]:shadow-none" size="sm" />
               </Button>
             </div>

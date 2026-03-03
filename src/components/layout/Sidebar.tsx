@@ -130,6 +130,24 @@ export function Sidebar({
 
   useHotkeys('global', vaultNumberDefs, [vaultNumberDefs]);
 
+  // Global "o" shortcut: open settings for the current vault
+  useHotkeys(
+    'global',
+    [
+      {
+        combo: 'o',
+        description: 'Open vault settings',
+        handler: () => {
+          if (!activeVaultId || !onEditVault) return false;
+          const vault = vaults.find((v) => v.id === activeVaultId);
+          if (vault) { onEditVault(vault); return true; }
+          return false;
+        },
+      },
+    ],
+    [activeVaultId, vaults, onEditVault],
+  );
+
   return (
     <>
       {/* Mobile overlay */}

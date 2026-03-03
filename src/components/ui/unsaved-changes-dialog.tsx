@@ -9,6 +9,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { X, Trash2, Save } from 'lucide-react';
 
 interface UnsavedChangesDialogProps {
   open: boolean;
@@ -31,7 +32,7 @@ export function UnsavedChangesDialog({
 }: UnsavedChangesDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
-      <AlertDialogContent className="border-2">
+      <AlertDialogContent className="border-2 max-w-md">
         <AlertDialogHeader>
           <AlertDialogTitle className="font-mono">
             // {title.toLowerCase().replace(/\s+/g, '_')}
@@ -40,27 +41,29 @@ export function UnsavedChangesDialog({
             {description}
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+        <AlertDialogFooter className="flex-col sm:flex-row gap-2 sm:gap-2">
           <AlertDialogCancel 
             onClick={onCancel}
-            className="font-mono"
+            className="font-mono text-xs sm:text-sm h-9"
           >
+            <X className="w-3 h-3 mr-1.5 shrink-0" />
             cancel
           </AlertDialogCancel>
           <Button
             variant="destructive"
             onClick={onDiscard}
-            className="font-mono"
+            className="font-mono text-xs sm:text-sm h-9"
           >
-            discard_changes
+            <Trash2 className="w-3 h-3 mr-1.5 shrink-0" />
+            discard
           </Button>
           {onSave && (
             <AlertDialogAction
               onClick={onSave}
               disabled={saving}
-              className="font-mono"
+              className="font-mono text-xs sm:text-sm h-9"
             >
-              {saving ? 'saving...' : 'save_changes'}
+              {saving ? 'saving...' : <><Save className="w-3 h-3 mr-1.5 shrink-0" />save</>}
             </AlertDialogAction>
           )}
         </AlertDialogFooter>

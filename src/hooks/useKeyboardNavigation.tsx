@@ -473,8 +473,10 @@ export function useKeyboardNavigation(
         combo: 'Shift+ArrowDown',
         description: 'Range select down',
         handler: () => {
+          // Set the anchor to the current position BEFORE moving so the
+          // starting element is included in the range.
+          if (rangeAnchor == null) setRangeAnchor(focusedIndexRef.current);
           moveFocus(1);
-          // Use a microtask so focusedIndex is updated
           queueMicrotask(() => doRangeSelect(focusedIndexRef.current));
           return true;
         },
@@ -484,13 +486,48 @@ export function useKeyboardNavigation(
         combo: 'Shift+ArrowUp',
         description: 'Range select up',
         handler: () => {
+          if (rangeAnchor == null) setRangeAnchor(focusedIndexRef.current);
           moveFocus(-1);
           queueMicrotask(() => doRangeSelect(focusedIndexRef.current));
           return true;
         },
       },
+      // Shift+j: range select downward (vim-style)
+      {
+        combo: 'Shift+j',
+        description: 'Range select down',
+        handler: () => {
+          if (rangeAnchor == null) setRangeAnchor(focusedIndexRef.current);
+          moveFocus(1);
+          queueMicrotask(() => doRangeSelect(focusedIndexRef.current));
+          return true;
+        },
+      },
+      // Shift+k: range select upward (vim-style)
+      {
+        combo: 'Shift+k',
+        description: 'Range select up',
+        handler: () => {
+          if (rangeAnchor == null) setRangeAnchor(focusedIndexRef.current);
+          moveFocus(-1);
+          queueMicrotask(() => doRangeSelect(focusedIndexRef.current));
+          return true;
+        },
+      },
+      // Ctrl+D: deselect all (override browser bookmark)
+      {
+        combo: 'Ctrl+d',
+        description: 'Deselect all',
+        handler: (e) => {
+          e.preventDefault();
+          clearSelection();
+          setLocalFocusedIndex(-1);
+          return true;
+        },
+        allowInInput: false,
+      },
     ],
-    [moveFocus, jumpTo, toggleSelection, doRangeSelect, selectAll, onOpen, onDelete, onToggleView, onExport],
+    [moveFocus, jumpTo, toggleSelection, doRangeSelect, selectAll, clearSelection, rangeAnchor, onOpen, onDelete, onToggleView, onExport],
   );
 
   // Feed single non-modifier keys into chord machine
@@ -517,6 +554,11 @@ export function useKeyboardNavigation(
       tabIndex: index === localFocusedIndex ? 0 : -1,
       'data-focused': index === localFocusedIndex,
       onClick: (e: React.MouseEvent) => {
+        // Activate this keyboard context on any click so subsequent
+        // keyboard navigation continues from the clicked item.
+        if (kb.activeContext !== context) {
+          kb.setActiveContext(context);
+        }
         if (e.shiftKey) {
           doRangeSelect(index);
         } else if (e.ctrlKey || e.metaKey) {

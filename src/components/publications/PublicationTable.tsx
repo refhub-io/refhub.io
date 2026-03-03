@@ -1,6 +1,5 @@
 import { Publication, Tag, Vault } from '@/types/database';
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -18,6 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { HierarchicalTagBadge } from '@/components/tags/HierarchicalTagBadge';
 import { VisibleColumns } from './ViewSettings';
+import { SortField, SortDirection } from '@/hooks/useViewSettingsPersistence';
 import {
   MoreVertical,
   Edit,
@@ -27,6 +27,9 @@ import {
   FileText,
   StickyNote,
   Link2,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -44,6 +47,10 @@ interface PublicationTableProps {
   onEdit: (pub: Publication) => void;
   onDelete: (pub: Publication) => void;
   onExportBibtex: (pub: Publication) => void;
+  // Sort props
+  sortBy: SortField;
+  sortDirection: SortDirection;
+  onSort: (field: SortField) => void;
   // Keyboard navigation props
   focusedIndex?: number;
   kbItemProps?: (index: number, id: string) => Record<string, any>;
@@ -63,6 +70,9 @@ export function PublicationTable({
   onEdit,
   onDelete,
   onExportBibtex,
+  sortBy,
+  sortDirection,
+  onSort,
   focusedIndex,
   kbItemProps,
 }: PublicationTableProps) {
@@ -90,25 +100,46 @@ export function PublicationTable({
     return text.substring(0, maxLength) + '...';
   };
 
+  // Sort indicator component for sortable column headers
+  const SortIndicator = ({ field }: { field: SortField }) => {
+    if (sortBy !== field) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-0 group-hover/sort:opacity-50 transition-opacity" />;
+    return sortDirection === 'asc'
+      ? <ArrowUp className="w-3 h-3 ml-1 text-primary" />
+      : <ArrowDown className="w-3 h-3 ml-1 text-primary" />;
+  };
+
+  // Sortable header cell
+  const SortableHead = ({ field, children, className }: { field: SortField; children: React.ReactNode; className?: string }) => (
+    <TableHead
+      className={cn("font-mono text-xs cursor-pointer select-none group/sort hover:text-foreground transition-colors", className)}
+      onClick={() => onSort(field)}
+    >
+      <span className="inline-flex items-center">
+        {children}
+        <SortIndicator field={field} />
+      </span>
+    </TableHead>
+  );
+
   return (
-    <div className="w-full border border-border rounded-lg overflow-x-auto">
-      <Table className="min-w-max">
-        <TableHeader>
+    <div className="w-full border border-border rounded-lg overflow-auto max-h-[calc(100vh-16rem)]">
+      <table className="w-full min-w-max caption-bottom text-sm">
+        <thead className="[&_tr]:border-b sticky top-0 z-10 bg-background/95 backdrop-blur-sm">
           <TableRow className="bg-muted/30 hover:bg-muted/30">
             <TableHead className="w-10">
               <span className="sr-only">Select</span>
             </TableHead>
             {visibleColumns.title && (
-              <TableHead className="font-mono text-xs">Title</TableHead>
+              <SortableHead field="title">Title</SortableHead>
             )}
             {visibleColumns.authors && (
-              <TableHead className="font-mono text-xs">Authors</TableHead>
+              <SortableHead field="authors">Authors</SortableHead>
             )}
             {visibleColumns.year && (
-              <TableHead className="font-mono text-xs w-16">Year</TableHead>
+              <SortableHead field="year" className="w-16">Year</SortableHead>
             )}
             {visibleColumns.journal && (
-              <TableHead className="font-mono text-xs">Journal</TableHead>
+              <SortableHead field="journal">Journal</SortableHead>
             )}
             {visibleColumns.tags && (
               <TableHead className="font-mono text-xs">Tags</TableHead>
@@ -117,7 +148,7 @@ export function PublicationTable({
               <TableHead className="font-mono text-xs">Vault</TableHead>
             )}
             {visibleColumns.type && (
-              <TableHead className="font-mono text-xs w-24">Type</TableHead>
+              <SortableHead field="type" className="w-24">Type</SortableHead>
             )}
             {visibleColumns.relations && (
               <TableHead className="font-mono text-xs w-16 text-center">Links</TableHead>
@@ -138,7 +169,7 @@ export function PublicationTable({
               <span className="sr-only">Actions</span>
             </TableHead>
           </TableRow>
-        </TableHeader>
+        </thead>
         <TableBody>
           {publications.map((pub, index) => {
             const pubTags = getPublicationTags(pub.id);
@@ -351,7 +382,7 @@ export function PublicationTable({
             );
           })}
         </TableBody>
-      </Table>
+      </table>
     </div>
   );
 }

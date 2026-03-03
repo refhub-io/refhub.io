@@ -13,7 +13,7 @@ import {
   ShortcutDef,
   parseCombo,
   matchesCombo,
-  shouldSuppressSingleKey,
+  isEditableTarget,
   ChordMachine,
   ChordDef,
 } from '@/lib/keyboard';
@@ -224,7 +224,7 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
     const handleKeyDown = (e: KeyboardEvent) => {
       const allShortcuts = shortcutsRef.current;
       const currentContext = contextStackRef.current[contextStackRef.current.length - 1];
-      const inInput = shouldSuppressSingleKey();
+      const inInput = isEditableTarget(e);
 
       // Sort shortcuts by context priority (highest first)
       const sorted = [...allShortcuts].sort(
@@ -236,14 +236,13 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
         // Only fire shortcuts from the active context or from 'global'
         if (def.context !== currentContext && def.context !== 'global') continue;
 
-        // If it's a single-key shortcut and we're in an input, skip.
-        // Covers single chars (j, k, v...) and named single-press keys (Space).
         const parsed = parseCombo(def.combo);
-        const SINGLE_PRESS_NAMES = new Set(['space', 'backspace']);
-        const isSingleKey =
-          parsed.modifiers.size === 0 &&
-          (parsed.key.length === 1 || SINGLE_PRESS_NAMES.has(parsed.key));
-        if (isSingleKey && inInput && !def.allowInInput) continue;
+
+        // Guard: skip ANY shortcut (single-key or modifier combo) when focused
+        // in an editable target, UNLESS the shortcut explicitly opts in via
+        // allowInInput.  This ensures browser defaults (Ctrl+A to select text,
+        // Ctrl+C to copy, etc.) work normally inside inputs / textareas.
+        if (inInput && !def.allowInInput) continue;
 
         if (matchesCombo(e, parsed)) {
           e.preventDefault();
@@ -254,7 +253,7 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Feed non-modifier keys into chord machine (only when not in input)
+      // Feed non-modifier keys into chord machine (only when not in an editable target)
       if (!inInput && !e.ctrlKey && !e.metaKey && !e.altKey) {
         chordMachineRef.current.feed(e.key);
       }

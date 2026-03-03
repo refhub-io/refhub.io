@@ -50,8 +50,10 @@ const kbdConfig: KbdConfig = {
     vaultJump: {
       combo: '1 \u2025 9',
       description: 'Jump to vault by number',
-    },
-  },
+    },    vaultSettings: {
+      combo: 'o',
+      description: 'Open vault settings',
+    },  },
 
   // ─── Vault List ──────────────────────────────────────────────────────────
   'vault-list': {
@@ -66,10 +68,6 @@ const kbdConfig: KbdConfig = {
     open: {
       combo: 'Enter',
       description: 'Open selected vault',
-    },
-    options: {
-      combo: 'o',
-      description: 'Open vault options',
     },
   },
 
@@ -118,6 +116,18 @@ const kbdConfig: KbdConfig = {
     delete: {
       combo: 'd / Delete',
       description: 'Delete selected',
+    },
+    deselectAll: {
+      combo: 'Ctrl+D',
+      description: 'Deselect all',
+    },
+    rangeSelectDown: {
+      combo: 'Shift+↓ / Shift+J',
+      description: 'Range select down',
+    },
+    rangeSelectUp: {
+      combo: 'Shift+↑ / Shift+K',
+      description: 'Range select up',
     },
   },
 
