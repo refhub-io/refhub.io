@@ -32,7 +32,7 @@ import {
   CheckSquare,
   Square,
   Sparkles,
-  Network,
+  BarChart3,
   Settings,
   MoreVertical,
   Tags
@@ -353,8 +353,8 @@ export function PublicationList({
                 variant="outline" 
                 className="h-9 font-mono hidden lg:flex"
               >
-                <Network className="w-4 h-4 mr-2" />
-                relationship_graph
+                <BarChart3 className="w-4 h-4 mr-2" />
+                collection_analytics
               </Button>
             )}
 
@@ -413,8 +413,8 @@ export function PublicationList({
                 <DropdownMenuContent align="end" className="font-mono">
                   {onOpenGraph && (
                     <DropdownMenuItem onClick={onOpenGraph}>
-                      <Network className="w-4 h-4 mr-2" />
-                      relationship_graph
+                      <BarChart3 className="w-4 h-4 mr-2" />
+                      collection_analytics
                     </DropdownMenuItem>
                   )}
                   {selectedVault && onEditVault && (

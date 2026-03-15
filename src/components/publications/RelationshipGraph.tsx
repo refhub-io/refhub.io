@@ -1,8 +1,8 @@
 import { useRef, useEffect, useCallback, useMemo, useState, useLayoutEffect } from 'react';
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
 import { Publication, PublicationRelation, RELATION_TYPES } from '@/types/database';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { forceX, forceY, forceManyBody } from 'd3-force-3d';
 
 interface GraphNode {
   id: string;
@@ -10,6 +10,8 @@ interface GraphNode {
   year?: number | null;
   authors?: string[];
   val: number;
+  x?: number;
+  y?: number;
 }
 
 interface GraphLink {
@@ -27,9 +29,7 @@ interface TransformedGraphLink {
   color: string;
 }
 
-interface RelationshipGraphProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+export interface RelationshipGraphPanelProps {
   publications: Publication[];
   relations: PublicationRelation[];
   onSelectPublication?: (publication: Publication) => void;
@@ -43,13 +43,11 @@ const RELATION_COLORS: Record<string, string> = {
   builds_on: '#8b5cf6',
 };
 
-export function RelationshipGraph({
-  open,
-  onOpenChange,
+export function RelationshipGraphPanel({
   publications,
   relations,
   onSelectPublication,
-}: RelationshipGraphProps) {
+}: RelationshipGraphPanelProps) {
   const graphRef = useRef<ForceGraphMethods>();
   const containerRef = useRef<HTMLDivElement>(null);
   const hasZoomedRef = useRef(false);
@@ -60,12 +58,6 @@ export function RelationshipGraph({
 
   // Measure container after layout
   useLayoutEffect(() => {
-    if (!open) {
-      setIsReady(false);
-      setDimensions({ width: 0, height: 0 });
-      return;
-    }
-
     const updateDimensions = () => {
       if (!containerRef.current) return;
       const { width, height } = containerRef.current.getBoundingClientRect();
@@ -75,10 +67,8 @@ export function RelationshipGraph({
       }
     };
 
-    // Measure after a brief delay to ensure dialog is fully rendered
     const timeoutId = setTimeout(updateDimensions, 100);
 
-    // Also set up resize observer for window resizes
     const resizeObserver = new ResizeObserver(updateDimensions);
     if (containerRef.current) {
       resizeObserver.observe(containerRef.current);
@@ -88,21 +78,18 @@ export function RelationshipGraph({
       clearTimeout(timeoutId);
       resizeObserver.disconnect();
     };
-  }, [open]);
+  }, []);
 
   // Build graph data
   const graphData = useMemo(() => {
-    // Get all publication IDs that have relations
     const connectedIds = new Set<string>();
     relations.forEach((rel) => {
       connectedIds.add(rel.publication_id);
       connectedIds.add(rel.related_publication_id);
     });
 
-    // Filter publications to only those with connections
     const connectedPubs = publications.filter((pub) => connectedIds.has(pub.id));
 
-    // Build nodes - prefer bibkey for labels, fallback to shortened title
     const nodes: GraphNode[] = connectedPubs.map((pub) => ({
       id: pub.id,
       name: pub.bibtex_key || (pub.title.length > 20 ? pub.title.slice(0, 20) + '...' : pub.title),
@@ -111,7 +98,6 @@ export function RelationshipGraph({
       val: 1,
     }));
 
-    // Build links
     const links: GraphLink[] = relations.map((rel) => ({
       source: rel.publication_id,
       target: rel.related_publication_id,
@@ -122,19 +108,26 @@ export function RelationshipGraph({
     return { nodes, links };
   }, [publications, relations]);
 
-  // Center graph after it loads
+  // Apply center-pulling forces to keep disconnected components together
   useEffect(() => {
-    if (open && graphData.nodes.length > 0) {
-      hasZoomedRef.current = false;
-    }
-  }, [open, graphData.nodes.length]);
+    if (!graphRef.current || graphData.nodes.length === 0) return;
 
-  // Handle zoom to fit when engine stops - primary centering method
+    const fg = graphRef.current;
+    fg.d3Force('x', forceX(0).strength(0.15));
+    fg.d3Force('y', forceY(0).strength(0.15));
+    fg.d3Force('charge', forceManyBody().strength(-80));
+    fg.d3ReheatSimulation();
+  }, [graphData]);
+
+  // Reset zoom flag when data changes significantly
+  useEffect(() => {
+    hasZoomedRef.current = false;
+  }, [publications, relations]);
+
   const handleEngineStop = useCallback(() => {
     if (!hasZoomedRef.current && graphRef.current) {
       hasZoomedRef.current = true;
-      // Use more padding on mobile to prevent label clipping in constrained width
-      const padding = dimensions.width < 640 ? 100 : 120;
+      const padding = dimensions.width < 640 ? 60 : 80;
       graphRef.current.zoomToFit(400, padding);
     }
   }, [dimensions.width]);
@@ -144,10 +137,9 @@ export function RelationshipGraph({
       const pub = publications.find((p) => p.id === node.id);
       if (pub && onSelectPublication) {
         onSelectPublication(pub);
-        onOpenChange(false);
       }
     },
-    [publications, onSelectPublication, onOpenChange]
+    [publications, onSelectPublication]
   );
 
   const nodeCanvasObject = useCallback(
@@ -156,7 +148,6 @@ export function RelationshipGraph({
       const fontSize = Math.max(10 / globalScale, 3);
       ctx.font = `${fontSize}px "SF Mono", Monaco, monospace`;
       
-      // Node circle - smaller
       const nodeRadius = 4;
       ctx.beginPath();
       ctx.arc(node.x, node.y, nodeRadius, 0, 2 * Math.PI);
@@ -166,7 +157,6 @@ export function RelationshipGraph({
       ctx.lineWidth = 1.2 / globalScale;
       ctx.stroke();
 
-      // Label background
       const textWidth = ctx.measureText(label).width;
       const bckgDimensions = [textWidth + 4, fontSize + 2].map((n) => n);
       
@@ -178,7 +168,6 @@ export function RelationshipGraph({
         bckgDimensions[1]
       );
 
-      // Label text
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       ctx.fillStyle = 'hsl(0, 0%, 95%)';
@@ -194,7 +183,6 @@ export function RelationshipGraph({
 
       if (typeof start !== 'object' || typeof end !== 'object') return;
 
-      // Draw line
       ctx.beginPath();
       ctx.moveTo(start.x, start.y);
       ctx.lineTo(end.x, end.y);
@@ -202,7 +190,6 @@ export function RelationshipGraph({
       ctx.lineWidth = 2 / globalScale;
       ctx.stroke();
 
-      // Draw label at midpoint
       const midX = (start.x + end.x) / 2;
       const midY = (start.y + end.y) / 2;
       const label = RELATION_TYPES.find((t) => t.value === link.type)?.label || link.type;
@@ -223,71 +210,62 @@ export function RelationshipGraph({
   );
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl w-[95vw] h-[85vh] sm:h-[90vh] flex flex-col bg-card/95 backdrop-blur-xl border-2 p-3 sm:p-6">
-        <DialogHeader className="pb-2">
-          <DialogTitle className="text-lg sm:text-xl font-bold flex flex-col sm:flex-row items-start sm:items-center gap-2 font-mono">
-            <span className="whitespace-nowrap">// graph</span>
-            <Badge variant="outline" className="font-mono text-xs whitespace-nowrap">
-              {graphData.nodes.length}_papers • {graphData.links.length}_links
-            </Badge>
-          </DialogTitle>
-        </DialogHeader>
-
-        {/* Legend */}
-        <div className="flex flex-wrap gap-2 px-1 pb-2">
+    <div className="flex flex-col h-full min-h-0">
+      <div className="flex items-center justify-between gap-2 pb-2">
+        <span className="text-sm font-mono text-muted-foreground whitespace-nowrap">// graph</span>
+        <div className="flex flex-wrap gap-2">
           {RELATION_TYPES.map((type) => (
-            <div key={type.value} className="flex items-center gap-1.5">
+            <div key={type.value} className="flex items-center gap-1">
               <div
-                className="w-3 h-0.5 rounded-full"
+                className="w-2.5 h-0.5 rounded-full"
                 style={{ backgroundColor: RELATION_COLORS[type.value] }}
               />
-              <span className="text-xs text-muted-foreground font-mono">{type.label.toLowerCase().replace(/ /g, '_')}</span>
+              <span className="text-[10px] text-muted-foreground font-mono">{type.label.toLowerCase().replace(/ /g, '_')}</span>
             </div>
           ))}
         </div>
+      </div>
 
-        <div ref={containerRef} className="flex-1 min-h-0 w-full rounded-lg overflow-hidden bg-background/50 border">
-          {graphData.nodes.length === 0 ? (
-            <div className="w-full h-full flex items-center justify-center text-muted-foreground font-mono text-sm">
-              // no paper relationships to visualize yet
-            </div>
-          ) : !isReady || dimensions.width === 0 || dimensions.height === 0 ? (
-            <div className="w-full h-full flex items-center justify-center text-muted-foreground font-mono text-sm">
-              // loading graph...
-            </div>
-          ) : (
-            <ForceGraph2D
-              key={`graph-${dimensions.width}-${dimensions.height}`}
-              ref={graphRef}
-              graphData={graphData}
-              width={dimensions.width}
-              height={dimensions.height}
-              nodeCanvasObject={nodeCanvasObject}
-              linkCanvasObject={linkCanvasObject}
-              onNodeClick={handleNodeClick}
-              nodePointerAreaPaint={(node, color, ctx) => {
-                ctx.beginPath();
-                ctx.arc(node.x!, node.y!, 12, 0, 2 * Math.PI);
-                ctx.fillStyle = color;
-                ctx.fill();
-              }}
-              onEngineStop={handleEngineStop}
-              warmupTicks={100}
-              cooldownTicks={200}
-              d3AlphaDecay={0.01}
-              d3VelocityDecay={0.2}
-              linkDirectionalArrowLength={4}
-              linkDirectionalArrowRelPos={1}
-              linkDirectionalArrowColor={(link: GraphLink) => link.color}
-              enableNodeDrag={true}
-              enableZoomInteraction={true}
-              enablePanInteraction={true}
-              backgroundColor="transparent"
-            />
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+      <div ref={containerRef} className="flex-1 min-h-0 w-full rounded-lg overflow-hidden bg-background/50 border">
+        {graphData.nodes.length === 0 ? (
+          <div className="w-full h-full flex items-center justify-center text-muted-foreground font-mono text-sm">
+            // no paper relationships to visualize yet
+          </div>
+        ) : !isReady || dimensions.width === 0 || dimensions.height === 0 ? (
+          <div className="w-full h-full flex items-center justify-center text-muted-foreground font-mono text-sm">
+            // loading graph...
+          </div>
+        ) : (
+          <ForceGraph2D
+            key={`graph-${dimensions.width}-${dimensions.height}`}
+            ref={graphRef}
+            graphData={graphData}
+            width={dimensions.width}
+            height={dimensions.height}
+            nodeCanvasObject={nodeCanvasObject}
+            linkCanvasObject={linkCanvasObject}
+            onNodeClick={handleNodeClick}
+            nodePointerAreaPaint={(node, color, ctx) => {
+              ctx.beginPath();
+              ctx.arc(node.x!, node.y!, 12, 0, 2 * Math.PI);
+              ctx.fillStyle = color;
+              ctx.fill();
+            }}
+            onEngineStop={handleEngineStop}
+            warmupTicks={100}
+            cooldownTicks={200}
+            d3AlphaDecay={0.01}
+            d3VelocityDecay={0.2}
+            linkDirectionalArrowLength={4}
+            linkDirectionalArrowRelPos={1}
+            linkDirectionalArrowColor={(link: GraphLink) => link.color}
+            enableNodeDrag={true}
+            enableZoomInteraction={true}
+            enablePanInteraction={true}
+            backgroundColor="transparent"
+          />
+        )}
+      </div>
+    </div>
   );
 }

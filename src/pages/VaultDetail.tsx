@@ -13,7 +13,7 @@ import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationDialog } from '@/components/publications/PublicationDialog';
 import { AddImportDialog } from '@/components/publications/AddImportDialog';
 import { VaultDialog } from '@/components/vaults/VaultDialog';
-import { RelationshipGraph } from '@/components/publications/RelationshipGraph';
+import { CollectionAnalytics } from '@/components/publications/CollectionAnalytics';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { ExportDialog } from '@/components/publications/ExportDialog';
 import { QRCodeDialog } from '@/components/vaults/QRCodeDialog';
@@ -1612,11 +1612,13 @@ export default function VaultDetail() {
         onOpenChange={setIsProfileDialogOpen}
       />
 
-      <RelationshipGraph
+      <CollectionAnalytics
         open={isGraphOpen}
         onOpenChange={setIsGraphOpen}
         publications={publications}
         relations={publicationRelations}
+        tags={tags}
+        publicationTags={publicationTags}
         onSelectPublication={(pub) => {
           setEditingPublication(pub);
           setIsPublicationDialogOpen(true);
