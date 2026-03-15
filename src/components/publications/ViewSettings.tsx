@@ -1,3 +1,4 @@
+import { type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -34,6 +35,10 @@ interface ViewSettingsProps {
   onVisibleColumnsChange?: (columns: VisibleColumns) => void;
   isViewModeChanged?: boolean;
   isVisibleColumnsChanged?: boolean;
+  viewHint?: ReactNode;
+  propertiesHint?: ReactNode;
+  propertiesOpen?: boolean;
+  onPropertiesOpenChange?: (open: boolean) => void;
 }
 
 const COLUMN_OPTIONS: { key: keyof VisibleColumns; label: string }[] = [
@@ -74,6 +79,10 @@ export function ViewSettings({
   onVisibleColumnsChange: externalOnVisibleColumnsChange,
   isViewModeChanged = false,
   isVisibleColumnsChanged = false,
+  viewHint,
+  propertiesHint,
+  propertiesOpen,
+  onPropertiesOpenChange,
 }: ViewSettingsProps) {
   const {
     viewMode: persistedViewMode,
@@ -115,6 +124,7 @@ export function ViewSettings({
   return (
     <div className="flex items-center gap-2">
       {/* View Mode Toggle */}
+      {viewHint}
       <div className={cn(
         "flex items-center border border-border rounded-lg overflow-visible relative",
         (isViewModeChanged || isVisibleColumnsChanged) && 'bg-primary/10 border-primary/30'
@@ -131,7 +141,7 @@ export function ViewSettings({
         >
           <LayoutGrid className="w-4 h-4" />
         </Button>
-        <div className="w-px h-5 bg-border" />
+        {/* v shortcut hint now outside in PublicationList */}
         <Button
           variant="ghost"
           size="sm"
@@ -150,7 +160,8 @@ export function ViewSettings({
       </div>
 
       {/* Column Settings */}
-      <Popover>
+      {propertiesHint}
+      <Popover open={propertiesOpen} onOpenChange={onPropertiesOpenChange}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
@@ -159,6 +170,7 @@ export function ViewSettings({
               "h-9 gap-2 font-mono text-xs relative",
               isVisibleColumnsChanged && 'bg-primary/10 border-primary/30'
             )}
+            data-properties-trigger
           >
             <Settings2 className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Properties</span>
@@ -171,6 +183,7 @@ export function ViewSettings({
             {isVisibleColumnsChanged && (
               <span className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full z-10"></span>
             )}
+            {/* p shortcut hint now outside in PublicationList */}
           </Button>
         </PopoverTrigger>
         <PopoverContent align="end" className="w-56 p-3 bg-popover border-2">

@@ -7,9 +7,11 @@ interface PersistentFilterBuilderProps {
   tags: Tag[];
   vaults: Vault[];
   onFiltersChange?: (filters: PublicationFilter[]) => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export function PersistentFilterBuilder({ tags, vaults, onFiltersChange }: PersistentFilterBuilderProps) {
+export function PersistentFilterBuilder({ tags, vaults, onFiltersChange, open, onOpenChange }: PersistentFilterBuilderProps) {
   const {
     filters: persistedFilters,
     updateFilters
@@ -28,6 +30,8 @@ export function PersistentFilterBuilder({ tags, vaults, onFiltersChange }: Persi
       onFiltersChange={handleFiltersChange}
       tags={tags}
       vaults={vaults}
+      open={open}
+      onOpenChange={onOpenChange}
     />
   );
 }

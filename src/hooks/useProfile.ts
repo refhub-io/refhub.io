@@ -22,7 +22,7 @@ export function useProfile() {
     }
 
     setLoading(true);
-    
+
     try {
       const profileData = await ensureProfileExists(user);
       setProfile(profileData);
@@ -32,12 +32,16 @@ export function useProfile() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  // Use user?.id so Supabase token refreshes (which create new user object
+  // references without changing the user) don't trigger a re-fetch.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
-  // Always refetch profile when user changes (login/logout)
+  // Refetch only when the user ID changes (login / logout), not on every
+  // token refresh that produces a new user object reference.
   useEffect(() => {
     fetchProfile();
-  }, [user, fetchProfile]);
+  }, [fetchProfile]);
 
   const updateProfile = async (updates: Partial<Profile>) => {
     if (!user || !profile) return { error: new Error('Not authenticated or no profile') };

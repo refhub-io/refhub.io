@@ -186,17 +186,16 @@ export function useKeyboardNavigation(
   // Track whether we have done the initial activation yet.
   const hasActivatedRef = useRef(false);
 
-  // Auto-activate when items first appear. On subsequent item-count changes
-  // (search narrowing/widening), keep context active but preserve selection.
+  // Activate context immediately on mount so toolbar shortcuts (f/s/p/v) work
+  // before the user clicks anything. Navigation shortcuts (j/k) are harmless
+  // when there are no items yet.
   useEffect(() => {
-    if (!activateOnMount || !kb.enabled || itemIds.length === 0) return;
+    if (!activateOnMount || !kb.enabled) return;
 
     if (!hasActivatedRef.current) {
-      // First time items appear → full reset (focus=0, selection cleared).
       hasActivatedRef.current = true;
       activate();
     } else {
-      // Items changed because of search/filter → keep context active, preserve selection.
       activateKeepSelection();
     }
   }, [activateOnMount, kb.enabled, itemIds.length, activate, activateKeepSelection]);

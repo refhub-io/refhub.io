@@ -58,6 +58,8 @@ interface FilterBuilderProps {
   onFiltersChange: (filters: PublicationFilter[]) => void;
   tags: Tag[];
   vaults: Vault[];
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const FIELD_OPTIONS: { value: FilterField; label: string }[] = [
@@ -114,8 +116,10 @@ const needsValueInput = (operator: FilterOperator): boolean => {
   return !['is_empty', 'is_not_empty'].includes(operator);
 };
 
-export function FilterBuilder({ filters, onFiltersChange, tags, vaults }: FilterBuilderProps) {
-  const [isOpen, setIsOpen] = useState(false);
+export function FilterBuilder({ filters, onFiltersChange, tags, vaults, open: controlledOpen, onOpenChange }: FilterBuilderProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isOpen = controlledOpen ?? internalOpen;
+  const setIsOpen = (v: boolean) => { setInternalOpen(v); onOpenChange?.(v); };
   const isMobile = useIsMobile();
 
   const addFilter = () => {
@@ -230,6 +234,7 @@ export function FilterBuilder({ filters, onFiltersChange, tags, vaults }: Filter
         'h-9 gap-2 font-mono text-xs',
         filters.length > 0 && 'bg-primary/20 border-primary/50 text-primary hover:bg-primary/30'
       )}
+      data-filter-trigger
     >
       <Filter className="w-3.5 h-3.5" />
       <span className="hidden sm:inline">Filter</span>
@@ -252,6 +257,9 @@ export function FilterBuilder({ filters, onFiltersChange, tags, vaults }: Filter
             className="h-7 text-xs text-muted-foreground hover:text-destructive"
             onClick={clearAllFilters}
           >
+          <span className="ml-2">
+            <kbd className="rounded border border-border bg-background/60 font-mono text-muted-foreground text-[10px] min-w-[1rem] h-4 px-1 leading-none shadow-sm select-none">f</kbd>
+          </span>
             <Trash2 className="w-3 h-3 mr-1" />
             Clear all
           </Button>

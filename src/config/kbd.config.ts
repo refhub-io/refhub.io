@@ -73,6 +73,10 @@ const kbdConfig: KbdConfig = {
 
   // ─── Publication List ────────────────────────────────────────────────────
   'publication-list': {
+        toggleView: {
+          combo: 'v',
+          description: 'Toggle card/table view',
+        },
     moveDown: {
       combo: 'j / ↓',
       description: 'Next publication',
@@ -101,9 +105,17 @@ const kbdConfig: KbdConfig = {
       combo: 'Shift+Space',
       description: 'Range select',
     },
-    toggleView: {
-      combo: 'v',
-      description: 'Toggle view mode',
+    propertiesPopup: {
+      combo: 'p',
+      description: 'Show properties popup',
+    },
+    filterPopup: {
+      combo: 'f',
+      description: 'Show filter popup',
+    },
+    sortPopup: {
+      combo: 's',
+      description: 'Show sort popup',
     },
     selectAll: {
       combo: 'Ctrl+A',

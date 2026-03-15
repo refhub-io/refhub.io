@@ -94,6 +94,9 @@ export function PublicationList({
 }: PublicationListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
+  const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [propertiesOpen, setPropertiesOpen] = useState(false);
   const listContainerRef = useRef<HTMLDivElement>(null);
 
   // Calculate tag usage counts
@@ -228,6 +231,9 @@ export function PublicationList({
 
   const handleKbToggleView = useCallback(() => {
     setViewMode((prev) => (prev === 'cards' ? 'table' : 'cards'));
+    setFilterOpen(false);
+    setSortDropdownOpen(false);
+    setPropertiesOpen(false);
   }, []);
 
   const handleKbExport = useCallback(
@@ -282,6 +288,7 @@ export function PublicationList({
 
   const selectedPublications = publications.filter((p) => selectedIds.has(p.id));
 
+
   // Meta+K / Ctrl+K → focus search (registered through keyboard system)
   useHotkeys(
     'global',
@@ -298,6 +305,47 @@ export function PublicationList({
       },
     ],
     [],
+  );
+
+  // publication-list context: p, f, s shortcuts
+  useHotkeys(
+    kbContext,
+    [
+      {
+        combo: 'p',
+        description: 'Show properties popup',
+        handler: (e) => {
+          e.preventDefault();
+          setPropertiesOpen((prev) => !prev);
+          setFilterOpen(false);
+          setSortDropdownOpen(false);
+          return true;
+        },
+      },
+      {
+        combo: 'f',
+        description: 'Show filter popup',
+        handler: (e) => {
+          e.preventDefault();
+          setFilterOpen((prev) => !prev);
+          setSortDropdownOpen(false);
+          setPropertiesOpen(false);
+          return true;
+        },
+      },
+      {
+        combo: 's',
+        description: 'Show sort popup',
+        handler: (e) => {
+          e.preventDefault();
+          setSortDropdownOpen((prev) => !prev);
+          setFilterOpen(false);
+          setPropertiesOpen(false);
+          return true;
+        },
+      },
+    ],
+    [kbContext],
   );
 
   return (
@@ -444,85 +492,88 @@ export function PublicationList({
 
         {/* Search, filters and view settings */}
         <div className="flex items-center gap-3 mt-5 flex-wrap">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          {/* Search input — left side, grows to fill available space */}
+          <div className="relative flex-1 min-w-[160px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               ref={searchInputRef}
+              type="text"
+              placeholder="search_papers..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  e.preventDefault();
-                  setSearchQuery('');
-                  searchInputRef.current?.blur();
-                }
-              }}
-              placeholder="search_papers..."
-              className="pl-11 font-mono"
-              data-keyboard-ignore
+              className="pl-10 h-9 font-mono"
             />
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 hidden lg:flex">
-              <KbdHint shortcut="Meta+K" size="sm" />
+          </div>
+
+          {/* Filter button with shortcut hint */}
+          <div className="flex items-center">
+            <KbdHint shortcut="f" size="xs" className="!px-1 !py-0.5 !text-[10px] !leading-none !h-4 mr-1" />
+            <div className={cn(
+              "relative overflow-visible",
+              persistedFilters.length > 0 && 'bg-primary/10 border-primary/30 rounded-md'
+            )}>
+              <PersistentFilterBuilder
+                tags={tags}
+                vaults={vaults}
+                onFiltersChange={setFilters}
+                open={filterOpen}
+                onOpenChange={setFilterOpen}
+              />
+              {persistedFilters.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full z-10"></span>
+              )}
             </div>
           </div>
 
-          <div className={cn(
-            "relative overflow-visible",
-            persistedFilters.length > 0 && 'bg-primary/10 border-primary/30 rounded-md'
-          )}>
-            <PersistentFilterBuilder
-              tags={tags}
-              vaults={vaults}
-              onFiltersChange={setFilters}
-            />
-            {persistedFilters.length > 0 && (
-              <span className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full z-10"></span>
-            )}
+          {/* Sort button with shortcut hint */}
+          <div className="flex items-center">
+            <KbdHint shortcut="s" size="xs" className="!px-1 !py-0.5 !text-[10px] !leading-none !h-4 mr-1" />
+            <div className="relative overflow-visible">
+              <DropdownMenu open={sortDropdownOpen} onOpenChange={setSortDropdownOpen}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className={cn(
+                      "h-9 w-9 relative overflow-visible",
+                      sortBy !== 'created' && 'bg-primary/10 border-primary/30'
+                    )}
+                    title={`Sorting by: ${sortBy.replace('_', ' ')}`}
+                  >
+                    <SortAsc className="w-4 h-4" />
+                    {sortBy !== 'created' && (
+                      <span className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full z-10"></span>
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="font-mono">
+                  <DropdownMenuItem onClick={() => { setSortBy('created'); setSortDirection('desc'); }}>
+                    recently_added
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => { setSortBy('year'); setSortDirection('desc'); }}>
+                    publication_year
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => { setSortBy('title'); setSortDirection('asc'); }}>
+                    title_asc
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="icon"
-                className={cn(
-                  "h-9 w-9 relative overflow-visible",
-                  sortBy !== 'created' && 'bg-primary/10 border-primary/30'
-                )}
-                title={`Sorting by: ${sortBy.replace('_', ' ')}`}
-              >
-                <SortAsc className="w-4 h-4" />
-                {sortBy !== 'created' && ( // Show indicator when not default sort
-                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full z-10"></span>
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="font-mono">
-              <DropdownMenuItem onClick={() => { setSortBy('created'); setSortDirection('desc'); }}>
-                recently_added
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => { setSortBy('year'); setSortDirection('desc'); }}>
-                publication_year
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => { setSortBy('title'); setSortDirection('asc'); }}>
-                title_asc
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <div className="relative group">
-            <ViewSettings
-              viewMode={viewMode}
-              onViewModeChange={setViewMode}
-              visibleColumns={visibleColumns}
-              onVisibleColumnsChange={setVisibleColumns}
-              isViewModeChanged={viewMode !== 'cards'}
-              isVisibleColumnsChanged={JSON.stringify(visibleColumns) !== JSON.stringify(DEFAULT_VISIBLE_COLUMNS)}
-            />
-            <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 hidden lg:block opacity-0 group-hover:opacity-100 transition-opacity">
-              <KbdHint shortcut="v" size="sm" />
-            </span>
-          </div>
+          {/* View toggle and properties — hints rendered adjacent to each control inside ViewSettings */}
+          <ViewSettings
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            visibleColumns={visibleColumns}
+            onVisibleColumnsChange={setVisibleColumns}
+            isViewModeChanged={viewMode !== 'cards'}
+            isVisibleColumnsChanged={JSON.stringify(visibleColumns) !== JSON.stringify(DEFAULT_VISIBLE_COLUMNS)}
+            viewHint={<KbdHint shortcut="v" size="xs" className="!px-1 !py-0.5 !text-[10px] !leading-none !h-4" />}
+            propertiesHint={<KbdHint shortcut="p" size="xs" className="!px-1 !py-0.5 !text-[10px] !leading-none !h-4" />}
+            propertiesOpen={propertiesOpen}
+            onPropertiesOpenChange={setPropertiesOpen}
+          />
 
           {filteredPublications.length > 0 && (
             <div className="relative group">
