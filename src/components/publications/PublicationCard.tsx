@@ -6,7 +6,6 @@ import { VisibleColumns } from './ViewSettings';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 import { useState } from 'react';
 import { 
-  FileText, 
   ExternalLink, 
   MoreVertical, 
   Edit, 
@@ -116,48 +115,73 @@ export function PublicationCard({
                 <h3 className="font-bold text-lg text-foreground leading-tight line-clamp-2 group-hover:text-primary transition-colors">
                   {publication.title}
                 </h3>
-                {show.authors && (
+                {(show.authors || show.year || show.type) && (
                   <p className="text-sm text-muted-foreground mt-1.5 font-mono">
-                    {formatAuthors(publication.authors)}
+                    {show.authors && formatAuthors(publication.authors)}
                     {show.year && publication.year && (
-                      <span className="text-neon-green"> • {publication.year}</span>
+                      <span className="text-neon-green">{show.authors ? ' • ' : ''}{publication.year}</span>
                     )}
                     {show.type && publication.publication_type && (
-                      <span className="text-cyber-blue"> • {publication.publication_type}</span>
+                      <span className="text-cyber-blue">{(show.authors || show.year) ? ' • ' : ''}{publication.publication_type}</span>
                     )}
                   </p>
                 )}
+                {show.doi && publication.doi && (
+                  <a
+                    href={`https://doi.org/${encodeURIComponent(publication.doi)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-xs font-mono text-muted-foreground/70 hover:text-foreground transition-colors mt-1 inline-block"
+                  >
+                    {publication.doi}
+                  </a>
+                )}
               </div>
 
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity h-9 w-9"
+              <div className="flex items-center gap-1 shrink-0">
+                {show.pdf && publication.pdf_url && (
+                  <a
+                    href={publication.pdf_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center gap-1 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors px-1.5 py-1 rounded-md hover:bg-muted"
                   >
-                    <MoreVertical className="w-4 h-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }}>
-                    <Edit className="w-4 h-4 mr-2" />
-                    edit
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onExportBibtex(); }}>
-                    <Download className="w-4 h-4 mr-2" />
-                    export bibtex
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    {isVaultContext ? 'remove from vault' : 'delete'}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                    pdf
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity h-9 w-9"
+                    >
+                      <MoreVertical className="w-4 h-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }}>
+                      <Edit className="w-4 h-4 mr-2" />
+                      edit
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onExportBibtex(); }}>
+                      <Download className="w-4 h-4 mr-2" />
+                      export bibtex
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      {isVaultContext ? 'remove from vault' : 'delete'}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
 
             {show.journal && publication.journal && (
@@ -195,7 +219,8 @@ export function PublicationCard({
               </p>
             )}
 
-            <div className="flex flex-wrap items-center gap-2 mt-4">
+            {/* Tags & metadata row */}
+            <div className="flex flex-wrap items-center gap-2 mt-3">
               {show.tags && tags.map((tag) => (
                 <HierarchicalTagBadge
                   key={tag.id}
@@ -208,10 +233,10 @@ export function PublicationCard({
 
               <div className="flex items-center gap-2 ml-auto">
                 {show.relations && relationsCount > 0 && (
-                  <div className="flex items-center gap-1 text-primary" title={`${relationsCount} related paper${relationsCount > 1 ? 's' : ''}`}>
-                    <Link2 className="w-4 h-4" />
-                    <span className="text-xs font-mono">{relationsCount}</span>
-                  </div>
+                  <span className="inline-flex items-center gap-1 text-xs font-mono text-muted-foreground">
+                    <Link2 className="w-3.5 h-3.5" />
+                    {relationsCount}
+                  </span>
                 )}
                 {show.notes && publication.notes && (
                   <button
@@ -219,36 +244,13 @@ export function PublicationCard({
                       e.stopPropagation();
                       setNotesExpanded(!notesExpanded);
                     }}
-                    className="flex items-center gap-1 text-neon-orange hover:text-neon-orange/80 transition-colors"
-                    title="Toggle notes preview"
+                    className="inline-flex items-center gap-1 text-xs font-mono text-neon-orange hover:text-neon-orange/80 transition-colors"
+                    title="toggle notes"
                   >
-                    <StickyNote className="w-4 h-4" />
+                    <StickyNote className="w-3.5 h-3.5" />
+                    notes
                     <ChevronDown className={cn("w-3 h-3 transition-transform", notesExpanded && "rotate-180")} />
                   </button>
-                )}
-                {show.pdf && publication.pdf_url && (
-                  <a
-                    href={publication.pdf_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-muted-foreground hover:text-neon-pink transition-colors"
-                    title="View PDF"
-                  >
-                    <FileText className="w-4 h-4" />
-                  </a>
-                )}
-                {show.doi && publication.doi && (
-                  <a
-                    href={`https://doi.org/${encodeURIComponent(publication.doi)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-muted-foreground hover:text-neon-blue transition-colors"
-                    title="View DOI"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
                 )}
               </div>
             </div>
