@@ -99,6 +99,19 @@ export function PublicationList({
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const listContainerRef = useRef<HTMLDivElement>(null);
 
+  const { pushContext, popContext } = useKeyboardContext();
+
+  // While any toolbar popup is open, push 'dialog' context so publication-list
+  // shortcuts (j/k/up/down/space/enter) don't fire inside them. Radix handles
+  // arrow key / Escape navigation natively. When all popups close, context pops
+  // back to publication-list automatically.
+  useEffect(() => {
+    if (filterOpen || sortDropdownOpen || propertiesOpen) {
+      pushContext('dialog');
+      return () => popContext();
+    }
+  }, [filterOpen, sortDropdownOpen, propertiesOpen, pushContext, popContext]);
+
   // Calculate tag usage counts
   const tagUsageCounts = useMemo(() => {
     const counts = new Map<string, number>();
