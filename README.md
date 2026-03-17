@@ -2,7 +2,7 @@
   <img src="public/og-image.png" alt="refhub.io" width="100%" />
 </div>
 
-# refhub.io
+# ⭐ refhub.io
 
 > a modern reference management platform for organizing academic publications, building citation networks, and sharing research collections.
 
