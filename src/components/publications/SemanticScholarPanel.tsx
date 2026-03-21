@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Publication } from '@/types/database';
-import { SSPaper, lookupPaperByDOI, lookupPaperByTitle, getReferences, getCitations } from '@/lib/semanticScholar';
+import { SSPaper, lookupPaperByDOI, lookupPaperByTitle, getReferences, getCitations, getRecommendations } from '@/lib/semanticScholar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -71,6 +71,7 @@ export function SemanticScholarPanel({ publication, onAddPaper }: SemanticSchola
   const [notFound, setNotFound] = useState(false);
   const [references, setReferences] = useState<SSPaper[]>([]);
   const [citations, setCitations] = useState<SSPaper[]>([]);
+  const [recommendations, setRecommendations] = useState<SSPaper[]>([]);
   const [fetched, setFetched] = useState(false);
 
   const handleExpand = async () => {
@@ -99,13 +100,15 @@ export function SemanticScholarPanel({ publication, onAddPaper }: SemanticSchola
           return;
         }
 
-        const [refs, cites] = await Promise.all([
+        const [refs, cites, recs] = await Promise.all([
           getReferences(paperId),
           getCitations(paperId),
+          getRecommendations(paperId),
         ]);
 
         setReferences(refs);
         setCitations(cites);
+        setRecommendations(recs);
         setFetched(true);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch data from Semantic Scholar');
@@ -158,12 +161,18 @@ export function SemanticScholarPanel({ publication, onAddPaper }: SemanticSchola
                 <TabsTrigger value="citations" className="text-xs h-6 px-3">
                   Citations ({citations.length})
                 </TabsTrigger>
+                <TabsTrigger value="related" className="text-xs h-6 px-3">
+                  related ({recommendations.length})
+                </TabsTrigger>
               </TabsList>
               <TabsContent value="references">
                 <PaperList papers={references} onAddPaper={onAddPaper} />
               </TabsContent>
               <TabsContent value="citations">
                 <PaperList papers={citations} onAddPaper={onAddPaper} />
+              </TabsContent>
+              <TabsContent value="related">
+                <PaperList papers={recommendations} onAddPaper={onAddPaper} />
               </TabsContent>
             </Tabs>
           )}
