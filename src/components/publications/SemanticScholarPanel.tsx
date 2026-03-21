@@ -20,7 +20,7 @@ function PaperList({
   onAddPaper?: (paper: SSPaper) => void;
 }) {
   if (papers.length === 0) {
-    return <p className="text-sm text-muted-foreground italic py-2">No results found.</p>;
+    return <p className="font-mono text-xs text-muted-foreground py-2">// no_results_found</p>;
   }
 
   return (
@@ -130,25 +130,25 @@ export function SemanticScholarPanel({ publication, onAddPaper }: SemanticSchola
         ) : (
           <ChevronRight className="w-4 h-4 shrink-0" />
         )}
-        Discover via Semantic Scholar
+        <span className="font-mono">// semantic_scholar</span>
       </button>
 
       {expanded && (
         <div className="pl-1">
           {loading && (
-            <div className="flex items-center gap-2 py-3 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 py-3 text-muted-foreground">
               <SpinnerLoader className="w-5 h-5" />
-              <span>Looking up paper…</span>
+              <span className="font-mono text-xs">// looking_up_paper...</span>
             </div>
           )}
 
           {!loading && error && (
-            <p className="text-sm text-destructive py-2">{error}</p>
+            <p className="font-mono text-xs text-destructive py-2">// {error}</p>
           )}
 
           {!loading && notFound && (
-            <p className="text-sm text-muted-foreground italic py-2">
-              Paper not found on Semantic Scholar.
+            <p className="font-mono text-xs text-muted-foreground py-2">
+              // paper not found on semantic scholar
             </p>
           )}
 
@@ -156,10 +156,10 @@ export function SemanticScholarPanel({ publication, onAddPaper }: SemanticSchola
             <Tabs defaultValue="references">
               <TabsList className="h-8">
                 <TabsTrigger value="references" className="text-xs h-6 px-3">
-                  References ({references.length})
+                  references ({references.length})
                 </TabsTrigger>
                 <TabsTrigger value="citations" className="text-xs h-6 px-3">
-                  Citations ({citations.length})
+                  citations ({citations.length})
                 </TabsTrigger>
                 <TabsTrigger value="related" className="text-xs h-6 px-3">
                   related ({recommendations.length})
