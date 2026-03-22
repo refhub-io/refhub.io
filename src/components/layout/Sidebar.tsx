@@ -30,6 +30,8 @@ import { ThemeToggle } from './ThemeToggle';
 import { useKeyboardNavigation, useHotkeys } from '@/hooks/useKeyboardNavigation';
 import { KbdHint } from '@/components/ui/KbdHint';
 import { KeyboardShortcutsButton } from '@/components/ui/KeyboardHelpOverlay';
+import { WhatsNewDialog } from '@/components/ui/WhatsNewDialog';
+import { useWhatsNew } from '@/hooks/useWhatsNew';
 
 interface SidebarProps {
   vaults: Vault[];
@@ -61,6 +63,7 @@ export function Sidebar({
   const [isFavoritesExpanded, setIsFavoritesExpanded] = useState(true);
   const { user, signOut } = useAuth();
   const { favoriteVaults } = useVaultFavorites();
+  const { open: whatsNewOpen, hasUnseen, onOpenChange: onWhatsNewOpenChange, openDialog: openWhatsNew } = useWhatsNew();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -481,6 +484,18 @@ export function Sidebar({
             <Button
               variant="ghost"
               size="sm"
+              onClick={openWhatsNew}
+              className="w-full justify-start text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent font-mono text-xs relative mb-1"
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              whats_new()
+              {hasUnseen && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-primary" />
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={handleSignOut}
               className="w-full justify-start text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent font-mono text-xs"
             >
@@ -488,7 +503,9 @@ export function Sidebar({
               sign_out()
             </Button>
           </div>
-          
+
+          <WhatsNewDialog open={whatsNewOpen} onOpenChange={onWhatsNewOpenChange} />
+
           {/* Footer */}
           <div className="px-4 pb-4 pt-2 border-t border-sidebar-border/50">
             <p className="text-xs text-sidebar-foreground/30 text-center font-mono">
