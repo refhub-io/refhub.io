@@ -11,6 +11,8 @@ import { hasPageCache } from '@/lib/pageCache';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationDialog } from '@/components/publications/PublicationDialog';
+import { VaultAugmentDialog } from '@/components/publications/VaultAugmentDialog';
+import { SSPaper } from '@/lib/semanticScholar';
 import { AddImportDialog } from '@/components/publications/AddImportDialog';
 import { VaultDialog } from '@/components/vaults/VaultDialog';
 import { CollectionAnalytics } from '@/components/publications/CollectionAnalytics';
@@ -133,6 +135,8 @@ export default function VaultDetail() {
 
   const [isPublicationDialogOpen, setIsPublicationDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [isAugmentDialogOpen, setIsAugmentDialogOpen] = useState(false);
+  const [augmentPublications, setAugmentPublications] = useState<Publication[]>([]);
   const [editingPublication, setEditingPublication] = useState<Publication | null>(null);
   const currentlyEditingPublicationId = useRef<string | null>(null);
 
@@ -632,6 +636,51 @@ export default function VaultDetail() {
         description: (error as Error).message,
         variant: 'destructive',
       });
+    }
+  };
+
+  const handleAddSSPaper = async (
+    paper: SSPaper,
+    tab: 'references' | 'citations' | 'related',
+    sourcePublicationIds: string[]
+  ) => {
+    if (!canEdit || !user) return;
+    const pubData: Partial<Publication> = {
+      title: paper.title,
+      authors: paper.authors.map((a) => a.name),
+      year: paper.year,
+      doi: paper.externalIds?.DOI ?? null,
+      url: paper.externalIds?.DOI ? `https://doi.org/${paper.externalIds.DOI}` : null,
+      publication_type: 'article',
+      journal: null,
+      volume: null,
+      issue: null,
+      pages: null,
+      abstract: null,
+      pdf_url: null,
+      bibtex_key: null,
+      notes: null,
+      booktitle: null,
+      chapter: null,
+      edition: null,
+    };
+    const result = await sharedVaultOps.createVaultPublication(pubData);
+    if (!result.success || !result.publication) {
+      throw result.error || new Error('failed to add paper');
+    }
+
+    // Auto-create citation links for references and citations tabs
+    if (tab !== 'related' && sourcePublicationIds.length > 0) {
+      const newPubId = result.publication.id;
+      const relations = sourcePublicationIds.map((sourceId) => ({
+        // references tab: source paper cites the new paper (source → new)
+        // citations tab:  new paper cites the source paper (new → source)
+        publication_id: tab === 'references' ? sourceId : newPubId,
+        related_publication_id: tab === 'references' ? newPubId : sourceId,
+        relation_type: 'cites',
+        created_by: user.id,
+      }));
+      await supabase.from('publication_relations').insert(relations);
     }
   };
 
@@ -1545,6 +1594,10 @@ export default function VaultDetail() {
           } : undefined}
           onDeletePublication={canEdit ? (pub) => setDeleteConfirmation(pub) : undefined}
           onExportBibtex={handleExportBibtex}
+          onDiscoverRelated={canEdit ? (pubs) => {
+            setAugmentPublications(pubs);
+            setIsAugmentDialogOpen(true);
+          } : undefined}
           onMobileMenuOpen={() => setIsMobileSidebarOpen(true)}
           onOpenGraph={() => setIsGraphOpen(true)}
           onEditVault={isOwner && currentVault ? () => {
@@ -1580,6 +1633,14 @@ export default function VaultDetail() {
         onSave={canEdit ? handleSavePublication : undefined}
         onCreateTag={canEdit ? handleCreateTag : undefined}
         onAddToVaults={canEdit ? handleAddToVaults : undefined}
+      />
+
+      <VaultAugmentDialog
+        open={isAugmentDialogOpen}
+        onOpenChange={setIsAugmentDialogOpen}
+        publications={augmentPublications}
+        vaultPublications={publications}
+        onAddPaper={handleAddSSPaper}
       />
 
       <AddImportDialog

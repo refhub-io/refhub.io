@@ -35,7 +35,8 @@ import {
   BarChart3,
   Settings,
   MoreVertical,
-  Tags
+  Tags,
+  Telescope,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -58,6 +59,7 @@ interface PublicationListProps {
   onEditPublication?: (pub: Publication) => void;
   onDeletePublication?: (pub: Publication) => void;
   onExportBibtex: (pubs: Publication[]) => void;
+  onDiscoverRelated?: (pubs: Publication[]) => void;
   onMobileMenuOpen: () => void;
   onOpenGraph?: () => void;
   onEditVault?: (vault: Vault) => void;
@@ -83,6 +85,7 @@ export function PublicationList({
   onEditPublication,
   onDeletePublication,
   onExportBibtex,
+  onDiscoverRelated,
   onMobileMenuOpen,
   onOpenGraph,
   onEditVault,
@@ -357,8 +360,18 @@ export function PublicationList({
           return true;
         },
       },
+      {
+        combo: 'r',
+        description: 'Discover related papers',
+        handler: (e) => {
+          if (!onDiscoverRelated || selectedPublications.length === 0) return false;
+          e.preventDefault();
+          onDiscoverRelated(selectedPublications);
+          return true;
+        },
+      },
     ],
-    [kbContext],
+    [kbContext, onDiscoverRelated, selectedPublications],
   );
 
   return (
@@ -588,8 +601,27 @@ export function PublicationList({
             onPropertiesOpenChange={setPropertiesOpen}
           />
 
+          {selectedIds.size > 0 && onDiscoverRelated && (
+            <div className="flex items-center">
+              <KbdHint shortcut="r" size="xs" className="!px-1 !py-0.5 !text-[10px] !leading-none !h-4 mr-1" />
+              <Button
+                variant="outline"
+                onClick={() => onDiscoverRelated(selectedPublications)}
+                className="font-mono"
+              >
+                <Telescope className="w-4 h-4 lg:mr-2" />
+                <span className="hidden lg:inline">discover_related</span>
+              </Button>
+            </div>
+          )}
+
           {filteredPublications.length > 0 && (
-            <div className="relative group">
+            <div className="flex items-center">
+              <KbdHint
+                shortcut={selectedIds.size > 0 ? 'Ctrl+D' : 'Ctrl+A'}
+                size="xs"
+                className="!px-1 !py-0.5 !text-[10px] !leading-none !h-4 mr-1"
+              />
               <Button
                 variant="outline"
                 size="icon"
@@ -603,14 +635,12 @@ export function PublicationList({
                   <Square className="w-4 h-4" />
                 )}
               </Button>
-              <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 hidden lg:block opacity-0 group-hover:opacity-100 transition-opacity">
-                <KbdHint shortcut="Ctrl+A" size="sm" />
-              </span>
             </div>
           )}
 
           {selectedIds.size > 0 && (
-            <div className="relative group">
+            <div className="flex items-center">
+              <KbdHint shortcut="Ctrl+E" size="xs" className="!px-1 !py-0.5 !text-[10px] !leading-none !h-4 mr-1" />
               <Button
                 variant="accent"
                 onClick={() => onExportBibtex(selectedPublications)}
@@ -618,9 +648,6 @@ export function PublicationList({
                 <Download className="w-4 h-4 lg:mr-2" />
                 <span className="hidden lg:inline font-mono">export({selectedIds.size})</span>
               </Button>
-              <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 hidden lg:block opacity-0 group-hover:opacity-100 transition-opacity">
-                <KbdHint shortcut="Ctrl+E" size="sm" />
-              </span>
             </div>
           )}
         </div>

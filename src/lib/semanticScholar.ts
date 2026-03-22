@@ -1,6 +1,6 @@
 const BASE_URL = 'https://api.semanticscholar.org/graph/v1';
 
-const PAPER_FIELDS = 'paperId,title,authors,year,citationCount,externalIds';
+const PAPER_FIELDS = 'paperId,title,authors,year,citationCount,externalIds,abstract,url';
 
 export interface SSPaper {
   paperId: string;
@@ -9,6 +9,8 @@ export interface SSPaper {
   year: number | null;
   citationCount: number | null;
   externalIds: { DOI?: string } | null;
+  abstract: string | null;
+  url: string | null;
 }
 
 // In-memory cache keyed by paperId

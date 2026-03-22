@@ -125,6 +125,10 @@ const kbdConfig: KbdConfig = {
       combo: 'Ctrl+E',
       description: 'Export selected',
     },
+    discoverRelated: {
+      combo: 'r',
+      description: 'Discover related papers',
+    },
     delete: {
       combo: 'd / Delete',
       description: 'Delete selected',
