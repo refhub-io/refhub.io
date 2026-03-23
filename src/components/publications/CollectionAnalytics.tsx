@@ -49,7 +49,7 @@ export function CollectionAnalytics({
       <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] sm:h-[92vh] flex flex-col bg-card/95 backdrop-blur-xl border-2 p-3 sm:p-5">
         <DialogHeader className="pb-1 shrink-0">
           <DialogTitle className="text-lg sm:text-xl font-bold flex flex-col sm:flex-row items-start sm:items-center gap-2 font-mono">
-            <span className="whitespace-nowrap">// collection_analytics</span>
+            <span className="whitespace-nowrap">// vault_analytics</span>
             <Badge variant="outline" className="font-mono text-xs whitespace-nowrap">
               {publications.length}_papers • {relCount}_links • {tagCount}_tags
             </Badge>

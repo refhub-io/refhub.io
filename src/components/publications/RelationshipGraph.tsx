@@ -2,7 +2,6 @@ import { useRef, useEffect, useCallback, useMemo, useState, useLayoutEffect } fr
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
 import { Publication, PublicationRelation, RELATION_TYPES } from '@/types/database';
 import { Badge } from '@/components/ui/badge';
-import { forceX, forceY, forceManyBody } from 'd3-force-3d';
 
 interface GraphNode {
   id: string;
@@ -80,7 +79,7 @@ export function RelationshipGraphPanel({
     };
   }, []);
 
-  // Build graph data
+  // Build graph data with nodes pre-positioned by connected component
   const graphData = useMemo(() => {
     const connectedIds = new Set<string>();
     relations.forEach((rel) => {
@@ -105,18 +104,68 @@ export function RelationshipGraphPanel({
       color: RELATION_COLORS[rel.relation_type] || RELATION_COLORS.cites,
     }));
 
-    return { nodes, links };
+    // Find connected components via BFS so each component starts in its own grid cell
+    const adj = new Map<string, Set<string>>();
+    nodes.forEach((n) => adj.set(n.id, new Set()));
+    links.forEach((l) => {
+      const s = l.source as string;
+      const t = l.target as string;
+      adj.get(s)?.add(t);
+      adj.get(t)?.add(s);
+    });
+
+    const visited = new Set<string>();
+    const components: string[][] = [];
+    nodes.forEach((node) => {
+      if (visited.has(node.id)) return;
+      const comp: string[] = [];
+      const queue = [node.id];
+      while (queue.length > 0) {
+        const id = queue.shift()!;
+        if (visited.has(id)) continue;
+        visited.add(id);
+        comp.push(id);
+        adj.get(id)?.forEach((nb) => { if (!visited.has(nb)) queue.push(nb); });
+      }
+      components.push(comp);
+    });
+
+    // Place each component in a grid, nodes in a small circle within their cell
+    const cols = Math.max(1, Math.ceil(Math.sqrt(components.length)));
+    const cellW = 180;
+    const cellH = 140;
+    const offsetX = -(cols * cellW) / 2;
+    const offsetY = -(Math.ceil(components.length / cols) * cellH) / 2;
+
+    const posMap = new Map<string, { x: number; y: number }>();
+    components.forEach((comp, ci) => {
+      const col = ci % cols;
+      const row = Math.floor(ci / cols);
+      const cx = offsetX + (col + 0.5) * cellW;
+      const cy = offsetY + (row + 0.5) * cellH;
+      comp.forEach((id, j) => {
+        const angle = (2 * Math.PI * j) / Math.max(1, comp.length);
+        const r = comp.length > 1 ? 45 : 0;
+        posMap.set(id, { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r });
+      });
+    });
+
+    return {
+      nodes: nodes.map((n) => {
+        const pos = posMap.get(n.id) ?? { x: 0, y: 0 };
+        return { ...n, x: pos.x, y: pos.y, fx: pos.x, fy: pos.y };
+      }),
+      links,
+    };
   }, [publications, relations]);
 
-  // Apply center-pulling forces to keep disconnected components together
+  // With fx/fy pinning, only need a light link force — no charge or global centering
   useEffect(() => {
     if (!graphRef.current || graphData.nodes.length === 0) return;
-
     const fg = graphRef.current;
-    fg.d3Force('x', forceX(0).strength(0.15));
-    fg.d3Force('y', forceY(0).strength(0.15));
-    fg.d3Force('charge', forceManyBody().strength(-80));
-    fg.d3ReheatSimulation();
+    fg.d3Force('x', null);
+    fg.d3Force('y', null);
+    fg.d3Force('charge', null);
   }, [graphData]);
 
   // Reset zoom flag when data changes significantly
@@ -128,7 +177,7 @@ export function RelationshipGraphPanel({
     if (!hasZoomedRef.current && graphRef.current) {
       hasZoomedRef.current = true;
       const padding = dimensions.width < 640 ? 60 : 80;
-      graphRef.current.zoomToFit(400, padding);
+      graphRef.current.zoomToFit(0, padding);
     }
   }, [dimensions.width]);
 
@@ -252,8 +301,8 @@ export function RelationshipGraphPanel({
               ctx.fill();
             }}
             onEngineStop={handleEngineStop}
-            warmupTicks={100}
-            cooldownTicks={200}
+            warmupTicks={300}
+            cooldownTicks={0}
             d3AlphaDecay={0.01}
             d3VelocityDecay={0.2}
             linkDirectionalArrowLength={4}
