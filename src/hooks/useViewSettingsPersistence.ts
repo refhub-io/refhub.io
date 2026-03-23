@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { logger } from '@/lib/logger';
 import { ViewMode, DEFAULT_VISIBLE_COLUMNS, VisibleColumns } from '@/components/publications/ViewSettings';
 import { PublicationFilter } from '@/components/publications/FilterBuilder';
 
@@ -40,7 +41,7 @@ export const useViewSettingsPersistence = () => {
         filters: []
       };
     } catch (error) {
-      console.error('Error loading view settings from localStorage:', error);
+      logger.error('useViewSettingsPersistence', 'Error loading view settings from localStorage:', error);
       return {
         viewMode: 'cards' as ViewMode,
         sortBy: 'created' as SortField,
@@ -56,7 +57,7 @@ export const useViewSettingsPersistence = () => {
       localStorage.setItem(VIEW_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
       setStoredSettings(settings);
     } catch (error) {
-      console.error('Error saving view settings to localStorage:', error);
+      logger.error('useViewSettingsPersistence', 'Error saving view settings to localStorage:', error);
     }
   }, []);
 

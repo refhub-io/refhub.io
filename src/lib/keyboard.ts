@@ -321,31 +321,50 @@ export interface ShortcutHelpGroup {
   shortcuts: ShortcutHelpItem[];
 }
 
-/** Human-readable labels for each context group. */
-const CONTEXT_LABELS: Record<string, string> = {
-  global: 'Global',
-  'vault-list': 'Vault List',
-  'publication-list': 'Publication List',
-  dialog: 'Dialogs / Modals',
-  editor: 'Notes Editor',
-  export: 'Export',
-};
-
-/**
- * Derive the help overlay data from the global kbd config so there's a single
- * source of truth.  Keeps the same shape consumed by `KeyboardHelpOverlay`.
- */
-function buildShortcutHelp(): ShortcutHelpGroup[] {
-  return (Object.entries(kbdConfig) as [string, Record<string, { combo: string; description: string }>][]).map(
-    ([context, shortcuts]) => ({
-      context,
-      label: CONTEXT_LABELS[context] ?? context,
-      shortcuts: Object.values(shortcuts).map((s) => ({
-        combo: s.combo,
-        description: s.description,
-      })),
-    }),
-  );
+/** Map all values of a config context to help items. */
+function allOf(ctx: Record<string, { combo: string; description: string }>): ShortcutHelpItem[] {
+  return Object.values(ctx).map((s) => ({ combo: s.combo, description: s.description }));
 }
 
-export const SHORTCUT_HELP: ShortcutHelpGroup[] = buildShortcutHelp();
+/** Pick specific named keys from a config context. */
+function pick(
+  ctx: Record<string, { combo: string; description: string }>,
+  keys: string[],
+): ShortcutHelpItem[] {
+  return keys.map((k) => ({ combo: ctx[k].combo, description: ctx[k].description }));
+}
+
+/**
+ * Display groups for the help overlay.
+ * Publication List is split into focused sub-groups for readability.
+ * Functional keyboard registration is unaffected — still uses 'publication-list' context.
+ */
+export const SHORTCUT_HELP: ShortcutHelpGroup[] = [
+  { context: 'global',               label: 'Global',            shortcuts: allOf(kbdConfig.global) },
+  { context: 'vault-list',           label: 'Vault List',        shortcuts: allOf(kbdConfig['vault-list']) },
+  {
+    context: 'publication-list:navigation',
+    label: 'Paper Navigation',
+    shortcuts: pick(kbdConfig['publication-list'], ['moveDown', 'moveUp', 'jumpFirst', 'jumpLast', 'open', 'toggleView']),
+  },
+  {
+    context: 'publication-list:selection',
+    label: 'Paper Selection',
+    shortcuts: pick(kbdConfig['publication-list'], ['toggleSelect', 'rangeSelect', 'rangeSelectDown', 'rangeSelectUp', 'selectAll', 'deselectAll']),
+  },
+  {
+    context: 'publication-list:popups-actions',
+    label: 'Paper Popups & Actions',
+    shortcuts: pick(kbdConfig['publication-list'], ['filterPopup', 'sortPopup', 'propertiesPopup', 'discoverRelated', 'export', 'delete']),
+  },
+  {
+    context: 'dialog+editor',
+    label: 'Dialogs & Editor',
+    shortcuts: [
+      { combo: kbdConfig.dialog.close.combo,     description: 'Close / exit fullscreen' },
+      { combo: kbdConfig.dialog.save.combo,      description: 'Save changes' },
+      { combo: kbdConfig.dialog.nextField.combo,  description: kbdConfig.dialog.nextField.description },
+      { combo: kbdConfig.dialog.prevField.combo,  description: kbdConfig.dialog.prevField.description },
+    ],
+  },
+];

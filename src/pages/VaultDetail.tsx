@@ -281,7 +281,7 @@ export default function VaultDetail() {
       if (ownedVaultsRes.data) setVaults(ownedVaultsRes.data as Vault[]);
       setSharedVaults(processedSharedVaults);
     } catch (error) {
-      console.error('Error fetching user vaults:', error);
+      logger.error('VaultDetail', 'Error fetching user vaults:', error);
     }
   }, [user]);
 
@@ -339,7 +339,7 @@ export default function VaultDetail() {
 
       setPublicationVaultsMap(newPublicationVaultsMap);
     } catch (error) {
-      console.error('Error fetching all publications:', error);
+      logger.error('VaultDetail', 'Error fetching all publications:', error);
     }
   }, [user]);
 
@@ -394,7 +394,6 @@ export default function VaultDetail() {
   const lastCheckedVaultIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    console.log('[VaultDetail] Checking for pending requests', { user: !!user, vaultId, vault: !!vault });
     if (user && vaultId) {
       // Only run if the vault ID has changed to prevent unnecessary checks
       if (lastCheckedVaultIdRef.current !== vaultId) {
@@ -411,21 +410,16 @@ export default function VaultDetail() {
               .in('status', ['pending', 'approved'])
               .maybeSingle();
 
-            console.log('[VaultDetail] Pending request check result:', existingRequest);
-
             // Only refresh if we haven't already processed this specific request ID
             if (existingRequest && existingRequest.status === 'approved' &&
                 existingRequest.id !== processedApprovedRequestRef.current) {
-              console.log('[VaultDetail] Setting hasPendingRequest to false and refreshing');
               setHasPendingRequest(false);
               processedApprovedRequestRef.current = existingRequest.id;
               // Refresh to update access status
               refresh();
             } else if (existingRequest && existingRequest.status === 'pending') {
-              console.log('[VaultDetail] Setting hasPendingRequest to true');
               setHasPendingRequest(true);
             } else {
-              console.log('[VaultDetail] No existing request, setting hasPendingRequest to false');
               setHasPendingRequest(false);
             }
           }
@@ -434,7 +428,6 @@ export default function VaultDetail() {
         checkPendingRequest();
       }
     } else {
-      console.log('[VaultDetail] No user or vaultId, setting hasPendingRequest to false');
       setHasPendingRequest(false);
       processedApprovedRequestRef.current = null;
       lastCheckedVaultIdRef.current = null;
@@ -567,7 +560,7 @@ export default function VaultDetail() {
         );
 
         if (!tagResult.success) {
-          console.error('Error updating tags:', tagResult.error);
+          logger.error('VaultDetail', 'Error updating tags:', tagResult.error);
           // Don't throw - publication was already saved successfully
         }
 
@@ -616,7 +609,7 @@ export default function VaultDetail() {
             try {
               await handleAddToVaults(result.publication.id, otherVaultIds);
             } catch (error) {
-              console.error('Error adding to additional vaults:', error);
+              logger.error('VaultDetail', 'Error adding to additional vaults:', error);
               // Don't throw - the publication was created successfully in the main vault
             }
           }
@@ -1231,25 +1224,12 @@ export default function VaultDetail() {
   // Track loading state changes to prevent flickering
   useEffect(() => {
     const isLoading = accessStatus === 'loading' || authLoading || contentLoading;
-    console.log('[VaultDetail] Loading state changed:', {
-      accessStatus,
-      authLoading,
-      contentLoading,
-      isLoading,
-      hasStartedInitialLoad,
-      finishedInitialLoad,
-      timestamp: Date.now()
-    });
 
     if (!hasStartedInitialLoad && (accessStatus === 'loading' || authLoading || contentLoading)) {
-      // Mark when initial loading starts
-      console.log('[VaultDetail] Initial loading started');
       setHasStartedInitialLoad(true);
     }
 
     if (hasStartedInitialLoad && !isLoading && !dataReady) {
-      // Mark when data is ready (but keep showing loader until animation completes)
-      console.log('[VaultDetail] Data ready, waiting for animation');
       setDataReady(true);
     }
   }, [accessStatus, authLoading, contentLoading, hasStartedInitialLoad, dataReady]);
@@ -1257,21 +1237,13 @@ export default function VaultDetail() {
   // Hide loader only after progress animation completes
   useEffect(() => {
     if (dataReady && loaderComplete && !finishedInitialLoad) {
-      console.log('[VaultDetail] Animation complete, hiding loader');
       setFinishedInitialLoad(true);
     }
   }, [dataReady, loaderComplete, finishedInitialLoad]);
 
-
   // Determine if we should show the loading screen
   // Only show loading screen during initial load, not after initial load is complete
   const shouldShowLoading = hasStartedInitialLoad && !finishedInitialLoad;
-
-  console.log('[VaultDetail] Render - shouldShowLoading:', shouldShowLoading, {
-    hasStartedInitialLoad,
-    finishedInitialLoad,
-    timestamp: Date.now()
-  });
 
   // Show loading state while access is being checked and content is loading
   // Only show "not found" after access check is complete and confirmed inaccessible
@@ -1414,7 +1386,7 @@ export default function VaultDetail() {
                     });
                     refresh();
                   } catch (error) {
-                    console.error('[VaultDetail] Error requesting access:', error);
+                    logger.error('VaultDetail', 'Error requesting access:', error);
                     toast({
                       title: "Error",
                       description: (error as Error).message,

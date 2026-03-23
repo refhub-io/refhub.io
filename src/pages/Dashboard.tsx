@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { logger } from '@/lib/logger';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
@@ -526,7 +527,7 @@ export default function Dashboard() {
       if (error) throw error;
       if (data) setVaults(data as Vault[]);
     } catch (error) {
-      console.error('Error refetching vaults:', error);
+      logger.error('Dashboard', 'Error refetching vaults:', error);
     }
   };
 
@@ -540,7 +541,7 @@ export default function Dashboard() {
       if (error) throw error;
       if (data) setPublicationRelations(data as PublicationRelation[]);
     } catch (error) {
-      console.error('Error refetching publication relations:', error);
+      logger.error('Dashboard', 'Error refetching publication relations:', error);
     }
   };
 
@@ -626,7 +627,6 @@ export default function Dashboard() {
 
         // Update tags - use the original publication ID for tagging
         // Check if this is a vault-specific copy and get the original publication ID
-        console.log('Updating tags for publication in Dashboard:', editingPublication.id, 'with tagIds:', tagIds);
 
         let originalPublicationId = editingPublication.id;
 
@@ -646,7 +646,6 @@ export default function Dashboard() {
           }
         }
 
-        console.log('Original publication ID in Dashboard:', originalPublicationId);
 
         // In the Dashboard (personal context), continue using publication_id
         // First, get existing tag associations to compare
@@ -669,7 +668,7 @@ export default function Dashboard() {
         const { data: existingTags, error: fetchError } = await query;
 
         if (fetchError) {
-          console.error('Error fetching existing tags in Dashboard:', fetchError);
+          logger.error('Dashboard', 'Error fetching existing tags:', fetchError);
           throw fetchError;
         }
 
@@ -689,7 +688,7 @@ export default function Dashboard() {
             .in('tag_id', tagsToRemove);
 
           if (deleteError) {
-            console.error('Error deleting existing tags in Dashboard:', deleteError);
+            logger.error('Dashboard', 'Error deleting existing tags:', deleteError);
             throw deleteError;
           }
         }
@@ -698,7 +697,6 @@ export default function Dashboard() {
         const tagsToAdd = tagIds.filter(newId => !existingTagIds.includes(newId));
 
         if (tagsToAdd.length > 0) {
-          console.log('Inserting new tag associations in Dashboard:', tagsToAdd);
           // For vault-specific copies, use vault_publication_id; for original publications, use publication_id
           let tagInsertData;
           if (editingPublication.original_publication_id) {
@@ -720,11 +718,10 @@ export default function Dashboard() {
           const { error: insertError } = await supabase.from('publication_tags').insert(tagInsertData);
 
           if (insertError) {
-            console.error('Error inserting new tags in Dashboard:', insertError);
+            logger.error('Dashboard', 'Error inserting new tags:', insertError);
             throw insertError;
           }
         } else {
-          console.log('No new tags to insert in Dashboard');
         }
 
         // Optimistic update
