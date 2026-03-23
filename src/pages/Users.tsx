@@ -141,45 +141,39 @@ export default function Users() {
   const fetchUsers = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      // Fetch all profiles
+      // Fetch all profiles — requires the "Authenticated users can view all profiles" RLS policy
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (profilesError) throw profilesError;
-
-      if (!profilesData) {
+      if (!profilesData || profilesData.length === 0) {
         setUsers([]);
         return;
       }
 
-      // Fetch stats for each user
-      const usersWithStats = await Promise.all(
-        profilesData.map(async (profile) => {
-          const [vaultsRes, pubsRes] = await Promise.all([
-            supabase
-              .from('vaults')
-              .select('id, visibility', { count: 'exact' })
-              .eq('user_id', profile.user_id),
-            supabase
-              .from('publications')
-              .select('id', { count: 'exact' })
-              .eq('user_id', profile.user_id),
-          ]);
+      // Fetch aggregate stats for all users in one RPC call (bypasses owner-only RLS
+      // on vaults/publications safely — only counts are returned, not rows)
+      const userIds = profilesData.map((p) => p.user_id);
+      const { data: statsData, error: statsError } = await supabase
+        .rpc('get_researcher_stats', { p_user_ids: userIds });
 
-          const vaultCount = vaultsRes.count || 0;
-          const publicVaultCount = vaultsRes.data?.filter(v => v.visibility === 'public').length || 0;
-          const publicationCount = pubsRes.count || 0;
+      if (statsError) throw statsError;
 
-          return {
-            ...profile,
-            vault_count: vaultCount,
-            public_vault_count: publicVaultCount,
-            publication_count: publicationCount,
-          } as UserWithStats;
-        })
+      const statsMap = new Map(
+        (statsData ?? []).map((s: { user_id: string; vault_count: number; public_vault_count: number; publication_count: number }) => [s.user_id, s])
       );
+
+      const usersWithStats = profilesData.map((profile) => {
+        const stats = statsMap.get(profile.user_id);
+        return {
+          ...profile,
+          vault_count:        Number(stats?.vault_count        ?? 0),
+          public_vault_count: Number(stats?.public_vault_count ?? 0),
+          publication_count:  Number(stats?.publication_count  ?? 0),
+        } as UserWithStats;
+      });
 
       setUsers(usersWithStats);
     } catch (error) {
