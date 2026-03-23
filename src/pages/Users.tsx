@@ -340,7 +340,8 @@ export default function Users() {
                 {filteredUsers.map((researcher) => (
                   <Card
                     key={researcher.id}
-                    className="group hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300"
+                    className="group hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 cursor-pointer"
+                    onClick={() => navigate(`/profile/${researcher.username ?? researcher.user_id}`)}
                   >
                     <CardContent className="p-6">
                       {/* Header */}
@@ -402,6 +403,7 @@ export default function Users() {
                             href={researcher.github_url}
                             target="_blank"
                             rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
                             className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-muted transition-colors"
                             title="GitHub"
                           >
@@ -413,6 +415,7 @@ export default function Users() {
                             href={researcher.linkedin_url}
                             target="_blank"
                             rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
                             className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-muted transition-colors"
                             title="LinkedIn"
                           >
@@ -424,6 +427,7 @@ export default function Users() {
                             href={researcher.bluesky_url}
                             target="_blank"
                             rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
                             className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-muted transition-colors"
                             title="Bluesky"
                           >
@@ -441,20 +445,17 @@ export default function Users() {
                           </a>
                         )}
                         
-                        {/* View public vaults button */}
-                        {researcher.public_vault_count > 0 && (
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => {
-                              // Navigate to codex filtered by this user
-                              navigate(`/codex?user=${researcher.username || researcher.user_id}`);
-                            }}
-                            className="font-mono ml-auto text-xs"
-                          >
-                            view_vaults →
-                          </Button>
-                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/profile/${researcher.username ?? researcher.user_id}`);
+                          }}
+                          className="font-mono ml-auto text-xs"
+                        >
+                          view_profile →
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>

@@ -20,6 +20,7 @@ import VaultDetail from "./pages/VaultDetail";
 import TheCodex from "./pages/TheCodex";
 import OpenGraphPreview from "./pages/OpenGraphPreview";
 import Users from "./pages/Users";
+import UserProfile from "./pages/UserProfile";
 import ProfileEdit from "./pages/ProfileEdit";
 import SignupNextSteps from "./pages/SignupNextSteps";
 import ResetPassword from "./pages/ResetPassword";
@@ -62,6 +63,7 @@ const App = () => {
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/codex" element={<TheCodex />} />
                   <Route path="/users" element={<Users />} />
+                  <Route path="/profile/:username" element={<UserProfile />} />
                   <Route path="/public/:slug" element={<PublicVault />} />
                   <Route path="/vault/:id" element={<VaultDetail />} />
                   <Route path="/opengraphpreview" element={<OpenGraphPreview />} />
