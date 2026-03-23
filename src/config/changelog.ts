@@ -21,6 +21,43 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    id: 2,
+    date: '2026-03-23',
+    title: 'researcher profiles + graph fixes + mobile polish',
+    features: [
+      {
+        tag: 'feature',
+        title: 'researcher profile pages',
+        description:
+          'Every researcher now has a public profile at /profile/@username. Click any card in the researchers directory to see their bio, stats, and a grid of their public vaults — each linking directly to the vault.',
+      },
+      {
+        tag: 'fix',
+        title: 'researcher directory showing correct counts',
+        description:
+          'Vault and paper counts for other researchers were always 0 due to an RLS policy restricting visibility to the owner only. A new migration and SECURITY DEFINER function fix this — counts are now accurate for all researchers.',
+      },
+      {
+        tag: 'improvement',
+        title: 'relationship graph: disconnected components stay put',
+        description:
+          'Disconnected paper clusters no longer drift to the edges of the canvas. Nodes are pre-positioned in a grid and pinned in place, rendering immediately without any animated settle or zoom jump.',
+      },
+      {
+        tag: 'improvement',
+        title: 'keyboard shortcuts reorganised',
+        description:
+          'The help overlay (press ?) now groups shortcuts into focused panels: Paper Navigation, Paper Selection, Paper Popups & Actions, and a combined Dialogs & Editor section — no more scrolling through a single long list.',
+      },
+      {
+        tag: 'improvement',
+        title: 'mobile: toolbar keyboard hints hidden on narrow screens',
+        description:
+          'Inline keyboard hint badges are now hidden below 768 px, preventing toolbar overflow. The discover_related button is also visible as an icon on all screen sizes.',
+      },
+    ],
+  },
+  {
     id: 1,
     date: '2026-03-22',
     title: 'vault augmentation + semantic scholar',
