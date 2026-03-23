@@ -73,10 +73,7 @@ const kbdConfig: KbdConfig = {
 
   // ─── Publication List ────────────────────────────────────────────────────
   'publication-list': {
-        toggleView: {
-          combo: 'v',
-          description: 'Toggle card/table view',
-        },
+    // Navigation
     moveDown: {
       combo: 'j / ↓',
       description: 'Next publication',
@@ -97,6 +94,12 @@ const kbdConfig: KbdConfig = {
       combo: 'Enter',
       description: 'Open publication',
     },
+    // View
+    toggleView: {
+      combo: 'v',
+      description: 'Toggle card/table view',
+    },
+    // Selection
     toggleSelect: {
       combo: 'Space',
       description: 'Toggle selection',
@@ -105,10 +108,23 @@ const kbdConfig: KbdConfig = {
       combo: 'Shift+Space',
       description: 'Range select',
     },
-    propertiesPopup: {
-      combo: 'p',
-      description: 'Show properties popup',
+    rangeSelectDown: {
+      combo: 'Shift+↓ / Shift+J',
+      description: 'Range select down',
     },
+    rangeSelectUp: {
+      combo: 'Shift+↑ / Shift+K',
+      description: 'Range select up',
+    },
+    selectAll: {
+      combo: 'Ctrl+A',
+      description: 'Select all',
+    },
+    deselectAll: {
+      combo: 'Ctrl+D',
+      description: 'Deselect all',
+    },
+    // Popups
     filterPopup: {
       combo: 'f',
       description: 'Show filter popup',
@@ -117,33 +133,22 @@ const kbdConfig: KbdConfig = {
       combo: 's',
       description: 'Show sort popup',
     },
-    selectAll: {
-      combo: 'Ctrl+A',
-      description: 'Select all',
+    propertiesPopup: {
+      combo: 'p',
+      description: 'Show properties popup',
+    },
+    // Actions
+    discoverRelated: {
+      combo: 'r',
+      description: 'Discover related papers',
     },
     export: {
       combo: 'Ctrl+E',
       description: 'Export selected',
     },
-    discoverRelated: {
-      combo: 'r',
-      description: 'Discover related papers',
-    },
     delete: {
       combo: 'd / Delete',
       description: 'Delete selected',
-    },
-    deselectAll: {
-      combo: 'Ctrl+D',
-      description: 'Deselect all',
-    },
-    rangeSelectDown: {
-      combo: 'Shift+↓ / Shift+J',
-      description: 'Range select down',
-    },
-    rangeSelectUp: {
-      combo: 'Shift+↑ / Shift+K',
-      description: 'Range select up',
     },
   },
 
