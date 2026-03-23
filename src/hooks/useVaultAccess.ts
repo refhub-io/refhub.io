@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../integrations/supabase/client';
+import { logger } from '../lib/logger';
 import { VaultVisibility, VaultRole } from '../types/vault-extensions';
 import { getPageCache, setPageCache, hasPageCache } from '../lib/pageCache';
 
@@ -88,7 +89,6 @@ export const useVaultAccess = (vaultSlug: string) => {
   }, [vaultSlug, result, cacheKey]);
 
   useEffect(() => {
-    console.log('[useVaultAccess] Effect triggered with vaultSlug:', vaultSlug, 'and refreshKey:', refreshKey, 'silent:', isSilentRefresh);
     let mounted = true;
 
     const checkAccess = async () => {
@@ -128,22 +128,17 @@ export const useVaultAccess = (vaultSlug: string) => {
           // If we get an error, try to get basic metadata using the secure function
           // This only works for public/protected vaults and returns limited info
           if (error.code === 'PGRST116') {
-            console.log('[useVaultAccess] Vault not accessible via RLS, trying metadata function');
             const { data: metadata, error: metadataError } = await supabase
               .rpc('get_vault_metadata', { vault_id: vaultSlug });
 
             if (metadata && metadata.length > 0) {
-              console.log('[useVaultAccess] Got vault metadata:', metadata[0]);
               vaultData = metadata[0];
             } else {
-              console.log('[useVaultAccess] No metadata available, vault might not exist or is private');
               // Vault truly doesn't exist or is private
               vaultNotFound = true;
             }
           } else {
-            // Some other error occurred (network, etc.)
-            console.error('Non-PGRST116 error occurred:', error);
-            // Continue with the flow instead of returning early
+            // Some other error occurred (network, etc.) — continue
           }
         } else {
           // Successfully retrieved vault data - vault exists
@@ -173,7 +168,6 @@ export const useVaultAccess = (vaultSlug: string) => {
           const isOwner = user?.id === vaultData.user_id;
 
           if (isOwner) {
-            console.log('[useVaultAccess] Updating result to granted for owner');
             setResult(prev => ({
               ...prev,
               canView: true,
@@ -244,8 +238,6 @@ export const useVaultAccess = (vaultSlug: string) => {
 
         if (!mounted) return;
 
-        console.log('[useVaultAccess] Share check result:', { hasShare: !!share, shareError: shareError?.message });
-
         if (share && !shareError) {
           userRole = share.role;
           canView = true;
@@ -261,8 +253,6 @@ export const useVaultAccess = (vaultSlug: string) => {
             .maybeSingle();  // Use maybeSingle - 0 rows is not an error
 
           if (!mounted) return;
-
-          console.log('[useVaultAccess] Access request check:', { hasRequest: !!request, requestStatus: request?.status, requestError: requestError?.message });
 
           if (request && !requestError) {
             if (request.status === 'pending') {
@@ -280,7 +270,6 @@ export const useVaultAccess = (vaultSlug: string) => {
           if (!canView && accessStatus !== 'pending') {
             if (vaultData) {
               const visibility = (vaultData as any).visibility as VaultVisibility;
-              console.log('[useVaultAccess] Visibility check:', { visibility });
               if (visibility === 'public') {
                 canView = true;
                 accessStatus = 'granted';
@@ -304,15 +293,6 @@ export const useVaultAccess = (vaultSlug: string) => {
 
         const permission = canView ? (userRole || 'viewer') : null;
 
-        console.log('[useVaultAccess] Updating result with final access check', { 
-          canView, 
-          canEdit, 
-          accessStatus, 
-          hasVaultData: !!vaultData,
-          visibility: vaultData ? (vaultData as any).visibility : 'N/A',
-          hasShare: !!share,
-          userRole
-        });
         setResult(prev => ({
           ...prev,
           canView,
@@ -326,7 +306,7 @@ export const useVaultAccess = (vaultSlug: string) => {
         }));
 
       } catch (error) {
-        console.error('Error checking vault access:', error);
+        logger.error('useVaultAccess', 'Error checking vault access:', error);
         if (mounted) {
           // In case of a real error (network, etc.), we should retry or handle gracefully
           // For now, let's set to denied without an error message to avoid showing error to user
@@ -446,214 +426,6 @@ export const requestVaultAccess = async (
     } as any)
     .select()
     .single();
-
-  return { data, error };
-};
-
-// Helper function to approve/deny access request
-export const updateAccessRequest = async (
-  requestId: string,
-  status: 'approved' | 'rejected'
-) => {
-  const { data, error } = await supabase
-    .from('vault_access_requests')
-    .update({ status } as any)
-    .eq('id', requestId)
-    .select()
-    .single();
-
-  if (!error && status === 'approved') {
-    // Create share for approved request
-    const { data: request } = await supabase
-      .from('vault_access_requests')
-      .select('vault_id, requester_id, requester_name, requester_email')
-      .eq('id', requestId)
-      .single();
-
-    if (request) {
-      // Get the profile information for the user being shared with
-      let sharedWithName = null;
-      if ((request as any).requester_id) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('display_name, email, username')
-          .eq('user_id', (request as any).requester_id)
-          .single();
-
-        sharedWithName = profile?.display_name || profile?.username || profile?.email;
-      }
-
-      await supabase
-        .from('vault_shares')
-        .insert({
-          vault_id: (request as any).vault_id,
-          shared_with_user_id: (request as any).requester_id,
-          shared_with_email: (request as any).requester_email,
-          shared_with_name: sharedWithName || (request as any).requester_name, // Store the display name
-          shared_by: (await supabase.auth.getUser()).data.user?.id,
-          role: 'viewer', // Using new role field
-        } as any);
-    }
-  }
-
-  return { data, error };
-};
-
-// Helper function to share vault with user
-export const shareVault = async (
-  vaultId: string,
-  sharedBy: string,
-  sharedWithUserId: string | null,
-  sharedWithEmail: string | null,
-  role: 'editor' | 'viewer'
-) => {
-  // Get the profile information for the user being shared with
-  let sharedWithName = null;
-  if (sharedWithUserId) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('display_name, email, username')
-      .eq('user_id', sharedWithUserId)
-      .single();
-
-    sharedWithName = profile?.display_name || profile?.username || profile?.email;
-  }
-
-  const { data, error } = await supabase
-    .from('vault_shares')
-    .insert({
-      vault_id: vaultId,
-      shared_with_user_id: sharedWithUserId,
-      shared_with_email: sharedWithEmail,
-      shared_with_name: sharedWithName, // Store the display name
-      shared_by: sharedBy,
-      role, // Using new role field
-    } as any)
-    .select()
-    .single();
-
-  return { data, error };
-};
-
-// Helper function to remove vault share
-export const removeVaultShare = async (shareId: string) => {
-  // First, get the share details to know which user and vault
-  const { data: shareData, error: fetchError } = await supabase
-    .from('vault_shares')
-    .select('vault_id, shared_with_user_id')
-    .eq('id', shareId)
-    .single();
-
-  if (fetchError) {
-    return { data: null, error: fetchError };
-  }
-
-  // Delete the share
-  const { data, error } = await supabase
-    .from('vault_shares')
-    .delete()
-    .eq('id', shareId);
-
-  if (error) {
-    return { data, error };
-  }
-
-  // Also delete any access requests from this user for this vault
-  if (shareData?.shared_with_user_id && shareData?.vault_id) {
-    await supabase
-      .from('vault_access_requests')
-      .delete()
-      .eq('vault_id', shareData.vault_id)
-      .eq('requester_id', shareData.shared_with_user_id);
-  }
-
-  return { data, error };
-};
-
-// Helper function to update share role
-export const updateVaultShareRole = async (shareId: string, role: 'editor' | 'viewer') => {
-  const { data, error } = await supabase
-    .from('vault_shares')
-    .update({ role } as any)
-    .eq('id', shareId)
-    .select()
-    .single();
-
-  return { data, error };
-};
-
-// Helper function to get vault shares
-export const getVaultShares = async (vaultId: string) => {
-  const { data, error } = await supabase
-    .from('vault_shares')
-    .select('*')
-    .eq('vault_id', vaultId);
-
-  if (error || !data) {
-    return { data, error };
-  }
-
-  // Enrich shares with profile data for those missing shared_with_name
-  const enrichedShares = await Promise.all(
-    data.map(async (share) => {
-      // If we already have a name, use it
-      if (share.shared_with_name) {
-        return share;
-      }
-      
-      // Try to look up profile by user_id first
-      if (share.shared_with_user_id) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('display_name, username, email')
-          .eq('user_id', share.shared_with_user_id)
-          .single();
-        
-        if (profile) {
-          return {
-            ...share,
-            shared_with_name: profile.display_name || profile.username || profile.email,
-          };
-        }
-      }
-      
-      // Try to look up profile by email
-      if (share.shared_with_email) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('display_name, username, email')
-          .eq('email', share.shared_with_email)
-          .single();
-        
-        if (profile) {
-          return {
-            ...share,
-            shared_with_name: profile.display_name || profile.username || profile.email,
-          };
-        }
-      }
-      
-      return share;
-    })
-  );
-
-  return { data: enrichedShares, error: null };
-};
-
-// Helper function to get vault access requests
-export const getVaultAccessRequests = async (vaultId: string) => {
-  const { data, error } = await supabase
-    .from('vault_access_requests')
-    .select(`
-      *,
-      profiles:requester_id(
-        display_name,
-        email,
-        avatar_url
-      )
-    `)
-    .eq('vault_id', vaultId)
-    .in('status', ['pending', 'approved', 'rejected']);
 
   return { data, error };
 };

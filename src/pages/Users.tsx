@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { logger } from '@/lib/logger';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile, Profile } from '@/hooks/useProfile';
@@ -101,7 +102,7 @@ export default function Users() {
         if (sharedVaultsData) setSharedVaults(sharedVaultsData as Vault[]);
       }
     } catch (error) {
-      console.error('Error fetching vaults:', error);
+      logger.error('Users', 'Error fetching vaults:', error);
     }
   }, [user]);
 
@@ -182,7 +183,7 @@ export default function Users() {
 
       setUsers(usersWithStats);
     } catch (error) {
-      console.error('Error fetching users:', error);
+      logger.error('Users', 'Error fetching users:', error);
     } finally {
       setLoading(false);
     }

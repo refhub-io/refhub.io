@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { logger } from '@/lib/logger';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -154,7 +155,7 @@ export default function Auth() {
           const profile = await ensureProfileExists(user);
 
           if (!profile) {
-            console.error('Failed to create or fetch profile');
+            logger.error('Auth', 'Failed to create or fetch profile');
             navigate('/');
           } else if (profile.is_setup === false) {
             navigate('/profile-edit');

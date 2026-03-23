@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { logger } from '@/lib/logger';
 import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag } from '@/types/database';
 import { formatTimeAgo } from '@/lib/utils';
@@ -88,7 +89,7 @@ export default function PublicVault() {
 
       setUserVaults(ownedVaults || []);
     } catch (error) {
-      console.error('Error fetching user vaults:', error);
+      logger.error('PublicVaultSimple', 'Error fetching user vaults:', error);
     }
   }, [user]);
 
@@ -107,7 +108,7 @@ export default function PublicVault() {
         .maybeSingle();
 
       if (error) {
-        console.error('[PublicVault] Error fetching vault:', error);
+        logger.error('PublicVaultSimple', 'Error fetching vault:', error);
         setNotFound(true);
         return;
       }
@@ -124,7 +125,6 @@ export default function PublicVault() {
         if (anyVault) {
           // Vault exists but is no longer public - redirect to the vault detail page
           // which will handle proper access control (show request access page for protected)
-          console.log('[PublicVault] Vault is no longer public, redirecting to vault page');
           navigate(`/vault/${anyVault.id}`, { replace: true });
           return;
         }

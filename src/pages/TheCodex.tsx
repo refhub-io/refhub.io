@@ -1,5 +1,6 @@
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { logger } from '@/lib/logger';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Vault, VaultStats, VAULT_CATEGORIES } from '@/types/database';
@@ -142,7 +143,7 @@ export default function TheCodex() {
 
       setVaults(vaultsWithData);
     } catch (error) {
-      console.error('Error fetching public vaults:', error);
+      logger.error('TheCodex', 'Error fetching public vaults:', error);
     } finally {
       setLoading(false);
     }
@@ -182,7 +183,7 @@ export default function TheCodex() {
         }
       }
     } catch (error) {
-      console.error('Error fetching user vaults:', error);
+      logger.error('TheCodex', 'Error fetching user vaults:', error);
     }
   }, [user]);
 
@@ -229,7 +230,7 @@ export default function TheCodex() {
           table: 'vaults',
         },
         (payload) => {
-          console.log('[TheCodex] Realtime vault change:', payload);
+
           // Simply refetch on any vault change - the query filters by visibility='public'
           // so vaults that become private will automatically disappear
           fetchPublicVaults();

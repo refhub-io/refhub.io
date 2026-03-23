@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { PublicationRelation, Publication } from '@/types/database';
 import { useToast } from '@/hooks/use-toast';
-import { debug, warn } from '@/lib/logger';
+import { debug, warn, error as logError } from '@/lib/logger';
 
 interface RelatedPublication extends Publication {
   relation_type: string;
@@ -96,7 +96,7 @@ export function usePublicationRelations(publicationId: string | null, userId: st
 
       setRelations(relatedPubs);
     } catch (error) {
-      console.error('Error fetching publication relations:', error);
+      logError('usePublicationRelations', 'Error fetching publication relations:', error);
     } finally {
       setLoading(false);
     }

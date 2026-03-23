@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Publication } from '@/types/database';
 import {
   SSPaper,
@@ -6,7 +6,7 @@ import {
   lookupPaperByTitle,
   getReferences,
   getCitations,
-  getRecommendations,
+  getRecommendationsForSet,
 } from '@/lib/semanticScholar';
 import {
   Dialog,
@@ -179,7 +179,7 @@ export function VaultAugmentDialog({
   onAddPaper,
 }: VaultAugmentDialogProps) {
   const [loading, setLoading] = useState(false);
-  const [fetched, setFetched] = useState(false);
+  const [tabLoading, setTabLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<AugmentTab>('related');
   const [references, setReferences] = useState<DiscoveredPaper[]>([]);
   const [citations, setCitations] = useState<DiscoveredPaper[]>([]);
@@ -187,58 +187,66 @@ export function VaultAugmentDialog({
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
 
-  const fetchData = useCallback(async () => {
+  // Track which tabs have been fetched and the resolved SS paper IDs
+  const fetchedTabs = useRef<Set<AugmentTab>>(new Set());
+  const resolvedPaperIds = useRef<{ pubId: string; ssId: string }[]>([]);
+
+  /** Step 1: resolve DOI/title → SS paper IDs, then fetch batch recommendations. */
+  const fetchRelated = useCallback(async () => {
     if (publications.length === 0) return;
     setLoading(true);
-    setFetched(false);
 
-    const refMap = new Map<string, DiscoveredPaper>();
-    const citeMap = new Map<string, DiscoveredPaper>();
-    const relMap = new Map<string, DiscoveredPaper>();
+    // Resolve paper IDs sequentially (each hits the rate-limited queue)
+    const resolved: { pubId: string; ssId: string }[] = [];
+    for (const pub of publications) {
+      let ssId: string | null = null;
+      if (pub.doi) ssId = await lookupPaperByDOI(pub.doi);
+      if (!ssId && pub.title) ssId = await lookupPaperByTitle(pub.title);
+      if (ssId) resolved.push({ pubId: pub.id, ssId });
+    }
+    resolvedPaperIds.current = resolved;
 
-    await Promise.all(
-      publications.map(async (pub) => {
-        let paperId: string | null = null;
-        if (pub.doi) paperId = await lookupPaperByDOI(pub.doi);
-        if (!paperId && pub.title) paperId = await lookupPaperByTitle(pub.title);
-        if (!paperId) return;
-
-        const [refs, cites, recs] = await Promise.all([
-          getReferences(paperId),
-          getCitations(paperId),
-          getRecommendations(paperId),
-        ]);
-
-        for (const p of refs) {
-          const existing = refMap.get(p.paperId);
-          if (existing) existing.sourcePublicationIds.push(pub.id);
-          else refMap.set(p.paperId, { paper: p, tab: 'references', sourcePublicationIds: [pub.id] });
-        }
-        for (const p of cites) {
-          const existing = citeMap.get(p.paperId);
-          if (existing) existing.sourcePublicationIds.push(pub.id);
-          else citeMap.set(p.paperId, { paper: p, tab: 'citations', sourcePublicationIds: [pub.id] });
-        }
-        for (const p of recs) {
-          if (!relMap.has(p.paperId))
-            relMap.set(p.paperId, { paper: p, tab: 'related', sourcePublicationIds: [pub.id] });
-        }
-      })
+    // Single batch call for recommendations
+    const recs = await getRecommendationsForSet(resolved.map((r) => r.ssId));
+    const allPubIds = resolved.map((r) => r.pubId);
+    setRelated(
+      recs.map((paper) => ({ paper, tab: 'related' as AugmentTab, sourcePublicationIds: allPubIds }))
     );
 
-    setReferences([...refMap.values()]);
-    setCitations([...citeMap.values()]);
-    setRelated([...relMap.values()]);
-    setFetched(true);
+    fetchedTabs.current.add('related');
     setLoading(false);
   }, [publications]);
 
+  /** Step 2: fetch refs or citations for the selected tab on demand. */
+  const fetchTabData = useCallback(async (tab: 'references' | 'citations') => {
+    if (fetchedTabs.current.has(tab)) return;
+    setTabLoading(true);
+
+    const map = new Map<string, DiscoveredPaper>();
+    for (const { pubId, ssId } of resolvedPaperIds.current) {
+      const papers = tab === 'references' ? await getReferences(ssId) : await getCitations(ssId);
+      for (const p of papers) {
+        const existing = map.get(p.paperId);
+        if (existing) existing.sourcePublicationIds.push(pubId);
+        else map.set(p.paperId, { paper: p, tab, sourcePublicationIds: [pubId] });
+      }
+    }
+
+    if (tab === 'references') setReferences([...map.values()]);
+    else setCitations([...map.values()]);
+
+    fetchedTabs.current.add(tab);
+    setTabLoading(false);
+  }, []);
+
+  // Open dialog: kick off the fast batch fetch for recommendations
   useEffect(() => {
-    if (open && !fetched) {
-      fetchData();
+    if (open && !fetchedTabs.current.has('related')) {
+      fetchRelated();
     }
     if (!open) {
-      setFetched(false);
+      fetchedTabs.current = new Set();
+      resolvedPaperIds.current = [];
       setActiveTab('related');
       setReferences([]);
       setCitations([]);
@@ -246,7 +254,13 @@ export function VaultAugmentDialog({
       setAddedIds(new Set());
       setLoadingIds(new Set());
     }
-  }, [open, fetched, fetchData]);
+  }, [open, fetchRelated]);
+
+  // Switch tab → lazy-load refs/citations if not yet fetched
+  const handleTabChange = (tab: AugmentTab) => {
+    setActiveTab(tab);
+    if (tab !== 'related') fetchTabData(tab);
+  };
 
   const handleAdd = async (discovered: DiscoveredPaper) => {
     const { paper, tab, sourcePublicationIds } = discovered;
@@ -285,11 +299,11 @@ export function VaultAugmentDialog({
           </div>
         )}
 
-        {!loading && fetched && (
+        {!loading && (
           <>
             <Tabs
               value={activeTab}
-              onValueChange={(v) => setActiveTab(v as AugmentTab)}
+              onValueChange={(v) => handleTabChange(v as AugmentTab)}
               className="shrink-0 px-6 pt-3"
             >
               <TabsList className="justify-start w-auto h-8">
@@ -306,13 +320,20 @@ export function VaultAugmentDialog({
             </Tabs>
 
             <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin px-6 pb-4 pt-2">
-              <PaperList
-                papers={activePapers}
-                vaultPublications={vaultPublications}
-                addedIds={addedIds}
-                loadingIds={loadingIds}
-                onAdd={handleAdd}
-              />
+              {tabLoading ? (
+                <div className="flex items-center justify-center gap-3 text-muted-foreground py-8">
+                  <SpinnerLoader className="w-4 h-4" />
+                  <span className="font-mono text-xs">// fetching...</span>
+                </div>
+              ) : (
+                <PaperList
+                  papers={activePapers}
+                  vaultPublications={vaultPublications}
+                  addedIds={addedIds}
+                  loadingIds={loadingIds}
+                  onAdd={handleAdd}
+                />
+              )}
             </div>
           </>
         )}

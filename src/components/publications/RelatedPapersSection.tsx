@@ -13,9 +13,6 @@ import {
 } from '@/components/ui/select';
 import { Link2, Plus, X, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { SemanticScholarPanel } from './SemanticScholarPanel';
-import { SSPaper } from '@/lib/semanticScholar';
-import { showSuccess } from '@/lib/toast';
 
 interface RelatedPublication extends Publication {
   relation_type: string;
@@ -26,7 +23,6 @@ interface RelatedPapersSectionProps {
   relations: RelatedPublication[];
   allPublications: Publication[];
   currentPublicationId: string | null;
-  currentPublication?: Publication;
   loading: boolean;
   onAddRelation: (publicationId: string, relationType: string) => Promise<boolean>;
   onRemoveRelation: (relationId: string) => Promise<boolean>;
@@ -36,15 +32,10 @@ export function RelatedPapersSection({
   relations,
   allPublications,
   currentPublicationId,
-  currentPublication,
   loading,
   onAddRelation,
   onRemoveRelation,
 }: RelatedPapersSectionProps) {
-  const handleSSAdd = (paper: SSPaper) => {
-    console.log('[SemanticScholar] Add paper to vault:', paper);
-    showSuccess('Paper added to vault (coming soon)');
-  };
   const [isAddingRelation, setIsAddingRelation] = useState(false);
   const [selectedPublicationId, setSelectedPublicationId] = useState<string>('');
   const [selectedRelationType, setSelectedRelationType] = useState<string>('cites');
@@ -169,13 +160,6 @@ export function RelatedPapersSection({
         <p className="text-sm text-muted-foreground italic">
           No related papers linked yet.
         </p>
-      )}
-
-      {/* Semantic Scholar discovery */}
-      {currentPublication && (
-        <div className="pt-2 border-t">
-          <SemanticScholarPanel publication={currentPublication} onAddPaper={handleSSAdd} />
-        </div>
       )}
 
       {/* Add new relation */}

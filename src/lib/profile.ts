@@ -1,4 +1,5 @@
 import { User } from '@supabase/supabase-js';
+import { logger } from '@/lib/logger';
 import { supabase } from '@/integrations/supabase/client';
 import { Profile } from '@/types/database';
 
@@ -11,7 +12,7 @@ export async function ensureProfileExists(user: User): Promise<Profile | null> {
     .single();
 
   if (error && error.code !== 'PGRST116') { // PGRST116 means no rows found
-    console.error('Error fetching profile:', error);
+    logger.error('profile', 'Error fetching profile:', error);
     return null;
   }
 
@@ -33,7 +34,7 @@ export async function ensureProfileExists(user: User): Promise<Profile | null> {
     .single();
 
   if (createError) {
-    console.error('Error creating profile:', createError);
+    logger.error('profile', 'Error creating profile:', createError);
     return null;
   }
 

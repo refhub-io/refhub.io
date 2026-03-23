@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { logger } from '@/lib/logger';
 import { Publication, Vault, Tag, PUBLICATION_TYPES } from '@/types/database';
 import { UnsavedChangesDialog } from '@/components/ui/unsaved-changes-dialog';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
@@ -1323,7 +1324,7 @@ export function PublicationDialog({
                           await onAddToVaults(publication.id, [vaultId]);
                           // Show success message
                         } catch (error) {
-                          console.error('Error adding to vault:', error);
+                          logger.error('PublicationDialog', 'Error adding to vault:', error);
                         }
                       }
                     }}

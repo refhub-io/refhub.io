@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { logger } from '@/lib/logger';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -27,7 +28,7 @@ export function useProfile() {
       const profileData = await ensureProfileExists(user);
       setProfile(profileData);
     } catch (error) {
-      console.error('Error fetching profile:', error);
+      logger.error('useProfile', 'Error fetching profile:', error);
       setProfile(null);
     } finally {
       setLoading(false);
@@ -86,7 +87,7 @@ export function useProfile() {
       if (error) throw error;
       return data === null;
     } catch (error) {
-      console.error('Error checking username availability:', error);
+      logger.error('useProfile', 'Error checking username availability:', error);
       return false;
     }
   };

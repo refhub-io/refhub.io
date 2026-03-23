@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { logger } from '@/lib/logger';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -67,7 +68,7 @@ export default function ResetPassword() {
           }
         }
       } catch (error) {
-        console.error('Error checking recovery session:', error);
+        logger.error('ResetPassword', 'Error checking recovery session:', error);
       } finally {
         setCheckingSession(false);
       }

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { VaultFavorite, Vault } from '@/types/database';
+import { logger } from '@/lib/logger';
 
 interface FavoriteVault extends Vault {
   publication_count?: number;
@@ -71,7 +72,7 @@ export function useVaultFavorites() {
         }
       }
     } catch (error) {
-      console.error('Error fetching vault favorites:', error);
+      logger.error('useVaultFavorites', 'Error fetching vault favorites:', error);
     } finally {
       setLoading(false);
     }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { logger } from '@/lib/logger';
 import { Vault, VaultShare, VAULT_CATEGORIES } from '@/types/database';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -68,8 +69,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   const [requestPermissions, setRequestPermissions] = useState<Record<string, 'viewer' | 'editor'>>({});
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [email, setEmail] = useState('');
-  const [diagResult, setDiagResult] = useState<{ data?: any; error?: any; count?: number } | null>(null);
-  const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('viewer');
+const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('viewer');
   const [publicSlug, setPublicSlug] = useState('');
   const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
   const [checkingSlug, setCheckingSlug] = useState(false);
@@ -83,9 +83,6 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   // Fetch access requests for owners and enrich with display names when possible
   async function fetchAccessRequests() {
     if (!vault) return;
-    // Debug: log current auth user id to help diagnose RLS/visibility issues
-    // eslint-disable-next-line no-console
-    console.debug('[VaultDialog] current auth user', { userId: user?.id });
 
     // Get the access requests
     const { data: requests, error: requestsError } = await supabase
@@ -97,7 +94,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
 
     if (requestsError) {
       // eslint-disable-next-line no-console
-      console.error('[VaultDialog] error fetching vault_access_requests', requestsError);
+      logger.error('VaultDialog', 'Error fetching vault_access_requests:', requestsError);
       return;
     }
 
@@ -124,17 +121,6 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       processed.forEach((r) => { perms[r.id] = 'viewer'; });
       setRequestPermissions(perms);
 
-      // Debug: log fetched count and a summary to help diagnose missing requests
-      // eslint-disable-next-line no-console
-      console.debug('[VaultDialog] fetched access requests', { count: processed.length, example: processed[0] || null });
-
-      // extra debug: raw fetch for owner diagnostics
-      const raw = await supabase.from('vault_access_requests').select('*').eq('vault_id', vault.id);
-      // eslint-disable-next-line no-console
-      console.debug('[VaultDialog] raw vault_access_requests query', raw);
-      // expose diagnostic result to UI for owner troubleshooting
-      setDiagResult({ data: raw.data ?? undefined, error: raw.error ?? undefined });
-
       if (initialRequestId) {
         setSelectedRequestId(initialRequestId);
         setTimeout(() => {
@@ -149,7 +135,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     if (vault && open) {
       fetchAccessRequests().catch((err) => {
         // eslint-disable-next-line no-console
-        console.error('[VaultDialog] fetchAccessRequests failed', err);
+        logger.error('VaultDialog', 'fetchAccessRequests failed:', err);
       });
     }
 
@@ -165,12 +151,9 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
           table: 'vault_access_requests',
           filter: `vault_id=eq.${vault.id}`,
         },
-        (payload) => {
-          // eslint-disable-next-line no-console
-          console.debug('[VaultDialog] realtime access request received', payload);
+        (_payload) => {
           fetchAccessRequests().catch((err) => {
-            // eslint-disable-next-line no-console
-            console.error('[VaultDialog] fetchAccessRequests failed after realtime event', err);
+            logger.error('VaultDialog', 'fetchAccessRequests failed after realtime event:', err);
           });
           // show a small toast to the owner when viewing the dialog
           try {
@@ -206,8 +189,6 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       .select('*')
       .eq('vault_id', vaultId);
 
-    console.log('[VaultDialog] fetchShares raw result:', { data, error });
-    
     if (data && !error) {
       // Enrich shares with profile data for those missing shared_with_name or shared_with_email
       const enrichedShares = await Promise.all(
@@ -240,21 +221,17 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
           }
           
           if (profile) {
-            const enrichedName = share.shared_with_name || profile.display_name || profile.username || profile.email;
-            const enrichedEmail = share.shared_with_email || profile.email;
-            console.log('[VaultDialog] Enriched share:', { share_id: share.id, enrichedName, enrichedEmail });
             return {
               ...share,
-              shared_with_name: enrichedName,
-              shared_with_email: enrichedEmail,
+              shared_with_name: share.shared_with_name || profile.display_name || profile.username || profile.email,
+              shared_with_email: share.shared_with_email || profile.email,
             };
           }
-          
+
           return share;
         })
       );
-      
-      console.log('[VaultDialog] Final enriched shares:', enrichedShares);
+
       setShares(enrichedShares as VaultShare[]);
     }
   }, []);
@@ -370,7 +347,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
           setSlugAvailable(true);
         }
       } catch (error) {
-        console.error('[VaultDialog] Error checking slug:', error);
+        logger.error('VaultDialog', 'Error checking slug:', error);
         setSlugAvailable(null);
       } finally {
         setCheckingSlug(false);
@@ -474,8 +451,6 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
         .eq('email', email.trim().toLowerCase())
         .single();
 
-      console.log('[VaultDialog] Profile lookup for email:', email.trim().toLowerCase(), { profile, profileError });
-
       const shareData: any = {
         vault_id: vault.id,
         shared_with_email: email.trim().toLowerCase(),
@@ -487,12 +462,8 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       if (profile) {
         shareData.shared_with_user_id = profile.user_id;
         shareData.shared_with_name = profile.display_name || profile.username || profile.email;
-        console.log('[VaultDialog] Found profile, setting shared_with_name to:', shareData.shared_with_name);
-      } else {
-        console.log('[VaultDialog] No profile found for email, share will not have user_id or name');
       }
 
-      console.log('[VaultDialog] Inserting share data:', shareData);
       const { error } = await supabase.from('vault_shares').insert(shareData);
 
       if (error) throw error;

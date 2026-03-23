@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag, PublicationRelation, VaultShare } from '@/types/database';
 import { useVaultAccess } from '@/hooks/useVaultAccess';
 import { handleError } from '@/lib/toast';
-import { debug, warn } from '@/lib/logger';
+import { debug, warn, error as logError } from '@/lib/logger';
 import { getPageCache, setPageCache } from '@/lib/pageCache';
 
 // Info about the last activity in the vault
@@ -685,16 +685,13 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         }
       )
       .subscribe((status, err) => {
-        console.log(`[VaultContentContext] Realtime subscription status: ${status}`, { currentVaultId, error: err });
         setIsRealtimeConnected(status === 'SUBSCRIBED');
-        
         if (err) {
-          console.error('[VaultContentContext] Realtime subscription error:', err);
+          logError('VaultContentContext', 'Realtime subscription error:', err);
         }
       });
 
     return () => {
-      console.log('[VaultContentContext] Removing real-time channel', currentVaultId);
       setIsRealtimeConnected(false);
       supabase.removeChannel(channel);
     };

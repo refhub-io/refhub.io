@@ -772,7 +772,6 @@ export function useSharedVaultOperations({
     // If we have a pending update, ignore the realtime update
     // (our local state is ahead of the server)
     if (hasPendingUpdate) {
-      console.log('[Realtime] Ignoring update for publication with pending optimistic update:', publicationId);
       return;
     }
 
@@ -853,7 +852,6 @@ export function useSharedVaultOperations({
       .some(update => update.id === tagId);
 
     if (hasPendingUpdate) {
-      console.log('[Realtime] Ignoring update for tag with pending optimistic update:', tagId);
       return;
     }
 
@@ -885,7 +883,6 @@ export function useSharedVaultOperations({
       .some(update => update.id === payload.vault_publication_id || update.id === payload.publication_id);
 
     if (hasPendingUpdate) {
-      console.log('[Realtime] Ignoring publication tag update with pending optimistic update');
       return;
     }
 

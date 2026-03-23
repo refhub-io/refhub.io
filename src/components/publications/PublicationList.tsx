@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Publication, Tag, Vault } from '@/types/database';
 import { PublicationCard } from './PublicationCard';
 import { PublicationTable } from './PublicationTable';
-import { FilterBuilder, PublicationFilter, applyFilters } from './FilterBuilder';
+import { PublicationFilter, applyFilters } from './FilterBuilder';
 import { ViewSettings, ViewMode, VisibleColumns, DEFAULT_VISIBLE_COLUMNS } from './ViewSettings';
 import { useViewSettingsPersistence, SortField, SortDirection } from '@/hooks/useViewSettingsPersistence';
 import { QRCodeDialog } from '@/components/vaults/QRCodeDialog';
@@ -428,7 +428,7 @@ export function PublicationList({
                 className="h-9 font-mono hidden lg:flex"
               >
                 <BarChart3 className="w-4 h-4 mr-2" />
-                collection_analytics
+                vault_analytics
               </Button>
             )}
 
@@ -488,7 +488,7 @@ export function PublicationList({
                   {onOpenGraph && (
                     <DropdownMenuItem onClick={onOpenGraph}>
                       <BarChart3 className="w-4 h-4 mr-2" />
-                      collection_analytics
+                      vault_analytics
                     </DropdownMenuItem>
                   )}
                   {selectedVault && onEditVault && (
