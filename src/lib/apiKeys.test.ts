@@ -1,24 +1,25 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  ApiKeyManagementUnavailableError,
-  createApiKey,
-  listApiKeys,
-  revokeApiKey,
-} from './apiKeys';
-
 describe('apiKeys', () => {
   const originalFetch = global.fetch;
 
+  async function loadApiKeysModule() {
+    return import('./apiKeys');
+  }
+
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   afterEach(() => {
     global.fetch = originalFetch;
+    vi.resetModules();
   });
 
   it('lists keys from the default same-origin route', async () => {
+    const { listApiKeys } = await loadApiKeysModule();
+
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -54,6 +55,8 @@ describe('apiKeys', () => {
   });
 
   it('creates a key from an enveloped backend response', async () => {
+    const { createApiKey } = await loadApiKeysModule();
+
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -82,6 +85,8 @@ describe('apiKeys', () => {
   });
 
   it('falls back to DELETE when revoke endpoint does not support POST /revoke', async () => {
+    const { revokeApiKey } = await loadApiKeysModule();
+
     global.fetch = vi
       .fn()
       .mockResolvedValueOnce({
@@ -120,7 +125,28 @@ describe('apiKeys', () => {
     expect(result.revokedAt).toBe('2026-03-24T07:20:00Z');
   });
 
+  it('appends the management path to a configured backend base URL', async () => {
+    vi.stubEnv('VITE_API_KEY_MANAGEMENT_BASE_URL', 'https://refhub-api.netlify.app/');
+    const { listApiKeys } = await loadApiKeysModule();
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ api_keys: [] }),
+    } as Response);
+
+    await listApiKeys('token');
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://refhub-api.netlify.app/api/v1/keys',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer token' }),
+      }),
+    );
+  });
+
   it('surfaces a missing route as unavailable', async () => {
+    const { ApiKeyManagementUnavailableError, listApiKeys } = await loadApiKeysModule();
+
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 404,

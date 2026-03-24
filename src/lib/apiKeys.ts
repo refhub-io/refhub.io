@@ -51,8 +51,8 @@ interface ApiKeyResponseRecord {
   vaultIds?: string[];
 }
 
+const API_KEY_MANAGEMENT_PATH = '/api/v1/keys';
 const configuredApiKeyManagementBaseUrl = import.meta.env.VITE_API_KEY_MANAGEMENT_BASE_URL?.trim() || '';
-const defaultApiKeyManagementBaseUrl = '/api/v1/keys';
 
 export class ApiKeyManagementUnavailableError extends Error {
   constructor(message = 'API key management endpoint is not available.') {
@@ -90,8 +90,11 @@ function mapApiKey(record: ApiKeyResponseRecord): ApiKeyRecord {
 }
 
 export function getApiKeyManagementBaseUrl() {
-  const baseUrl = configuredApiKeyManagementBaseUrl || defaultApiKeyManagementBaseUrl;
-  return baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  const backendBaseUrl = configuredApiKeyManagementBaseUrl.endsWith('/')
+    ? configuredApiKeyManagementBaseUrl.slice(0, -1)
+    : configuredApiKeyManagementBaseUrl;
+
+  return `${backendBaseUrl}${API_KEY_MANAGEMENT_PATH}`;
 }
 
 export function isApiKeyManagementUsingDefaultBaseUrl() {

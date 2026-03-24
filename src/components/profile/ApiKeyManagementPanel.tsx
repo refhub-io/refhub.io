@@ -336,7 +336,8 @@ export function ApiKeyManagementPanel({ userId, userEmail, accessToken }: ApiKey
           <AlertTitle className="font-mono">api_key_backend_route</AlertTitle>
           <AlertDescription className="font-mono text-xs sm:text-sm">
             Using the default API key management route at <span className="text-foreground">{managementBaseUrl}</span>.
-            Set <span className="text-foreground">VITE_API_KEY_MANAGEMENT_BASE_URL</span> only if the backend is hosted elsewhere.
+            Set <span className="text-foreground">VITE_API_KEY_MANAGEMENT_BASE_URL</span> to the backend base URL only if
+            the API is hosted elsewhere.
           </AlertDescription>
         </Alert>
       )}
@@ -664,12 +665,14 @@ export function ApiKeyManagementPanel({ userId, userEmail, accessToken }: ApiKey
         <AlertDialogContent className="border-2 bg-card/95 backdrop-blur-xl">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-mono text-xl text-destructive">revoke_api_key?</AlertDialogTitle>
-            <AlertDialogDescription className="space-y-3 font-mono text-sm">
-              <p>
-                This immediately disables <span className="text-foreground">{revokeTarget?.label}</span>. Existing
-                scripts using that secret will stop working.
-              </p>
-              <p>The key prefix will remain for audit history, but the credential cannot be restored.</p>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 font-mono text-sm text-muted-foreground">
+                <p>
+                  This immediately disables <span className="text-foreground">{revokeTarget?.label}</span>. Existing
+                  scripts using that secret will stop working.
+                </p>
+                <p>The key prefix will remain for audit history, but the credential cannot be restored.</p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
