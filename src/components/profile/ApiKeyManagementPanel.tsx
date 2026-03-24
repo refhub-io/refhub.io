@@ -330,7 +330,7 @@ export function ApiKeyManagementPanel({ userId, userEmail, accessToken }: ApiKey
 
   return (
     <div className="space-y-6">
-      {usingDefaultManagementBaseUrl && (
+      {/* {usingDefaultManagementBaseUrl && (
         <Alert className="border-border bg-muted/40">
           <ShieldAlert className="h-4 w-4 text-muted-foreground" />
           <AlertTitle className="font-mono">api_key_backend_route</AlertTitle>
@@ -340,7 +340,7 @@ export function ApiKeyManagementPanel({ userId, userEmail, accessToken }: ApiKey
             the API is hosted elsewhere.
           </AlertDescription>
         </Alert>
-      )}
+      )} */}
 
       {createdSecret && (
         <Alert className="border-primary/40 bg-primary/5">
@@ -441,11 +441,11 @@ export function ApiKeyManagementPanel({ userId, userEmail, accessToken }: ApiKey
                 <Label className="font-mono">vault_access</Label>
                 <button
                   type="button"
-                  className="flex w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-left text-sm font-mono transition-colors hover:border-primary/50"
+                  className="flex w-full flex-wrap items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-left text-sm font-mono transition-colors hover:border-primary/50"
                   onClick={() => setRestrictToVaults((current) => !current)}
                 >
-                  <span>{restrictToVaults ? 'selected_vaults_only' : 'all_accessible_vaults'}</span>
-                  <Badge variant={restrictToVaults ? 'secondary' : 'outline'}>
+                  <span className="min-w-0 flex-1 break-words">{restrictToVaults ? 'selected_vaults_only' : 'all_accessible_vaults'}</span>
+                  <Badge variant={restrictToVaults ? 'secondary' : 'outline'} className="shrink-0">
                     {restrictToVaults ? `${selectedVaultIds.length}_selected` : 'unrestricted'}
                   </Badge>
                 </button>
