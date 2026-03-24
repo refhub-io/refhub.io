@@ -1,0 +1,12 @@
+[build]
+  functions = "functions"
+
+[[redirects]]
+  from = "/api/v1/*"
+  to = "/.netlify/functions/api-v1"
+  status = 200
+  force = true
+
+[functions]
+  directory = "functions"
+  node_bundler = "esbuild"

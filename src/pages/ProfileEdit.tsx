@@ -5,14 +5,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError, showWarning } from '@/lib/toast';
-import { Loader2, User, Lock, Mail, ArrowLeft } from 'lucide-react';
+import { ApiKeyManagementPanel } from '@/components/profile/ApiKeyManagementPanel';
+import { Loader2, User, Lock, Mail, ArrowLeft, KeyRound } from 'lucide-react';
 
 export default function ProfileEdit() {
   const { profile, updateProfile, refetch } = useProfile();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const navigate = useNavigate();
   
   // Profile state
@@ -31,6 +32,12 @@ export default function ProfileEdit() {
   const [newEmail, setNewEmail] = useState('');
   const [emailPassword, setEmailPassword] = useState('');
   const [changingEmail, setChangingEmail] = useState(false);
+
+  useEffect(() => {
+    setUserName(profile?.username || '');
+    setDisplayName(profile?.display_name || '');
+    setBio(profile?.bio || '');
+  }, [profile?.bio, profile?.display_name, profile?.username]);
 
   const handleSaveProfile = async () => {
     setSaving(true);
@@ -156,7 +163,7 @@ export default function ProfileEdit() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-2xl mx-auto p-4 sm:p-8">
+      <div className="mx-auto max-w-6xl p-4 sm:p-8">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
           <Button variant="ghost" size="icon" onClick={handleBack}>
@@ -164,12 +171,12 @@ export default function ProfileEdit() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold font-mono">account_<span className="text-gradient">settings</span></h1>
-            <p className="text-sm text-muted-foreground font-mono">// manage your profile and security</p>
+            <p className="text-sm text-muted-foreground font-mono">// manage your profile, security, and API access</p>
           </div>
         </div>
 
         <Tabs defaultValue="profile" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 font-mono">
+          <TabsList className="grid w-full grid-cols-2 gap-2 font-mono sm:grid-cols-4">
             <TabsTrigger value="profile" className="gap-2">
               <User className="w-4 h-4" />
               <span className="hidden sm:inline">profile</span>
@@ -181,6 +188,10 @@ export default function ProfileEdit() {
             <TabsTrigger value="email" className="gap-2">
               <Mail className="w-4 h-4" />
               <span className="hidden sm:inline">email</span>
+            </TabsTrigger>
+            <TabsTrigger value="api-keys" className="gap-2">
+              <KeyRound className="w-4 h-4" />
+              <span className="hidden sm:inline">api_keys</span>
             </TabsTrigger>
           </TabsList>
 
@@ -339,6 +350,14 @@ export default function ProfileEdit() {
                 change_email
               </Button>
             </div>
+          </TabsContent>
+
+          <TabsContent value="api-keys" className="space-y-6">
+            <ApiKeyManagementPanel
+              userId={user?.id}
+              userEmail={user?.email}
+              accessToken={session?.access_token}
+            />
           </TabsContent>
         </Tabs>
       </div>
