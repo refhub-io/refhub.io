@@ -39,6 +39,4 @@ dist-ssr
 .supabase
 supabase/.temp
 supabase/migrations
-!supabase/migrations/
-!supabase/migrations/202603231930_refhub_api_keys.sql
 supabase/.branches
