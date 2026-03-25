@@ -40,34 +40,44 @@ function OAuthButton({
   onClick,
   disabled,
   loading,
+  isLastUsed,
 }: {
   provider: SupportedOAuthProvider;
   onClick: () => void;
   disabled: boolean;
   loading: boolean;
+  isLastUsed: boolean;
 }) {
   const Icon = provider === 'google' ? GoogleIcon : GitHubIcon;
 
   return (
-    <Button
-      type="button"
-      variant="outline"
-      className={cn(
-        'h-11 w-full justify-between rounded-xl border bg-white/75 font-mono text-slate-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white hover:text-slate-900 dark:bg-slate-900/75 dark:text-slate-100 dark:hover:bg-slate-900',
-        'border-fuchsia-300/50 hover:border-fuchsia-400/70 dark:border-fuchsia-400/25 dark:hover:border-fuchsia-300/45',
-        provider === 'github' && 'border-slate-300/70 hover:border-slate-400 dark:border-pink-400/25 dark:hover:border-pink-300/45'
+    <div className="relative">
+      {isLastUsed && (
+        <AuthProviderBadge provider={provider} className="absolute -top-2 right-3 z-10" />
       )}
-      onClick={onClick}
-      disabled={disabled}
-    >
-      <span className="flex items-center gap-3">
-        <span className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-300/70 bg-white text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-100">
-          <Icon />
+      <Button
+        type="button"
+        variant="outline"
+        className={cn(
+          'h-12 w-full justify-between rounded-xl border font-mono shadow-sm transition-all hover:-translate-y-0.5',
+          'bg-white/85 text-slate-700 hover:bg-white hover:text-slate-950',
+          'dark:bg-[#17151f] dark:text-slate-100 dark:hover:bg-[#1d1a28]',
+          'border-slate-300/80 hover:border-slate-400 dark:border-white/10 dark:hover:border-fuchsia-300/35',
+          provider === 'google' && 'dark:bg-[#171722] dark:hover:bg-[#1b1d2a]',
+          isLastUsed && 'ring-1 ring-emerald-500/20 dark:ring-emerald-400/20'
+        )}
+        onClick={onClick}
+        disabled={disabled}
+      >
+        <span className="flex items-center gap-3">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-300/70 bg-white text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-100">
+            <Icon />
+          </span>
+          {loading ? `connecting_${provider}...` : `continue_with_${provider}`}
         </span>
-        {loading ? `connecting_${provider}...` : `continue_with_${provider}`}
-      </span>
-      <ArrowRight className="h-4 w-4 text-slate-500 dark:text-fuchsia-200" />
-    </Button>
+        <ArrowRight className="h-4 w-4 text-slate-500 dark:text-slate-300" />
+      </Button>
+    </div>
   );
 }
 
@@ -301,30 +311,30 @@ export default function Auth() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-3 rounded-2xl border border-fuchsia-300/40 bg-white/55 p-3 shadow-sm backdrop-blur-sm dark:border-fuchsia-500/20 dark:bg-black/20">
-                <div className="flex flex-wrap items-center justify-between gap-3 px-1">
-                  {lastOAuthProvider ? (
-                    <AuthProviderBadge provider={lastOAuthProvider} />
-                  ) : (
-                    <span className="text-[10px] font-mono lowercase tracking-[0.22em] text-muted-foreground">
-                      last login: email
-                    </span>
-                  )}
+              <div className="space-y-3 rounded-2xl border border-white/10 bg-white/60 p-3 shadow-sm backdrop-blur-sm dark:border-white/8 dark:bg-[#121018]/85">
+                <div className="flex items-center justify-between px-1">
                   <span className="text-[10px] font-mono lowercase tracking-[0.18em] text-muted-foreground">
                     social login
                   </span>
+                  {!lastOAuthProvider && (
+                    <span className="text-[10px] font-mono lowercase tracking-[0.18em] text-muted-foreground">
+                      no last used yet
+                    </span>
+                  )}
                 </div>
                 <OAuthButton
                   provider="google"
                   onClick={() => handleOAuthSignIn('google')}
                   disabled={isBusy}
                   loading={oauthProviderLoading === 'google'}
+                  isLastUsed={lastOAuthProvider === 'google'}
                 />
                 <OAuthButton
                   provider="github"
                   onClick={() => handleOAuthSignIn('github')}
                   disabled={isBusy}
                   loading={oauthProviderLoading === 'github'}
+                  isLastUsed={lastOAuthProvider === 'github'}
                 />
                 <div className="px-1 pt-1">
                   <p className="text-[11px] font-mono text-muted-foreground">
