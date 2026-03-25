@@ -56,7 +56,7 @@ export function LegalDocumentLayout({
               className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
               <ArrowLeft className="h-4 w-4" />
-              Back
+              back
             </Link>
             <ThemeToggle />
           </div>
@@ -83,10 +83,7 @@ export function LegalDocumentLayout({
                 <div className="mt-6 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                   <span className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/60 px-3 py-1.5 font-mono">
                     <FileText className="h-3.5 w-3.5" />
-                    last_updated: {lastUpdated}
-                  </span>
-                  <span className="text-xs">
-                    Boilerplate launch document for product operations. Not legal advice.
+                    v1 • last_updated: {lastUpdated}
                   </span>
                 </div>
               </div>
@@ -117,13 +114,13 @@ export function LegalDocumentLayout({
         </main>
 
         <footer className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border/60 px-1 pt-5 text-sm text-muted-foreground">
-          <p>RefHub legal documents for OAuth review and public launch readiness.</p>
+          <p>refhub legal documents v1.</p>
           <div className="flex items-center gap-4">
             <Link to="/privacy" className="transition-colors hover:text-foreground">
-              Privacy
+              privacy
             </Link>
             <Link to="/tos" className="transition-colors hover:text-foreground">
-              Terms
+              terms
             </Link>
           </div>
         </footer>
