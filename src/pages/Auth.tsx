@@ -13,7 +13,64 @@ import { Eye, EyeOff } from 'lucide-react';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
-import type { Profile } from '@/types/database';
+import { ensureProfileExists } from '@/lib/profile';
+import { resolvePostAuthRedirect } from '@/lib/authRedirect';
+import { AuthProviderBadge } from '@/components/auth/AuthProviderBadge';
+import { getPersistedLastLoginProvider, getAuthProviderLabel, type SupportedOAuthProvider } from '@/lib/authProviders';
+
+function GoogleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
+      <path fill="#EA4335" d="M12 10.2v3.95h5.49c-.24 1.28-.98 2.37-2.05 3.1l3.31 2.57c1.93-1.78 3.05-4.4 3.05-7.52 0-.73-.07-1.43-.2-2.1H12Z" />
+      <path fill="#34A853" d="M12 22c2.75 0 5.06-.91 6.75-2.46l-3.31-2.57c-.92.62-2.1 1-3.44 1-2.64 0-4.88-1.79-5.67-4.19l-3.42 2.64A9.99 9.99 0 0 0 12 22Z" />
+      <path fill="#4A90E2" d="M6.33 13.78A5.98 5.98 0 0 1 6 12c0-.62.11-1.22.33-1.78L2.91 7.58A9.98 9.98 0 0 0 2 12c0 1.61.38 3.13 1.05 4.42l3.28-2.64Z" />
+      <path fill="#FBBC05" d="M12 6.04c1.49 0 2.82.51 3.87 1.5l2.9-2.9C17.05 3.02 14.75 2 12 2 8.09 2 4.72 4.24 3.05 7.58l3.28 2.64c.79-2.4 3.03-4.18 5.67-4.18Z" />
+    </svg>
+  );
+}
+
+function GitHubIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-current">
+      <path d="M12 .5a12 12 0 0 0-3.79 23.39c.6.11.82-.26.82-.58l-.02-2.03c-3.34.73-4.04-1.42-4.04-1.42-.55-1.38-1.34-1.75-1.34-1.75-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.84 2.82 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.66-.31-5.46-1.33-5.46-5.91 0-1.31.47-2.39 1.24-3.23-.12-.31-.54-1.56.12-3.24 0 0 1.01-.32 3.3 1.23a11.45 11.45 0 0 1 6.01 0c2.29-1.55 3.3-1.23 3.3-1.23.66 1.68.24 2.93.12 3.24.77.84 1.24 1.92 1.24 3.23 0 4.59-2.81 5.6-5.49 5.9.43.37.82 1.11.82 2.25l-.02 3.33c0 .32.21.7.83.58A12 12 0 0 0 12 .5Z" />
+    </svg>
+  );
+}
+
+function OAuthButton({
+  provider,
+  onClick,
+  disabled,
+  loading,
+}: {
+  provider: SupportedOAuthProvider;
+  onClick: () => void;
+  disabled: boolean;
+  loading: boolean;
+}) {
+  const Icon = provider === 'google' ? GoogleIcon : GitHubIcon;
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      className={cn(
+        'h-11 w-full justify-between border-fuchsia-400/30 bg-slate-950/60 font-mono text-slate-100 shadow-[0_0_0_1px_rgba(244,114,182,0.04)] hover:bg-fuchsia-500/10 hover:text-white',
+        provider === 'github' && 'border-pink-400/30 hover:bg-pink-500/10'
+      )}
+      onClick={onClick}
+      disabled={disabled}
+    >
+      <span className="flex items-center gap-3">
+        <span className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-white/5">
+          <Icon />
+        </span>
+        {loading ? `connecting_${provider}...` : `continue_with_${provider}`}
+      </span>
+      <ArrowRight className="w-4 h-4 text-fuchsia-200" />
+    </Button>
+  );
+}
 
 interface PasswordStrength {
   score: number;
@@ -73,12 +130,15 @@ export default function Auth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [credentialLoading, setCredentialLoading] = useState(false);
+  const [oauthProviderLoading, setOauthProviderLoading] = useState<SupportedOAuthProvider | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, signInWithGoogle, signInWithGitHub } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const passwordStrength = useMemo(() => calculatePasswordStrength(password), [password]);
+  const lastOAuthProvider = useMemo(() => getPersistedLastLoginProvider(), []);
+  const isBusy = credentialLoading || oauthProviderLoading !== null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,7 +163,7 @@ export default function Auth() {
       }
     }
 
-    setLoading(true);
+    setCredentialLoading(true);
 
     try {
       if (isSignUp) {
@@ -123,11 +183,17 @@ export default function Auth() {
             title: 'welcome_to_refhub.io!',
             description: 'Your account has been created successfully.',
           });
-          // Check if there's a redirect URL stored in localStorage
-          const redirectAfterLogin = localStorage.getItem('redirectAfterLogin');
-          if (redirectAfterLogin) {
-            localStorage.removeItem('redirectAfterLogin'); // Clean up
-            navigate(redirectAfterLogin);
+          const {
+            data: { user, session },
+          } = await supabase.auth.getUser().then(async ({ data, error }) => {
+            if (error) throw error;
+            const sessionData = await supabase.auth.getSession();
+            return { data: { user: data.user, session: sessionData.data.session } };
+          });
+
+          if (user && session) {
+            const profile = await ensureProfileExists(user);
+            navigate(resolvePostAuthRedirect(profile), { replace: true });
           } else {
             navigate('/signup-next-steps');
           }
@@ -150,24 +216,13 @@ export default function Auth() {
             navigate('/');
             return;
           }
-          // Use the reliable profile system
-          const { ensureProfileExists } = await import('@/lib/profile');
           const profile = await ensureProfileExists(user);
 
           if (!profile) {
             logger.error('Auth', 'Failed to create or fetch profile');
             navigate('/');
-          } else if (profile.is_setup === false) {
-            navigate('/profile-edit');
           } else {
-            // Check if there's a redirect URL stored in localStorage
-            const redirectAfterLogin = localStorage.getItem('redirectAfterLogin');
-            if (redirectAfterLogin) {
-              localStorage.removeItem('redirectAfterLogin'); // Clean up
-              navigate(redirectAfterLogin);
-            } else {
-              navigate('/');
-            }
+            navigate(resolvePostAuthRedirect(profile), { replace: true });
           }
         }
       }
@@ -178,7 +233,32 @@ export default function Auth() {
         variant: 'destructive',
       });
     } finally {
-      setLoading(false);
+      setCredentialLoading(false);
+    }
+  };
+
+  const handleOAuthSignIn = async (provider: SupportedOAuthProvider) => {
+    setOauthProviderLoading(provider);
+
+    try {
+      const action = provider === 'google' ? signInWithGoogle : signInWithGitHub;
+      const { error } = await action();
+
+      if (error) {
+        toast({
+          title: `${provider}_sign_in_failed`,
+          description: error.message || `Unable to connect ${getAuthProviderLabel(provider)} right now.`,
+          variant: 'destructive',
+        });
+        setOauthProviderLoading(null);
+      }
+    } catch (error) {
+      toast({
+        title: `${provider}_sign_in_failed`,
+        description: (error as Error).message || 'An unexpected error occurred.',
+        variant: 'destructive',
+      });
+      setOauthProviderLoading(null);
     }
   };
 
@@ -222,6 +302,35 @@ export default function Auth() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-3 rounded-2xl border border-fuchsia-500/20 bg-black/20 p-3">
+                <OAuthButton
+                  provider="google"
+                  onClick={() => handleOAuthSignIn('google')}
+                  disabled={isBusy}
+                  loading={oauthProviderLoading === 'google'}
+                />
+                <OAuthButton
+                  provider="github"
+                  onClick={() => handleOAuthSignIn('github')}
+                  disabled={isBusy}
+                  loading={oauthProviderLoading === 'github'}
+                />
+                <div className="flex items-center justify-between gap-3 px-1 pt-1">
+                  <p className="text-[11px] font-mono text-muted-foreground">
+                    // social login keeps email/password available below
+                  </p>
+                  {lastOAuthProvider && <AuthProviderBadge provider={lastOAuthProvider} />}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 py-1">
+                <div className="h-px flex-1 bg-border/60" />
+                <span className="text-[10px] font-mono uppercase tracking-[0.28em] text-muted-foreground">
+                  or_use_email
+                </span>
+                <div className="h-px flex-1 bg-border/60" />
+              </div>
+
               {isSignUp && (
                 <div className="space-y-2">
                   <Label htmlFor="displayName" className="text-sm font-semibold font-mono">display_name</Label>
@@ -392,9 +501,9 @@ export default function Auth() {
                 type="submit"
                 variant="glow"
                 className="w-full font-mono"
-                disabled={loading}
+                disabled={isBusy}
               >
-                  {loading ? (
+                  {credentialLoading ? (
                     <span className="flex items-center gap-2">
                       <LoadingSpinner size="xs" variant="inverted" />
                       {isSignUp ? 'creating...' : 'signing in...'}
@@ -413,6 +522,7 @@ export default function Auth() {
                 type="button"
                 onClick={() => setIsSignUp(!isSignUp)}
                 className="text-sm text-muted-foreground hover:text-primary transition-colors font-mono"
+                disabled={isBusy}
               >
                 {isSignUp
                   ? '// already have an account? sign_in'
@@ -424,6 +534,7 @@ export default function Auth() {
                 type="button"
                 className="text-xs text-muted-foreground hover:text-primary transition-colors font-mono font-bold bg-transparent border-0 p-0 cursor-pointer"
                 onClick={() => navigate('/reset-password')}
+                disabled={isBusy}
               >
                 forgot_my_password();
               </button>

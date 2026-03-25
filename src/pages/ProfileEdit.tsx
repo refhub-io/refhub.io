@@ -10,11 +10,17 @@ import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError, showWarning } from '@/lib/toast';
 import { ApiKeyManagementPanel } from '@/components/profile/ApiKeyManagementPanel';
 import { Loader2, User, Lock, Mail, ArrowLeft, KeyRound } from 'lucide-react';
+import { resolvePostAuthRedirect } from '@/lib/authRedirect';
+import { AuthProviderBadge } from '@/components/auth/AuthProviderBadge';
+import { getAuthProviderLabel, getLastLoginProvider, getUserAuthProvider, hasPasswordIdentity } from '@/lib/authProviders';
 
 export default function ProfileEdit() {
   const { profile, updateProfile, refetch } = useProfile();
   const { user, session } = useAuth();
   const navigate = useNavigate();
+  const oauthProvider = getLastLoginProvider(user);
+  const currentOAuthProvider = getUserAuthProvider(user);
+  const canUsePasswordSecurity = hasPasswordIdentity(user);
   
   // Profile state
   const [userName, setUserName] = useState(profile?.username || '');
@@ -151,14 +157,7 @@ export default function ProfileEdit() {
   };
 
   const handleBack = () => {
-    // Check if there's a redirect URL stored in localStorage
-    const redirectAfterLogin = localStorage.getItem('redirectAfterLogin');
-    if (redirectAfterLogin) {
-      localStorage.removeItem('redirectAfterLogin');
-      navigate(redirectAfterLogin);
-    } else {
-      navigate('/dashboard');
-    }
+    navigate(resolvePostAuthRedirect(profile, { fallbackPath: '/dashboard' }));
   };
 
   return (
@@ -173,6 +172,7 @@ export default function ProfileEdit() {
             <h1 className="text-2xl font-bold font-mono">account_<span className="text-gradient">settings</span></h1>
             <p className="text-sm text-muted-foreground font-mono">// manage your profile, security, and API access</p>
           </div>
+          {oauthProvider && <AuthProviderBadge provider={oauthProvider} className="ml-auto hidden sm:inline-flex" />}
         </div>
 
         <Tabs defaultValue="profile" className="space-y-6">
@@ -198,6 +198,16 @@ export default function ProfileEdit() {
           {/* Profile Tab */}
           <TabsContent value="profile" className="space-y-6">
             <div className="bg-card border-2 border-border rounded-xl p-6 space-y-4">
+              {currentOAuthProvider && (
+                <div className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-500/5 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground font-mono">
+                      // profile defaults were hydrated from your identity provider when available
+                    </p>
+                    <AuthProviderBadge provider={currentOAuthProvider} />
+                  </div>
+                </div>
+              )}
               <div>
                 <Label htmlFor="displayName" className="font-mono">display_name</Label>
                 <Input
@@ -249,56 +259,67 @@ export default function ProfileEdit() {
           {/* Password Tab */}
           <TabsContent value="password" className="space-y-6">
             <div className="bg-card border-2 border-border rounded-xl p-6 space-y-4">
-              <p className="text-sm text-muted-foreground font-mono mb-4">
-                // enter your current password to set a new one
-              </p>
-              
-              <div>
-                <Label htmlFor="currentPassword" className="font-mono">current_password</Label>
-                <Input
-                  id="currentPassword"
-                  type="password"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="mt-1 font-mono"
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="newPassword" className="font-mono">new_password</Label>
-                <Input
-                  id="newPassword"
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="mt-1 font-mono"
-                />
-                <p className="text-xs text-muted-foreground mt-1 font-mono">// minimum 8 characters</p>
-              </div>
-              
-              <div>
-                <Label htmlFor="confirmPassword" className="font-mono">confirm_password</Label>
-                <Input
-                  id="confirmPassword"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="mt-1 font-mono"
-                />
-              </div>
-              
-              <Button 
-                variant="glow" 
-                className="w-full font-mono" 
-                onClick={handleChangePassword}
-                disabled={changingPassword}
-              >
-                {changingPassword && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                change_password
-              </Button>
+              {canUsePasswordSecurity ? (
+                <>
+                  <p className="text-sm text-muted-foreground font-mono mb-4">
+                    // enter your current password to set a new one
+                  </p>
+                  
+                  <div>
+                    <Label htmlFor="currentPassword" className="font-mono">current_password</Label>
+                    <Input
+                      id="currentPassword"
+                      type="password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="mt-1 font-mono"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="newPassword" className="font-mono">new_password</Label>
+                    <Input
+                      id="newPassword"
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="mt-1 font-mono"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1 font-mono">// minimum 8 characters</p>
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="confirmPassword" className="font-mono">confirm_password</Label>
+                    <Input
+                      id="confirmPassword"
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="mt-1 font-mono"
+                    />
+                  </div>
+                  
+                  <Button 
+                    variant="glow" 
+                    className="w-full font-mono" 
+                    onClick={handleChangePassword}
+                    disabled={changingPassword}
+                  >
+                    {changingPassword && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    change_password
+                  </Button>
+                </>
+              ) : (
+                <div className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-500/5 p-4">
+                  <p className="text-sm text-foreground font-mono">security_managed_by_provider</p>
+                  <p className="mt-2 text-sm text-muted-foreground font-mono">
+                    // password changes for this account are handled by {oauthProvider ? getAuthProviderLabel(oauthProvider) : 'your provider'}
+                  </p>
+                </div>
+              )}
             </div>
           </TabsContent>
 
@@ -312,43 +333,54 @@ export default function ProfileEdit() {
                 </p>
               </div>
               
-              <p className="text-sm text-muted-foreground font-mono">
-                // a verification email will be sent to your new address
-              </p>
-              
-              <div>
-                <Label htmlFor="newEmail" className="font-mono">new_email</Label>
-                <Input
-                  id="newEmail"
-                  type="email"
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                  placeholder="new@email.com"
-                  className="mt-1 font-mono"
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="emailPassword" className="font-mono">confirm_password</Label>
-                <Input
-                  id="emailPassword"
-                  type="password"
-                  value={emailPassword}
-                  onChange={(e) => setEmailPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="mt-1 font-mono"
-                />
-              </div>
-              
-              <Button 
-                variant="glow" 
-                className="w-full font-mono" 
-                onClick={handleChangeEmail}
-                disabled={changingEmail}
-              >
-                {changingEmail && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                change_email
-              </Button>
+              {canUsePasswordSecurity ? (
+                <>
+                  <p className="text-sm text-muted-foreground font-mono">
+                    // a verification email will be sent to your new address
+                  </p>
+                  
+                  <div>
+                    <Label htmlFor="newEmail" className="font-mono">new_email</Label>
+                    <Input
+                      id="newEmail"
+                      type="email"
+                      value={newEmail}
+                      onChange={(e) => setNewEmail(e.target.value)}
+                      placeholder="new@email.com"
+                      className="mt-1 font-mono"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="emailPassword" className="font-mono">confirm_password</Label>
+                    <Input
+                      id="emailPassword"
+                      type="password"
+                      value={emailPassword}
+                      onChange={(e) => setEmailPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="mt-1 font-mono"
+                    />
+                  </div>
+                  
+                  <Button 
+                    variant="glow" 
+                    className="w-full font-mono" 
+                    onClick={handleChangeEmail}
+                    disabled={changingEmail}
+                  >
+                    {changingEmail && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    change_email
+                  </Button>
+                </>
+              ) : (
+                <div className="rounded-xl border border-pink-500/20 bg-pink-500/5 p-4">
+                  <p className="text-sm text-foreground font-mono">email_managed_by_provider</p>
+                  <p className="mt-2 text-sm text-muted-foreground font-mono">
+                    // update your email with {oauthProvider ? getAuthProviderLabel(oauthProvider) : 'your provider'} and sign in again to sync it here
+                  </p>
+                </div>
+              )}
             </div>
           </TabsContent>
 

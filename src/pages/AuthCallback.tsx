@@ -1,53 +1,93 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Sparkles } from 'lucide-react';
+import { ensureProfileExists } from '@/lib/profile';
+import { resolvePostAuthRedirect } from '@/lib/authRedirect';
+import { getAuthProviderLabel, getUserAuthProvider } from '@/lib/authProviders';
+import { showError } from '@/lib/toast';
 
 export default function AuthCallback() {
   const navigate = useNavigate();
+  const [statusLabel, setStatusLabel] = useState('restoring_session');
 
   useEffect(() => {
     // Handle the auth callback
     const handleAuthCallback = async () => {
       try {
-        // Get the hash from URL (Supabase puts tokens in hash)
+        const searchParams = new URLSearchParams(window.location.search);
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const authCode = searchParams.get('code');
         const accessToken = hashParams.get('access_token');
         const refreshToken = hashParams.get('refresh_token');
-        const type = hashParams.get('type');
+        const errorDescription =
+          searchParams.get('error_description') ||
+          searchParams.get('error') ||
+          hashParams.get('error_description') ||
+          hashParams.get('error');
 
-        if (accessToken && type === 'signup') {
-          // Email confirmed successfully
-          await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken || '',
-          });
-
-          // Check if there's a redirect URL stored in localStorage
-          const redirectAfterLogin = localStorage.getItem('redirectAfterLogin');
-          if (redirectAfterLogin) {
-            localStorage.removeItem('redirectAfterLogin'); // Clean up
-            // Redirect to the stored URL
-            setTimeout(() => {
-              navigate(redirectAfterLogin);
-            }, 1500);
-          } else {
-            // Redirect to dashboard
-            setTimeout(() => {
-              navigate('/dashboard');
-            }, 1500);
-          }
-        } else {
-          // If no valid tokens, redirect to auth page
-          navigate('/auth');
+        if (errorDescription) {
+          throw new Error(decodeURIComponent(errorDescription.replace(/\+/g, ' ')));
         }
+
+        let {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session && authCode) {
+          setStatusLabel('exchanging_oauth_code');
+          const { data, error } = await supabase.auth.exchangeCodeForSession(authCode);
+          if (error) throw error;
+          session = data.session;
+        }
+
+        if (!session && accessToken && refreshToken) {
+          setStatusLabel('restoring_callback_session');
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (error) throw error;
+          session = data.session;
+        }
+
+        if (!session) {
+          throw new Error('No active session found after authentication callback.');
+        }
+
+        setStatusLabel('hydrating_profile');
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
+
+        if (userError || !user) {
+          throw userError || new Error('Could not load the authenticated user.');
+        }
+
+        const profile = await ensureProfileExists(user);
+        if (!profile) {
+          throw new Error('Unable to load your profile after sign-in.');
+        }
+
+        const provider = getUserAuthProvider(user);
+        if (provider) {
+          setStatusLabel(`finishing_${provider}_login`);
+        }
+
+        navigate(resolvePostAuthRedirect(profile), { replace: true });
       } catch (error) {
-        navigate('/auth');
+        showError('Sign-in failed', (error as Error).message || 'Please try again.');
+        navigate('/auth', { replace: true });
       }
     };
 
     handleAuthCallback();
   }, [navigate]);
+
+  const providerLabel = statusLabel.startsWith('finishing_')
+    ? getAuthProviderLabel(statusLabel.includes('github') ? 'github' : 'google')
+    : null;
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">
@@ -55,9 +95,13 @@ export default function AuthCallback() {
         <div className="w-16 h-16 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-lg glow-purple animate-glow-pulse">
           <Sparkles className="w-8 h-8 text-white" />
         </div>
-        <h1 className="text-2xl font-bold font-mono">// email_confirmed ✨</h1>
+        <h1 className="text-2xl font-bold font-mono">
+          {providerLabel ? `// ${providerLabel.toLowerCase()}_connected ✨` : '// auth_callback ✨'}
+        </h1>
         <p className="text-muted-foreground font-mono text-sm">
-          // redirecting_to_dashboard...
+          {providerLabel
+            ? `// syncing_${providerLabel.toLowerCase()}_profile_and_redirecting...`
+            : `// ${statusLabel}...`}
         </p>
       </div>
     </div>
