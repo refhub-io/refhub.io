@@ -11,14 +11,13 @@ import { showSuccess, showError, showWarning } from '@/lib/toast';
 import { ApiKeyManagementPanel } from '@/components/profile/ApiKeyManagementPanel';
 import { Loader2, User, Lock, Mail, ArrowLeft, KeyRound } from 'lucide-react';
 import { resolvePostAuthRedirect } from '@/lib/authRedirect';
-import { getAuthProviderLabel, getLastLoginProvider, getUserAuthProvider, hasPasswordIdentity } from '@/lib/authProviders';
+import { getAuthProviderLabel, getLastLoginProvider, hasPasswordIdentity } from '@/lib/authProviders';
 
 export default function ProfileEdit() {
   const { profile, updateProfile, refetch } = useProfile();
   const { user, session } = useAuth();
   const navigate = useNavigate();
   const oauthProvider = getLastLoginProvider(user);
-  const currentOAuthProvider = getUserAuthProvider(user);
   const canUsePasswordSecurity = hasPasswordIdentity(user);
   
   // Profile state
@@ -196,13 +195,6 @@ export default function ProfileEdit() {
           {/* Profile Tab */}
           <TabsContent value="profile" className="space-y-6">
             <div className="bg-card border-2 border-border rounded-xl p-6 space-y-4">
-              {currentOAuthProvider && (
-                <div className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-500/5 p-3">
-                  <p className="text-xs text-muted-foreground font-mono">
-                    // signed in with {getAuthProviderLabel(currentOAuthProvider)} — profile defaults were hydrated from your identity provider when available
-                  </p>
-                </div>
-              )}
               <div>
                 <Label htmlFor="displayName" className="font-mono">display_name</Label>
                 <Input
