@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { logger } from '@/lib/logger';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -538,6 +538,20 @@ export default function Auth() {
               >
                 forgot_my_password();
               </button>
+            </div>
+
+            <div className="mt-5 border-t border-border/60 pt-4 text-center">
+              <p className="text-[11px] font-mono text-muted-foreground">
+                By continuing, you agree to the{' '}
+                <Link to="/tos" className="text-primary transition-colors hover:text-primary/80 hover:underline">
+                  Terms of Service
+                </Link>{' '}
+                and{' '}
+                <Link to="/privacy" className="text-primary transition-colors hover:text-primary/80 hover:underline">
+                  Privacy Policy
+                </Link>
+                .
+              </p>
             </div>
           </CardContent>
         </Card>
