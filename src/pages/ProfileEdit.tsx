@@ -164,34 +164,34 @@ export default function ProfileEdit() {
     <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-6xl p-4 sm:p-8">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <Button variant="ghost" size="icon" onClick={handleBack}>
+        <div className="mb-8 flex flex-wrap items-start gap-3 sm:items-center sm:gap-4">
+          <Button variant="ghost" size="icon" onClick={handleBack} className="shrink-0">
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold font-mono">account_<span className="text-gradient">settings</span></h1>
-            <p className="text-sm text-muted-foreground font-mono">// manage your profile, security, and API access</p>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl font-bold font-mono sm:text-2xl">account_<span className="text-gradient">settings</span></h1>
+            <p className="text-xs text-muted-foreground font-mono sm:text-sm">// manage your profile, security, and API access</p>
           </div>
-          {oauthProvider && <AuthProviderBadge provider={oauthProvider} className="ml-auto hidden sm:inline-flex" />}
+          {oauthProvider && <AuthProviderBadge provider={oauthProvider} className="w-full justify-center sm:ml-auto sm:w-auto" />}
         </div>
 
         <Tabs defaultValue="profile" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 gap-2 font-mono sm:grid-cols-4">
-            <TabsTrigger value="profile" className="gap-2">
-              <User className="w-4 h-4" />
-              <span className="hidden sm:inline">profile</span>
+          <TabsList className="grid w-full grid-cols-2 gap-2 rounded-2xl p-1 font-mono sm:grid-cols-4">
+            <TabsTrigger value="profile" className="min-h-11 gap-2 px-3">
+              <User className="w-4 h-4 shrink-0" />
+              <span className="truncate text-[11px] sm:text-xs">profile</span>
             </TabsTrigger>
-            <TabsTrigger value="password" className="gap-2">
-              <Lock className="w-4 h-4" />
-              <span className="hidden sm:inline">password</span>
+            <TabsTrigger value="password" className="min-h-11 gap-2 px-3">
+              <Lock className="w-4 h-4 shrink-0" />
+              <span className="truncate text-[11px] sm:text-xs">password</span>
             </TabsTrigger>
-            <TabsTrigger value="email" className="gap-2">
-              <Mail className="w-4 h-4" />
-              <span className="hidden sm:inline">email</span>
+            <TabsTrigger value="email" className="min-h-11 gap-2 px-3">
+              <Mail className="w-4 h-4 shrink-0" />
+              <span className="truncate text-[11px] sm:text-xs">email</span>
             </TabsTrigger>
-            <TabsTrigger value="api-keys" className="gap-2">
-              <KeyRound className="w-4 h-4" />
-              <span className="hidden sm:inline">api_keys</span>
+            <TabsTrigger value="api-keys" className="min-h-11 gap-2 px-3">
+              <KeyRound className="w-4 h-4 shrink-0" />
+              <span className="truncate text-[11px] sm:text-xs">api_keys</span>
             </TabsTrigger>
           </TabsList>
 
@@ -246,7 +246,7 @@ export default function ProfileEdit() {
               
               <Button 
                 variant="glow" 
-                className="w-full font-mono" 
+                className="w-full min-h-11 font-mono text-xs sm:text-sm" 
                 onClick={handleSaveProfile}
                 disabled={saving}
               >

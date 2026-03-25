@@ -31,6 +31,10 @@ function GoogleIcon() {
   );
 }
 
+function GitHubIcon() {
+  return <Github className="h-4 w-4" aria-hidden="true" />;
+}
+
 function OAuthButton({
   provider,
   onClick,
@@ -42,24 +46,27 @@ function OAuthButton({
   disabled: boolean;
   loading: boolean;
 }) {
-  const Icon = provider === 'google' ? GoogleIcon : Github;
+  const Icon = provider === 'google' ? GoogleIcon : GitHubIcon;
 
   return (
     <Button
       type="button"
       variant="outline"
       className={cn(
-        'h-11 w-full justify-between border-fuchsia-400/30 bg-slate-950/60 font-mono text-fuchsia-100 shadow-[0_0_0_1px_rgba(244,114,182,0.04)] hover:bg-fuchsia-500/10 hover:text-white',
-        provider === 'github' && 'border-pink-400/30 text-pink-100 hover:bg-pink-500/10'
+        'h-11 w-full justify-between rounded-xl border bg-white/75 font-mono text-slate-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white hover:text-slate-900 dark:bg-slate-900/75 dark:text-slate-100 dark:hover:bg-slate-900',
+        'border-fuchsia-300/50 hover:border-fuchsia-400/70 dark:border-fuchsia-400/25 dark:hover:border-fuchsia-300/45',
+        provider === 'github' && 'border-slate-300/70 hover:border-slate-400 dark:border-pink-400/25 dark:hover:border-pink-300/45'
       )}
       onClick={onClick}
       disabled={disabled}
     >
       <span className="flex items-center gap-3">
-        <Icon className="h-4 w-4 shrink-0" />
+        <span className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-300/70 bg-white text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-100">
+          <Icon />
+        </span>
         {loading ? `connecting_${provider}...` : `continue_with_${provider}`}
       </span>
-      <ArrowRight className="w-4 h-4 text-current opacity-80" />
+      <ArrowRight className="h-4 w-4 text-slate-500 dark:text-fuchsia-200" />
     </Button>
   );
 }
@@ -294,7 +301,19 @@ export default function Auth() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-3 rounded-2xl border border-fuchsia-500/20 bg-black/20 p-3">
+              <div className="space-y-3 rounded-2xl border border-fuchsia-300/40 bg-white/55 p-3 shadow-sm backdrop-blur-sm dark:border-fuchsia-500/20 dark:bg-black/20">
+                <div className="flex flex-wrap items-center justify-between gap-3 px-1">
+                  {lastOAuthProvider ? (
+                    <AuthProviderBadge provider={lastOAuthProvider} />
+                  ) : (
+                    <span className="text-[10px] font-mono lowercase tracking-[0.22em] text-muted-foreground">
+                      last login: email
+                    </span>
+                  )}
+                  <span className="text-[10px] font-mono lowercase tracking-[0.18em] text-muted-foreground">
+                    social login
+                  </span>
+                </div>
                 <OAuthButton
                   provider="google"
                   onClick={() => handleOAuthSignIn('google')}
@@ -307,11 +326,10 @@ export default function Auth() {
                   disabled={isBusy}
                   loading={oauthProviderLoading === 'github'}
                 />
-                <div className="flex items-center justify-between gap-3 px-1 pt-1">
+                <div className="px-1 pt-1">
                   <p className="text-[11px] font-mono text-muted-foreground">
                     // social login keeps email/password available below
                   </p>
-                  {lastOAuthProvider && <AuthProviderBadge provider={lastOAuthProvider} />}
                 </div>
               </div>
 
