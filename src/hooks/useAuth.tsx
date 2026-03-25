@@ -68,6 +68,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signInWithGoogle = async () => {
+    persistLastLoginProvider('google');
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -75,16 +77,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
     });
 
+    if (error) {
+      persistLastLoginProvider(null);
+    }
+
     return { error: error as Error | null };
   };
 
   const signInWithGitHub = async () => {
+    persistLastLoginProvider('github');
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'github',
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
       },
     });
+
+    if (error) {
+      persistLastLoginProvider(null);
+    }
 
     return { error: error as Error | null };
   };

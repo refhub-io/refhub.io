@@ -176,20 +176,20 @@ export default function ProfileEdit() {
         </div>
 
         <Tabs defaultValue="profile" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 gap-2 rounded-2xl p-1 font-mono sm:grid-cols-4">
-            <TabsTrigger value="profile" className="min-h-11 gap-2 px-3">
+          <TabsList className="grid w-full grid-cols-2 gap-2 rounded-2xl border border-border/70 bg-muted/60 p-1 font-mono dark:border-white/8 dark:bg-[#1a1722] sm:grid-cols-4">
+            <TabsTrigger value="profile" className="min-h-11 justify-center gap-2 rounded-xl px-3 text-center data-[state=active]:bg-violet-500/90 data-[state=active]:text-white data-[state=active]:shadow-none">
               <User className="w-4 h-4 shrink-0" />
               <span className="truncate text-[11px] sm:text-xs">profile</span>
             </TabsTrigger>
-            <TabsTrigger value="password" className="min-h-11 gap-2 px-3">
+            <TabsTrigger value="password" className="min-h-11 justify-center gap-2 rounded-xl px-3 text-center data-[state=active]:bg-violet-500/90 data-[state=active]:text-white data-[state=active]:shadow-none">
               <Lock className="w-4 h-4 shrink-0" />
               <span className="truncate text-[11px] sm:text-xs">password</span>
             </TabsTrigger>
-            <TabsTrigger value="email" className="min-h-11 gap-2 px-3">
+            <TabsTrigger value="email" className="min-h-11 justify-center gap-2 rounded-xl px-3 text-center data-[state=active]:bg-violet-500/90 data-[state=active]:text-white data-[state=active]:shadow-none">
               <Mail className="w-4 h-4 shrink-0" />
               <span className="truncate text-[11px] sm:text-xs">email</span>
             </TabsTrigger>
-            <TabsTrigger value="api-keys" className="min-h-11 gap-2 px-3">
+            <TabsTrigger value="api-keys" className="min-h-11 justify-center gap-2 rounded-xl px-3 text-center data-[state=active]:bg-violet-500/90 data-[state=active]:text-white data-[state=active]:shadow-none">
               <KeyRound className="w-4 h-4 shrink-0" />
               <span className="truncate text-[11px] sm:text-xs">api_keys</span>
             </TabsTrigger>

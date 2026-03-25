@@ -13,8 +13,25 @@ export function isSupportedOAuthProvider(value: unknown): value is SupportedOAut
 }
 
 export function getUserAuthProvider(user: User | null | undefined): SupportedOAuthProvider | null {
-  const provider = user?.app_metadata?.provider;
-  return isSupportedOAuthProvider(provider) ? provider : null;
+  const appProvider = user?.app_metadata?.provider;
+  if (isSupportedOAuthProvider(appProvider)) {
+    return appProvider;
+  }
+
+  const appProviders = Array.isArray(user?.app_metadata?.providers)
+    ? user?.app_metadata?.providers
+    : [];
+  const matchedAppProvider = appProviders.find(isSupportedOAuthProvider);
+  if (matchedAppProvider) {
+    return matchedAppProvider;
+  }
+
+  const identities = Array.isArray(user?.identities) ? user.identities : [];
+  const matchedIdentityProvider = identities
+    .map((identity) => identity.provider)
+    .find(isSupportedOAuthProvider);
+
+  return matchedIdentityProvider ?? null;
 }
 
 export function persistLastLoginProvider(provider: SupportedOAuthProvider | null) {

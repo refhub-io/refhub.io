@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { getAuthProviderLabel, type SupportedOAuthProvider } from '@/lib/authProviders';
+import { type SupportedOAuthProvider } from '@/lib/authProviders';
 
 interface AuthProviderBadgeProps {
   provider: SupportedOAuthProvider;
@@ -10,14 +10,14 @@ export function AuthProviderBadge({ provider, className }: AuthProviderBadgeProp
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-full border px-3 py-1.5 text-[10px] font-semibold tracking-[0.22em] font-mono lowercase shadow-sm backdrop-blur-sm',
+        'inline-flex items-center rounded-full border px-3 py-1.5 text-[10px] font-semibold tracking-[0.22em] font-mono uppercase shadow-sm backdrop-blur-sm',
         provider === 'google'
-          ? 'border-fuchsia-500/20 bg-fuchsia-500/8 text-fuchsia-700 dark:border-fuchsia-400/30 dark:bg-fuchsia-500/10 dark:text-fuchsia-200'
-          : 'border-slate-400/30 bg-slate-500/8 text-slate-700 dark:border-pink-400/30 dark:bg-pink-500/10 dark:text-pink-200',
+          ? 'border-emerald-500/30 bg-emerald-500/12 text-emerald-700 dark:border-emerald-400/35 dark:bg-emerald-500/14 dark:text-emerald-200'
+          : 'border-fuchsia-500/25 bg-fuchsia-500/10 text-fuchsia-700 dark:border-fuchsia-400/30 dark:bg-fuchsia-500/14 dark:text-fuchsia-200',
         className
       )}
     >
-      last login: {getAuthProviderLabel(provider).toLowerCase()}
+      LAST USED
     </span>
   );
 }
