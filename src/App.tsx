@@ -24,6 +24,8 @@ import UserProfile from "./pages/UserProfile";
 import ProfileEdit from "./pages/ProfileEdit";
 import SignupNextSteps from "./pages/SignupNextSteps";
 import ResetPassword from "./pages/ResetPassword";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfService from "./pages/TermsOfService";
 import { VaultContentProvider } from "./contexts/VaultContentContext";
 
 /** Activates keyboard shortcut analytics tracking. Must be inside KeyboardProvider. */
@@ -70,6 +72,8 @@ const App = () => {
                   <Route path="/profile-edit" element={<ProfileEdit />} />
                   <Route path="/signup-next-steps" element={<SignupNextSteps />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
+                  <Route path="/privacy" element={<PrivacyPolicy />} />
+                  <Route path="/tos" element={<TermsOfService />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </BrowserRouter>
