@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { logger } from '@/lib/logger';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,12 +8,61 @@ import { LoadingSpinner } from '@/components/ui/loading';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Mail, Lock, User, ArrowRight, Sparkles, Check, X } from 'lucide-react';
-import { Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Sparkles, Check, X, Eye, EyeOff, Github } from 'lucide-react';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
-import type { Profile } from '@/types/database';
+import { ensureProfileExists } from '@/lib/profile';
+import { resolvePostAuthRedirect } from '@/lib/authRedirect';
+import { AuthProviderBadge } from '@/components/auth/AuthProviderBadge';
+import { getPersistedLastLoginProvider, getAuthProviderLabel, type SupportedOAuthProvider } from '@/lib/authProviders';
+
+function GoogleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4" fill="none">
+      <path
+        d="M20 12.18c0 4.62-3.1 7.82-7.67 7.82A8 8 0 1 1 12 4a7.8 7.8 0 0 1 5.48 2.14l-2.22 2.14A4.67 4.67 0 0 0 12 6.92a5.08 5.08 0 0 0 0 10.16c2.95 0 4.06-2.12 4.24-3.22H12v-2.68h7.81c.11.41.19.87.19 1.5Z"
+        className="stroke-current"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function OAuthButton({
+  provider,
+  onClick,
+  disabled,
+  loading,
+}: {
+  provider: SupportedOAuthProvider;
+  onClick: () => void;
+  disabled: boolean;
+  loading: boolean;
+}) {
+  const Icon = provider === 'google' ? GoogleIcon : Github;
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      className={cn(
+        'h-11 w-full justify-between border-fuchsia-400/30 bg-slate-950/60 font-mono text-fuchsia-100 shadow-[0_0_0_1px_rgba(244,114,182,0.04)] hover:bg-fuchsia-500/10 hover:text-white',
+        provider === 'github' && 'border-pink-400/30 text-pink-100 hover:bg-pink-500/10'
+      )}
+      onClick={onClick}
+      disabled={disabled}
+    >
+      <span className="flex items-center gap-3">
+        <Icon className="h-4 w-4 shrink-0" />
+        {loading ? `connecting_${provider}...` : `continue_with_${provider}`}
+      </span>
+      <ArrowRight className="w-4 h-4 text-current opacity-80" />
+    </Button>
+  );
+}
 
 interface PasswordStrength {
   score: number;
@@ -73,12 +122,15 @@ export default function Auth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [credentialLoading, setCredentialLoading] = useState(false);
+  const [oauthProviderLoading, setOauthProviderLoading] = useState<SupportedOAuthProvider | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, signInWithGoogle, signInWithGitHub } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const passwordStrength = useMemo(() => calculatePasswordStrength(password), [password]);
+  const lastOAuthProvider = useMemo(() => getPersistedLastLoginProvider(), []);
+  const isBusy = credentialLoading || oauthProviderLoading !== null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,7 +155,7 @@ export default function Auth() {
       }
     }
 
-    setLoading(true);
+    setCredentialLoading(true);
 
     try {
       if (isSignUp) {
@@ -123,11 +175,17 @@ export default function Auth() {
             title: 'welcome_to_refhub.io!',
             description: 'Your account has been created successfully.',
           });
-          // Check if there's a redirect URL stored in localStorage
-          const redirectAfterLogin = localStorage.getItem('redirectAfterLogin');
-          if (redirectAfterLogin) {
-            localStorage.removeItem('redirectAfterLogin'); // Clean up
-            navigate(redirectAfterLogin);
+          const {
+            data: { user, session },
+          } = await supabase.auth.getUser().then(async ({ data, error }) => {
+            if (error) throw error;
+            const sessionData = await supabase.auth.getSession();
+            return { data: { user: data.user, session: sessionData.data.session } };
+          });
+
+          if (user && session) {
+            const profile = await ensureProfileExists(user);
+            navigate(resolvePostAuthRedirect(profile), { replace: true });
           } else {
             navigate('/signup-next-steps');
           }
@@ -150,24 +208,13 @@ export default function Auth() {
             navigate('/');
             return;
           }
-          // Use the reliable profile system
-          const { ensureProfileExists } = await import('@/lib/profile');
           const profile = await ensureProfileExists(user);
 
           if (!profile) {
             logger.error('Auth', 'Failed to create or fetch profile');
             navigate('/');
-          } else if (profile.is_setup === false) {
-            navigate('/profile-edit');
           } else {
-            // Check if there's a redirect URL stored in localStorage
-            const redirectAfterLogin = localStorage.getItem('redirectAfterLogin');
-            if (redirectAfterLogin) {
-              localStorage.removeItem('redirectAfterLogin'); // Clean up
-              navigate(redirectAfterLogin);
-            } else {
-              navigate('/');
-            }
+            navigate(resolvePostAuthRedirect(profile), { replace: true });
           }
         }
       }
@@ -178,7 +225,32 @@ export default function Auth() {
         variant: 'destructive',
       });
     } finally {
-      setLoading(false);
+      setCredentialLoading(false);
+    }
+  };
+
+  const handleOAuthSignIn = async (provider: SupportedOAuthProvider) => {
+    setOauthProviderLoading(provider);
+
+    try {
+      const action = provider === 'google' ? signInWithGoogle : signInWithGitHub;
+      const { error } = await action();
+
+      if (error) {
+        toast({
+          title: `${provider}_sign_in_failed`,
+          description: error.message || `Unable to connect ${getAuthProviderLabel(provider)} right now.`,
+          variant: 'destructive',
+        });
+        setOauthProviderLoading(null);
+      }
+    } catch (error) {
+      toast({
+        title: `${provider}_sign_in_failed`,
+        description: (error as Error).message || 'An unexpected error occurred.',
+        variant: 'destructive',
+      });
+      setOauthProviderLoading(null);
     }
   };
 
@@ -222,6 +294,35 @@ export default function Auth() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-3 rounded-2xl border border-fuchsia-500/20 bg-black/20 p-3">
+                <OAuthButton
+                  provider="google"
+                  onClick={() => handleOAuthSignIn('google')}
+                  disabled={isBusy}
+                  loading={oauthProviderLoading === 'google'}
+                />
+                <OAuthButton
+                  provider="github"
+                  onClick={() => handleOAuthSignIn('github')}
+                  disabled={isBusy}
+                  loading={oauthProviderLoading === 'github'}
+                />
+                <div className="flex items-center justify-between gap-3 px-1 pt-1">
+                  <p className="text-[11px] font-mono text-muted-foreground">
+                    // social login keeps email/password available below
+                  </p>
+                  {lastOAuthProvider && <AuthProviderBadge provider={lastOAuthProvider} />}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 py-1">
+                <div className="h-px flex-1 bg-border/60" />
+                <span className="text-[10px] font-mono uppercase tracking-[0.28em] text-muted-foreground">
+                  or_use_email
+                </span>
+                <div className="h-px flex-1 bg-border/60" />
+              </div>
+
               {isSignUp && (
                 <div className="space-y-2">
                   <Label htmlFor="displayName" className="text-sm font-semibold font-mono">display_name</Label>
@@ -392,9 +493,9 @@ export default function Auth() {
                 type="submit"
                 variant="glow"
                 className="w-full font-mono"
-                disabled={loading}
+                disabled={isBusy}
               >
-                  {loading ? (
+                  {credentialLoading ? (
                     <span className="flex items-center gap-2">
                       <LoadingSpinner size="xs" variant="inverted" />
                       {isSignUp ? 'creating...' : 'signing in...'}
@@ -413,6 +514,7 @@ export default function Auth() {
                 type="button"
                 onClick={() => setIsSignUp(!isSignUp)}
                 className="text-sm text-muted-foreground hover:text-primary transition-colors font-mono"
+                disabled={isBusy}
               >
                 {isSignUp
                   ? '// already have an account? sign_in'
@@ -424,9 +526,24 @@ export default function Auth() {
                 type="button"
                 className="text-xs text-muted-foreground hover:text-primary transition-colors font-mono font-bold bg-transparent border-0 p-0 cursor-pointer"
                 onClick={() => navigate('/reset-password')}
+                disabled={isBusy}
               >
                 forgot_my_password();
               </button>
+            </div>
+
+            <div className="mt-5 border-t border-border/60 pt-4 text-center">
+              <p className="text-[11px] font-mono text-muted-foreground">
+                By continuing, you agree to the{' '}
+                <Link to="/tos" className="text-primary transition-colors hover:text-primary/80 hover:underline">
+                  Terms of Service
+                </Link>{' '}
+                and{' '}
+                <Link to="/privacy" className="text-primary transition-colors hover:text-primary/80 hover:underline">
+                  Privacy Policy
+                </Link>
+                .
+              </p>
             </div>
           </CardContent>
         </Card>
