@@ -32,8 +32,6 @@ import { KbdHint } from '@/components/ui/KbdHint';
 import { KeyboardShortcutsButton } from '@/components/ui/KeyboardHelpOverlay';
 import { WhatsNewDialog } from '@/components/ui/WhatsNewDialog';
 import { useWhatsNew } from '@/hooks/useWhatsNew';
-import { AuthProviderBadge } from '@/components/auth/AuthProviderBadge';
-import { getLastLoginProvider } from '@/lib/authProviders';
 
 interface SidebarProps {
   vaults: Vault[];
@@ -68,8 +66,6 @@ export function Sidebar({
   const { open: whatsNewOpen, hasUnseen, onOpenChange: onWhatsNewOpenChange, openDialog: openWhatsNew } = useWhatsNew();
   const navigate = useNavigate();
   const location = useLocation();
-  const oauthProvider = getLastLoginProvider(user);
-
   // Derive active vault from URL for instant feedback on click
   // This makes the vault appear selected immediately without waiting for data to load
   const vaultIdFromUrl = location.pathname.startsWith('/vault/') 
@@ -469,9 +465,6 @@ export function Sidebar({
                   <p className="text-xs text-sidebar-foreground/50 truncate font-mono">@{profile.username}</p>
                 ) : (
                   <p className="text-xs text-sidebar-foreground/50 truncate font-mono">{user?.email}</p>
-                )}
-                {oauthProvider && (
-                  <AuthProviderBadge provider={oauthProvider} className="mt-2 border-sidebar-border/60 bg-sidebar-accent/60 text-sidebar-foreground" />
                 )}
               </div>
               <ThemeToggle />

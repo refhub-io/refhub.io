@@ -11,15 +11,13 @@ import { showSuccess, showError, showWarning } from '@/lib/toast';
 import { ApiKeyManagementPanel } from '@/components/profile/ApiKeyManagementPanel';
 import { Loader2, User, Lock, Mail, ArrowLeft, KeyRound } from 'lucide-react';
 import { resolvePostAuthRedirect } from '@/lib/authRedirect';
-import { AuthProviderBadge } from '@/components/auth/AuthProviderBadge';
-import { getAuthProviderLabel, getLastLoginProvider, getUserAuthProvider, hasPasswordIdentity } from '@/lib/authProviders';
+import { getAuthProviderLabel, getLastLoginProvider, hasPasswordIdentity } from '@/lib/authProviders';
 
 export default function ProfileEdit() {
   const { profile, updateProfile, refetch } = useProfile();
   const { user, session } = useAuth();
   const navigate = useNavigate();
   const oauthProvider = getLastLoginProvider(user);
-  const currentOAuthProvider = getUserAuthProvider(user);
   const canUsePasswordSecurity = hasPasswordIdentity(user);
   
   // Profile state
@@ -172,7 +170,6 @@ export default function ProfileEdit() {
             <h1 className="text-xl font-bold font-mono sm:text-2xl">account_<span className="text-gradient">settings</span></h1>
             <p className="text-xs text-muted-foreground font-mono sm:text-sm">// manage your profile, security, and API access</p>
           </div>
-          {oauthProvider && <AuthProviderBadge provider={oauthProvider} className="w-full justify-center sm:ml-auto sm:w-auto" />}
         </div>
 
         <Tabs defaultValue="profile" className="space-y-6">
@@ -198,16 +195,6 @@ export default function ProfileEdit() {
           {/* Profile Tab */}
           <TabsContent value="profile" className="space-y-6">
             <div className="bg-card border-2 border-border rounded-xl p-6 space-y-4">
-              {currentOAuthProvider && (
-                <div className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-500/5 p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-xs text-muted-foreground font-mono">
-                      // profile defaults were hydrated from your identity provider when available
-                    </p>
-                    <AuthProviderBadge provider={currentOAuthProvider} />
-                  </div>
-                </div>
-              )}
               <div>
                 <Label htmlFor="displayName" className="font-mono">display_name</Label>
                 <Input
