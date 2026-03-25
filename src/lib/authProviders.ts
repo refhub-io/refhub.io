@@ -41,8 +41,6 @@ export function persistLastLoginProvider(provider: SupportedOAuthProvider | null
     localStorage.setItem(LAST_LOGIN_PROVIDER_KEY, provider);
     return;
   }
-
-  localStorage.removeItem(LAST_LOGIN_PROVIDER_KEY);
 }
 
 export function getPersistedLastLoginProvider(): SupportedOAuthProvider | null {
