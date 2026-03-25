@@ -8,8 +8,7 @@ import { LoadingSpinner } from '@/components/ui/loading';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Mail, Lock, User, ArrowRight, Sparkles, Check, X } from 'lucide-react';
-import { Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Sparkles, Check, X, Eye, EyeOff, Github } from 'lucide-react';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -20,19 +19,14 @@ import { getPersistedLastLoginProvider, getAuthProviderLabel, type SupportedOAut
 
 function GoogleIcon() {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
-      <path fill="#EA4335" d="M12 10.2v3.95h5.49c-.24 1.28-.98 2.37-2.05 3.1l3.31 2.57c1.93-1.78 3.05-4.4 3.05-7.52 0-.73-.07-1.43-.2-2.1H12Z" />
-      <path fill="#34A853" d="M12 22c2.75 0 5.06-.91 6.75-2.46l-3.31-2.57c-.92.62-2.1 1-3.44 1-2.64 0-4.88-1.79-5.67-4.19l-3.42 2.64A9.99 9.99 0 0 0 12 22Z" />
-      <path fill="#4A90E2" d="M6.33 13.78A5.98 5.98 0 0 1 6 12c0-.62.11-1.22.33-1.78L2.91 7.58A9.98 9.98 0 0 0 2 12c0 1.61.38 3.13 1.05 4.42l3.28-2.64Z" />
-      <path fill="#FBBC05" d="M12 6.04c1.49 0 2.82.51 3.87 1.5l2.9-2.9C17.05 3.02 14.75 2 12 2 8.09 2 4.72 4.24 3.05 7.58l3.28 2.64c.79-2.4 3.03-4.18 5.67-4.18Z" />
-    </svg>
-  );
-}
-
-function GitHubIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-current">
-      <path d="M12 .5a12 12 0 0 0-3.79 23.39c.6.11.82-.26.82-.58l-.02-2.03c-3.34.73-4.04-1.42-4.04-1.42-.55-1.38-1.34-1.75-1.34-1.75-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.84 2.82 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.66-.31-5.46-1.33-5.46-5.91 0-1.31.47-2.39 1.24-3.23-.12-.31-.54-1.56.12-3.24 0 0 1.01-.32 3.3 1.23a11.45 11.45 0 0 1 6.01 0c2.29-1.55 3.3-1.23 3.3-1.23.66 1.68.24 2.93.12 3.24.77.84 1.24 1.92 1.24 3.23 0 4.59-2.81 5.6-5.49 5.9.43.37.82 1.11.82 2.25l-.02 3.33c0 .32.21.7.83.58A12 12 0 0 0 12 .5Z" />
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4" fill="none">
+      <path
+        d="M20 12.18c0 4.62-3.1 7.82-7.67 7.82A8 8 0 1 1 12 4a7.8 7.8 0 0 1 5.48 2.14l-2.22 2.14A4.67 4.67 0 0 0 12 6.92a5.08 5.08 0 0 0 0 10.16c2.95 0 4.06-2.12 4.24-3.22H12v-2.68h7.81c.11.41.19.87.19 1.5Z"
+        className="stroke-current"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -48,26 +42,24 @@ function OAuthButton({
   disabled: boolean;
   loading: boolean;
 }) {
-  const Icon = provider === 'google' ? GoogleIcon : GitHubIcon;
+  const Icon = provider === 'google' ? GoogleIcon : Github;
 
   return (
     <Button
       type="button"
       variant="outline"
       className={cn(
-        'h-11 w-full justify-between border-fuchsia-400/30 bg-slate-950/60 font-mono text-slate-100 shadow-[0_0_0_1px_rgba(244,114,182,0.04)] hover:bg-fuchsia-500/10 hover:text-white',
-        provider === 'github' && 'border-pink-400/30 hover:bg-pink-500/10'
+        'h-11 w-full justify-between border-fuchsia-400/30 bg-slate-950/60 font-mono text-fuchsia-100 shadow-[0_0_0_1px_rgba(244,114,182,0.04)] hover:bg-fuchsia-500/10 hover:text-white',
+        provider === 'github' && 'border-pink-400/30 text-pink-100 hover:bg-pink-500/10'
       )}
       onClick={onClick}
       disabled={disabled}
     >
       <span className="flex items-center gap-3">
-        <span className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-white/5">
-          <Icon />
-        </span>
+        <Icon className="h-4 w-4 shrink-0" />
         {loading ? `connecting_${provider}...` : `continue_with_${provider}`}
       </span>
-      <ArrowRight className="w-4 h-4 text-fuchsia-200" />
+      <ArrowRight className="w-4 h-4 text-current opacity-80" />
     </Button>
   );
 }
