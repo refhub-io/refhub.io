@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
 import { useVaultFavorites } from '@/hooks/useVaultFavorites';
 import { useVaultFork } from '@/hooks/useVaultFork';
+import { getVaultForkInfo, VaultForkInfo } from '@/lib/vaultFork';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { Button } from '@/components/ui/button';
@@ -43,6 +44,7 @@ export default function PublicVault() {
   const [searchQuery, setSearchQuery] = useState('');
   const [notFound, setNotFound] = useState(false);
   const [forking, setForking] = useState(false);
+  const [forkInfo, setForkInfo] = useState<VaultForkInfo | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [userVaults, setUserVaults] = useState<Vault[]>([]);
   const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
@@ -134,6 +136,9 @@ export default function PublicVault() {
       }
 
       setVault(vaultData);
+
+      // Fetch fork attribution (if this vault is itself a fork)
+      getVaultForkInfo(vaultData.id).then(setForkInfo).catch(() => {});
 
       // Fetch vault owner profile
       const { data: ownerProfile } = await supabase
@@ -303,9 +308,9 @@ export default function PublicVault() {
     
     setForking(true);
     try {
-      const newVault = await forkVault(vault);
-      if (newVault) {
-        navigate('/dashboard');
+      const newVaultId = await forkVault(vault);
+      if (newVaultId) {
+        navigate(`/vault/${newVaultId}`);
       }
     } finally {
       setForking(false);
@@ -432,10 +437,26 @@ export default function PublicVault() {
                     public
                   </Badge>
                   <VaultAccessBadge vaultId={vault.id} />
+                  {/* Attribution badge — shown when this vault was itself forked */}
+                  {forkInfo?.forkedFrom && (
+                    <Badge variant="outline" className="gap-1 font-mono text-xs shrink-0 text-muted-foreground">
+                      <GitFork className="w-3 h-3" />
+                      {forkInfo.forkedFrom.public_slug ? (
+                        <Link
+                          to={`/public/${forkInfo.forkedFrom.public_slug}`}
+                          className="hover:text-foreground transition-colors"
+                        >
+                          forked_from_{forkInfo.forkedFrom.name.toLowerCase().replace(/\s+/g, '_')}
+                        </Link>
+                      ) : (
+                        <span>forked_from_{forkInfo.forkedFrom.name.toLowerCase().replace(/\s+/g, '_')}</span>
+                      )}
+                    </Badge>
+                  )}
                   <span className="flex items-center gap-1 text-xs text-muted-foreground font-mono">
                     <Clock className="w-3.5 h-3.5 shrink-0" />
                     <span className="truncate">
-                      {lastUpdatedBy 
+                      {lastUpdatedBy
                         ? `${lastUpdatedBy.display_name || lastUpdatedBy.username || 'someone'}.last_update() // ${formatTimeAgo(vault.updated_at)}`
                         : `last_sync() // ${formatTimeAgo(vault.updated_at)}`
                       }
@@ -444,18 +465,20 @@ export default function PublicVault() {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
+                  {/* Fork count badge — always visible */}
+                  {forkCount > 0 && (
+                    <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground font-mono border border-input rounded-md px-3 h-8">
+                      <GitFork className="w-3.5 h-3.5" />
+                      <span>{forkCount}_forks</span>
+                    </div>
+                  )}
+
                   {/* Stats for owner view */}
                   {user && vault.user_id === user.id ? (
-                    <>
-                      <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground font-mono border border-input rounded-md px-3 h-8">
-                        <Heart className="w-3.5 h-3.5" />
-                        <span>{favoritesCount}</span>
-                      </div>
-                      <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground font-mono border border-input rounded-md px-3 h-8">
-                        <GitFork className="w-3.5 h-3.5" />
-                        <span>{forkCount}</span>
-                      </div>
-                    </>
+                    <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground font-mono border border-input rounded-md px-3 h-8">
+                      <Heart className="w-3.5 h-3.5" />
+                      <span>{favoritesCount}</span>
+                    </div>
                   ) : (
                     <>
                       <Button
@@ -475,7 +498,9 @@ export default function PublicVault() {
                         className="font-mono h-8"
                       >
                         <GitFork className="w-4 h-4" />
-                        <span className="ml-2 hidden md:inline">fork</span>
+                        <span className="ml-2 hidden md:inline">
+                          {forking ? 'forking_vault...' : 'fork vault'}
+                        </span>
                       </Button>
                     </>
                   )}
