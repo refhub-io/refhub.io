@@ -102,18 +102,40 @@ function PaperRow({
         </div>
       </div>
 
-      {/* Authors + year */}
-      <p className="text-sm text-muted-foreground font-mono">
-        {formatAuthors(paper.authors)}
-        {paper.year && <span className="text-neon-green"> • {paper.year}</span>}
-      </p>
-
-      {/* Abstract snippet */}
-      {paper.abstract && (
-        <p className="text-sm text-muted-foreground/70 leading-relaxed line-clamp-2">
-          {paper.abstract}
+      {/* Authors + year + venue */}
+      <div className="space-y-1">
+        <p className="text-sm text-muted-foreground font-mono">
+          {formatAuthors(paper.authors)}
+          {paper.year && <span className="text-neon-green"> • {paper.year}</span>}
         </p>
-      )}
+        {paper.venue && (
+          <p className="text-xs text-muted-foreground/80 font-mono line-clamp-1">
+            {paper.venue}
+          </p>
+        )}
+      </div>
+
+      {/* DOI + abstract snippet */}
+      <div className="space-y-1.5">
+        {paper.externalIds?.DOI && (
+          <a
+            href={`https://doi.org/${paper.externalIds.DOI}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex max-w-full items-center gap-1 text-xs font-mono text-cyber-blue hover:text-cyber-blue/80 transition-colors"
+          >
+            <ExternalLink className="w-3 h-3 shrink-0" />
+            <span className="truncate">{paper.externalIds.DOI}</span>
+          </a>
+        )}
+
+        {paper.abstract && (
+          <p className="text-sm text-muted-foreground/70 leading-relaxed line-clamp-2">
+            {paper.abstract}
+          </p>
+        )}
+      </div>
 
       {/* Footer: citations + source link */}
       <div className="flex items-center gap-3 pt-1">
