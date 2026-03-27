@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
 import { supabase } from '@/integrations/supabase/client';
@@ -11,6 +11,7 @@ import { hasPageCache } from '@/lib/pageCache';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationDialog } from '@/components/publications/PublicationDialog';
+import { PublicationViewDialog } from '@/components/publications/PublicationViewDialog';
 import { VaultAugmentDialog } from '@/components/publications/VaultAugmentDialog';
 import { SSPaper } from '@/lib/semanticScholar';
 import { AddImportDialog } from '@/components/publications/AddImportDialog';
@@ -26,6 +27,7 @@ import { useVaultFavorites } from '@/hooks/useVaultFavorites';
 import { useVaultFork } from '@/hooks/useVaultFork';
 import { useVaultContent } from '@/contexts/VaultContentContext';
 import { useSharedVaultOperations } from '@/hooks/useSharedVaultOperations';
+import { getForkSourceHref, getForkSourceLabel, getVaultForkInfo, VaultForkInfo } from '@/lib/vaultFork';
 import { Lock, Globe, Shield, Users, Clock, User, ExternalLink, Sparkles, Crown, Edit, Eye, Heart, GitFork } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -44,6 +46,7 @@ import {
 
 export default function VaultDetail() {
   const { id: vaultId } = useParams<{ id: string }>();
+  const location = useLocation();
   const { user, loading: authLoading } = useAuth();
   const { profile } = useProfile();
   
@@ -104,6 +107,7 @@ export default function VaultDetail() {
   const [favoritesCount, setFavoritesCount] = useState(0);
   const [forkCount, setForkCount] = useState(0);
   const [vaultOwner, setVaultOwner] = useState<{ display_name: string | null; username: string | null } | null>(null);
+  const [forkInfo, setForkInfo] = useState<VaultForkInfo | null>(null);
 
   // Loading phases for the vault loader
   const [loadingPhases, setLoadingPhases] = useState<LoadingPhase[]>([
@@ -138,6 +142,7 @@ export default function VaultDetail() {
   const [isAugmentDialogOpen, setIsAugmentDialogOpen] = useState(false);
   const [augmentPublications, setAugmentPublications] = useState<Publication[]>([]);
   const [editingPublication, setEditingPublication] = useState<Publication | null>(null);
+  const [viewingPublication, setViewingPublication] = useState<Publication | null>(null);
   const currentlyEditingPublicationId = useRef<string | null>(null);
 
   const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
@@ -249,6 +254,19 @@ export default function VaultDetail() {
       }
     }
   }, [publications, editingPublication]);
+
+  useEffect(() => {
+    const publicationIdToEdit = (location.state as { publicationIdToEdit?: string } | null)?.publicationIdToEdit;
+    if (!publicationIdToEdit || !canEdit) return;
+
+    const publicationToEdit = publications.find((publication) => publication.id === publicationIdToEdit);
+    if (!publicationToEdit) return;
+
+    setEditingPublication(publicationToEdit);
+    currentlyEditingPublicationId.current = publicationToEdit.id;
+    setIsPublicationDialogOpen(true);
+    navigate(`/vault/${vaultId}`, { replace: true });
+  }, [location.state, canEdit, publications, navigate, vaultId]);
 
   // Fetch user's vaults and shared vaults separately
   const fetchUserVaults = useCallback(async () => {
@@ -1124,14 +1142,13 @@ export default function VaultDetail() {
     
     setForking(true);
     try {
-      const newVault = await forkVault(currentVault);
-
-      if (newVault) {
+      const newVaultId = await forkVault(currentVault);
+      if (newVaultId) {
         toast({
           title: 'vault_forked 🍴',
-          description: 'Successfully forked vault!',
+          description: 'Successfully forked vault as a public vault.',
         });
-        navigate(`/vault/${newVault.id}`);
+        navigate(`/vault/${newVaultId}`);
       }
     } finally {
       setForking(false);
@@ -1187,6 +1204,15 @@ export default function VaultDetail() {
     setExportPublications(pubs);
     setIsExportDialogOpen(true);
   };
+
+  useEffect(() => {
+    if (!vaultId) {
+      setForkInfo(null);
+      return;
+    }
+
+    getVaultForkInfo(vaultId).then(setForkInfo).catch(() => setForkInfo(null));
+  }, [vaultId]);
 
   // State to track loading state to prevent flickering
   const [hasStartedInitialLoad, setHasStartedInitialLoad] = useState(false);
@@ -1471,6 +1497,14 @@ export default function VaultDetail() {
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0 flex-wrap">
                 {visibilityBadge}
+                {forkInfo?.forkedFrom && (
+                  <Badge variant="outline" className="font-mono text-xs gap-1 shrink-0 text-muted-foreground">
+                    <GitFork className="w-3 h-3" />
+                    <Link to={getForkSourceHref(forkInfo.forkedFrom)} className="hover:text-foreground transition-colors">
+                      {getForkSourceLabel(forkInfo.forkedFrom)}
+                    </Link>
+                  </Badge>
+                )}
                 {userRole === 'owner' && (
                   <Badge variant="outline" className="font-mono text-xs gap-1 shrink-0">
                     <Crown className="w-3 h-3" />
@@ -1559,6 +1593,10 @@ export default function VaultDetail() {
           selectedVault={currentVault}
           isVaultContext={true}
           onAddPublication={canEdit ? () => setIsImportDialogOpen(true) : undefined}
+          onOpenPublication={!canEdit ? (pub) => {
+            setViewingPublication(pub);
+          } : undefined}
+          publicationActionLabel={!canEdit ? 'view' : 'edit'}
           onEditPublication={canEdit ? (pub) => {
             setEditingPublication(pub);
             currentlyEditingPublicationId.current = pub.id;
@@ -1607,6 +1645,18 @@ export default function VaultDetail() {
         onAddToVaults={canEdit ? handleAddToVaults : undefined}
       />
 
+      <PublicationViewDialog
+        open={!!viewingPublication}
+        onOpenChange={(open) => {
+          if (!open) {
+            setViewingPublication(null);
+          }
+        }}
+        publication={viewingPublication}
+        tags={viewingPublication ? tags.filter((tag) => (publicationTagsMap[viewingPublication.id] || []).includes(tag.id)) : []}
+        allTags={tags}
+      />
+
       <VaultAugmentDialog
         open={isAugmentDialogOpen}
         onOpenChange={setIsAugmentDialogOpen}
@@ -1653,8 +1703,13 @@ export default function VaultDetail() {
         tags={tags}
         publicationTags={publicationTags}
         onSelectPublication={(pub) => {
-          setEditingPublication(pub);
-          setIsPublicationDialogOpen(true);
+          if (canEdit) {
+            setEditingPublication(pub);
+            currentlyEditingPublicationId.current = pub.id;
+            setIsPublicationDialogOpen(true);
+            return;
+          }
+          setViewingPublication(pub);
         }}
       />
 

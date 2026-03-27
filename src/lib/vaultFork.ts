@@ -10,6 +10,50 @@ export interface VaultForkInfo {
   } | null;
 }
 
+function slugifyVaultName(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 50);
+}
+
+async function createUniquePublicSlug(baseName: string): Promise<string> {
+  const baseSlug = slugifyVaultName(baseName) || 'vault-fork';
+
+  for (let suffix = 0; suffix < 50; suffix += 1) {
+    const candidate = suffix === 0 ? baseSlug : `${baseSlug}-${suffix + 1}`;
+    const { data: existingVault, error } = await supabase
+      .from('vaults')
+      .select('id')
+      .eq('public_slug', candidate)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    if (!existingVault) {
+      return candidate;
+    }
+  }
+
+  throw new Error('failed to generate a unique public slug for forked vault');
+}
+
+export function getForkSourceHref(forkedFrom: NonNullable<VaultForkInfo['forkedFrom']>): string {
+  return forkedFrom.public_slug ? `/public/${forkedFrom.public_slug}` : `/vault/${forkedFrom.id}`;
+}
+
+export function getForkSourceLabel(forkedFrom: NonNullable<VaultForkInfo['forkedFrom']>): string {
+  const ownerLabel =
+    forkedFrom.owner?.username ||
+    forkedFrom.owner?.display_name ||
+    'unknown';
+
+  return `<${ownerLabel}:${forkedFrom.name}>`;
+}
+
 /**
  * Fork a public vault: copies the vault row and all vault_publications,
  * records the fork relationship, and returns the new vault id.
@@ -27,7 +71,9 @@ export async function forkVault(originalVaultId: string, user: User): Promise<st
     throw new Error(fetchErr?.message ?? 'vault not found or not public');
   }
 
-  // Create the forked vault (private, no slug)
+  const publicSlug = await createUniquePublicSlug(`${original.name}-fork`);
+
+  // Forked vaults are always public and receive a public slug.
   const { data: newVault, error: vaultErr } = await supabase
     .from('vaults')
     .insert({
@@ -37,8 +83,8 @@ export async function forkVault(originalVaultId: string, user: User): Promise<st
       color: original.color,
       category: original.category,
       abstract: original.abstract,
-      visibility: 'private',
-      public_slug: null,
+      visibility: 'public',
+      public_slug: publicSlug,
     })
     .select('id')
     .single();
