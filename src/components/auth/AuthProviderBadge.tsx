@@ -15,7 +15,7 @@ export function AuthProviderBadge({ provider, className }: AuthProviderBadgeProp
         className
       )}
     >
-      LAST USED
+      last_used
     </span>
   );
 }
