@@ -46,6 +46,7 @@ interface CodexVault extends Vault {
   stats?: VaultStats;
   favorites_count?: number;
   fork_count?: number;
+  is_fork?: boolean;
   owner?: {
     display_name: string | null;
     email: string | null;
@@ -95,12 +96,21 @@ export default function TheCodex() {
         return;
       }
 
+      const vaultIds = vaultsData.map((vault) => vault.id);
+      const { data: forkedVaultRows } = vaultIds.length === 0
+        ? { data: [] }
+        : await supabase
+            .from('vault_forks')
+            .select('forked_vault_id')
+            .in('forked_vault_id', vaultIds);
+      const forkedVaultIds = new Set((forkedVaultRows || []).map((row) => row.forked_vault_id));
+
       // Fetch additional data for each vault
       const vaultsWithData = await Promise.all(
         vaultsData.map(async (vault) => {
-          // Get publication count via vault_papers
+          // Count directly from vault_publications so originals and forks stay accurate.
           const { count } = await supabase
-            .from('vault_papers')
+            .from('vault_publications')
             .select('*', { count: 'exact', head: true })
             .eq('vault_id', vault.id);
 
@@ -136,6 +146,7 @@ export default function TheCodex() {
             stats: statsData as VaultStats | undefined,
             favorites_count: favoritesCount || 0,
             fork_count: forkCount || 0,
+            is_fork: forkedVaultIds.has(vault.id),
             owner: profileData || undefined,
           } as CodexVault;
         })
@@ -446,7 +457,7 @@ export default function TheCodex() {
                   to={`/public/${vault.public_slug}`}
                   className="group"
                 >
-                  <article className="h-full p-6 rounded-2xl border-2 border-border bg-card/50 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 flex flex-col">
+                  <article className={`h-full p-6 rounded-2xl border-2 bg-card/50 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 flex flex-col ${vault.is_fork ? 'border-amber-500/30 bg-amber-500/[0.03]' : 'border-border'}`}>
                     {/* Header with owner info */}
                     <div className="flex items-start gap-3 mb-4">
                       <Avatar className="w-10 h-10 border-2 border-border ring-2 ring-background group-hover:ring-primary/20 transition-all">
@@ -481,11 +492,18 @@ export default function TheCodex() {
                     </div>
 
                     {/* Category Badge */}
-                    {vault.category && (
-                      <Badge variant="secondary" className="w-fit mb-3 text-xs font-mono">
-                        {vault.category.toLowerCase().replace(/\s+/g, '_')}
-                      </Badge>
-                    )}
+                    <div className="mb-3 flex flex-wrap gap-2">
+                      {vault.is_fork && (
+                        <Badge variant="outline" className="w-fit text-xs font-mono border-amber-500/30 text-amber-600">
+                          forked
+                        </Badge>
+                      )}
+                      {vault.category && (
+                        <Badge variant="secondary" className="w-fit text-xs font-mono">
+                          {vault.category.toLowerCase().replace(/\s+/g, '_')}
+                        </Badge>
+                      )}
+                    </div>
 
                     {/* Description/Abstract */}
                     {(vault.abstract || vault.description) && (

@@ -51,7 +51,7 @@ export function getForkSourceLabel(forkedFrom: NonNullable<VaultForkInfo['forked
     forkedFrom.owner?.display_name ||
     'unknown';
 
-  return `<${ownerLabel}:${forkedFrom.name}>`;
+  return `${ownerLabel}:${forkedFrom.name}`;
 }
 
 /**
