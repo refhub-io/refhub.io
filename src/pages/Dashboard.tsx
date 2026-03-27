@@ -928,7 +928,17 @@ export default function Dashboard() {
           // If we have a vault_publication, we need to copy its data directly
           if (vaultPub) {
             // Copy the vault_publication data to the new vault
-            const { id, vault_id, original_publication_id, created_at, updated_at, ...pubData } = vaultPub;
+            const {
+              id,
+              vault_id,
+              original_publication_id,
+              created_at,
+              updated_at,
+              created_by: _createdBy,
+              updated_by: _updatedBy,
+              version: _version,
+              ...pubData
+            } = vaultPub;
             const { error: insertError } = await supabase
               .from('vault_publications')
               .insert({
@@ -937,6 +947,7 @@ export default function Dashboard() {
                 original_publication_id: original_publication_id || null,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
+                created_by: user.id,
               });
 
             if (insertError) throw insertError;
