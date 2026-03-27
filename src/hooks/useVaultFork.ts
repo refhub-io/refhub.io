@@ -22,7 +22,7 @@ export function useVaultFork() {
 
     try {
       const newVaultId = await forkVaultLib(originalVault.id, user);
-      toast({ title: 'vault forked — find it in your vaults' });
+      toast({ title: 'vault forked — published to your public vaults' });
       return newVaultId;
     } catch (error) {
       toast({

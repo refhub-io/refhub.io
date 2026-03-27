@@ -9,9 +9,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
 import { useVaultFavorites } from '@/hooks/useVaultFavorites';
 import { useVaultFork } from '@/hooks/useVaultFork';
-import { getVaultForkInfo, VaultForkInfo } from '@/lib/vaultFork';
+import { useVaultAccess } from '@/hooks/useVaultAccess';
+import { getForkSourceHref, getForkSourceLabel, getVaultForkInfo, VaultForkInfo } from '@/lib/vaultFork';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { PublicationList } from '@/components/publications/PublicationList';
+import { PublicationViewDialog } from '@/components/publications/PublicationViewDialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -48,6 +50,8 @@ export default function PublicVault() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [userVaults, setUserVaults] = useState<Vault[]>([]);
   const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
+  const [viewingPublication, setViewingPublication] = useState<Publication | null>(null);
+  const { canEdit } = useVaultAccess(vault?.id || '');
 
   // Fetch user's own vaults and shared vaults
   const fetchUserVaults = useCallback(async () => {
@@ -441,16 +445,12 @@ export default function PublicVault() {
                   {forkInfo?.forkedFrom && (
                     <Badge variant="outline" className="gap-1 font-mono text-xs shrink-0 text-muted-foreground">
                       <GitFork className="w-3 h-3" />
-                      {forkInfo.forkedFrom.public_slug ? (
-                        <Link
-                          to={`/public/${forkInfo.forkedFrom.public_slug}`}
-                          className="hover:text-foreground transition-colors"
-                        >
-                          forked_from_{forkInfo.forkedFrom.name.toLowerCase().replace(/\s+/g, '_')}
-                        </Link>
-                      ) : (
-                        <span>forked_from_{forkInfo.forkedFrom.name.toLowerCase().replace(/\s+/g, '_')}</span>
-                      )}
+                      <Link
+                        to={getForkSourceHref(forkInfo.forkedFrom)}
+                        className="hover:text-foreground transition-colors"
+                      >
+                        {getForkSourceLabel(forkInfo.forkedFrom)}
+                      </Link>
                     </Badge>
                   )}
                   <span className="flex items-center gap-1 text-xs text-muted-foreground font-mono">
@@ -499,7 +499,7 @@ export default function PublicVault() {
                       >
                         <GitFork className="w-4 h-4" />
                         <span className="ml-2 hidden md:inline">
-                          {forking ? 'forking_vault...' : 'fork vault'}
+                          {forking ? 'forking_public_vault...' : 'fork public vault'}
                         </span>
                       </Button>
                     </>
@@ -539,6 +539,8 @@ export default function PublicVault() {
             })()}
             relationsCountMap={{}}
             selectedVault={vault}
+            onOpenPublication={(pub) => setViewingPublication(pub)}
+            publicationActionLabel="view"
             onExportBibtex={(pubs) => {
               if (pubs.length > 0 && vault) {
                 // Increment download count
@@ -550,6 +552,29 @@ export default function PublicVault() {
             onVaultUpdate={() => {}}
           />
         )}
+
+        <PublicationViewDialog
+          open={!!viewingPublication}
+          onOpenChange={(open) => {
+            if (!open) {
+              setViewingPublication(null);
+            }
+          }}
+          publication={viewingPublication}
+          tags={viewingPublication ? tags.filter((tag) => {
+            const publicationTagIds = publicationTags
+              .filter((pt) => (pt.vault_publication_id || pt.publication_id) === viewingPublication.id)
+              .map((pt) => pt.tag_id);
+            return publicationTagIds.includes(tag.id);
+          }) : []}
+          allTags={tags}
+          onEdit={canEdit && vault ? (publication) => {
+            setViewingPublication(null);
+            navigate(`/vault/${vault.id}`, {
+              state: { publicationIdToEdit: publication.id },
+            });
+          } : undefined}
+        />
       </div>
     </div>
   );

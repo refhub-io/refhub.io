@@ -44,8 +44,9 @@ interface PublicationTableProps {
   visibleColumns: VisibleColumns;
   isVaultContext?: boolean; // If true, shows "remove from vault" instead of "delete"
   onToggleSelect: (id: string) => void;
-  onEdit: (pub: Publication) => void;
-  onDelete: (pub: Publication) => void;
+  onOpen?: (pub: Publication) => void;
+  primaryActionLabel?: string;
+  onDelete?: (pub: Publication) => void;
   onExportBibtex: (pub: Publication) => void;
   // Sort props
   sortBy: SortField;
@@ -67,7 +68,8 @@ export function PublicationTable({
   visibleColumns,
   isVaultContext = false,
   onToggleSelect,
-  onEdit,
+  onOpen,
+  primaryActionLabel = 'edit',
   onDelete,
   onExportBibtex,
   sortBy,
@@ -182,11 +184,12 @@ export function PublicationTable({
               <TableRow
                 key={pub.id}
                 className={cn(
-                  'cursor-pointer transition-colors',
+                  'transition-colors',
+                  onOpen && 'cursor-pointer',
                   isSelected && 'bg-primary/5',
                   isFocused && 'ring-2 ring-inset ring-[hsl(var(--cyber-blue))]/50'
                 )}
-                onClick={() => onEdit(pub)}
+                onClick={() => onOpen?.(pub)}
                 {...kbProps}
               >
                 <TableCell onClick={(e) => e.stopPropagation()}>
@@ -359,22 +362,28 @@ export function PublicationTable({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-40">
-                      <DropdownMenuItem onClick={() => onEdit(pub)}>
-                        <Edit className="w-4 h-4 mr-2" />
-                        edit
-                      </DropdownMenuItem>
+                      {onOpen && (
+                        <DropdownMenuItem onClick={() => onOpen(pub)}>
+                          <Edit className="w-4 h-4 mr-2" />
+                          {primaryActionLabel}
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem onClick={() => onExportBibtex(pub)}>
                         <Download className="w-4 h-4 mr-2" />
                         export bibtex
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={() => onDelete(pub)}
-                        className="text-destructive focus:text-destructive"
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        {isVaultContext ? 'remove from vault' : 'delete'}
-                      </DropdownMenuItem>
+                      {onDelete && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => onDelete(pub)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            {isVaultContext ? 'remove from vault' : 'delete'}
+                          </DropdownMenuItem>
+                        </>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>

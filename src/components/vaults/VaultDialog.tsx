@@ -76,6 +76,7 @@ const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('vie
   const [copied, setCopied] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const [isForkedVault, setIsForkedVault] = useState(false);
   const slugCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadRef = useRef(true);
   const initialValuesRef = useRef<{ name: string; description: string; color: string; category: string; abstract: string; visibility: VaultVisibility; publicSlug: string } | null>(null);
@@ -239,6 +240,7 @@ const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('vie
   useEffect(() => {
     isInitialLoadRef.current = true; // Reset on dialog open
     setHasUnsavedChanges(false); // Reset unsaved changes on dialog open
+    setIsForkedVault(false);
     if (vault) {
       const initialName = vault.name;
       const initialDescription = vault.description || '';
@@ -290,6 +292,36 @@ const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('vie
       };
     }
   }, [vault?.id, open, fetchShares]);
+
+  useEffect(() => {
+    if (!vault || !open) {
+      setIsForkedVault(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    supabase
+      .from('vault_forks')
+      .select('id')
+      .eq('forked_vault_id', vault.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) {
+          setIsForkedVault(Boolean(data));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [vault, open]);
+
+  useEffect(() => {
+    if (isForkedVault && visibility !== 'public') {
+      setVisibility('public');
+    }
+  }, [isForkedVault, visibility]);
 
   // Track unsaved changes
   useEffect(() => {
@@ -395,8 +427,8 @@ const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('vie
         color,
         category: category || null,
         abstract: abstract || null,
-        visibility,
-        public_slug: visibility === 'public' ? (publicSlug || generateSlug(name)) : null,
+        visibility: isForkedVault ? 'public' : visibility,
+        public_slug: (isForkedVault || visibility === 'public') ? (publicSlug || generateSlug(name)) : null,
       });
       setHasUnsavedChanges(false);
       setShowUnsavedDialog(false);
@@ -406,7 +438,7 @@ const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('vie
     } finally {
       setSaving(false);
     }
-  }, [name, description, color, category, abstract, visibility, publicSlug, onSave, onOpenChange]);
+  }, [name, description, color, category, abstract, visibility, publicSlug, isForkedVault, onSave, onOpenChange]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -418,8 +450,8 @@ const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('vie
         color,
         category: category || null,
         abstract: abstract || null,
-        visibility,
-        public_slug: visibility === 'public' ? (publicSlug || generateSlug(name)) : null,
+        visibility: isForkedVault ? 'public' : visibility,
+        public_slug: (isForkedVault || visibility === 'public') ? (publicSlug || generateSlug(name)) : null,
       });
       setHasUnsavedChanges(false);
       onOpenChange(false);
@@ -695,16 +727,19 @@ const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('vie
             <div className="grid grid-cols-3 gap-2">
               {visibilityOptions.map((option) => {
                 const Icon = option.icon;
+                const isDisabled = isForkedVault && option.value !== 'public';
                 return (
                   <button
                     key={option.value}
                     type="button"
-                    onClick={() => setVisibility(option.value)}
+                    onClick={() => !isDisabled && setVisibility(option.value)}
+                    disabled={isDisabled}
                     className={cn(
                       "flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all duration-200",
                       visibility === option.value
                         ? "border-primary bg-primary/10 text-primary"
-                        : "border-border hover:border-primary/50 text-muted-foreground hover:text-foreground"
+                        : "border-border hover:border-primary/50 text-muted-foreground hover:text-foreground",
+                      isDisabled && "cursor-not-allowed opacity-40 hover:border-border hover:text-muted-foreground"
                     )}
                   >
                     <Icon className="w-4 h-4" />
@@ -714,7 +749,9 @@ const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('vie
               })}
             </div>
             <p className="text-xs text-muted-foreground">
-              {visibilityOptions.find(o => o.value === visibility)?.description}
+              {isForkedVault
+                ? 'forked_vaults_are_always_public'
+                : visibilityOptions.find(o => o.value === visibility)?.description}
             </p>
           </div>
 

@@ -57,6 +57,8 @@ interface PublicationListProps {
   isVaultContext?: boolean; // If true, shows "remove from vault" instead of "delete"
   onAddPublication?: () => void;
   onEditPublication?: (pub: Publication) => void;
+  onOpenPublication?: (pub: Publication) => void;
+  publicationActionLabel?: string;
   onDeletePublication?: (pub: Publication) => void;
   onExportBibtex: (pubs: Publication[]) => void;
   onDiscoverRelated?: (pubs: Publication[]) => void;
@@ -83,6 +85,8 @@ export function PublicationList({
   isVaultContext = false,
   onAddPublication,
   onEditPublication,
+  onOpenPublication,
+  publicationActionLabel = 'edit',
   onDeletePublication,
   onExportBibtex,
   onDiscoverRelated,
@@ -95,6 +99,7 @@ export function PublicationList({
   onDeleteTag,
   onCreateTag,
 }: PublicationListProps) {
+  const openPublication = onOpenPublication || onEditPublication;
   const [searchQuery, setSearchQuery] = useState('');
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
@@ -231,9 +236,9 @@ export function PublicationList({
   const handleKbOpen = useCallback(
     (id: string) => {
       const pub = filteredPublications.find((p) => p.id === id);
-      if (pub && onEditPublication) onEditPublication(pub);
+      if (pub && openPublication) openPublication(pub);
     },
-    [filteredPublications, onEditPublication],
+    [filteredPublications, openPublication],
   );
 
   const handleKbDelete = useCallback(
@@ -697,7 +702,8 @@ export function PublicationList({
             visibleColumns={visibleColumns}
             isVaultContext={isVaultContext}
             onToggleSelect={toggleSelection}
-            onEdit={onEditPublication}
+            onOpen={openPublication}
+            primaryActionLabel={publicationActionLabel}
             onDelete={onDeletePublication}
             onExportBibtex={(pub) => onExportBibtex([pub])}
             sortBy={sortBy}
@@ -727,8 +733,9 @@ export function PublicationList({
                   visibleColumns={visibleColumns}
                   isVaultContext={isVaultContext}
                   onToggleSelect={() => toggleSelection(pub.id)}
-                  onEdit={() => onEditPublication(pub)}
-                  onDelete={() => onDeletePublication(pub)}
+                  onOpen={openPublication ? () => openPublication(pub) : undefined}
+                  primaryActionLabel={publicationActionLabel}
+                  onDelete={onDeletePublication ? () => onDeletePublication(pub) : undefined}
                   onExportBibtex={() => onExportBibtex([pub])}
                 />
               </div>

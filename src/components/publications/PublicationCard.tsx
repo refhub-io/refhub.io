@@ -37,8 +37,9 @@ interface PublicationCardProps {
   visibleColumns?: VisibleColumns;
   isVaultContext?: boolean; // If true, shows "remove from vault" instead of "delete"
   onToggleSelect: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
+  onOpen?: () => void;
+  primaryActionLabel?: string;
+  onDelete?: () => void;
   onExportBibtex: () => void;
 }
 
@@ -54,7 +55,8 @@ export function PublicationCard({
   visibleColumns,
   isVaultContext = false,
   onToggleSelect,
-  onEdit,
+  onOpen,
+  primaryActionLabel = 'edit',
   onDelete,
   onExportBibtex,
 }: PublicationCardProps) {
@@ -86,13 +88,14 @@ export function PublicationCard({
   return (
     <Card 
       className={cn(
-        "group transition-all duration-300 cursor-pointer border-2",
+        "group transition-all duration-300 border-2",
+        onOpen && "cursor-pointer",
         isSelected 
           ? "border-primary/50 bg-primary/5 shadow-lg glow-purple" 
           : "border-border hover:border-primary/30",
         isFocused && "ring-2 ring-[hsl(var(--cyber-blue))]/50 ring-offset-1 ring-offset-background"
       )}
-      onClick={onEdit}
+      onClick={onOpen}
     >
       <CardContent className="p-5">
         <div className="flex items-start gap-4">
@@ -163,22 +166,28 @@ export function PublicationCard({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }}>
-                      <Edit className="w-4 h-4 mr-2" />
-                      edit
-                    </DropdownMenuItem>
+                    {onOpen && (
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onOpen(); }}>
+                        <Edit className="w-4 h-4 mr-2" />
+                        {primaryActionLabel}
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onExportBibtex(); }}>
                       <Download className="w-4 h-4 mr-2" />
                       export bibtex
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem 
-                      onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                      className="text-destructive focus:text-destructive"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      {isVaultContext ? 'remove from vault' : 'delete'}
-                    </DropdownMenuItem>
+                    {onDelete && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem 
+                          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          {isVaultContext ? 'remove from vault' : 'delete'}
+                        </DropdownMenuItem>
+                      </>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
