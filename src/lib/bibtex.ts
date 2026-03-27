@@ -1,4 +1,6 @@
 import { Publication } from "@/types/database";
+import { supabase } from '@/integrations/supabase/client';
+import { getBackendApiBaseUrl } from '@/lib/apiKeys';
 
 export function generateBibtexKey(pub: Publication): string {
   if (pub.bibtex_key) return pub.bibtex_key;
@@ -364,6 +366,18 @@ export interface DOIMetadata {
   type?: string;
 }
 
+async function getAccessToken() {
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw error;
+
+  const accessToken = data.session?.access_token;
+  if (!accessToken) {
+    throw new Error('No authenticated session available for DOI metadata requests.');
+  }
+
+  return accessToken;
+}
+
 function cleanDOI(doi: string): string {
   let cleanDoi = doi.trim();
   
@@ -499,39 +513,20 @@ function reconstructAbstract(invertedIndex: Record<string, number[]>): string {
 
 async function fetchFromSemanticScholar(cleanDoi: string): Promise<DOIMetadata | null> {
   try {
-    const response = await fetch(
-      `https://api.semanticscholar.org/graph/v1/paper/DOI:${encodeURIComponent(cleanDoi)}?fields=title,authors,year,venue,publicationVenue,abstract,externalIds,publicationTypes`,
-      { headers: { 'Accept': 'application/json' } }
-    );
+    const accessToken = await getAccessToken();
+    const response = await fetch(`${getBackendApiBaseUrl()}/doi-metadata`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ doi: cleanDoi }),
+    });
     
     if (!response.ok) return null;
     
-    const work = await response.json();
-    
-    const authors = (work.authors || []).map((a: { name?: string }) => a.name || 'Unknown Author');
-    
-    let publicationType = 'article';
-    const types = work.publicationTypes || [];
-    if (types.includes('Book') || types.includes('BookSection')) {
-      publicationType = 'book';
-    } else if (types.includes('Conference')) {
-      publicationType = 'inproceedings';
-    } else if (types.includes('Dissertation')) {
-      publicationType = 'thesis';
-    } else if (types.includes('Report')) {
-      publicationType = 'report';
-    }
-    
-    return {
-      title: work.title || 'Untitled',
-      authors,
-      year: work.year || undefined,
-      journal: work.venue || work.publicationVenue?.name || undefined,
-      doi: cleanDoi,
-      url: `https://doi.org/${cleanDoi}`,
-      abstract: work.abstract || undefined,
-      type: publicationType,
-    };
+    const payload = await response.json();
+    return (payload?.data as DOIMetadata | null) ?? null;
   } catch {
     return null;
   }
