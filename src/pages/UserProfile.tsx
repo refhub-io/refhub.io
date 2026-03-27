@@ -14,7 +14,7 @@ import { Loader } from '@/components/ui/loader';
 import { logger } from '@/lib/logger';
 import { Github, Linkedin, ArrowLeft, BookOpen, Vault as VaultIcon, ExternalLink, Globe } from 'lucide-react';
 
-type VaultWithCount = Vault & { vault_publications: { id: string }[] };
+type VaultWithCount = Vault & { vault_publications: { id: string }[]; is_fork?: boolean };
 
 function getInitials(p: Profile): string {
   if (p.display_name) {
@@ -89,7 +89,25 @@ export default function UserProfile() {
         .order('created_at', { ascending: false });
 
       if (vaultsError) throw vaultsError;
-      setPublicVaults((vaultsData ?? []) as VaultWithCount[]);
+
+      const fetchedVaults = (vaultsData ?? []) as VaultWithCount[];
+      const vaultIds = fetchedVaults.map((vault) => vault.id);
+      const { data: forkedVaultRows, error: forkedVaultsError } = vaultIds.length === 0
+        ? { data: [], error: null }
+        : await supabase
+            .from('vault_forks')
+            .select('forked_vault_id')
+            .in('forked_vault_id', vaultIds);
+
+      if (forkedVaultsError) throw forkedVaultsError;
+
+      const forkedVaultIds = new Set((forkedVaultRows ?? []).map((row) => row.forked_vault_id));
+      setPublicVaults(
+        fetchedVaults.map((vault) => ({
+          ...vault,
+          is_fork: forkedVaultIds.has(vault.id),
+        })),
+      );
     } catch (err) {
       logger.error('UserProfile', 'Error fetching profile data:', err);
       setNotFound(true);
@@ -302,7 +320,7 @@ export default function UserProfile() {
                       {publicVaults.map((vault) => (
                         <div
                           key={vault.id}
-                          className="group rounded-xl border-2 border-border bg-card/60 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 overflow-hidden"
+                          className={`group rounded-xl border-2 bg-card/60 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 overflow-hidden ${vault.is_fork ? 'border-amber-500/30 bg-amber-500/[0.03]' : 'border-border'}`}
                         >
                           {/* Color accent bar */}
                           <div
@@ -315,11 +333,18 @@ export default function UserProfile() {
                               <h3 className="font-bold font-mono truncate group-hover:text-primary transition-colors">
                                 {vault.name}
                               </h3>
-                              {vault.category && (
-                                <Badge variant="outline" className="font-mono text-[10px] shrink-0">
-                                  {vault.category}
-                                </Badge>
-                              )}
+                              <div className="flex flex-wrap justify-end gap-2 shrink-0">
+                                {vault.is_fork && (
+                                  <Badge variant="outline" className="font-mono text-[10px] border-amber-500/30 text-amber-600">
+                                    forked
+                                  </Badge>
+                                )}
+                                {vault.category && (
+                                  <Badge variant="outline" className="font-mono text-[10px] shrink-0">
+                                    {vault.category}
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
 
                             {(vault.description ?? vault.abstract) && (

@@ -62,7 +62,7 @@ export function PublicationViewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto border-2 bg-card/95 backdrop-blur-xl">
+      <DialogContent className="w-[calc(100vw-2rem)] sm:w-full sm:max-w-3xl max-h-[90vh] overflow-y-auto border-2 bg-card/95 backdrop-blur-xl">
         <DialogHeader className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             {publication.publication_type && (

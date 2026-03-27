@@ -513,7 +513,7 @@ export default function PublicVault() {
                       >
                         <GitFork className="w-4 h-4" />
                         <span className="ml-2 hidden md:inline">
-                          {forking ? 'forking_public_vault...' : 'fork public vault'}
+                          {forking ? 'forking...' : 'fork'}
                         </span>
                       </Button>
                     </>
