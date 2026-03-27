@@ -6,10 +6,12 @@ export interface SSPaper {
   title: string;
   authors: { name: string }[];
   year: number | null;
+  venue: string | null;
   citationCount: number | null;
   externalIds: { DOI?: string } | null;
   abstract: string | null;
   url: string | null;
+  openAccessPdfUrl: string | null;
 }
 
 interface BackendPaperAuthor {
@@ -24,12 +26,15 @@ interface BackendPaper {
   title?: string | null;
   authors?: BackendPaperAuthor[] | null;
   year?: number | null;
+  venue?: string | null;
   citation_count?: number | null;
   citationCount?: number | null;
   external_ids?: { DOI?: string | null } | null;
   externalIds?: { DOI?: string | null } | null;
   abstract?: string | null;
   url?: string | null;
+  open_access_pdf_url?: string | null;
+  openAccessPdfUrl?: string | null;
 }
 
 // In-memory cache keyed by cache key
@@ -54,6 +59,7 @@ function normalizePaper(record: BackendPaper): SSPaper | null {
           .filter((author) => author.name.length > 0)
       : [],
     year: typeof record.year === 'number' ? record.year : null,
+    venue: record.venue?.trim() || null,
     citationCount:
       typeof record.citation_count === 'number'
         ? record.citation_count
@@ -68,6 +74,7 @@ function normalizePaper(record: BackendPaper): SSPaper | null {
         : null,
     abstract: record.abstract ?? null,
     url: record.url ?? null,
+    openAccessPdfUrl: record.open_access_pdf_url ?? record.openAccessPdfUrl ?? null,
   };
 }
 
