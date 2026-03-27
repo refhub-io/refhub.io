@@ -18,6 +18,7 @@ import { PhaseLoader, LoadingPhase } from '@/components/ui/loading';
 import { useToast } from '@/hooks/use-toast';
 import { Sparkles } from 'lucide-react';
 import { getPageCache, setPageCache, hasPageCache } from '@/lib/pageCache';
+import { buildVaultPublicationCopyPayload } from '@/lib/vaultPublicationAttribution';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -927,17 +928,9 @@ export default function Dashboard() {
         if (!existingCopy) {
           // If we have a vault_publication, we need to copy its data directly
           if (vaultPub) {
-            // Copy the vault_publication data to the new vault
-            const { id, vault_id, original_publication_id, created_at, updated_at, ...pubData } = vaultPub;
             const { error: insertError } = await supabase
               .from('vault_publications')
-              .insert({
-                ...pubData,
-                vault_id: vaultId,
-                original_publication_id: original_publication_id || null,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              });
+              .insert(buildVaultPublicationCopyPayload(vaultPub, vaultId, user.id));
 
             if (insertError) throw insertError;
           } else {
