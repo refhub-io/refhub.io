@@ -179,6 +179,11 @@ export function PublicationTable({
             const isFocused = focusedIndex === index;
             const relCount = relationsCountMap[pub.id] || 0;
             const kbProps = kbItemProps ? kbItemProps(index, pub.id) : {};
+            const {
+              onClick: kbOnClick,
+              onDoubleClick: kbOnDoubleClick,
+              ...rowKbProps
+            } = kbProps;
 
             return (
               <TableRow
@@ -189,8 +194,16 @@ export function PublicationTable({
                   isSelected && 'bg-primary/5',
                   isFocused && 'ring-2 ring-inset ring-[hsl(var(--cyber-blue))]/50'
                 )}
-                onClick={() => onOpen?.(pub)}
-                {...kbProps}
+                onClick={(e) => {
+                  kbOnClick?.(e);
+                  if (!e.defaultPrevented && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+                    onOpen?.(pub);
+                  }
+                }}
+                onDoubleClick={(e) => {
+                  kbOnDoubleClick?.(e);
+                }}
+                {...rowKbProps}
               >
                 <TableCell onClick={(e) => e.stopPropagation()}>
                   <Checkbox

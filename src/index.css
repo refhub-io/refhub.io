@@ -306,6 +306,20 @@
       border-radius: 0 !important;
       transform: none !important;
     }
+
+    .publication-view-dialog[role="dialog"] {
+      top: 50% !important;
+      left: 50% !important;
+      right: auto !important;
+      bottom: auto !important;
+      width: calc(100vw - 1.5rem) !important;
+      height: auto !important;
+      max-width: calc(100vw - 1.5rem) !important;
+      max-height: calc(100vh - 1.5rem) !important;
+      margin: 0 !important;
+      border-radius: 1rem !important;
+      transform: translate(-50%, -50%) !important;
+    }
     
     /* Force inputs to fit and break text */
     [role="dialog"] input,
