@@ -172,23 +172,39 @@ export default function ProfileEdit() {
           </div>
         </div>
 
-        <Tabs defaultValue="profile" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 gap-2 rounded-2xl border border-border/70 bg-muted/60 p-1 font-mono dark:border-white/8 dark:bg-[#1a1722] sm:grid-cols-4">
-            <TabsTrigger value="profile" className="min-h-11 justify-center gap-2 rounded-xl px-3 text-center data-[state=active]:bg-violet-500/90 data-[state=active]:text-white data-[state=active]:shadow-none">
+        <Tabs defaultValue="profile" className="min-w-0 space-y-6">
+          <TabsList className="grid h-auto w-full grid-cols-4 gap-1 rounded-2xl border border-border/70 bg-muted/60 p-1 font-mono dark:border-white/8 dark:bg-[#1a1722]">
+            <TabsTrigger
+              value="profile"
+              aria-label="Profile settings"
+              className="min-h-10 min-w-0 justify-center gap-2 rounded-xl px-2 text-center text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md sm:min-h-11 sm:px-3 sm:text-sm"
+            >
               <User className="w-4 h-4 shrink-0" />
-              <span className="truncate text-[11px] sm:text-xs">profile</span>
+              <span className="hidden truncate sm:inline">profile</span>
             </TabsTrigger>
-            <TabsTrigger value="password" className="min-h-11 justify-center gap-2 rounded-xl px-3 text-center data-[state=active]:bg-violet-500/90 data-[state=active]:text-white data-[state=active]:shadow-none">
+            <TabsTrigger
+              value="password"
+              aria-label="Password settings"
+              className="min-h-10 min-w-0 justify-center gap-2 rounded-xl px-2 text-center text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md sm:min-h-11 sm:px-3 sm:text-sm"
+            >
               <Lock className="w-4 h-4 shrink-0" />
-              <span className="truncate text-[11px] sm:text-xs">password</span>
+              <span className="hidden truncate sm:inline">password</span>
             </TabsTrigger>
-            <TabsTrigger value="email" className="min-h-11 justify-center gap-2 rounded-xl px-3 text-center data-[state=active]:bg-violet-500/90 data-[state=active]:text-white data-[state=active]:shadow-none">
+            <TabsTrigger
+              value="email"
+              aria-label="Email settings"
+              className="min-h-10 min-w-0 justify-center gap-2 rounded-xl px-2 text-center text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md sm:min-h-11 sm:px-3 sm:text-sm"
+            >
               <Mail className="w-4 h-4 shrink-0" />
-              <span className="truncate text-[11px] sm:text-xs">email</span>
+              <span className="hidden truncate sm:inline">email</span>
             </TabsTrigger>
-            <TabsTrigger value="api-keys" className="min-h-11 justify-center gap-2 rounded-xl px-3 text-center data-[state=active]:bg-violet-500/90 data-[state=active]:text-white data-[state=active]:shadow-none">
+            <TabsTrigger
+              value="api-keys"
+              aria-label="API key settings"
+              className="min-h-10 min-w-0 justify-center gap-2 rounded-xl px-2 text-center text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md sm:min-h-11 sm:px-3 sm:text-sm"
+            >
               <KeyRound className="w-4 h-4 shrink-0" />
-              <span className="truncate text-[11px] sm:text-xs">api_keys</span>
+              <span className="hidden truncate sm:inline">api_keys</span>
             </TabsTrigger>
           </TabsList>
 
