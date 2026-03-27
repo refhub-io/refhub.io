@@ -1,12 +1,17 @@
 import { User } from '@supabase/supabase-js';
 
-export type SupportedOAuthProvider = 'google' | 'github';
+export type SupportedAuthProvider = 'google' | 'github' | 'email';
+export type SupportedOAuthProvider = Extract<SupportedAuthProvider, 'google' | 'github'>;
 
 const LAST_LOGIN_PROVIDER_KEY = 'lastLoginProvider';
 const LAST_LOGIN_PROVIDER_PENDING_KEY = 'lastLoginProviderPending';
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
+}
+
+export function isSupportedAuthProvider(value: unknown): value is SupportedAuthProvider {
+  return value === 'google' || value === 'github' || value === 'email';
 }
 
 export function isSupportedOAuthProvider(value: unknown): value is SupportedOAuthProvider {
@@ -35,7 +40,7 @@ export function getUserAuthProvider(user: User | null | undefined): SupportedOAu
   return matchedIdentityProvider ?? null;
 }
 
-export function persistLastLoginProvider(provider: SupportedOAuthProvider | null) {
+export function persistLastLoginProvider(provider: SupportedAuthProvider | null) {
   if (typeof window === 'undefined') return;
 
   if (provider) {
@@ -69,20 +74,23 @@ export function consumePendingLastLoginProvider(): SupportedOAuthProvider | null
   return provider;
 }
 
-export function getPersistedLastLoginProvider(): SupportedOAuthProvider | null {
+export function getPersistedLastLoginProvider(): SupportedAuthProvider | null {
   if (typeof window === 'undefined') return null;
 
   const provider = localStorage.getItem(LAST_LOGIN_PROVIDER_KEY);
-  return isSupportedOAuthProvider(provider) ? provider : null;
+  return isSupportedAuthProvider(provider) ? provider : null;
 }
 
-export function getAuthProviderLabel(provider: SupportedOAuthProvider): string {
-  return provider === 'google' ? 'Google' : 'GitHub';
+export function getAuthProviderLabel(provider: SupportedAuthProvider): string {
+  if (provider === 'google') return 'Google';
+  if (provider === 'github') return 'GitHub';
+  return 'Email';
 }
 
-export function getLastLoginProvider(user: User | null | undefined): SupportedOAuthProvider | null {
+export function getLastLoginProvider(user: User | null | undefined): SupportedAuthProvider | null {
   return getPersistedLastLoginProvider() ?? getUserAuthProvider(user);
 }
+
 
 export function hasPasswordIdentity(user: User | null | undefined): boolean {
   const identities = user?.identities;

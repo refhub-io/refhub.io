@@ -3,6 +3,7 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import {
   getUserAuthProvider,
+  getPersistedLastLoginProvider,
   persistLastLoginProvider,
   persistPendingLastLoginProvider,
   consumePendingLastLoginProvider,
@@ -32,6 +33,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (pendingProvider) {
         persistLastLoginProvider(pendingProvider);
+        return;
+      }
+
+      // Avoid app-metadata/provider-based overwrite if we already have a persisted last provider
+      const storedProvider = getPersistedLastLoginProvider();
+      if (storedProvider) {
         return;
       }
 
@@ -82,6 +89,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       password,
     });
+
+    if (!error) {
+      persistLastLoginProvider('email');
+    }
     
     return { error: error as Error | null };
   };

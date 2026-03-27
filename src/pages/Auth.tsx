@@ -15,7 +15,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { ensureProfileExists } from '@/lib/profile';
 import { resolvePostAuthRedirect } from '@/lib/authRedirect';
 import { AuthProviderBadge } from '@/components/auth/AuthProviderBadge';
-import { getPersistedLastLoginProvider, getAuthProviderLabel, type SupportedOAuthProvider } from '@/lib/authProviders';
+import { getPersistedLastLoginProvider, getAuthProviderLabel, type SupportedAuthProvider, type SupportedOAuthProvider } from '@/lib/authProviders';
 
 function GoogleIcon() {
   return (
@@ -53,7 +53,7 @@ function OAuthButton({
   return (
     <div className="relative">
       {isLastUsed && (
-        <AuthProviderBadge provider={provider} className="absolute -top-2 right-3 z-10" />
+        <AuthProviderBadge provider={provider} className="absolute -top-3 right-4 z-10" />
       )}
       <Button
         type="button"
@@ -146,7 +146,7 @@ export default function Auth() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const passwordStrength = useMemo(() => calculatePasswordStrength(password), [password]);
-  const lastOAuthProvider = useMemo(() => getPersistedLastLoginProvider(), []);
+  const lastLoginProvider = useMemo<SupportedAuthProvider | null>(() => getPersistedLastLoginProvider(), []);
   const isBusy = credentialLoading || oauthProviderLoading !== null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -316,7 +316,11 @@ export default function Auth() {
                   <span className="text-[10px] font-mono lowercase tracking-[0.18em] text-muted-foreground">
                     social login
                   </span>
-                  {!lastOAuthProvider && (
+                  {lastLoginProvider ? (
+                    <span className="text-[10px] font-mono lowercase tracking-[0.18em] text-muted-foreground">
+                      last_used_{lastLoginProvider}
+                    </span>
+                  ) : (
                     <span className="text-[10px] font-mono lowercase tracking-[0.18em] text-muted-foreground">
                       no last used yet
                     </span>
@@ -327,14 +331,14 @@ export default function Auth() {
                   onClick={() => handleOAuthSignIn('google')}
                   disabled={isBusy}
                   loading={oauthProviderLoading === 'google'}
-                  isLastUsed={lastOAuthProvider === 'google'}
+                  isLastUsed={lastLoginProvider === 'google'}
                 />
                 <OAuthButton
                   provider="github"
                   onClick={() => handleOAuthSignIn('github')}
                   disabled={isBusy}
                   loading={oauthProviderLoading === 'github'}
-                  isLastUsed={lastOAuthProvider === 'github'}
+                  isLastUsed={lastLoginProvider === 'github'}
                 />
                 <div className="px-1 pt-1">
                   <p className="text-[11px] font-mono text-muted-foreground">
