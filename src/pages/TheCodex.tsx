@@ -16,6 +16,7 @@ import { LoadingSpinner } from '@/components/ui/loading';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { NotificationDropdown } from '@/components/notifications/NotificationDropdown';
 import { Sidebar } from '@/components/layout/Sidebar';
+import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { getPageCache, setPageCache, hasPageCache } from '@/lib/pageCache';
 import { 
   BookOpen,
@@ -63,7 +64,7 @@ interface CodexCache {
 
 export default function TheCodex() {
   const { user } = useAuth();
-  const { profile } = useProfile();
+  const { profile, refetch: refetchProfile } = useProfile();
   const { isFavorite, toggleFavorite } = useVaultFavorites();
   const { forkVault } = useVaultFork();
   const { toast } = useToast();
@@ -80,6 +81,7 @@ export default function TheCodex() {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [forkingId, setForkingId] = useState<string | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
 
   const fetchPublicVaults = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -356,6 +358,7 @@ export default function TheCodex() {
           isMobileOpen={isMobileSidebarOpen}
           onMobileClose={() => setIsMobileSidebarOpen(false)}
           profile={profile}
+          onEditProfile={() => setIsProfileDialogOpen(true)}
         />
       )}
 
@@ -516,25 +519,22 @@ export default function TheCodex() {
                     )}
 
                     {/* Stats Row */}
-                    <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground mb-4 pt-3 border-t border-border/50">
-                      <div className="flex items-center gap-1.5">
-                        <BookOpen className="w-3.5 h-3.5" />
-                        <span>{vault.publication_count}_papers</span>
+                    <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border/50 pt-3 text-xs font-mono text-muted-foreground">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <BookOpen className="h-3.5 w-3.5 shrink-0" />
+                        <span className="break-all">{vault.publication_count}_papers</span>
                       </div>
-                      <span className="text-muted-foreground/30">|</span>
-                      <div className="flex items-center gap-1.5">
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>{vault.stats?.view_count || 0}_views</span>
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <Eye className="h-3.5 w-3.5 shrink-0" />
+                        <span className="break-all">{vault.stats?.view_count || 0}_views</span>
                       </div>
-                      <span className="text-muted-foreground/30">|</span>
-                      <div className="flex items-center gap-1.5">
-                        <Heart className="w-3.5 h-3.5" />
-                        <span>{vault.favorites_count || 0}_favorites</span>
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <Heart className="h-3.5 w-3.5 shrink-0" />
+                        <span className="break-all">{vault.favorites_count || 0}_favorites</span>
                       </div>
-                      <span className="text-muted-foreground/30">|</span>
-                      <div className="flex items-center gap-1.5">
-                        <GitFork className="w-3.5 h-3.5" />
-                        <span>{vault.fork_count || 0}_forks</span>
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <GitFork className="h-3.5 w-3.5 shrink-0" />
+                        <span className="break-all">{vault.fork_count || 0}_forks</span>
                       </div>
                     </div>
 
@@ -577,6 +577,16 @@ export default function TheCodex() {
           </main>
         </div>
       </div>
+
+      <ProfileDialog
+        open={isProfileDialogOpen}
+        onOpenChange={(open) => {
+          setIsProfileDialogOpen(open);
+          if (!open) {
+            void refetchProfile();
+          }
+        }}
+      />
     </div>
   );
 }
