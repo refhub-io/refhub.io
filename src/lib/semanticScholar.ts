@@ -1,11 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-
-const BASE_URL = 'https://api.semanticscholar.org/graph/v1';
-const SEMANTIC_SCHOLAR_PROXY_PATH = '/api/v1';
-const configuredSemanticScholarBackendBaseUrl =
-  import.meta.env.VITE_SEMANTIC_SCHOLAR_BACKEND_BASE_URL?.trim() || '';
-
-const PAPER_FIELDS = 'paperId,title,authors,year,citationCount,externalIds,abstract,url';
+import { getBackendApiBaseUrl } from '@/lib/apiKeys';
 
 export interface SSPaper {
   paperId: string;
@@ -41,20 +35,8 @@ interface BackendPaper {
 // In-memory cache keyed by cache key
 const paperCache = new Map<string, SSPaper[]>();
 
-// Rate-limiting queue for public browser lookups that still hit Semantic Scholar directly.
-const MIN_INTERVAL_MS = 300;
-let requestQueue: Promise<void> = Promise.resolve();
-
-function getSemanticScholarBackendBaseUrl() {
-  const backendBaseUrl = configuredSemanticScholarBackendBaseUrl.endsWith('/')
-    ? configuredSemanticScholarBackendBaseUrl.slice(0, -1)
-    : configuredSemanticScholarBackendBaseUrl;
-
-  return `${backendBaseUrl}${SEMANTIC_SCHOLAR_PROXY_PATH}`;
-}
-
 function getSemanticScholarProxyUrl(path: string) {
-  return `${getSemanticScholarBackendBaseUrl()}${path}`;
+  return `${getBackendApiBaseUrl()}${path}`;
 }
 
 function normalizePaper(record: BackendPaper): SSPaper | null {
@@ -89,26 +71,6 @@ function normalizePaper(record: BackendPaper): SSPaper | null {
   };
 }
 
-async function fetchJSON<T>(url: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    requestQueue = requestQueue
-      .catch(() => {})
-      .then(() => new Promise<void>((r) => setTimeout(r, MIN_INTERVAL_MS)))
-      .then(async () => {
-        try {
-          const res = await fetch(url);
-          if (!res.ok) {
-            reject(new Error(`Semantic Scholar API error: ${res.status} ${res.statusText}`));
-          } else {
-            resolve(await res.json() as T);
-          }
-        } catch (err) {
-          reject(err);
-        }
-      });
-  });
-}
-
 async function getAccessToken() {
   const { data, error } = await supabase.auth.getSession();
   if (error) {
@@ -131,6 +93,36 @@ function getErrorMessage(payload: unknown, status: number) {
     (payload as { details?: string } | null)?.details ||
     `Semantic Scholar request failed (${status})`
   );
+}
+
+async function lookupPaperIdFromBackend(input: { doi?: string; title?: string }): Promise<string | null> {
+  const accessToken = await getAccessToken();
+  const response = await fetch(getSemanticScholarProxyUrl('/lookup'), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  let payload: unknown = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(getErrorMessage(payload, response.status));
+  }
+
+  const paperId =
+    (payload as { data?: { paper_id?: unknown; paperId?: unknown } | null } | null)?.data?.paper_id ??
+    (payload as { data?: { paperId?: unknown } | null } | null)?.data?.paperId ??
+    null;
+
+  return typeof paperId === 'string' && paperId.trim().length > 0 ? paperId : null;
 }
 
 async function fetchPaperListFromBackend(
@@ -171,10 +163,7 @@ async function fetchPaperListFromBackend(
 
 export async function lookupPaperByDOI(doi: string): Promise<string | null> {
   try {
-    const data = await fetchJSON<{ paperId?: string }>(
-      `${BASE_URL}/paper/DOI:${encodeURIComponent(doi)}?fields=paperId`
-    );
-    return data.paperId ?? null;
+    return await lookupPaperIdFromBackend({ doi });
   } catch {
     return null;
   }
@@ -182,10 +171,7 @@ export async function lookupPaperByDOI(doi: string): Promise<string | null> {
 
 export async function lookupPaperByTitle(title: string): Promise<string | null> {
   try {
-    const data = await fetchJSON<{ data?: { paperId: string }[] }>(
-      `${BASE_URL}/paper/search?query=${encodeURIComponent(title)}&fields=paperId&limit=1`
-    );
-    return data.data?.[0]?.paperId ?? null;
+    return await lookupPaperIdFromBackend({ title });
   } catch {
     return null;
   }
