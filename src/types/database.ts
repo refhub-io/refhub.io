@@ -48,6 +48,8 @@ export interface Vault {
   abstract: string | null;
   created_at: string;
   updated_at: string;
+  /** populated via vault_forks join when attribution is needed */
+  forked_from_id?: string | null;
 }
 
 export interface VaultStats {
