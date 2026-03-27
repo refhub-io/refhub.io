@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag } from '@/types/database';
 import { formatTimeAgo } from '@/lib/utils';
+import { resolveLastUpdatedActivity } from '@/lib/vaultPublicationAttribution';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
@@ -36,7 +37,10 @@ export default function PublicVault() {
   const navigate = useNavigate();
   const [vault, setVault] = useState<Vault | null>(null);
   const [vaultOwner, setVaultOwner] = useState<{ display_name: string | null; username: string | null } | null>(null);
-  const [lastUpdatedBy, setLastUpdatedBy] = useState<{ display_name: string | null; username: string | null } | null>(null);
+  const [lastUpdatedActivity, setLastUpdatedActivity] = useState<{
+    profile: { display_name: string | null; username: string | null } | null;
+    timestamp: string;
+  } | null>(null);
   const [favoritesCount, setFavoritesCount] = useState(0);
   const [forkCount, setForkCount] = useState(0);
   const [publications, setPublications] = useState<Publication[]>([]);
@@ -169,22 +173,32 @@ export default function PublicVault() {
       
       setForkCount(forksCount || 0);
 
-      // Fetch last updated by user
+      // Fetch last updated activity
       const { data: lastUpdatedPub } = await supabase
         .from('vault_publications')
-        .select('updated_by')
+        .select('updated_by, created_by, updated_at, created_at')
         .eq('vault_id', vaultData.id)
         .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle();
-      
-      if (lastUpdatedPub?.updated_by) {
+
+      const lastUpdated = resolveLastUpdatedActivity(lastUpdatedPub, vaultData.updated_at);
+
+      if (lastUpdated.actorId) {
         const { data: updaterProfile } = await supabase
           .from('profiles')
           .select('display_name, username')
-          .eq('user_id', lastUpdatedPub.updated_by)
+          .eq('user_id', lastUpdated.actorId)
           .maybeSingle();
-        setLastUpdatedBy(updaterProfile);
+        setLastUpdatedActivity({
+          profile: updaterProfile,
+          timestamp: lastUpdated.timestamp,
+        });
+      } else {
+        setLastUpdatedActivity({
+          profile: null,
+          timestamp: lastUpdated.timestamp,
+        });
       }
 
       // Increment view count
@@ -456,9 +470,9 @@ export default function PublicVault() {
                   <span className="flex items-center gap-1 text-xs text-muted-foreground font-mono">
                     <Clock className="w-3.5 h-3.5 shrink-0" />
                     <span className="truncate">
-                      {lastUpdatedBy
-                        ? `${lastUpdatedBy.display_name || lastUpdatedBy.username || 'someone'}.last_update() // ${formatTimeAgo(vault.updated_at)}`
-                        : `last_sync() // ${formatTimeAgo(vault.updated_at)}`
+                      {lastUpdatedActivity?.profile
+                        ? `${lastUpdatedActivity.profile.display_name || lastUpdatedActivity.profile.username || 'someone'}.last_update() // ${formatTimeAgo(lastUpdatedActivity.timestamp)}`
+                        : `last_sync() // ${formatTimeAgo(lastUpdatedActivity?.timestamp || vault.updated_at)}`
                       }
                     </span>
                   </span>

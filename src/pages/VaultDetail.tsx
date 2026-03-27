@@ -28,6 +28,7 @@ import { useVaultFork } from '@/hooks/useVaultFork';
 import { useVaultContent } from '@/contexts/VaultContentContext';
 import { useSharedVaultOperations } from '@/hooks/useSharedVaultOperations';
 import { getForkSourceHref, getForkSourceLabel, getVaultForkInfo, VaultForkInfo } from '@/lib/vaultFork';
+import { buildVaultPublicationCopyPayload } from '@/lib/vaultPublicationAttribution';
 import { Lock, Globe, Shield, Users, Clock, User, ExternalLink, Sparkles, Crown, Edit, Eye, Heart, GitFork } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -809,17 +810,9 @@ export default function VaultDetail() {
         if (!existingCopy) {
           // If we have a vault_publication, we need to copy its data directly
           if (vaultPub) {
-            // Copy the vault_publication data to the new vault
-            const { id, vault_id, original_publication_id, created_at, updated_at, ...pubData } = vaultPub;
             const { error: insertError } = await supabase
               .from('vault_publications')
-              .insert({
-                ...pubData,
-                vault_id: vaultIdToAdd,
-                original_publication_id: original_publication_id || null,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              });
+              .insert(buildVaultPublicationCopyPayload(vaultPub, vaultIdToAdd, user.id));
 
             if (insertError) throw insertError;
           } else {
