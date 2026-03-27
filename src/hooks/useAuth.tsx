@@ -36,12 +36,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Avoid app-metadata/provider-based overwrite if we already have a persisted last provider
-      const storedProvider = getPersistedLastLoginProvider();
-      if (storedProvider) {
-        return;
-      }
-
+      // Always update from session metadata on a real sign-in event so switching
+      // providers (e.g. GitHub → Google) is reflected even when the pending key
+      // was already consumed by another concurrent handler.
       const inferredProvider = getUserAuthProvider(session?.user);
       if (inferredProvider) {
         persistLastLoginProvider(inferredProvider);

@@ -78,10 +78,17 @@ export default function AuthCallback() {
         }
 
         const pendingProvider = consumePendingLastLoginProvider();
-        const uiProvider = (pendingProvider || getUserAuthProvider(user)) as SupportedAuthProvider | null;
-
+        // Only persist when we have the pending value — that is the authoritative
+        // pre-redirect intent.  If it was already consumed by the onAuthStateChange
+        // handler in useAuth, we trust what it wrote and skip the redundant write
+        // (a getUserAuthProvider fallback here can return stale / wrong metadata
+        // for users with multiple linked identities and would overwrite the correct
+        // value).
+        if (pendingProvider) {
+          persistLastLoginProvider(pendingProvider);
+        }
+        const uiProvider = (pendingProvider ?? getUserAuthProvider(user)) as SupportedAuthProvider | null;
         if (uiProvider) {
-          persistLastLoginProvider(uiProvider);
           setCallbackProvider(uiProvider);
           setStatusLabel(`finishing_${uiProvider}_login`);
         }

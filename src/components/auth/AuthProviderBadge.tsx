@@ -1,8 +1,8 @@
 import { cn } from '@/lib/utils';
-import { type SupportedOAuthProvider } from '@/lib/authProviders';
+import { type SupportedAuthProvider } from '@/lib/authProviders';
 
 interface AuthProviderBadgeProps {
-  provider: SupportedOAuthProvider;
+  provider: SupportedAuthProvider;
   className?: string;
 }
 
