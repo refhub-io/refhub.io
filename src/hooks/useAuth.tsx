@@ -2,8 +2,6 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import {
-  getUserAuthProvider,
-  getPersistedLastLoginProvider,
   persistLastLoginProvider,
   persistPendingLastLoginProvider,
   consumePendingLastLoginProvider,
@@ -28,28 +26,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const persistAuthProvider = (session: Session | null) => {
+    const persistAuthProvider = () => {
       const pendingProvider = consumePendingLastLoginProvider();
-
       if (pendingProvider) {
         persistLastLoginProvider(pendingProvider);
-        return;
       }
-
-      // Always update from session metadata on a real sign-in event so switching
-      // providers (e.g. GitHub → Google) is reflected even when the pending key
-      // was already consumed by another concurrent handler.
-      const inferredProvider = getUserAuthProvider(session?.user);
-      if (inferredProvider) {
-        persistLastLoginProvider(inferredProvider);
-      }
+      // Never infer provider from session metadata: for multi-provider users
+      // app_metadata.provider reflects the original signup provider, not the
+      // most recent one. The pending mechanism and explicit signIn() call are
+      // the only authoritative sources.
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
-        persistAuthProvider(session);
+        // Only consume/apply the pending provider on an actual fresh sign-in.
+        // INITIAL_SESSION, TOKEN_REFRESHED, etc. should not touch it — a stale
+        // pending key (e.g. from an abandoned OAuth flow) would otherwise corrupt
+        // the stored provider.
+        if (event === 'SIGNED_IN') {
+          persistAuthProvider();
+        }
         setLoading(false);
       }
     );
@@ -57,7 +55,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      persistAuthProvider(session);
       setLoading(false);
     });
 

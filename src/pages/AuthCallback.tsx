@@ -6,7 +6,7 @@ import { ensureProfileExists } from '@/lib/profile';
 import { resolvePostAuthRedirect } from '@/lib/authRedirect';
 import {
   getAuthProviderLabel,
-  getUserAuthProvider,
+  getPersistedLastLoginProvider,
   persistLastLoginProvider,
   consumePendingLastLoginProvider,
   type SupportedAuthProvider,
@@ -78,16 +78,15 @@ export default function AuthCallback() {
         }
 
         const pendingProvider = consumePendingLastLoginProvider();
-        // Only persist when we have the pending value — that is the authoritative
-        // pre-redirect intent.  If it was already consumed by the onAuthStateChange
-        // handler in useAuth, we trust what it wrote and skip the redundant write
-        // (a getUserAuthProvider fallback here can return stale / wrong metadata
-        // for users with multiple linked identities and would overwrite the correct
-        // value).
         if (pendingProvider) {
+          // Pending may not have been consumed yet if useAuth's SIGNED_IN fired
+          // after this point; persist it explicitly to be safe.
           persistLastLoginProvider(pendingProvider);
         }
-        const uiProvider = (pendingProvider ?? getUserAuthProvider(user)) as SupportedAuthProvider | null;
+        // For the UI label, prefer the pending value; fall back to what useAuth
+        // already persisted. Never infer from session metadata — unreliable for
+        // multi-provider users.
+        const uiProvider = (pendingProvider ?? getPersistedLastLoginProvider()) as SupportedAuthProvider | null;
         if (uiProvider) {
           setCallbackProvider(uiProvider);
           setStatusLabel(`finishing_${uiProvider}_login`);

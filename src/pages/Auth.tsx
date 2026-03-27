@@ -347,15 +347,12 @@ export default function Auth() {
                 </div>
               </div>
 
-              <div className="relative flex items-center gap-3 py-1">
+              <div className="flex items-center gap-3 py-1">
                 <div className="h-px flex-1 bg-border/60" />
                 <span className="text-[10px] font-mono uppercase tracking-[0.28em] text-muted-foreground">
                   or_use_email
                 </span>
                 <div className="h-px flex-1 bg-border/60" />
-                {lastLoginProvider === 'email' && (
-                  <AuthProviderBadge provider="email" className="absolute -top-3 right-4 z-10" />
-                )}
               </div>
 
               {isSignUp && (
@@ -376,7 +373,12 @@ export default function Auth() {
               )}
               
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-sm font-semibold font-mono">email</Label>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="email" className="text-sm font-semibold font-mono">email</Label>
+                  {lastLoginProvider === 'email' && (
+                    <AuthProviderBadge provider="email" />
+                  )}
+                </div>
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
