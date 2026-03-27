@@ -1,7 +1,12 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { getUserAuthProvider, persistLastLoginProvider } from '@/lib/authProviders';
+import {
+  getUserAuthProvider,
+  persistLastLoginProvider,
+  persistPendingLastLoginProvider,
+  consumePendingLastLoginProvider,
+} from '@/lib/authProviders';
 
 interface AuthContextType {
   user: User | null;
@@ -22,11 +27,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const persistAuthProvider = (session: Session | null) => {
+      const pendingProvider = consumePendingLastLoginProvider();
+
+      if (pendingProvider) {
+        persistLastLoginProvider(pendingProvider);
+        return;
+      }
+
+      const inferredProvider = getUserAuthProvider(session?.user);
+      if (inferredProvider) {
+        persistLastLoginProvider(inferredProvider);
+      }
+    };
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
-        persistLastLoginProvider(getUserAuthProvider(session?.user));
+        persistAuthProvider(session);
         setLoading(false);
       }
     );
@@ -34,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      persistLastLoginProvider(getUserAuthProvider(session?.user));
+      persistAuthProvider(session);
       setLoading(false);
     });
 
@@ -68,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signInWithGoogle = async () => {
-    persistLastLoginProvider('google');
+    persistPendingLastLoginProvider('google');
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -78,14 +97,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (error) {
-      persistLastLoginProvider(null);
+      persistPendingLastLoginProvider(null);
     }
 
     return { error: error as Error | null };
   };
 
   const signInWithGitHub = async () => {
-    persistLastLoginProvider('github');
+    persistPendingLastLoginProvider('github');
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'github',
@@ -95,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (error) {
-      persistLastLoginProvider(null);
+      persistPendingLastLoginProvider(null);
     }
 
     return { error: error as Error | null };
@@ -103,7 +122,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
-    persistLastLoginProvider(null);
+    // Keep last login provider so the sign-in screen can still highlight last used provider.
+    // This improves the next-auth path when users sign out and then sign back in.
   };
 
   return (

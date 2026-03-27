@@ -3,6 +3,7 @@ import { User } from '@supabase/supabase-js';
 export type SupportedOAuthProvider = 'google' | 'github';
 
 const LAST_LOGIN_PROVIDER_KEY = 'lastLoginProvider';
+const LAST_LOGIN_PROVIDER_PENDING_KEY = 'lastLoginProviderPending';
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
@@ -39,8 +40,33 @@ export function persistLastLoginProvider(provider: SupportedOAuthProvider | null
 
   if (provider) {
     localStorage.setItem(LAST_LOGIN_PROVIDER_KEY, provider);
-    return;
+  } else {
+    localStorage.removeItem(LAST_LOGIN_PROVIDER_KEY);
   }
+}
+
+export function persistPendingLastLoginProvider(provider: SupportedOAuthProvider | null) {
+  if (typeof window === 'undefined') return;
+
+  if (provider) {
+    localStorage.setItem(LAST_LOGIN_PROVIDER_PENDING_KEY, provider);
+  } else {
+    localStorage.removeItem(LAST_LOGIN_PROVIDER_PENDING_KEY);
+  }
+}
+
+export function consumePendingLastLoginProvider(): SupportedOAuthProvider | null {
+  if (typeof window === 'undefined') return null;
+
+  const provider = localStorage.getItem(LAST_LOGIN_PROVIDER_PENDING_KEY);
+
+  if (!isSupportedOAuthProvider(provider)) {
+    localStorage.removeItem(LAST_LOGIN_PROVIDER_PENDING_KEY);
+    return null;
+  }
+
+  localStorage.removeItem(LAST_LOGIN_PROVIDER_PENDING_KEY);
+  return provider;
 }
 
 export function getPersistedLastLoginProvider(): SupportedOAuthProvider | null {
@@ -55,7 +81,7 @@ export function getAuthProviderLabel(provider: SupportedOAuthProvider): string {
 }
 
 export function getLastLoginProvider(user: User | null | undefined): SupportedOAuthProvider | null {
-  return getUserAuthProvider(user) ?? getPersistedLastLoginProvider();
+  return getPersistedLastLoginProvider() ?? getUserAuthProvider(user);
 }
 
 export function hasPasswordIdentity(user: User | null | undefined): boolean {
