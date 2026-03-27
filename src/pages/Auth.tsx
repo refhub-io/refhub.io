@@ -317,11 +317,11 @@ export default function Auth() {
                     social login
                   </span>
                   {lastLoginProvider ? (
-                    <span className="text-[10px] font-mono lowercase tracking-[0.18em] text-muted-foreground">
+                    <span className="text-[10px] font-mono lowercase tracking-[0.18em] text-slate-700 dark:text-slate-200">
                       last_used_{lastLoginProvider}
                     </span>
                   ) : (
-                    <span className="text-[10px] font-mono lowercase tracking-[0.18em] text-muted-foreground">
+                    <span className="text-[10px] font-mono lowercase tracking-[0.18em] text-slate-700 dark:text-slate-200">
                       no last used yet
                     </span>
                   )}
