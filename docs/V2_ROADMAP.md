@@ -163,6 +163,7 @@ The frontend should support both manual and agent-assisted ingestion.
 - BibTeX import
 - URL import
 - paste candidate metadata
+- save metadata with optional linked PDF attachment
 - dry-run import preview
 - duplicate detection and merge suggestions
 - error reporting per imported item
@@ -171,6 +172,9 @@ The frontend should support both manual and agent-assisted ingestion.
 - import modal with review step
 - duplicate resolution UI
 - “suggested tags” / “suggested metadata fixes” hooks later
+
+### Related spec
+- BYOS attachment storage and Google Drive first-provider direction: `docs/V2_ATTACHMENT_STORAGE_BYOS.md`
 
 ---
 
@@ -243,11 +247,12 @@ That split must remain explicit so auth does not accidentally route to the backe
 5. add tag management UI
 6. add relation management UI
 7. add import preview / duplicate resolution UX
+8. add BYOS attachment flows for linked PDFs without RefHub-hosted blob storage
 
 ### Phase C — operations and agent friendliness
-8. add audit/activity views
-9. add automation presets and setup helpers
-10. add richer vault admin / sharing surfaces
+9. add audit/activity views
+10. add automation presets and setup helpers
+11. add richer vault admin / sharing surfaces
 
 ---
 
