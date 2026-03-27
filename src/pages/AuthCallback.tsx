@@ -4,12 +4,19 @@ import { supabase } from '@/integrations/supabase/client';
 import { Sparkles } from 'lucide-react';
 import { ensureProfileExists } from '@/lib/profile';
 import { resolvePostAuthRedirect } from '@/lib/authRedirect';
-import { getAuthProviderLabel, getUserAuthProvider } from '@/lib/authProviders';
+import {
+  getAuthProviderLabel,
+  getUserAuthProvider,
+  persistLastLoginProvider,
+  consumePendingLastLoginProvider,
+  type SupportedAuthProvider,
+} from '@/lib/authProviders';
 import { showError } from '@/lib/toast';
 
 export default function AuthCallback() {
   const navigate = useNavigate();
   const [statusLabel, setStatusLabel] = useState('restoring_session');
+  const [callbackProvider, setCallbackProvider] = useState<SupportedAuthProvider | null>(null);
 
   useEffect(() => {
     // Handle the auth callback
@@ -70,9 +77,13 @@ export default function AuthCallback() {
           throw new Error('Unable to load your profile after sign-in.');
         }
 
-        const provider = getUserAuthProvider(user);
-        if (provider) {
-          setStatusLabel(`finishing_${provider}_login`);
+        const pendingProvider = consumePendingLastLoginProvider();
+        const uiProvider = (pendingProvider || getUserAuthProvider(user)) as SupportedAuthProvider | null;
+
+        if (uiProvider) {
+          persistLastLoginProvider(uiProvider);
+          setCallbackProvider(uiProvider);
+          setStatusLabel(`finishing_${uiProvider}_login`);
         }
 
         navigate(resolvePostAuthRedirect(profile), { replace: true });
@@ -85,8 +96,10 @@ export default function AuthCallback() {
     handleAuthCallback();
   }, [navigate]);
 
-  const providerLabel = statusLabel.startsWith('finishing_')
-    ? getAuthProviderLabel(statusLabel.includes('github') ? 'github' : 'google')
+  const providerLabel = callbackProvider
+    ? getAuthProviderLabel(callbackProvider)
+    : statusLabel.startsWith('finishing_')
+    ? '\u2014'
     : null;
 
   return (
