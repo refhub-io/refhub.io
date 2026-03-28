@@ -32,6 +32,7 @@ import { KbdHint } from '@/components/ui/KbdHint';
 import { KeyboardShortcutsButton } from '@/components/ui/KeyboardHelpOverlay';
 import { WhatsNewDialog } from '@/components/ui/WhatsNewDialog';
 import { useWhatsNew } from '@/hooks/useWhatsNew';
+import { Sparkles } from 'lucide-react';
 
 interface SidebarProps {
   vaults: Vault[];
