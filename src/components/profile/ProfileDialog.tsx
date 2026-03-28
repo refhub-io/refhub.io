@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Github, Linkedin, AtSign, User, FileText, Camera, Trash2, Settings } from 'lucide-react';
+import { Github, Linkedin, AtSign, User, FileText, Camera, Trash2, Settings, X, Check } from 'lucide-react';
 import { Bluesky } from '@/components/icons/Bluesky';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -282,14 +282,14 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
         description="You have unsaved changes to your profile. Would you like to save them before closing?"
       />
       <Dialog open={open} onOpenChange={handleDialogClose}>
-        <DialogContent className="dialog-mobile rounded-2xl sm:h-auto sm:w-[95vw] sm:max-w-xl sm:max-h-[90vh] border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col gap-0 p-0">
+        <DialogContent className="dialog-mobile rounded-2xl sm:h-auto sm:w-[95vw] sm:max-w-3xl sm:max-h-[90vh] border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col gap-0 p-0">
         <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle className="text-2xl font-bold font-mono">edit_profile</DialogTitle>
         </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col min-h-0">
-            <div className="flex-1 overflow-y-auto px-6">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden px-6">
             <div className="space-y-5 py-6">
             {/* Avatar Section */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
@@ -484,43 +484,42 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
             </div>
             </div>
 
-            <div className="shrink-0 flex flex-col sm:flex-row justify-between gap-3 py-4 px-6 border-t border-border">
-              <div className="flex flex-col sm:flex-row gap-3">
+            <div className="shrink-0 flex items-center justify-between gap-2 py-3 px-6 border-t border-border">
+              <div className="flex items-center gap-1">
                 <Button
                   type="button"
                   variant="ghost"
+                  size="sm"
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="text-destructive hover:text-destructive hover:bg-destructive/10 w-full sm:w-auto font-mono"
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10 font-mono"
                 >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  delete_account
+                  <Trash2 className="w-4 h-4 shrink-0" />
+                  <span className="hidden sm:inline ml-1.5">delete_account</span>
                 </Button>
                 <Link to="/profile-edit" onClick={() => onOpenChange(false)}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="w-full sm:w-auto font-mono"
-                  >
-                    <Settings className="w-4 h-4 mr-2" />
-                    account_settings
+                  <Button type="button" variant="ghost" size="sm" className="font-mono">
+                    <Settings className="w-4 h-4 shrink-0" />
+                    <span className="hidden sm:inline ml-1.5">account_settings</span>
                   </Button>
                 </Link>
               </div>
-              <div className="flex flex-col-reverse sm:flex-row gap-3 w-full sm:w-auto">
+              <div className="flex items-center gap-2">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => handleDialogClose(false)}
-                  className="border-2 w-full sm:w-auto font-mono"
+                  className="border-2 font-mono"
                 >
-                  cancel
+                  <X className="w-4 h-4 sm:hidden" />
+                  <span className="hidden sm:inline">cancel</span>
                 </Button>
                 <Button
                   type="submit"
                   disabled={isSubmitting || usernameStatus === 'taken'}
-                  className="bg-gradient-primary hover:opacity-90 w-full sm:w-auto font-mono"
+                  className="bg-gradient-primary hover:opacity-90 font-mono"
                 >
-                  {isSubmitting ? 'saving...' : 'save_profile'}
+                  <Check className="w-4 h-4 sm:hidden" />
+                  <span className="hidden sm:inline">{isSubmitting ? 'saving...' : 'save_profile'}</span>
                 </Button>
               </div>
             </div>

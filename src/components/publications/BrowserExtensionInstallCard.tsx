@@ -31,7 +31,7 @@ export function BrowserExtensionInstallCard() {
   return (
     <Card className="border border-primary/20 bg-primary/5 overflow-hidden">
       <CardContent className="p-3">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <Puzzle className="h-4 w-4 text-primary shrink-0" />
             <div className="min-w-0">
@@ -43,7 +43,7 @@ export function BrowserExtensionInstallCard() {
                   current_tab → refhub
                 </Badge>
               </div>
-              <p className="text-xs text-muted-foreground font-mono truncate">
+              <p className="text-xs text-muted-foreground font-mono line-clamp-1">
                 save papers from the page you are{' '}
                 <span className="text-gradient-green">already reading</span>
                 {' '}— store listings not live yet, install from releases
@@ -51,7 +51,7 @@ export function BrowserExtensionInstallCard() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
             {installTarget ? (
               <Button asChild variant="glow" size="sm" className="font-mono text-xs h-7">
                 <a href={EXTENSION_LINKS[installTarget]} target="_blank" rel="noreferrer">
