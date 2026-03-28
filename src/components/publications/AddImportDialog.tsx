@@ -308,8 +308,8 @@ export function AddImportDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 overflow-auto">
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FlowTab)} className="p-4 sm:p-6 pt-4">
+        <ScrollArea className="flex-1">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FlowTab)} className="p-4 sm:p-6 pt-4 overflow-x-hidden">
             <div className="mb-4">
               <BrowserExtensionInstallCard />
             </div>
