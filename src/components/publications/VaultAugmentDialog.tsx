@@ -304,7 +304,7 @@ export function VaultAugmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-lg h-[78vh] flex flex-col bg-card/95 backdrop-blur-xl border-2 p-0 overflow-hidden">
+      <DialogContent className="dialog-mobile rounded-2xl sm:w-[95vw] sm:max-w-4xl sm:h-auto sm:min-h-[400px] sm:max-h-[90vh] flex flex-col bg-card/95 backdrop-blur-xl border-2 p-0 overflow-hidden">
         <DialogHeader className="shrink-0 px-6 pt-5 pb-3 border-b border-border/50">
           <DialogTitle className="text-xl font-bold font-mono">
             // vault_augmentation
@@ -341,7 +341,7 @@ export function VaultAugmentDialog({
               </TabsList>
             </Tabs>
 
-            <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin px-6 pb-4 pt-2">
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-thin px-6 pb-4 pt-2">
               {tabLoading ? (
                 <div className="flex items-center justify-center gap-3 text-muted-foreground py-8">
                   <SpinnerLoader className="w-4 h-4" />
