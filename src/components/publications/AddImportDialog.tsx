@@ -26,6 +26,7 @@ import { FileText, Link, Upload, Check, X, Library, PenLine, Loader2 } from 'luc
 import { LoadingSpinner } from '@/components/ui/loading';
 import { useToast } from '@/hooks/use-toast';
 import { ExistingPaperSelector } from './ExistingPaperSelector';
+import { BrowserExtensionInstallCard } from './BrowserExtensionInstallCard';
 import {
   Tooltip,
   TooltipContent,
@@ -309,6 +310,9 @@ export function AddImportDialog({
 
         <ScrollArea className="flex-1 overflow-auto">
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FlowTab)} className="p-4 sm:p-6 pt-4">
+            <div className="mb-4">
+              <BrowserExtensionInstallCard />
+            </div>
             <TabsList className="grid w-full grid-cols-4 mb-4">
               <TooltipProvider delayDuration={200}>
                 <Tooltip><TooltipTrigger asChild>
