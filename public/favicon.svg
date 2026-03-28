@@ -1,11 +1,18 @@
-<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="32" height="32" rx="8" fill="url(#gradient)"/>
-  <path d="M16 8L18.5 13L24 14L20 18L21 24L16 21L11 24L12 18L8 14L13.5 13L16 8Z" fill="white"/>
-  <defs>
-    <linearGradient id="gradient" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#a855f7"/>
-      <stop offset="50%" stop-color="#ec4899"/>
-      <stop offset="100%" stop-color="#f43f5e"/>
-    </linearGradient>
-  </defs>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="599" height="599" viewBox="0 0 599 599" fill="none"><g clip-path="url(#clip0_1_87)">
+<rect width="599" height="599" rx="299.5" fill="url(#paint0_linear_1_87)"></rect>
+<path d="M338.5 338.564C365.5 310.827 463 304.664 463 296.959C463 289.255 376 290.795 338.5 258.436C301 226.077 308.5 129 299.5 129C290.5 129 286 229.159 257.5 258.436C229 287.714 133 289.255 133 296.959C133 304.664 227.5 307.745 257.5 338.564C287.5 369.382 292 468 299.5 468C307 468 311.5 366.3 338.5 338.564Z" stroke="white" stroke-width="40"></path>
+<path d="M442 87L442 181" stroke="white" stroke-width="40" stroke-linecap="round"></path>
+<path d="M490 136L396 136" stroke="white" stroke-width="40" stroke-linecap="round"></path>
+<path d="M149 402L149 450" stroke="white" stroke-width="40" stroke-linecap="round"></path>
+<path d="M173 426L125 426" stroke="white" stroke-width="40" stroke-linecap="round"></path>
+</g><defs>
+<linearGradient id="paint0_linear_1_87" x1="-44.8157" y1="-109.307" x2="530.137" y2="568.394" gradientUnits="userSpaceOnUse">
+<stop offset="0.18844" stop-color="#A855F7"></stop>
+<stop offset="0.667354" stop-color="#EC4899"></stop>
+</linearGradient>
+<clipPath id="clip0_1_87">
+<rect width="599" height="599" fill="white"></rect>
+</clipPath>
+</defs><style>@media (prefers-color-scheme: light) { :root { filter: none; } }
+@media (prefers-color-scheme: dark) { :root { filter: none; } }
+</style></svg>
