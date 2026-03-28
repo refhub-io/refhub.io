@@ -307,8 +307,8 @@ export function AddImportDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 overflow-auto">
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FlowTab)} className="p-4 sm:p-6 pt-4">
+        <ScrollArea className="flex-1">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FlowTab)} className="p-4 sm:p-6 pt-4 overflow-x-hidden">
             <TabsList className="grid w-full grid-cols-4 mb-4">
               <TooltipProvider delayDuration={200}>
                 <Tooltip><TooltipTrigger asChild>
@@ -645,7 +645,7 @@ export function AddImportDialog({
 
           {/* ─── Parsed publications list (shared DOI + BibTeX) ───── */}
           {parsedPublications.length > 0 && (activeTab === 'doi' || activeTab === 'bibtex') && (
-            <div className="px-4 sm:px-6 pb-6 space-y-4">
+            <div className="px-4 sm:px-6 pb-6 space-y-4 overflow-x-hidden">
               <div className="flex items-center justify-between gap-2">
                 <Label className="font-semibold text-sm font-mono">
                   parsed ({selectedIndices.size}/{parsedPublications.length})
