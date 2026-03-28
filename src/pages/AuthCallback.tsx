@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { Sparkles } from 'lucide-react';
+import { BrandMark } from '@/components/branding/BrandMark';
 import { ensureProfileExists } from '@/lib/profile';
 import { resolvePostAuthRedirect } from '@/lib/authRedirect';
 import {
@@ -111,9 +111,7 @@ export default function AuthCallback() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">
       <div className="flex flex-col items-center gap-4 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-lg glow-purple animate-glow-pulse">
-          <Sparkles className="w-8 h-8 text-white" />
-        </div>
+        <BrandMark className="h-16 w-16 rounded-2xl shadow-lg animate-glow-pulse" />
         <h1 className="text-2xl font-bold font-mono">
           {providerLabel ? `// ${providerLabel.toLowerCase()}_connected ✨` : '// auth_callback ✨'}
         </h1>

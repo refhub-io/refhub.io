@@ -17,8 +17,8 @@ import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationViewDialog } from '@/components/publications/PublicationViewDialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { BrandMark } from '@/components/branding/BrandMark';
 import { 
-  Sparkles, 
   ArrowLeft,
   Globe,
   Heart,
@@ -354,9 +354,7 @@ export default function PublicVault() {
         
         <div className={`flex-1 ${user ? 'lg:pl-72' : ''} min-w-0 flex items-center justify-center`}>
           <div className="flex flex-col items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-lg glow-purple animate-glow-pulse">
-              <Sparkles className="w-8 h-8 text-white" />
-            </div>
+            <BrandMark className="h-16 w-16 rounded-2xl shadow-lg animate-glow-pulse" />
             <p className="text-muted-foreground font-mono text-sm">// loading public vault...</p>
           </div>
         </div>
@@ -427,9 +425,7 @@ export default function PublicVault() {
         <div className="fixed top-0 left-0 right-0 z-50 border-b-2 border-border bg-card/50 backdrop-blur-xl">
           <div className="px-4 py-4 flex items-center justify-between">
             <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-              <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-lg">
-                <Sparkles className="w-5 h-5 text-white" />
-              </div>
+              <BrandMark className="h-10 w-10 shrink-0 rounded-xl shadow-lg" />
               <span className="font-bold text-lg">
                 <span className="text-gradient">refhub</span>
                 <span className="text-foreground/60">.io</span>

@@ -1,4 +1,5 @@
-import { Sparkles, BookOpen, Users, Download, Tag, GitFork, Share2, Zap } from 'lucide-react';
+import { BookOpen, Users, Download, Tag, GitFork, Share2, Zap } from 'lucide-react';
+import { BrandMark } from '@/components/branding/BrandMark';
 
 export default function OpenGraphPreview() {
   return (
@@ -24,9 +25,7 @@ export default function OpenGraphPreview() {
         <div className="relative h-full flex flex-col items-center justify-center px-20">
           {/* Logo */}
           <div className="flex items-center gap-6 mb-12">
-            <div className="w-28 h-28 rounded-3xl bg-gradient-to-br from-purple-500 via-pink-500 to-rose-500 flex items-center justify-center shadow-2xl">
-              <Sparkles className="w-16 h-16 text-white" />
-            </div>
+            <BrandMark className="h-28 w-28 rounded-3xl shadow-2xl" />
             <div>
               <h1 className="text-8xl font-bold font-mono">
                 <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-rose-500 bg-clip-text text-transparent">

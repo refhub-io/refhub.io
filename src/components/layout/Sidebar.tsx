@@ -7,7 +7,6 @@ import {
   ChevronDown,
   ChevronRight,
   X,
-  Sparkles,
   Zap,
   Globe,
   Scroll,
@@ -19,6 +18,7 @@ import {
   Heart,
   Share2
 } from 'lucide-react';
+import { BrandMark } from '@/components/branding/BrandMark';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
@@ -171,9 +171,7 @@ export function Sidebar({
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b-2 border-sidebar-border">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-lg glow-purple">
-              <Sparkles className="w-5 h-5 text-white" />
-            </div>
+            <BrandMark className="h-10 w-10 shrink-0 rounded-xl shadow-lg" />
             <div>
               <span className="font-bold text-lg">
                 <span className="text-gradient">refhub</span>
