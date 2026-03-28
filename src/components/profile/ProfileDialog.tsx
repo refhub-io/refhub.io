@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Github, Linkedin, AtSign, User, FileText, Camera, Trash2, Settings } from 'lucide-react';
+import { Bluesky } from '@/components/icons/Bluesky';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { UnsavedChangesDialog } from '@/components/ui/unsaved-changes-dialog';
@@ -448,17 +449,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="flex items-center gap-2 text-sm font-mono">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M 11 12 C11 10 9 2 2 2" />
-                        <path d="M 12 12 C2 14 2 22 8 22" />
-                        <path d="M 12 12 C22 14 22 22 16 22" />
-                        <path d="M 12 12 L 12 12" />
-                        <path d="M 13 12 C13 10 15 2 22 2" />
-                        <path d="M 16 22 C10 22 13 14 13 12" />
-                        <path d="M 2 2 C-4 2 -2.5 14.5 12 12" />
-                        <path d="M 22 2 C28 2 28 14.5 12 12" />
-                        <path d="M 8 22 C14 22 11 14 11 12" />
-                      </svg>
+                      <Bluesky className="w-4 h-4" />
                       bluesky
                     </FormLabel>
                     <FormControl>

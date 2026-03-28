@@ -22,6 +22,7 @@ import {
   Command,
   SortAsc
 } from 'lucide-react';
+import { Bluesky } from '@/components/icons/Bluesky';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -431,17 +432,7 @@ export default function Users() {
                             className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-muted transition-colors"
                             title="Bluesky"
                           >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M 11 12 C11 10 9 2 2 2" />
-                        <path d="M 12 12 C2 14 2 22 8 22" />
-                        <path d="M 12 12 C22 14 22 22 16 22" />
-                        <path d="M 12 12 L 12 12" />
-                        <path d="M 13 12 C13 10 15 2 22 2" />
-                        <path d="M 16 22 C10 22 13 14 13 12" />
-                        <path d="M 2 2 C-4 2 -2.5 14.5 12 12" />
-                        <path d="M 22 2 C28 2 28 14.5 12 12" />
-                        <path d="M 8 22 C14 22 11 14 11 12" />
-                      </svg>
+                            <Bluesky className="w-4 h-4" />
                           </a>
                         )}
                         
