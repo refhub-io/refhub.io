@@ -307,9 +307,9 @@ export function Sidebar({
                         style={{ backgroundColor: vault.color }}
                       />
                       <span className="truncate font-medium">{vault.name}</span>
-                      {(vault as any).visibility === 'public' ? (
+                      {vault.visibility === 'public' ? (
                         <Globe className="w-3 h-3 text-muted-foreground shrink-0" />
-                      ) : (vault as any).visibility === 'protected' ? (
+                      ) : vault.visibility === 'protected' ? (
                         <Shield className="w-3 h-3 text-muted-foreground shrink-0" />
                       ) : (
                         <Lock className="w-3 h-3 text-muted-foreground shrink-0" />

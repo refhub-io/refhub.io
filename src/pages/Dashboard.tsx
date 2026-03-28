@@ -228,6 +228,7 @@ export default function Dashboard() {
       // Combine original publications with vault-specific copies
       // For the dashboard, we want to show all publications the user has access to
       const originalPublications = pubsRes.data as Publication[];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const vaultPublications = vaultPubsRes.data as any[];
 
       // Convert vault publications to the same format as original publications
@@ -722,7 +723,6 @@ export default function Dashboard() {
             logger.error('Dashboard', 'Error inserting new tags:', insertError);
             throw insertError;
           }
-        } else {
         }
 
         // Optimistic update
@@ -1141,6 +1141,7 @@ export default function Dashboard() {
       return data as Tag;
     } catch (error) {
       // Check if the error is due to the unique constraint violation
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if ((error as any)?.code === '23505') { // PostgreSQL unique violation error code
         toast({
           title: 'Tag already exists',

@@ -168,7 +168,15 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
 
       const { error } = await updateProfile(updates);
       if (!error) {
-        form.reset(updates); // Reset form with new values to clear dirty state
+        form.reset({
+          display_name: updates.display_name || '',
+          username: updates.username || '',
+          bio: updates.bio || '',
+          github_url: updates.github_url || '',
+          linkedin_url: updates.linkedin_url || '',
+          bluesky_url: updates.bluesky_url || '',
+          avatar_url: updates.avatar_url || '',
+        });
         onOpenChange(false);
       }
     } finally {
@@ -223,7 +231,15 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
 
       const { error } = await updateProfile(updates);
       if (!error) {
-        form.reset(updates); // Reset form with new values to clear dirty state
+        form.reset({
+          display_name: updates.display_name || '',
+          username: updates.username || '',
+          bio: updates.bio || '',
+          github_url: updates.github_url || '',
+          linkedin_url: updates.linkedin_url || '',
+          bluesky_url: updates.bluesky_url || '',
+          avatar_url: updates.avatar_url || '',
+        });
         setShowUnsavedDialog(false);
         onOpenChange(false);
       }

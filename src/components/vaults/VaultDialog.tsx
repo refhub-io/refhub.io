@@ -41,6 +41,19 @@ const VAULT_COLORS = [
   '#3b82f6', // Blue
 ];
 
+interface AccessRequest {
+  id: string;
+  vault_id: string;
+  requester_id: string | null;
+  requester_email: string | null;
+  requester_name: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  note: string | null;
+  created_at: string;
+  display_name: string;
+  requester_profile: null;
+}
+
 interface VaultDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -65,7 +78,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
 
   // Sharing state
   const [shares, setShares] = useState<VaultShare[]>([]);
-  const [accessRequests, setAccessRequests] = useState<any[]>([]);
+  const [accessRequests, setAccessRequests] = useState<AccessRequest[]>([]);
   const [requestPermissions, setRequestPermissions] = useState<Record<string, 'viewer' | 'editor'>>({});
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [email, setEmail] = useState('');
@@ -94,7 +107,6 @@ const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('vie
       .order('created_at', { ascending: false });
 
     if (requestsError) {
-      // eslint-disable-next-line no-console
       logger.error('VaultDialog', 'Error fetching vault_access_requests:', requestsError);
       return;
     }
@@ -135,7 +147,6 @@ const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('vie
   useEffect(() => {
     if (vault && open) {
       fetchAccessRequests().catch((err) => {
-        // eslint-disable-next-line no-console
         logger.error('VaultDialog', 'fetchAccessRequests failed:', err);
       });
     }
@@ -169,11 +180,11 @@ const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('vie
     return () => {
       supabase.removeChannel(channel);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vault, open, initialRequestId]);
 
   const getVisibility = (v: Vault): VaultVisibility => {
-    const vaultWithVisibility = v as any;
-    return vaultWithVisibility.visibility || 'private';
+    return v.visibility || 'private';
   };
 
   const generateSlug = (name: string) => {
@@ -291,6 +302,7 @@ const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('vie
         publicSlug: '',
       };
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vault?.id, open, fetchShares]);
 
   useEffect(() => {
@@ -483,7 +495,14 @@ const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('vie
         .eq('email', email.trim().toLowerCase())
         .single();
 
-      const shareData: any = {
+      const shareData: {
+        vault_id: string;
+        shared_with_email: string;
+        shared_by: string;
+        role: 'viewer' | 'editor';
+        shared_with_user_id?: string;
+        shared_with_name?: string | null;
+      } = {
         vault_id: vault.id,
         shared_with_email: email.trim().toLowerCase(),
         shared_by: user.id,
@@ -558,10 +577,17 @@ const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('vie
     }
   };
 
-  const handleApproveRequest = async (req: any, permission: 'viewer' | 'editor' = 'viewer') => {
+  const handleApproveRequest = async (req: AccessRequest, permission: 'viewer' | 'editor' = 'viewer') => {
     if (!vault || !user) return;
     try {
-      const insertObj: any = { vault_id: vault.id, shared_by: user.id, role: permission };
+      const insertObj: {
+        vault_id: string;
+        shared_by: string;
+        role: 'viewer' | 'editor';
+        shared_with_user_id?: string;
+        shared_with_name?: string | null;
+        shared_with_email?: string;
+      } = { vault_id: vault.id, shared_by: user.id, role: permission };
 
       if (req.requester_id) {
         // requester_id is auth.users.id; we can use it directly
@@ -597,7 +623,7 @@ const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('vie
     }
   };
 
-  const handleRejectRequest = async (req: any) => {
+  const handleRejectRequest = async (req: AccessRequest) => {
     if (!vault) return;
     try {
       const { error } = await supabase.from('vault_access_requests').update({ status: 'rejected' }).eq('id', req.id);
@@ -893,7 +919,7 @@ const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('vie
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <Select
-                          value={(share as any).role || (share as any).permission || 'viewer'}
+                          value={share.role || 'viewer'}
                           onValueChange={(value) => handleUpdatePermission(share.id, value as 'viewer' | 'editor')}
                         >
                           <SelectTrigger className="w-[110px] h-7 font-mono text-xs">

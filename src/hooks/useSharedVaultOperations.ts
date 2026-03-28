@@ -98,9 +98,13 @@ export function useSharedVaultOperations({
       };
 
       // Remove fields that shouldn't be sent to vault_publications
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (dataToSave as any).id;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (dataToSave as any).user_id;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (dataToSave as any).created_at;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (dataToSave as any).original_publication_id;
 
       const { error } = await supabase
@@ -230,6 +234,7 @@ export function useSharedVaultOperations({
       }
 
       // Check if the error is due to unique constraint violation
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if ((error as any)?.code === '23505') {
         toast({
           title: 'Tag already exists',
@@ -761,6 +766,7 @@ export function useSharedVaultOperations({
    */
   const handleRealtimePublicationUpdate = useCallback((
     eventType: 'INSERT' | 'UPDATE' | 'DELETE',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     payload: any
   ) => {
     const publicationId = payload.id;
@@ -843,6 +849,7 @@ export function useSharedVaultOperations({
    */
   const handleRealtimeTagUpdate = useCallback((
     eventType: 'INSERT' | 'UPDATE' | 'DELETE',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     payload: any
   ) => {
     const tagId = payload.id;
@@ -874,6 +881,7 @@ export function useSharedVaultOperations({
    */
   const handleRealtimePublicationTagUpdate = useCallback((
     eventType: 'INSERT' | 'UPDATE' | 'DELETE',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     payload: any
   ) => {
     const tagAssociationId = payload.id;

@@ -487,6 +487,7 @@ export function PhaseLoader({ phases, title = 'initializing_refhub', subtitle, c
 }
 
 // Hook to manage loading phases
+// eslint-disable-next-line react-refresh/only-export-components
 export function useLoadingPhases(initialPhases: { id: string; label: string }[]) {
   const [phases, setPhases] = useState<LoadingPhase[]>(
     initialPhases.map((p, index) => ({

@@ -34,6 +34,8 @@ export interface Publication {
   keywords: string[] | null;
   created_at: string;
   updated_at: string;
+  /** Set when this publication is a vault-specific copy of an original */
+  original_publication_id?: string | null;
 }
 
 export interface Vault {
@@ -109,6 +111,7 @@ export interface Tag {
   parent_id: string | null;
   depth: number;
   created_at: string;
+  vault_id?: string | null;
 }
 
 export interface PublicationTag {

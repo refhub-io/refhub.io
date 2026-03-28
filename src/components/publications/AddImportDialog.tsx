@@ -232,7 +232,7 @@ export function AddImportDialog({
   const handleImport = async () => {
     const toImport = parsedPublications
       .filter((_, i) => selectedIndices.has(i))
-      .map(pub => { const { vault_id, ...clean } = pub as any; return clean; });
+      .map(pub => { const { vault_id: _vaultId, ...clean } = pub as Partial<Publication> & { vault_id?: string }; return clean; });
     if (toImport.length === 0) {
       toast({ title: 'no_papers_selected', description: 'Select at least one paper', variant: 'destructive' });
       return;

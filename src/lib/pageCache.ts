@@ -17,6 +17,7 @@ interface CacheEntry<T> {
 type CacheKey = 'dashboard' | 'codex' | 'users' | 'sidebar-vaults' | `vault-access-${string}` | `vault-content-${string}`;
 
 // Cache storage - persists across route changes but not page refreshes
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const cache = new Map<string, CacheEntry<any>>();
 
 // Default cache TTL: 5 minutes (after which we still show cached data but mark it stale)
