@@ -662,7 +662,7 @@ const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('vie
         description="You have unsaved changes to this vault. Would you like to save them before closing?"
       />
       <Dialog open={open} onOpenChange={handleDialogClose}>
-        <DialogContent className="w-full h-full sm:h-auto sm:w-[95vw] sm:max-w-2xl border-2 bg-card/95 backdrop-blur-xl sm:max-h-[90vh] overflow-hidden flex flex-col p-0">
+        <DialogContent className="dialog-mobile rounded-2xl sm:h-auto sm:w-[95vw] sm:max-w-2xl border-2 bg-card/95 backdrop-blur-xl sm:max-h-[90vh] overflow-hidden flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle className="text-2xl font-bold font-mono">
             {vault ? (

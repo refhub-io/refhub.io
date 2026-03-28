@@ -271,3 +271,24 @@
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
 }
+
+/* Near-fullscreen dialog sizing on mobile — 1rem min inset each side, safe-area aware.
+   Use as `dialog-mobile sm:h-auto sm:w-[95vw] sm:max-w-[...]` on DialogContent.
+   At >=640px (sm), Tailwind's sm: utilities (in @layer utilities) override this component style. */
+@layer components {
+  .dialog-mobile {
+    width: calc(100vw - 2rem);
+    max-width: calc(100vw - 2rem);
+    height: calc(100dvh - 2rem);
+    max-height: calc(100dvh - 2rem);
+  }
+
+  @supports (padding-top: env(safe-area-inset-top)) {
+    .dialog-mobile {
+      width: calc(100vw - max(1rem, env(safe-area-inset-left)) - max(1rem, env(safe-area-inset-right)));
+      max-width: calc(100vw - max(1rem, env(safe-area-inset-left)) - max(1rem, env(safe-area-inset-right)));
+      height: calc(100dvh - max(1rem, env(safe-area-inset-top)) - max(1rem, env(safe-area-inset-bottom)));
+      max-height: calc(100dvh - max(1rem, env(safe-area-inset-top)) - max(1rem, env(safe-area-inset-bottom)));
+    }
+  }
+}
