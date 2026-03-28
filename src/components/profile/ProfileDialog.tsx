@@ -282,14 +282,15 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
         description="You have unsaved changes to your profile. Would you like to save them before closing?"
       />
       <Dialog open={open} onOpenChange={handleDialogClose}>
-        <DialogContent className="dialog-mobile rounded-2xl sm:h-auto sm:w-[95vw] sm:max-w-xl sm:max-h-[90vh] border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col p-0">
+        <DialogContent className="dialog-mobile rounded-2xl sm:h-auto sm:w-[95vw] sm:max-w-xl sm:max-h-[90vh] border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col gap-0 p-0">
         <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle className="text-2xl font-bold font-mono">edit_profile</DialogTitle>
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 overflow-y-auto px-6">
-            <div className="space-y-5 pb-6">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col min-h-0">
+            <div className="flex-1 overflow-y-auto px-6">
+            <div className="space-y-5 py-6">
             {/* Avatar Section */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
               <ProfileAvatar
@@ -481,8 +482,9 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
               />
             </div>
             </div>
+            </div>
 
-            <div className="flex flex-col sm:flex-row justify-between gap-3 py-4 border-t border-border">
+            <div className="shrink-0 flex flex-col sm:flex-row justify-between gap-3 py-4 px-6 border-t border-border">
               <div className="flex flex-col sm:flex-row gap-3">
                 <Button
                   type="button"
