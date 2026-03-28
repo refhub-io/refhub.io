@@ -49,6 +49,7 @@ export function usePublicationRelations(publicationId: string | null, userId: st
       if (pubsError) throw pubsError;
 
       // Map vault_publications to Publication format and attach relation info
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const relatedPubs: RelatedPublication[] = (pubsData || []).map((vp: any) => {
         const relation = relationsData.find((r: { id: string; publication_id: string; related_publication_id: string; relation_type: string }) =>
           (r.publication_id === publicationId && r.related_publication_id === vp.id) ||

@@ -289,6 +289,7 @@ export function PublicationList({
       else next.add(id);
       return next;
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kbNav.setSelectedIds]);
 
   const selectAll = useCallback(() => {
@@ -300,6 +301,7 @@ export function PublicationList({
     } else {
       kbNav.setSelectedIds(new Set(filteredPublications.map((p) => p.id)));
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredPublications, kbNav.selectedIds, kbNav.clearSelection, kbNav.setSelectedIds]);
 
   const getPublicationTags = (pubId: string): Tag[] => {

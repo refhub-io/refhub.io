@@ -353,6 +353,7 @@ export function useKeyboardNavigation(
     // Use capture phase so we run before other listeners.
     window.addEventListener('keydown', handleBootstrap, true);
     return () => window.removeEventListener('keydown', handleBootstrap, true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bootstrapOnNav, kb.enabled, kb.activeContext, kb.setActiveContext, context, moveFocus, jumpTo]);
 
   // Register keyboard shortcuts
@@ -570,6 +571,7 @@ export function useKeyboardNavigation(
         if (itemId && onOpen) onOpen(itemId, index);
       },
     }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [context, localFocusedIndex, localSelectedIds, toggleSelection, doRangeSelect, onOpen],
   );
 

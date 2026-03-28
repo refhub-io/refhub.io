@@ -12,7 +12,8 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Loader } from '@/components/ui/loader';
 import { logger } from '@/lib/logger';
-import { Github, Linkedin, ArrowLeft, BookOpen, Vault as VaultIcon, ExternalLink, Globe } from 'lucide-react';
+import { Github, Linkedin, ArrowLeft, BookOpen, Vault as VaultIcon, ExternalLink } from 'lucide-react';
+import { Bluesky } from '@/components/icons/Bluesky';
 
 type VaultWithCount = Vault & { vault_publications: { id: string }[]; is_fork?: boolean };
 
@@ -294,7 +295,7 @@ export default function UserProfile() {
                             className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-muted transition-colors"
                             title="Bluesky"
                           >
-                            <Globe className="w-4 h-4" />
+                            <Bluesky className="w-4 h-4" />
                           </a>
                         )}
                       </div>

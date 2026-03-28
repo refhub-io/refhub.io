@@ -54,7 +54,7 @@ interface PublicationTableProps {
   onSort: (field: SortField) => void;
   // Keyboard navigation props
   focusedIndex?: number;
-  kbItemProps?: (index: number, id: string) => Record<string, any>;
+  kbItemProps?: (index: number, id: string) => Record<string, unknown>;
 }
 
 export function PublicationTable({

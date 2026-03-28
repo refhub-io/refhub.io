@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
-import { ArrowLeft, FileText, Scale, Shield, Sparkles } from "lucide-react";
+import { ArrowLeft, FileText, Scale, Shield } from "lucide-react";
 
+import { BrandMark } from "@/components/branding/BrandMark";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -41,9 +42,7 @@ export function LegalDocumentLayout({
             to="/"
             className="inline-flex items-center gap-3 rounded-full border border-border/60 bg-card/70 px-4 py-2 text-sm font-medium text-foreground/90 backdrop-blur transition-colors hover:border-primary/40 hover:text-white"
           >
-            <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-primary shadow-lg">
-              <Sparkles className="h-4 w-4 text-white" />
-            </span>
+            <BrandMark className="h-9 w-9 shrink-0 rounded-2xl shadow-lg" />
             <span>
               <span className="text-gradient">refhub</span>
               <span className="text-muted-foreground">.io</span>

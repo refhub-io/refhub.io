@@ -325,6 +325,7 @@ export default function VaultDetail() {
       if (vaultPubsRes.error) throw vaultPubsRes.error;
 
       const publications = pubsRes.data as Publication[];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const vaultPublications = vaultPubsRes.data as any[];
 
       setAllPublications(publications);
@@ -360,6 +361,7 @@ export default function VaultDetail() {
     } catch (error) {
       logger.error('VaultDetail', 'Error fetching all publications:', error);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   // Initialize and update vault content when vaultId changes
@@ -451,6 +453,7 @@ export default function VaultDetail() {
       processedApprovedRequestRef.current = null;
       lastCheckedVaultIdRef.current = null;
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, vaultId, refresh]); // Removed 'vault' from dependencies to prevent continuous re-runs
 
   // Combine loading states
@@ -1060,6 +1063,7 @@ export default function VaultDetail() {
       return data as Tag;
     } catch (error) {
       // Check if the error is due to the unique constraint violation
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if ((error as any)?.code === '23505') { // PostgreSQL unique violation error code
         toast({
           title: 'Tag already exists',

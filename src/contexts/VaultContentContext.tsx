@@ -166,6 +166,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
   }, [getUserDisplayName]);
 
   // Helper to convert vault publication to Publication format
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const formatVaultPublication = useCallback((vp: any): Publication => ({
     id: vp.id,
     user_id: vp.created_by,
@@ -235,6 +236,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       ]);
 
       // Get the vault publication IDs to fetch specific publication tags
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const vaultPublications = vaultPubsRes.data as any[];
       const vaultPublicationIds = vaultPublications?.map(vp => vp.id).filter(id => id) || [];
       const originalPublicationIds = vaultPublications?.map(vp => vp.original_publication_id).filter(id => id) || [];
@@ -256,7 +258,9 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       // Fetch publication tags for both the vault-specific copies and the original publications
       let pubTagsRes;
       if (vaultPublicationIds.length > 0 || originalPublicationIds.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let vaultTags: any[] = [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let originalTags: any[] = [];
 
         if (vaultPublicationIds.length > 0) {
@@ -359,6 +363,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       setLoading(false);
       debug('VaultContentContext', 'Loading set to false');
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentVaultId, user, canView, formatVaultPublication]);
 
   // Refresh function that can be called externally
@@ -427,7 +432,9 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         async (payload) => {
           debug('VaultContentContext', 'Received realtime update for vault publications:', payload);
           const eventType = payload.eventType;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const newRecord = payload.new as any;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const oldRecord = payload.old as any;
           const recordId = newRecord?.id || oldRecord?.id;
 
@@ -488,7 +495,9 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         async (payload) => {
           debug('VaultContentContext', 'Received realtime update for tags:', payload);
           const eventType = payload.eventType;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const newRecord = payload.new as any;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const oldRecord = payload.old as any;
           const recordId = newRecord?.id || oldRecord?.id;
 
@@ -508,7 +517,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
               // optimistic create (temp ID) and realtime INSERT (server ID)
               const tempMatch = prev.find(t =>
                 t.name === newRecord.name &&
-                (t as any).vault_id === newRecord.vault_id &&
+                t.vault_id === newRecord.vault_id &&
                 t.id.startsWith('temp_')
               );
               if (tempMatch) {
@@ -518,7 +527,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
               // Also dedupe by exact name+vault to prevent duplicates from concurrent clients
               const nameMatch = prev.find(t =>
                 t.name.toLowerCase() === newRecord.name.toLowerCase() &&
-                (t as any).vault_id === newRecord.vault_id &&
+                t.vault_id === newRecord.vault_id &&
                 !t.id.startsWith('temp_')
               );
               if (nameMatch) {
@@ -557,7 +566,9 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         async (payload) => {
           debug('VaultContentContext', 'Received realtime update for publication tags:', payload);
           const eventType = payload.eventType;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const newRecord = payload.new as any;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const oldRecord = payload.old as any;
 
           // Check if this publication tag belongs to a publication in the current vault
@@ -576,7 +587,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
             
             // Check if any vault publication references this original
             const isRelevant = publicationsRef.current.some(p => 
-              (p as any).original_publication_id === publicationId
+              p.original_publication_id === publicationId
             );
             if (!isRelevant) return;
           }
@@ -613,7 +624,9 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         async (payload) => {
           debug('VaultContentContext', 'Received realtime update for vault shares:', payload);
           const eventType = payload.eventType;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const newRecord = payload.new as any;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const oldRecord = payload.old as any;
 
           if (eventType === 'INSERT') {
@@ -647,7 +660,9 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         async (payload) => {
           debug('VaultContentContext', 'Received realtime update for publication relations:', payload);
           const eventType = payload.eventType;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const newRecord = payload.new as any;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const oldRecord = payload.old as any;
 
           // Check if this relation involves publications in the current vault
@@ -657,8 +672,8 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
           const isRelevant = publicationsRef.current.some(p => 
             p.id === pubId || 
             p.id === relatedPubId ||
-            (p as any).original_publication_id === pubId ||
-            (p as any).original_publication_id === relatedPubId
+            p.original_publication_id === pubId ||
+            p.original_publication_id === relatedPubId
           );
 
           if (!isRelevant) return;
@@ -695,6 +710,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       setIsRealtimeConnected(false);
       supabase.removeChannel(channel);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentVaultId, user, formatVaultPublication]);
 
   return (
@@ -725,6 +741,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useVaultContent() {
   const context = useContext(VaultContentContext);
   if (context === undefined) {

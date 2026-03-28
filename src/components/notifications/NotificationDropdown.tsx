@@ -72,8 +72,8 @@ export function NotificationDropdown() {
       // For access requests, open the owner's dashboard and open the vault settings (show requests)
       if (notification.type === 'vault_access_requested') {
         setOpen(false);
-        const vaultId = (notification.data as any).vault_id;
-        const requestId = (notification.data as any).request_id;
+        const vaultId = notification.data?.vault_id as string;
+        const requestId = notification.data?.request_id as string | undefined;
         // Navigate to dashboard and open vault dialog for this vault + request
         navigate(`/dashboard?openVault=${vaultId}${requestId ? `&request=${requestId}` : ''}`);
       }
@@ -81,7 +81,7 @@ export function NotificationDropdown() {
       // For publication updates, navigate to the vault
       if (notification.type === 'publication_updated') {
         setOpen(false);
-        const vaultId = (notification.data as any).vault_id;
+        const vaultId = notification.data?.vault_id as string;
         navigate(`/vault/${vaultId}`);
       }
     }

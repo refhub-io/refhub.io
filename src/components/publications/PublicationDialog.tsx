@@ -405,7 +405,7 @@ export function PublicationDialog({
       setKeywordsInput('');
       setSelectedTags([]);
     }
-  }, [publication, publicationTags, open]);
+  }, [publication, publicationTags, open, currentVaultId]);
 
   // Track which fields have been modified by the user
   const [modifiedFields, setModifiedFields] = useState<Set<string>>(new Set());

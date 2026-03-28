@@ -8,7 +8,8 @@ import { LoadingSpinner } from '@/components/ui/loading';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Mail, Lock, User, ArrowRight, Sparkles, Check, X, Eye, EyeOff, Github } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Check, X, Eye, EyeOff, Github } from 'lucide-react';
+import { BrandMark } from '@/components/branding/BrandMark';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -287,9 +288,7 @@ export default function Auth() {
       <div className="w-full max-w-md animate-fade-in relative z-10">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-4">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-lg glow-purple">
-              <Sparkles className="w-6 h-6 text-white" />
-            </div>
+            <BrandMark className="h-12 w-12 rounded-2xl shadow-lg" />
           </div>
           <h1 className="text-4xl font-bold">
             <span className="text-gradient">refhub</span>

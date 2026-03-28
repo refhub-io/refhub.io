@@ -242,7 +242,7 @@ export function ImportDialog({
       .filter((_, i) => selectedIndices.has(i))
       .map(pub => {
         // Remove vault_id from the publication object since it doesn't exist in the publications table
-        const { vault_id, ...cleanPub } = pub as any;
+        const { vault_id: _vaultId, ...cleanPub } = pub as Partial<Publication> & { vault_id?: string };
         return cleanPub;
       });
 

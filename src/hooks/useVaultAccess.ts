@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../integrations/supabase/client';
 import { logger } from '../lib/logger';
 import { VaultVisibility, VaultRole } from '../types/vault-extensions';
+import { Vault } from '../types/database';
 import { getPageCache, setPageCache, hasPageCache } from '../lib/pageCache';
 
 interface VaultAccessResult {
@@ -10,7 +11,7 @@ interface VaultAccessResult {
   isOwner: boolean;
   permission: VaultRole | null;
   accessStatus: 'granted' | 'denied' | 'pending' | 'requestable' | 'loading';
-  vault: any | null;
+  vault: Vault | null;
   userRole: VaultRole | null;
   error: string | null;
 }
@@ -186,9 +187,8 @@ export const useVaultAccess = (vaultSlug: string) => {
         // If no user, check if vault is public or protected (only if we have vault data)
         if (!user) {
           if (vaultData) {
-            const vaultWithVisibility = vaultData as any;
-            const canView = vaultWithVisibility.visibility === 'public';
-            const isProtected = vaultWithVisibility.visibility === 'protected';
+            const canView = (vaultData as Vault).visibility === 'public';
+            const isProtected = (vaultData as Vault).visibility === 'protected';
             
             setResult(prev => ({
               ...prev,
@@ -269,7 +269,7 @@ export const useVaultAccess = (vaultSlug: string) => {
           // If no share AND (no request OR rejected request), check visibility
           if (!canView && accessStatus !== 'pending') {
             if (vaultData) {
-              const visibility = (vaultData as any).visibility as VaultVisibility;
+              const visibility = (vaultData as Vault).visibility as VaultVisibility;
               if (visibility === 'public') {
                 canView = true;
                 accessStatus = 'granted';
@@ -325,6 +325,7 @@ export const useVaultAccess = (vaultSlug: string) => {
     return () => {
       mounted = false;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vaultSlug, refreshKey]);
 
   // Set up realtime subscriptions for permission changes
@@ -423,6 +424,7 @@ export const requestVaultAccess = async (
       requester_email: profile?.email,
       note,
       status: 'pending',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any)
     .select()
     .single();

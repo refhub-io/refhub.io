@@ -300,6 +300,7 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useKeyboardContext(): KeyboardContextValue {
   const ctx = useContext(KeyboardContext);
   if (!ctx) {

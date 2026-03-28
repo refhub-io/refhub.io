@@ -1,4 +1,4 @@
-# refhub.io — Copilot Agent Guidelines
+# refhub.io — identify, aesthetics, style guidelines
 
 > // coding_styling_and_dev_conventions for refhub.io
 
