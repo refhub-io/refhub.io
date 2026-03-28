@@ -2,7 +2,9 @@
 
 - Branch: `feat/refhub-brand-assets-rollout-2026-03-28`
 - Base: `origin/main` @ `59690e8`
-- Status: in progress
+- Commit: `e0194b4`
+- PR: `https://github.com/refhub-io/refhub.io/pull/68`
+- Status: done
 
 ## Files
 
@@ -29,4 +31,3 @@
 - Swapped app branding surfaces from the old sparkles mark to the new square logo asset.
 - Added favicon, PNG icon, apple-touch icon, and manifest links in `index.html`.
 - Fixed `site.webmanifest` icon paths so they resolve correctly from the web root.
-- PR: pending
