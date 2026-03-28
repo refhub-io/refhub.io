@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    id: 4,
+    date: '2026-03-28',
+    title: 'browser extensions are here',
+    features: [
+      {
+        tag: 'feature',
+        title: 'chrome & firefox extensions released on github',
+        description:
+          'the refhub browser extensions are now available — install directly from github releases today. save papers to your vaults without ever leaving the tab you\'re reading. chrome & firefox store submissions are pending validation and dropping soon™.',
+      },
+    ],
+  },
+  {
     id: 3,
     date: '2026-03-27',
     title: 'codex is live + semantic scholar integration',

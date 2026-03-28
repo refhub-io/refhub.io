@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>privacy policy — refhub.io</title>
+    <meta name="description" content="refhub collects the minimum information needed to operate account access, save your research workspace, and keep the service secure and reliable." />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      :root {
+        --bg:      hsl(240, 6%, 6%);
+        --card:    hsl(240, 6%, 9%);
+        --border:  hsl(240, 5%, 18%);
+        --fg:      hsl(0, 0%, 95%);
+        --muted:   hsl(240, 5%, 55%);
+        --primary: hsl(262, 83%, 65%);
+        --primary-bg:     hsl(262, 83%, 65%, 0.1);
+        --primary-border: hsl(262, 83%, 65%, 0.2);
+        --neon-green:     hsl(142, 76%, 55%);
+        --hot-pink:       hsl(330, 81%, 65%);
+        --cyber-blue:     hsl(199, 89%, 55%);
+      }
+
+      body {
+        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        min-height: 100vh;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      /* Background layers matching the React layout */
+      body::before,
+      body::after {
+        content: '';
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 0;
+      }
+      body::before {
+        background:
+          radial-gradient(circle at top, hsl(262 83% 65% / 0.16), transparent 42%),
+          radial-gradient(circle at bottom right, hsl(142 76% 55% / 0.12), transparent 36%);
+      }
+      body::after {
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        opacity: 0.03;
+      }
+
+      .page {
+        position: relative;
+        z-index: 1;
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 24px 16px;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* ── Header ── */
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 32px;
+        gap: 16px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        border: 1px solid var(--border);
+        background: rgba(255,255,255,0.04);
+        padding: 8px 16px;
+        border-radius: 9999px;
+        text-decoration: none;
+        color: var(--fg);
+        font-size: 14px;
+        font-weight: 500;
+        backdrop-filter: blur(8px);
+        transition: border-color 0.15s;
+      }
+      .brand:hover { border-color: var(--primary-border); }
+      .brand img { width: 36px; height: 36px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+      .brand .name {
+        background: linear-gradient(135deg, var(--primary), var(--hot-pink), var(--cyber-blue));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      .brand .tld { color: var(--muted); }
+
+      .back {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 14px;
+        color: var(--muted);
+        text-decoration: none;
+        transition: color 0.15s;
+      }
+      .back:hover { color: var(--fg); }
+      .back svg { width: 14px; height: 14px; }
+
+      /* ── Card ── */
+      main { flex: 1; }
+
+      .card {
+        border: 1px solid var(--border);
+        background: rgba(20, 20, 24, 0.8);
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 25px 50px rgba(0,0,0,0.4);
+        backdrop-filter: blur(12px);
+      }
+
+      .card-header {
+        border-bottom: 1px solid var(--border);
+        padding: 32px 40px;
+      }
+      @media (max-width: 600px) { .card-header, .card-body { padding: 24px 20px; } }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid var(--primary-border);
+        background: var(--primary-bg);
+        color: var(--primary);
+        padding: 6px 14px;
+        border-radius: 9999px;
+        font-size: 11px;
+        font-family: 'JetBrains Mono', monospace;
+        text-transform: uppercase;
+        letter-spacing: 0.24em;
+        margin-bottom: 16px;
+      }
+      .eyebrow svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+      h1 {
+        font-size: clamp(28px, 5vw, 44px);
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+        margin-bottom: 12px;
+        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      }
+
+      .summary {
+        font-size: 16px;
+        color: var(--muted);
+        line-height: 1.7;
+        max-width: 680px;
+        margin-bottom: 20px;
+      }
+      @media (min-width: 640px) { .summary { font-size: 18px; } }
+
+      .meta {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid var(--border);
+        background: rgba(0,0,0,0.3);
+        padding: 6px 12px;
+        border-radius: 9999px;
+        font-size: 12px;
+        font-family: 'JetBrains Mono', monospace;
+        color: var(--muted);
+      }
+      .meta svg { width: 12px; height: 12px; flex-shrink: 0; }
+
+      /* ── Sections ── */
+      .card-body { padding: 32px 40px; }
+
+      .sections { display: flex; flex-direction: column; gap: 32px; }
+
+      section h2 {
+        font-size: clamp(17px, 2.5vw, 20px);
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        margin-bottom: 10px;
+        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      }
+      @media (min-width: 640px) { section h2 { font-size: 22px; } }
+
+      section .body { display: flex; flex-direction: column; gap: 10px; }
+
+      section p {
+        font-size: 15px;
+        color: var(--muted);
+        line-height: 1.75;
+      }
+      @media (min-width: 640px) { section p { font-size: 16px; } }
+
+      /* ── Footer ── */
+      footer {
+        margin-top: 24px;
+        padding-top: 20px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        font-size: 14px;
+        color: var(--muted);
+      }
+      footer a { color: var(--muted); text-decoration: none; transition: color 0.15s; }
+      footer a:hover { color: var(--fg); }
+      .footer-links { display: flex; gap: 16px; }
+
+      /* ── Focus / selection ── */
+      ::selection { background: hsl(262 83% 65% / 0.3); }
+      *:focus-visible { outline: 2px solid hsl(262 83% 65% / 0.5); outline-offset: 2px; }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header>
+        <a class="brand" href="/">
+          <img src="/app-logo.png" alt="refhub" />
+          <span><span class="name">refhub</span><span class="tld">.io</span></span>
+        </a>
+        <a class="back" href="/">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+          back
+        </a>
+      </header>
+
+      <main>
+        <div class="card">
+          <div class="card-header">
+            <div class="eyebrow">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              privacy
+            </div>
+            <h1>privacy policy</h1>
+            <p class="summary">refhub collects the minimum information needed to operate account access, save your research workspace, and keep the service secure and reliable.</p>
+            <div class="meta">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              v1 &bull; last_updated: march 25, 2026
+            </div>
+          </div>
+
+          <div class="card-body">
+            <div class="sections">
+
+              <section>
+                <h2>overview</h2>
+                <div class="body">
+                  <p>refhub is a web application for organizing research materials, references, notes, and related account activity. this privacy policy explains, at a high level, what information we collect, how we use it, and the choices available to users.</p>
+                  <p>this document describes the current refhub privacy policy for v1 and service transparency, subject to applicable law.</p>
+                </div>
+              </section>
+
+              <section>
+                <h2>information we collect</h2>
+                <div class="body">
+                  <p>we may collect information you provide directly, such as your name, email address, account credentials, profile details, and research content that you choose to upload, save, or generate within refhub.</p>
+                  <p>we may also collect technical and usage information needed to operate the service, including device, browser, ip address, approximate location derived from ip, authentication provider details, page activity, and diagnostic logs.</p>
+                </div>
+              </section>
+
+              <section>
+                <h2>how we use information</h2>
+                <div class="body">
+                  <p>we use information to provide and maintain refhub, authenticate users, secure accounts, sync saved content, improve product performance, communicate essential service updates, and respond to support or abuse issues.</p>
+                  <p>we may use aggregated or de-identified information to understand usage patterns, monitor reliability, and guide product improvements, provided that such information does not reasonably identify individual users.</p>
+                </div>
+              </section>
+
+              <section>
+                <h2>oauth and third-party services</h2>
+                <div class="body">
+                  <p>if you sign in with google or another third-party identity provider, we receive the account information that provider makes available to refhub, such as your email address, display name, and provider-specific identifier.</p>
+                  <p>we use that information only to authenticate you, create or maintain your refhub account, and support related security and account recovery workflows. your use of third-party sign-in services is also subject to those providers' own terms and privacy practices.</p>
+                </div>
+              </section>
+
+              <section>
+                <h2>sharing</h2>
+                <div class="body">
+                  <p>we do not sell personal information. we may share information with service providers and infrastructure vendors that help us host, authenticate, secure, analyze, or support refhub, subject to appropriate contractual or operational safeguards.</p>
+                  <p>we may also disclose information if reasonably necessary to comply with law, enforce our terms of service, protect the rights or safety of refhub, our users, or others, or as part of a business transfer such as a merger, acquisition, or asset sale.</p>
+                </div>
+              </section>
+
+              <section>
+                <h2>data retention and security</h2>
+                <div class="body">
+                  <p>we retain information for as long as reasonably necessary to provide the service, comply with legal obligations, resolve disputes, and enforce our agreements. retention periods may vary depending on the type of data and the operational need.</p>
+                  <p>we use reasonable administrative, technical, and organizational safeguards to protect information. no method of storage or transmission is completely secure, and we cannot guarantee absolute security.</p>
+                </div>
+              </section>
+
+              <section>
+                <h2>your choices</h2>
+                <div class="body">
+                  <p>you may update certain account information within refhub. you may also choose not to provide some information, but that may limit your ability to use parts of the service.</p>
+                  <p>requests relating to account access, correction, or deletion can be directed to the contact address below. we will review requests in light of applicable law, security needs, and operational requirements.</p>
+                </div>
+              </section>
+
+              <section>
+                <h2>contact</h2>
+                <div class="body">
+                  <p>for privacy-related questions or requests, contact refhub at support@refhub.io.</p>
+                  <p>if refhub materially changes this privacy policy, the updated version will be posted on this page with a revised effective date.</p>
+                </div>
+              </section>
+
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <footer>
+        <p>refhub legal documents v1.</p>
+        <div class="footer-links">
+          <a href="/privacy">privacy</a>
+          <a href="/tos">terms</a>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>
