@@ -1,4 +1,3 @@
-import { Navigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { Link } from 'react-router-dom';
@@ -7,8 +6,16 @@ import { LoadingSpinner } from '@/components/ui/loading';
 // Simple auth wrapper component that redirects to auth if not authenticated
 // This ensures unauthenticated users can't access protected routes
 const AuthWrapper = ({ children }: { children: React.ReactNode }) => {
-  const { user } = useAuth();
-  
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <LoadingSpinner size="md" />
+      </div>
+    );
+  }
+
   if (!user) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
