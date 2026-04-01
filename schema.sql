@@ -1970,6 +1970,73 @@ ALTER PUBLICATION "supabase_realtime" ADD TABLE ONLY "public"."notifications";
 
 ALTER PUBLICATION "supabase_realtime" ADD TABLE ONLY "public"."profiles";
 
+CREATE TABLE IF NOT EXISTS "public"."user_google_drive_links" (
+    "user_id" "uuid" NOT NULL,
+    "google_drive_email" "text",
+    "encrypted_refresh_token" "text" NOT NULL,
+    "scope" "text",
+    "drive_folder_id" "text",
+    "drive_folder_name" "text",
+    "drive_folder_status" "text" DEFAULT 'pending_creation'::"text" NOT NULL,
+    "last_linked_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "last_checked_at" timestamp with time zone,
+    "last_error" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "user_google_drive_links_drive_folder_status_check" CHECK (("drive_folder_status" = ANY (ARRAY['pending_creation'::"text", 'ready'::"text", 'error'::"text"])))
+);
+
+ALTER TABLE "public"."user_google_drive_links" OWNER TO "postgres";
+
+ALTER TABLE ONLY "public"."user_google_drive_links"
+    ADD CONSTRAINT "user_google_drive_links_pkey" PRIMARY KEY ("user_id");
+
+ALTER TABLE ONLY "public"."user_google_drive_links"
+    ADD CONSTRAINT "user_google_drive_links_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+CREATE TABLE IF NOT EXISTS "public"."publication_pdf_assets" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "publication_id" "uuid" NOT NULL,
+    "vault_publication_id" "uuid" NOT NULL,
+    "storage_provider" "text" NOT NULL,
+    "source_pdf_url" "text",
+    "stored_pdf_url" "text",
+    "stored_file_id" "text",
+    "status" "text" DEFAULT 'pending'::"text" NOT NULL,
+    "error_message" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "publication_pdf_assets_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'stored'::"text", 'failed'::"text"]))),
+    CONSTRAINT "publication_pdf_assets_storage_provider_check" CHECK (("storage_provider" = 'google_drive'::"text"))
+);
+
+ALTER TABLE "public"."publication_pdf_assets" OWNER TO "postgres";
+
+ALTER TABLE ONLY "public"."publication_pdf_assets"
+    ADD CONSTRAINT "publication_pdf_assets_pkey" PRIMARY KEY ("id");
+
+ALTER TABLE ONLY "public"."publication_pdf_assets"
+    ADD CONSTRAINT "publication_pdf_assets_vault_publication_provider_key" UNIQUE ("vault_publication_id", "storage_provider");
+
+ALTER TABLE ONLY "public"."publication_pdf_assets"
+    ADD CONSTRAINT "publication_pdf_assets_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+ALTER TABLE ONLY "public"."publication_pdf_assets"
+    ADD CONSTRAINT "publication_pdf_assets_publication_id_fkey" FOREIGN KEY ("publication_id") REFERENCES "public"."publications"("id") ON DELETE CASCADE;
+
+ALTER TABLE ONLY "public"."publication_pdf_assets"
+    ADD CONSTRAINT "publication_pdf_assets_vault_publication_id_fkey" FOREIGN KEY ("vault_publication_id") REFERENCES "public"."vault_publications"("id") ON DELETE CASCADE;
+
+CREATE OR REPLACE TRIGGER "update_user_google_drive_links_updated_at" BEFORE UPDATE ON "public"."user_google_drive_links" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
+CREATE OR REPLACE TRIGGER "update_publication_pdf_assets_updated_at" BEFORE UPDATE ON "public"."publication_pdf_assets" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
+
+ALTER TABLE "public"."user_google_drive_links" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."publication_pdf_assets" ENABLE ROW LEVEL SECURITY;
+
+GRANT ALL ON TABLE "public"."user_google_drive_links" TO "service_role";
+GRANT ALL ON TABLE "public"."publication_pdf_assets" TO "service_role";
+
 
 
 ALTER PUBLICATION "supabase_realtime" ADD TABLE ONLY "public"."publication_relations";
@@ -2446,7 +2513,6 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TAB
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "anon";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "authenticated";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "service_role";
-
 
 
 

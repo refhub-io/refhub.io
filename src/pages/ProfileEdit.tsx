@@ -1,6 +1,6 @@
 import { useProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/hooks/useAuth';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,16 +9,25 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError, showWarning } from '@/lib/toast';
 import { ApiKeyManagementPanel } from '@/components/profile/ApiKeyManagementPanel';
-import { Loader2, User, Lock, Mail, ArrowLeft, KeyRound } from 'lucide-react';
+import { GoogleDriveSettingsPanel } from '@/components/profile/GoogleDriveSettingsPanel';
+import { Loader2, User, Lock, Mail, ArrowLeft, KeyRound, HardDrive } from 'lucide-react';
 import { resolvePostAuthRedirect } from '@/lib/authRedirect';
 import { getAuthProviderLabel, getLastLoginProvider, hasPasswordIdentity } from '@/lib/authProviders';
+
+const SETTINGS_TABS = ['profile', 'password', 'email', 'api-keys', 'storage'] as const;
+type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 export default function ProfileEdit() {
   const { profile, updateProfile, refetch } = useProfile();
   const { user, session } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const oauthProvider = getLastLoginProvider(user);
   const canUsePasswordSecurity = hasPasswordIdentity(user);
+  const requestedTab = searchParams.get('tab');
+  const initialTab = SETTINGS_TABS.includes((requestedTab || '') as SettingsTab)
+    ? (requestedTab as SettingsTab)
+    : 'profile';
   
   // Profile state
   const [userName, setUserName] = useState(profile?.username || '');
@@ -36,12 +45,39 @@ export default function ProfileEdit() {
   const [newEmail, setNewEmail] = useState('');
   const [emailPassword, setEmailPassword] = useState('');
   const [changingEmail, setChangingEmail] = useState(false);
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
 
   useEffect(() => {
     setUserName(profile?.username || '');
     setDisplayName(profile?.display_name || '');
     setBio(profile?.bio || '');
   }, [profile?.bio, profile?.display_name, profile?.username]);
+
+  useEffect(() => {
+    if (SETTINGS_TABS.includes((requestedTab || '') as SettingsTab)) {
+      setActiveTab(requestedTab as SettingsTab);
+    }
+  }, [requestedTab]);
+
+  useEffect(() => {
+    const driveState = searchParams.get('gdrive');
+    const driveMessage = searchParams.get('gdrive_message');
+    if (!driveState) {
+      return;
+    }
+
+    if (driveState === 'connected') {
+      showSuccess('Google Drive connected', driveMessage || 'RefHub can now store saved PDFs in your managed Drive folder.');
+    } else if (driveState === 'error') {
+      showError('Google Drive link failed', driveMessage || 'The Google Drive OAuth flow did not complete.');
+    }
+
+    const next = new URLSearchParams(searchParams);
+    next.delete('gdrive');
+    next.delete('gdrive_message');
+    next.delete('gdrive_folder');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const handleSaveProfile = async () => {
     setSaving(true);
@@ -158,6 +194,14 @@ export default function ProfileEdit() {
     navigate(resolvePostAuthRedirect(profile, { fallbackPath: '/dashboard' }));
   };
 
+  const handleTabChange = (value: string) => {
+    const nextValue = SETTINGS_TABS.includes(value as SettingsTab) ? (value as SettingsTab) : 'profile';
+    setActiveTab(nextValue);
+    const next = new URLSearchParams(searchParams);
+    next.set('tab', nextValue);
+    setSearchParams(next, { replace: true });
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-6xl p-4 sm:p-8">
@@ -168,12 +212,12 @@ export default function ProfileEdit() {
           </Button>
           <div className="min-w-0 flex-1">
             <h1 className="text-xl font-bold font-mono sm:text-2xl">account_<span className="text-gradient">settings</span></h1>
-            <p className="text-xs text-muted-foreground font-mono sm:text-sm">// manage your profile, security, and API access</p>
+            <p className="text-xs text-muted-foreground font-mono sm:text-sm">// manage your profile, security, API access, and linked storage</p>
           </div>
         </div>
 
-        <Tabs defaultValue="profile" className="min-w-0 space-y-6">
-          <TabsList className="grid h-auto w-full grid-cols-4 gap-1 rounded-2xl border border-border/70 bg-muted/60 p-1 font-mono dark:border-white/8 dark:bg-[#1a1722]">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="min-w-0 space-y-6">
+          <TabsList className="grid h-auto w-full grid-cols-5 gap-1 rounded-2xl border border-border/70 bg-muted/60 p-1 font-mono dark:border-white/8 dark:bg-[#1a1722]">
             <TabsTrigger
               value="profile"
               aria-label="Profile settings"
@@ -205,6 +249,14 @@ export default function ProfileEdit() {
             >
               <KeyRound className="w-4 h-4 shrink-0" />
               <span className="hidden truncate sm:inline">api_keys</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="storage"
+              aria-label="Storage settings"
+              className="min-h-10 min-w-0 justify-center gap-2 rounded-xl px-2 text-center text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md sm:min-h-11 sm:px-3 sm:text-sm"
+            >
+              <HardDrive className="w-4 h-4 shrink-0" />
+              <span className="hidden truncate sm:inline">storage</span>
             </TabsTrigger>
           </TabsList>
 
@@ -393,6 +445,10 @@ export default function ProfileEdit() {
               userEmail={user?.email}
               accessToken={session?.access_token}
             />
+          </TabsContent>
+
+          <TabsContent value="storage" className="space-y-6">
+            <GoogleDriveSettingsPanel accessToken={session?.access_token} />
           </TabsContent>
         </Tabs>
       </div>
