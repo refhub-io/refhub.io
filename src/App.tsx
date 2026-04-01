@@ -22,6 +22,7 @@ import OpenGraphPreview from "./pages/OpenGraphPreview";
 import Users from "./pages/Users";
 import UserProfile from "./pages/UserProfile";
 import ProfileEdit from "./pages/ProfileEdit";
+import AuthWrapper from "@/components/layout/AuthWrapper";
 import SignupNextSteps from "./pages/SignupNextSteps";
 import ResetPassword from "./pages/ResetPassword";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
@@ -69,7 +70,7 @@ const App = () => {
                   <Route path="/public/:slug" element={<PublicVault />} />
                   <Route path="/vault/:id" element={<VaultDetail />} />
                   <Route path="/opengraphpreview" element={<OpenGraphPreview />} />
-                  <Route path="/profile-edit" element={<ProfileEdit />} />
+                  <Route path="/profile-edit" element={<AuthWrapper><ProfileEdit /></AuthWrapper>} />
                   <Route path="/signup-next-steps" element={<SignupNextSteps />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
                   <Route path="/privacy" element={<PrivacyPolicy />} />
