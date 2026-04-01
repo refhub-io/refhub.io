@@ -9,22 +9,25 @@ export function BugReportButton() {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
-      <Badge 
-        variant="outline" 
-        className="gap-1 font-mono text-xs bg-background/95 backdrop-blur-sm border-primary/30 text-primary animate-pulse"
-      >
-        <span className="text-[10px]">v{version}</span>
-      </Badge>
-      <Button
-        onClick={handleBugReport}
-        size="sm"
-        variant="outline"
-        className="h-10 w-10 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 bg-background/95 backdrop-blur-sm border-primary/30 hover:border-primary/50 hover:bg-primary/5 group"
-        title="Report a bug or request a feature"
-      >
-        <Bug className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-      </Button>
+    <div className="pointer-events-none fixed bottom-4 right-4 z-40 sm:bottom-6 sm:right-6">
+      <div className="flex flex-col items-end gap-2 pointer-events-auto">
+        <Badge
+          variant="outline"
+          className="gap-1 border-primary/30 bg-background/95 font-mono text-xs text-primary backdrop-blur-sm animate-pulse"
+        >
+          <span className="text-[10px]">v{version}</span>
+        </Badge>
+        <Button
+          onClick={handleBugReport}
+          size="icon"
+          variant="outline"
+          className="group h-11 w-11 rounded-full border-primary/30 bg-background/95 shadow-lg backdrop-blur-sm transition-all duration-200 hover:border-primary/50 hover:bg-primary/5 hover:shadow-xl"
+          title="Report a bug or request a feature"
+          aria-label="Report a bug or request a feature"
+        >
+          <Bug className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-primary" />
+        </Button>
+      </div>
     </div>
   );
 }
