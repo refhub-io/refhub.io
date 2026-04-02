@@ -89,7 +89,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
   // Track if we have cached data for the current vault (to skip loading state)
   const hasCachedContentRef = useRef(false);
 
-  const { canView, refresh } = useVaultAccess(currentVaultId || '');
+  const { canView, refresh } = useVaultAccess(currentVaultId || '', { enableRealtime: false });
   
   // Helper to get user display name (with caching)
   const getUserDisplayName = useCallback(async (userId: string): Promise<string | null> => {
