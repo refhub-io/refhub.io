@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ExternalLink, FolderSync, HardDrive, Link2, Loader2, Shield, Unplug } from 'lucide-react';
+import { Check, ExternalLink, FolderSync, HardDrive, Link2, Loader2, Shield, Unplug } from 'lucide-react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -119,7 +119,7 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
       <Card className="border border-fuchsia-500/20 bg-[#110d18] shadow-[0_0_30px_rgba(168,85,247,0.10)]">
         <CardHeader>
           <CardTitle className="font-mono text-xl">google_drive_storage</CardTitle>
-          <CardDescription className="font-mono text-xs uppercase tracking-[0.2em] text-fuchsia-200/70">
+          <CardDescription className="font-mono text-xs tracking-[0.2em] text-fuchsia-200/70">
             loading drive link status...
           </CardDescription>
         </CardHeader>
@@ -157,7 +157,7 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
             <Badge variant={currentStatus.linked ? 'default' : 'secondary'} className="font-mono">
               {currentStatus.linked ? 'linked' : 'not_linked'}
             </Badge>
-            <Badge variant={getFolderStatusTone(currentStatus.folderStatus)} className="font-mono capitalize">
+            <Badge variant={getFolderStatusTone(currentStatus.folderStatus)} className="font-mono">
               {currentStatus.folderStatus}
             </Badge>
           </div>
@@ -220,16 +220,23 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
               {action === 'connect' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
               {currentStatus.linked ? 'reconnect google drive' : 'connect google drive'}
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="border-fuchsia-500/30 bg-fuchsia-500/10 font-mono text-fuchsia-100 hover:bg-fuchsia-500/20 hover:text-fuchsia-50"
-              onClick={() => void handleEnsureFolder()}
-              disabled={!currentStatus.linked || action !== null}
-            >
-              {action === 'ensure' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderSync className="h-4 w-4" />}
-              prepare refhub folder
-            </Button>
+            {currentStatus.folderStatus === 'ready' ? (
+              <div className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 font-mono text-sm text-emerald-200">
+                <Check className="h-4 w-4" />
+                folder prepared
+              </div>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                className="border-fuchsia-500/30 bg-fuchsia-500/10 font-mono text-fuchsia-100 hover:bg-fuchsia-500/20 hover:text-fuchsia-50"
+                onClick={() => void handleEnsureFolder()}
+                disabled={!currentStatus.linked || action !== null}
+              >
+                {action === 'ensure' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderSync className="h-4 w-4" />}
+                prepare refhub folder
+              </Button>
+            )}
             <Button
               type="button"
               variant="ghost"
