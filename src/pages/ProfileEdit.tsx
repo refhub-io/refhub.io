@@ -61,10 +61,21 @@ export default function ProfileEdit() {
 
   useEffect(() => {
     const driveState = searchParams.get('gdrive');
-    const driveMessage = searchParams.get('gdrive_message');
+    const rawDriveMessage = searchParams.get('gdrive_message');
     if (!driveState) {
       return;
     }
+
+    // Whitelist allowed gdrive_message values to prevent rendering arbitrary user-controlled strings.
+    const ALLOWED_GDRIVE_MESSAGES: Record<string, string> = {
+      'connected': 'RefHub can now store saved PDFs in your managed Drive folder.',
+      'already_linked': 'Google Drive is already linked to your account.',
+      'folder_created': 'Your RefHub folder was created in Google Drive.',
+      'oauth_error': 'The Google Drive OAuth flow did not complete.',
+      'access_denied': 'Google Drive access was denied.',
+      'token_error': 'There was a problem exchanging the Google OAuth token.',
+    };
+    const driveMessage = (rawDriveMessage && ALLOWED_GDRIVE_MESSAGES[rawDriveMessage]) || null;
 
     if (driveState === 'connected') {
       showSuccess('Google Drive connected', driveMessage || 'RefHub can now store saved PDFs in your managed Drive folder.');
