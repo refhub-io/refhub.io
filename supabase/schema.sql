@@ -111,42 +111,22 @@ $$;
 ALTER FUNCTION "public"."copy_publication_to_vault"("pub_id" "uuid", "target_vault_id" "uuid", "user_id" "uuid") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."create_user_profile"("p_user_id" "uuid", "p_email" "text", "p_display_name" "text") RETURNS TABLE("id" "uuid", "user_id" "uuid", "display_name" "text", "email" "text", "avatar_url" "text", "username" "text", "bio" "text", "github_url" "text", "linkedin_url" "text", "bluesky_url" "text", "is_setup" boolean, "created_at" timestamp with time zone, "updated_at" timestamp with time zone)
+CREATE OR REPLACE FUNCTION "public"."create_user_profile"("p_user_id" "uuid", "p_email" "text", "p_display_name" "text") RETURNS TABLE("id" "uuid", "user_id" "uuid", "display_name" "text", "email" "text", "avatar_url" "text", "username" "text", "bio" "text", "github_url" "text", "linkedin_url" "text", "bluesky_url" "text", "created_at" timestamp with time zone, "updated_at" timestamp with time zone, "is_setup" boolean)
     LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
 BEGIN
-  -- Insert profile with RLS bypass
   INSERT INTO public.profiles (
-    user_id, 
-    email, 
-    display_name, 
-    username,
-    bio,
-    avatar_url,
-    github_url,
-    linkedin_url,
-    bluesky_url,
-    is_setup
+    user_id, email, display_name, username, bio, avatar_url,
+    github_url, linkedin_url, bluesky_url, is_setup
+  ) VALUES (
+    p_user_id, p_email, p_display_name, null, null, null,
+    null, null, null, false
   )
-  VALUES (
-    p_user_id,
-    p_email,
-    p_display_name,
-    null,
-    null,
-    null,
-    null,
-    null,
-    null,
-    false
-  )
-  ON CONFLICT (user_id) DO NOTHING
-  RETURNING *;
-  
-  -- Return the created profile
+  ON CONFLICT ON CONSTRAINT "profiles_user_id_key" DO NOTHING;
+
   RETURN QUERY
-  SELECT * FROM public.profiles 
-  WHERE user_id = p_user_id;
+  SELECT * FROM public.profiles p
+  WHERE p.user_id = p_user_id;
 END;
 $$;
 
@@ -204,18 +184,95 @@ COMMENT ON FUNCTION "public"."delete_user"() IS 'Allows a user to delete their o
 
 
 
+CREATE OR REPLACE FUNCTION "public"."enforce_forked_vaults_public"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM public.vault_forks vf
+    WHERE vf.forked_vault_id = NEW.id
+  ) AND NEW.visibility <> 'public' THEN
+    RAISE EXCEPTION 'forked vaults must remain public';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."enforce_forked_vaults_public"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_researcher_stats"("p_user_ids" "uuid"[]) RETURNS TABLE("user_id" "uuid", "vault_count" bigint, "public_vault_count" bigint, "publication_count" bigint)
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    u.user_id,
+    COUNT(DISTINCT v.id)                                              AS vault_count,
+    COUNT(DISTINCT v.id) FILTER (WHERE v.visibility = 'public')      AS public_vault_count,
+    COUNT(DISTINCT pub.id)                                            AS publication_count
+  FROM unnest(p_user_ids) AS u(user_id)
+  LEFT JOIN public.vaults       v   ON v.user_id   = u.user_id
+  LEFT JOIN public.publications pub ON pub.user_id  = u.user_id
+  GROUP BY u.user_id;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_researcher_stats"("p_user_ids" "uuid"[]) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_vault_metadata"("vault_id" "uuid") RETURNS TABLE("id" "uuid", "name" "text", "description" "text", "visibility" "public"."vault_visibility", "color" "text", "updated_at" timestamp with time zone, "created_at" timestamp with time zone)
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+  -- Only return metadata for public or protected vaults
+  -- Private vaults should not expose any information
+  RETURN QUERY
+  SELECT 
+    v.id,
+    v.name,
+    v.description,
+    v.visibility,
+    v.color,
+    v.updated_at,
+    v.created_at
+  FROM vaults v
+  WHERE v.id = vault_id
+    AND v.visibility IN ('public', 'protected');
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_vault_metadata"("vault_id" "uuid") OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."get_vault_metadata"("vault_id" "uuid") IS 'Returns basic metadata for public/protected vaults only. Does not grant access to vault contents.';
+
+
+
 CREATE OR REPLACE FUNCTION "public"."handle_new_user"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
     AS $$
 BEGIN
-  -- Use the RPC function to create profile (positional parameters)
-  PERFORM create_user_profile(
-    NEW.id,
-    NEW.email,
-    COALESCE(NEW.raw_user_meta_data ->> 'display_name', split_part(NEW.email, '@', 1))
-  );
-  
+  BEGIN
+    PERFORM create_user_profile(
+      NEW.id,
+      NEW.email,
+      COALESCE(NEW.raw_user_meta_data ->> 'display_name', split_part(COALESCE(NEW.email, ''), '@', 1))
+    );
+  EXCEPTION WHEN OTHERS THEN
+    -- Profile creation failed. Log a warning but do NOT raise — we must not
+    -- block the auth.users INSERT. ensureProfileExists() will create the
+    -- profile on the user's first sign-in.
+    RAISE WARNING 'handle_new_user: could not create profile for user %: %', NEW.id, SQLERRM;
+  END;
+
   RETURN NEW;
 END;
 $$;
@@ -527,6 +584,19 @@ $$;
 ALTER FUNCTION "public"."notify_vault_shared"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."set_updated_at"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."set_updated_at"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."update_tag_depth"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     SET "search_path" TO 'public'
@@ -619,6 +689,56 @@ SET default_tablespace = '';
 SET default_table_access_method = "heap";
 
 
+CREATE TABLE IF NOT EXISTS "public"."api_key_vaults" (
+    "api_key_id" "uuid" NOT NULL,
+    "vault_id" "uuid" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."api_key_vaults" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."api_keys" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "owner_user_id" "uuid" NOT NULL,
+    "label" "text" NOT NULL,
+    "key_prefix" "text" NOT NULL,
+    "key_hash" "text" NOT NULL,
+    "scopes" "text"[] NOT NULL,
+    "description" "text",
+    "expires_at" timestamp with time zone,
+    "revoked_at" timestamp with time zone,
+    "last_used_at" timestamp with time zone,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "created_by" "uuid",
+    CONSTRAINT "api_keys_scopes_check" CHECK (("cardinality"("scopes") > 0))
+);
+
+
+ALTER TABLE "public"."api_keys" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."api_request_audit_logs" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "api_key_id" "uuid",
+    "owner_user_id" "uuid",
+    "request_id" "uuid" NOT NULL,
+    "method" "text" NOT NULL,
+    "path" "text" NOT NULL,
+    "response_status" integer NOT NULL,
+    "vault_id" "uuid",
+    "ip_address" "text",
+    "user_agent" "text",
+    "duration_ms" integer,
+    "metadata" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."api_request_audit_logs" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."notifications" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "user_id" "uuid" NOT NULL,
@@ -652,6 +772,25 @@ CREATE TABLE IF NOT EXISTS "public"."profiles" (
 
 
 ALTER TABLE "public"."profiles" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."publication_pdf_assets" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "publication_id" "uuid",
+    "vault_publication_id" "uuid" NOT NULL,
+    "storage_provider" "text" DEFAULT 'google_drive'::"text" NOT NULL,
+    "source_pdf_url" "text",
+    "stored_pdf_url" "text",
+    "stored_file_id" "text",
+    "status" "text" DEFAULT 'pending'::"text" NOT NULL,
+    "error_message" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."publication_pdf_assets" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."publication_relations" (
@@ -804,8 +943,32 @@ COMMENT ON TABLE "public"."tags" IS 'Tags can be user-scoped (for personal vault
 
 
 
+COMMENT ON COLUMN "public"."tags"."color" IS 'User-chosen hex color for tag display. Defaults to indigo.';
+
+
+
 COMMENT ON COLUMN "public"."tags"."vault_id" IS 'References to vault this tag belongs to. NULL for user-scoped tags, UUID for vault-scoped tags.';
 
+
+
+CREATE TABLE IF NOT EXISTS "public"."user_google_drive_links" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "google_drive_email" "text",
+    "encrypted_refresh_token" "text" NOT NULL,
+    "scope" "text",
+    "drive_folder_id" "text",
+    "drive_folder_name" "text",
+    "drive_folder_status" "text" DEFAULT 'pending_creation'::"text" NOT NULL,
+    "last_linked_at" timestamp with time zone,
+    "last_checked_at" timestamp with time zone,
+    "last_error" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."user_google_drive_links" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."vault_access_requests" (
@@ -895,12 +1058,17 @@ CREATE TABLE IF NOT EXISTS "public"."vault_publications" (
     "keywords" "text"[],
     "created_at" timestamp with time zone DEFAULT "now"(),
     "updated_at" timestamp with time zone DEFAULT "now"(),
-    "created_by" "uuid" NOT NULL,
-    "version" integer DEFAULT 1
+    "created_by" "uuid",
+    "version" integer DEFAULT 1,
+    "updated_by" "uuid"
 );
 
 
 ALTER TABLE "public"."vault_publications" OWNER TO "postgres";
+
+
+COMMENT ON COLUMN "public"."vault_publications"."updated_by" IS 'The user who last updated this vault publication';
+
 
 
 CREATE TABLE IF NOT EXISTS "public"."vault_shares" (
@@ -951,6 +1119,31 @@ CREATE TABLE IF NOT EXISTS "public"."vaults" (
 ALTER TABLE "public"."vaults" OWNER TO "postgres";
 
 
+ALTER TABLE ONLY "public"."api_key_vaults"
+    ADD CONSTRAINT "api_key_vaults_pkey" PRIMARY KEY ("api_key_id", "vault_id");
+
+
+
+ALTER TABLE ONLY "public"."api_keys"
+    ADD CONSTRAINT "api_keys_key_hash_key" UNIQUE ("key_hash");
+
+
+
+ALTER TABLE ONLY "public"."api_keys"
+    ADD CONSTRAINT "api_keys_key_prefix_key" UNIQUE ("key_prefix");
+
+
+
+ALTER TABLE ONLY "public"."api_keys"
+    ADD CONSTRAINT "api_keys_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."api_request_audit_logs"
+    ADD CONSTRAINT "api_request_audit_logs_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."notifications"
     ADD CONSTRAINT "notifications_pkey" PRIMARY KEY ("id");
 
@@ -968,6 +1161,16 @@ ALTER TABLE ONLY "public"."profiles"
 
 ALTER TABLE ONLY "public"."profiles"
     ADD CONSTRAINT "profiles_username_key" UNIQUE ("username");
+
+
+
+ALTER TABLE ONLY "public"."publication_pdf_assets"
+    ADD CONSTRAINT "publication_pdf_assets_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."publication_pdf_assets"
+    ADD CONSTRAINT "publication_pdf_assets_vault_publication_id_storage_provide_key" UNIQUE ("vault_publication_id", "storage_provider");
 
 
 
@@ -1003,6 +1206,16 @@ ALTER TABLE ONLY "public"."publication_relations"
 
 ALTER TABLE ONLY "public"."vault_access_requests"
     ADD CONSTRAINT "unique_vault_requester_id" UNIQUE ("vault_id", "requester_id");
+
+
+
+ALTER TABLE ONLY "public"."user_google_drive_links"
+    ADD CONSTRAINT "user_google_drive_links_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."user_google_drive_links"
+    ADD CONSTRAINT "user_google_drive_links_user_id_key" UNIQUE ("user_id");
 
 
 
@@ -1071,6 +1284,30 @@ ALTER TABLE ONLY "public"."vaults"
 
 
 
+CREATE INDEX "idx_api_key_vaults_vault_id" ON "public"."api_key_vaults" USING "btree" ("vault_id");
+
+
+
+CREATE INDEX "idx_api_keys_active" ON "public"."api_keys" USING "btree" ("owner_user_id", "revoked_at", "expires_at");
+
+
+
+CREATE INDEX "idx_api_keys_owner_user_id" ON "public"."api_keys" USING "btree" ("owner_user_id");
+
+
+
+CREATE INDEX "idx_api_request_audit_logs_api_key_id" ON "public"."api_request_audit_logs" USING "btree" ("api_key_id", "created_at" DESC);
+
+
+
+CREATE INDEX "idx_api_request_audit_logs_owner_user_id" ON "public"."api_request_audit_logs" USING "btree" ("owner_user_id", "created_at" DESC);
+
+
+
+CREATE INDEX "idx_api_request_audit_logs_vault_id" ON "public"."api_request_audit_logs" USING "btree" ("vault_id", "created_at" DESC);
+
+
+
 CREATE INDEX "idx_notifications_read" ON "public"."notifications" USING "btree" ("user_id", "read");
 
 
@@ -1100,6 +1337,10 @@ CREATE INDEX "idx_tags_parent_id" ON "public"."tags" USING "btree" ("parent_id")
 
 
 CREATE INDEX "idx_tags_vault_id" ON "public"."tags" USING "btree" ("vault_id");
+
+
+
+CREATE UNIQUE INDEX "idx_tags_vault_name_unique" ON "public"."tags" USING "btree" ("vault_id", "name") WHERE ("vault_id" IS NOT NULL);
 
 
 
@@ -1139,6 +1380,10 @@ CREATE INDEX "idx_vault_publications_original_id" ON "public"."vault_publication
 
 
 
+CREATE INDEX "idx_vault_publications_updated_by" ON "public"."vault_publications" USING "btree" ("updated_by");
+
+
+
 CREATE INDEX "idx_vault_publications_vault_id" ON "public"."vault_publications" USING "btree" ("vault_id");
 
 
@@ -1167,6 +1412,10 @@ CREATE UNIQUE INDEX "publication_tags_vault_publication_id_tag_id_idx" ON "publi
 
 
 
+CREATE OR REPLACE TRIGGER "enforce_forked_vaults_public" BEFORE UPDATE ON "public"."vaults" FOR EACH ROW EXECUTE FUNCTION "public"."enforce_forked_vaults_public"();
+
+
+
 CREATE OR REPLACE TRIGGER "on_vault_favorited" AFTER INSERT ON "public"."vault_favorites" FOR EACH ROW EXECUTE FUNCTION "public"."notify_vault_favorited"();
 
 
@@ -1176,6 +1425,10 @@ CREATE OR REPLACE TRIGGER "on_vault_forked" AFTER INSERT ON "public"."vault_fork
 
 
 CREATE OR REPLACE TRIGGER "on_vault_shared" AFTER INSERT ON "public"."vault_shares" FOR EACH ROW EXECUTE FUNCTION "public"."notify_vault_shared"();
+
+
+
+CREATE OR REPLACE TRIGGER "publication_pdf_assets_updated_at" BEFORE UPDATE ON "public"."publication_pdf_assets" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
 
 
 
@@ -1203,7 +1456,46 @@ CREATE OR REPLACE TRIGGER "update_vaults_updated_at" BEFORE UPDATE ON "public"."
 
 
 
+CREATE OR REPLACE TRIGGER "user_google_drive_links_updated_at" BEFORE UPDATE ON "public"."user_google_drive_links" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
 CREATE OR REPLACE TRIGGER "validate_username_trigger" BEFORE INSERT OR UPDATE ON "public"."profiles" FOR EACH ROW EXECUTE FUNCTION "public"."validate_username"();
+
+
+
+ALTER TABLE ONLY "public"."api_key_vaults"
+    ADD CONSTRAINT "api_key_vaults_api_key_id_fkey" FOREIGN KEY ("api_key_id") REFERENCES "public"."api_keys"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."api_key_vaults"
+    ADD CONSTRAINT "api_key_vaults_vault_id_fkey" FOREIGN KEY ("vault_id") REFERENCES "public"."vaults"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."api_keys"
+    ADD CONSTRAINT "api_keys_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "auth"."users"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."api_keys"
+    ADD CONSTRAINT "api_keys_owner_user_id_fkey" FOREIGN KEY ("owner_user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."api_request_audit_logs"
+    ADD CONSTRAINT "api_request_audit_logs_api_key_id_fkey" FOREIGN KEY ("api_key_id") REFERENCES "public"."api_keys"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."api_request_audit_logs"
+    ADD CONSTRAINT "api_request_audit_logs_owner_user_id_fkey" FOREIGN KEY ("owner_user_id") REFERENCES "auth"."users"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."api_request_audit_logs"
+    ADD CONSTRAINT "api_request_audit_logs_vault_id_fkey" FOREIGN KEY ("vault_id") REFERENCES "public"."vaults"("id") ON DELETE SET NULL;
 
 
 
@@ -1212,13 +1504,28 @@ ALTER TABLE ONLY "public"."profiles"
 
 
 
-ALTER TABLE ONLY "public"."publication_relations"
-    ADD CONSTRAINT "publication_relations_publication_id_fkey" FOREIGN KEY ("publication_id") REFERENCES "public"."publications"("id") ON DELETE CASCADE;
+ALTER TABLE ONLY "public"."publication_pdf_assets"
+    ADD CONSTRAINT "publication_pdf_assets_publication_id_fkey" FOREIGN KEY ("publication_id") REFERENCES "public"."publications"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."publication_pdf_assets"
+    ADD CONSTRAINT "publication_pdf_assets_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."publication_pdf_assets"
+    ADD CONSTRAINT "publication_pdf_assets_vault_publication_id_fkey" FOREIGN KEY ("vault_publication_id") REFERENCES "public"."vault_publications"("id") ON DELETE CASCADE;
 
 
 
 ALTER TABLE ONLY "public"."publication_relations"
-    ADD CONSTRAINT "publication_relations_related_publication_id_fkey" FOREIGN KEY ("related_publication_id") REFERENCES "public"."publications"("id") ON DELETE CASCADE;
+    ADD CONSTRAINT "publication_relations_publication_id_fkey" FOREIGN KEY ("publication_id") REFERENCES "public"."vault_publications"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."publication_relations"
+    ADD CONSTRAINT "publication_relations_related_publication_id_fkey" FOREIGN KEY ("related_publication_id") REFERENCES "public"."vault_publications"("id") ON DELETE CASCADE;
 
 
 
@@ -1254,6 +1561,11 @@ ALTER TABLE ONLY "public"."tags"
 
 ALTER TABLE ONLY "public"."tags"
     ADD CONSTRAINT "tags_vault_id_fkey" FOREIGN KEY ("vault_id") REFERENCES "public"."vaults"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."user_google_drive_links"
+    ADD CONSTRAINT "user_google_drive_links_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
 
 
 
@@ -1298,12 +1610,17 @@ ALTER TABLE ONLY "public"."vault_papers"
 
 
 ALTER TABLE ONLY "public"."vault_publications"
-    ADD CONSTRAINT "vault_publications_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "auth"."users"("id");
+    ADD CONSTRAINT "vault_publications_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "auth"."users"("id") ON DELETE SET NULL;
 
 
 
 ALTER TABLE ONLY "public"."vault_publications"
     ADD CONSTRAINT "vault_publications_original_publication_id_fkey" FOREIGN KEY ("original_publication_id") REFERENCES "public"."publications"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."vault_publications"
+    ADD CONSTRAINT "vault_publications_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "auth"."users"("id");
 
 
 
@@ -1337,6 +1654,60 @@ ALTER TABLE ONLY "public"."vaults"
 
 
 
+CREATE POLICY "Anyone can view favorites for public vaults" ON "public"."vault_favorites" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."vaults"
+  WHERE (("vaults"."id" = "vault_favorites"."vault_id") AND ("vaults"."visibility" = 'public'::"public"."vault_visibility")))));
+
+
+
+CREATE POLICY "Anyone can view forks for public vaults" ON "public"."vault_forks" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."vaults"
+  WHERE (("vaults"."id" = "vault_forks"."original_vault_id") AND ("vaults"."visibility" = 'public'::"public"."vault_visibility")))));
+
+
+
+CREATE POLICY "Anyone can view stats for public vaults" ON "public"."vault_stats" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."vaults"
+  WHERE (("vaults"."id" = "vault_stats"."vault_id") AND ("vaults"."visibility" = 'public'::"public"."vault_visibility")))));
+
+
+
+CREATE POLICY "Authenticated users can fork public vaults" ON "public"."vault_forks" FOR INSERT TO "authenticated" WITH CHECK ((("auth"."uid"() = "forked_by") AND (EXISTS ( SELECT 1
+   FROM "public"."vaults" "v"
+  WHERE (("v"."id" = "vault_forks"."original_vault_id") AND ("v"."visibility" = 'public'::"public"."vault_visibility"))))));
+
+
+
+CREATE POLICY "Authenticated users can view profiles" ON "public"."profiles" FOR SELECT TO "authenticated" USING (true);
+
+
+
+CREATE POLICY "Authenticated users can view set up profiles" ON "public"."profiles" FOR SELECT TO "authenticated" USING (("is_setup" = true));
+
+
+
+CREATE POLICY "Fork counts on public vaults are viewable by everyone" ON "public"."vault_forks" FOR SELECT TO "authenticated", "anon" USING ((EXISTS ( SELECT 1
+   FROM "public"."vaults" "v"
+  WHERE (("v"."id" = "vault_forks"."original_vault_id") AND ("v"."visibility" = 'public'::"public"."vault_visibility")))));
+
+
+
+CREATE POLICY "Public vault publications are viewable by everyone" ON "public"."vault_publications" FOR SELECT TO "authenticated", "anon" USING ((EXISTS ( SELECT 1
+   FROM "public"."vaults" "v"
+  WHERE (("v"."id" = "vault_publications"."vault_id") AND ("v"."visibility" = 'public'::"public"."vault_visibility")))));
+
+
+
+CREATE POLICY "Public vault tags are viewable by everyone" ON "public"."tags" FOR SELECT TO "authenticated", "anon" USING ((("vault_id" IS NOT NULL) AND (EXISTS ( SELECT 1
+   FROM "public"."vaults" "v"
+  WHERE (("v"."id" = "tags"."vault_id") AND ("v"."visibility" = 'public'::"public"."vault_visibility"))))));
+
+
+
+CREATE POLICY "Public vaults are viewable by everyone" ON "public"."vaults" FOR SELECT TO "authenticated", "anon" USING (("visibility" = 'public'::"public"."vault_visibility"));
+
+
+
 CREATE POLICY "Users can access publication tags for accessible publications" ON "public"."publication_tags" FOR SELECT TO "authenticated" USING (((("publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM "public"."publications" "p"
   WHERE (("p"."id" = "publication_tags"."publication_id") AND ("p"."user_id" = "auth"."uid"()))))) OR (("publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
@@ -1352,7 +1723,51 @@ CREATE POLICY "Users can access publication tags for accessible publications" ON
 
 
 
+CREATE POLICY "Users can add favorites" ON "public"."vault_favorites" FOR INSERT TO "authenticated" WITH CHECK (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can add favorites for accessible vaults" ON "public"."vault_favorites" FOR INSERT TO "authenticated" WITH CHECK ((("auth"."uid"() = "user_id") AND (EXISTS ( SELECT 1
+   FROM "public"."vaults" "v"
+  WHERE (("v"."id" = "vault_favorites"."vault_id") AND ("v"."visibility" = ANY (ARRAY['public'::"public"."vault_visibility", 'protected'::"public"."vault_visibility"])))))));
+
+
+
+CREATE POLICY "Users can create forks" ON "public"."vault_forks" FOR INSERT TO "authenticated" WITH CHECK (("auth"."uid"() = "forked_by"));
+
+
+
+CREATE POLICY "Users can delete own fork records" ON "public"."vault_forks" FOR DELETE TO "authenticated" USING (("forked_by" = "auth"."uid"()));
+
+
+
 CREATE POLICY "Users can delete own notifications" ON "public"."notifications" FOR DELETE TO "authenticated" USING (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can delete their own forks" ON "public"."vault_forks" FOR DELETE TO "authenticated" USING (("auth"."uid"() = "forked_by"));
+
+
+
+CREATE POLICY "Users can delete their own google drive link" ON "public"."user_google_drive_links" FOR DELETE TO "authenticated" USING (("user_id" = "auth"."uid"()));
+
+
+
+CREATE POLICY "Users can delete their own publication pdf assets" ON "public"."publication_pdf_assets" FOR DELETE TO "authenticated" USING (("user_id" = "auth"."uid"()));
+
+
+
+CREATE POLICY "Users can fork public vaults" ON "public"."vault_forks" FOR INSERT TO "authenticated" WITH CHECK ((("auth"."uid"() = "forked_by") AND (EXISTS ( SELECT 1
+   FROM "public"."vaults" "v"
+  WHERE (("v"."id" = "vault_forks"."original_vault_id") AND ("v"."visibility" = 'public'::"public"."vault_visibility") AND ("v"."user_id" <> "auth"."uid"()))))));
+
+
+
+CREATE POLICY "Users can insert their own google drive link" ON "public"."user_google_drive_links" FOR INSERT TO "authenticated" WITH CHECK (("user_id" = "auth"."uid"()));
+
+
+
+CREATE POLICY "Users can insert their own publication pdf assets" ON "public"."publication_pdf_assets" FOR INSERT TO "authenticated" WITH CHECK (("user_id" = "auth"."uid"()));
 
 
 
@@ -1430,7 +1845,23 @@ CREATE POLICY "Users can manage vault publications in editable vaults" ON "publi
 
 
 
+CREATE POLICY "Users can remove own favorites" ON "public"."vault_favorites" FOR DELETE TO "authenticated" USING (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can remove their own favorites" ON "public"."vault_favorites" FOR DELETE TO "authenticated" USING (("auth"."uid"() = "user_id"));
+
+
+
 CREATE POLICY "Users can request access to vaults" ON "public"."vault_access_requests" FOR INSERT WITH CHECK (("auth"."uid"() = "requester_id"));
+
+
+
+CREATE POLICY "Users can select their own google drive link" ON "public"."user_google_drive_links" FOR SELECT TO "authenticated" USING (("user_id" = "auth"."uid"()));
+
+
+
+CREATE POLICY "Users can select their own publication pdf assets" ON "public"."publication_pdf_assets" FOR SELECT TO "authenticated" USING (("user_id" = "auth"."uid"()));
 
 
 
@@ -1442,6 +1873,32 @@ CREATE POLICY "Users can update own profile" ON "public"."profiles" FOR UPDATE T
 
 
 
+CREATE POLICY "Users can update their own google drive link" ON "public"."user_google_drive_links" FOR UPDATE TO "authenticated" USING (("user_id" = "auth"."uid"())) WITH CHECK (("user_id" = "auth"."uid"()));
+
+
+
+CREATE POLICY "Users can update their own publication pdf assets" ON "public"."publication_pdf_assets" FOR UPDATE TO "authenticated" USING (("user_id" = "auth"."uid"())) WITH CHECK (("user_id" = "auth"."uid"()));
+
+
+
+CREATE POLICY "Users can view favorites for accessible vaults" ON "public"."vault_favorites" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
+   FROM "public"."vaults"
+  WHERE (("vaults"."id" = "vault_favorites"."vault_id") AND (("vaults"."user_id" = "auth"."uid"()) OR "public"."user_can_access_vault"("vaults"."id", 'viewer'::"text"))))));
+
+
+
+CREATE POLICY "Users can view fork relationships" ON "public"."vault_forks" FOR SELECT TO "authenticated" USING ((("forked_by" = "auth"."uid"()) OR (EXISTS ( SELECT 1
+   FROM "public"."vaults" "v"
+  WHERE (("v"."id" = "vault_forks"."original_vault_id") AND (("v"."visibility" = 'public'::"public"."vault_visibility") OR ("v"."user_id" = "auth"."uid"())))))));
+
+
+
+CREATE POLICY "Users can view forks for accessible vaults" ON "public"."vault_forks" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
+   FROM "public"."vaults"
+  WHERE (("vaults"."id" = "vault_forks"."original_vault_id") AND (("vaults"."user_id" = "auth"."uid"()) OR "public"."user_can_access_vault"("vaults"."id", 'viewer'::"text"))))));
+
+
+
 CREATE POLICY "Users can view notifications" ON "public"."notifications" FOR SELECT USING (("auth"."uid"() = "user_id"));
 
 
@@ -1450,7 +1907,11 @@ CREATE POLICY "Users can view own access requests" ON "public"."vault_access_req
 
 
 
-CREATE POLICY "Users can view own profile" ON "public"."profiles" FOR SELECT TO "authenticated" USING (("auth"."uid"() = "user_id"));
+CREATE POLICY "Users can view own favorites" ON "public"."vault_favorites" FOR SELECT TO "authenticated" USING (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can view own fork records" ON "public"."vault_forks" FOR SELECT TO "authenticated" USING (("auth"."uid"() = "forked_by"));
 
 
 
@@ -1473,27 +1934,25 @@ CREATE POLICY "Users can view own vaults" ON "public"."vaults" FOR SELECT TO "au
 
 
 
-CREATE POLICY "Users can view publication relations in accessible publications" ON "public"."publication_relations" FOR SELECT TO "authenticated" USING (((EXISTS ( SELECT 1
-   FROM "public"."publications" "p"
-  WHERE (("p"."id" = "publication_relations"."publication_id") AND (("p"."user_id" = "auth"."uid"()) OR (EXISTS ( SELECT 1
-           FROM (("public"."vault_papers" "vp"
-             JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
-             LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-          WHERE (("vp"."publication_id" = "p"."id") AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL)) OR ("v"."visibility" = 'public'::"public"."vault_visibility"))))))))) OR (EXISTS ( SELECT 1
-   FROM "public"."publications" "p"
-  WHERE (("p"."id" = "publication_relations"."related_publication_id") AND (("p"."user_id" = "auth"."uid"()) OR (EXISTS ( SELECT 1
-           FROM (("public"."vault_papers" "vp"
-             JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
-             LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-          WHERE (("vp"."publication_id" = "p"."id") AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL)) OR ("v"."visibility" = 'public'::"public"."vault_visibility")))))))))));
-
-
-
 CREATE POLICY "Users can view relevant shares" ON "public"."vault_shares" FOR SELECT TO "authenticated" USING ((("auth"."uid"() = "shared_by") OR ("auth"."uid"() = "shared_with_user_id")));
 
 
 
 CREATE POLICY "Users can view shared vaults" ON "public"."vaults" FOR SELECT TO "authenticated" USING ("public"."user_can_access_vault"("id", 'viewer'::"text"));
+
+
+
+CREATE POLICY "Users can view stats for accessible vaults" ON "public"."vault_stats" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
+   FROM "public"."vaults"
+  WHERE (("vaults"."id" = "vault_stats"."vault_id") AND (("vaults"."user_id" = "auth"."uid"()) OR ("vaults"."visibility" = 'public'::"public"."vault_visibility") OR "public"."user_can_access_vault"("vaults"."id", 'viewer'::"text"))))));
+
+
+
+CREATE POLICY "Users can view their own favorites" ON "public"."vault_favorites" FOR SELECT TO "authenticated" USING (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can view their own forks" ON "public"."vault_forks" FOR SELECT TO "authenticated" USING (("auth"."uid"() = "forked_by"));
 
 
 
@@ -1532,13 +1991,58 @@ CREATE POLICY "Vault owners can view access requests" ON "public"."vault_access_
 
 
 
+CREATE POLICY "Vault owners can view forks of their vault" ON "public"."vault_forks" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
+   FROM "public"."vaults" "v"
+  WHERE (("v"."id" = "vault_forks"."original_vault_id") AND ("v"."user_id" = "auth"."uid"())))));
+
+
+
+ALTER TABLE "public"."api_key_vaults" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."api_keys" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."api_request_audit_logs" ENABLE ROW LEVEL SECURITY;
+
+
 ALTER TABLE "public"."notifications" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."profiles" ENABLE ROW LEVEL SECURITY;
 
 
+ALTER TABLE "public"."publication_pdf_assets" ENABLE ROW LEVEL SECURITY;
+
+
 ALTER TABLE "public"."publication_relations" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "publication_relations_delete" ON "public"."publication_relations" FOR DELETE TO "authenticated" USING ((("created_by" = "auth"."uid"()) OR (EXISTS ( SELECT 1
+   FROM ("public"."vault_publications" "vp"
+     JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
+  WHERE ((("vp"."id" = "publication_relations"."publication_id") OR ("vp"."id" = "publication_relations"."related_publication_id")) AND ("v"."user_id" = "auth"."uid"()))))));
+
+
+
+CREATE POLICY "publication_relations_insert" ON "public"."publication_relations" FOR INSERT TO "authenticated" WITH CHECK ((("created_by" = "auth"."uid"()) AND (EXISTS ( SELECT 1
+   FROM (("public"."vault_publications" "vp"
+     JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
+     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
+  WHERE (("vp"."id" = "publication_relations"."publication_id") AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" = ANY (ARRAY['editor'::"public"."vault_permission", 'owner'::"public"."vault_permission"])))))))));
+
+
+
+CREATE POLICY "publication_relations_select" ON "public"."publication_relations" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
+   FROM (("public"."vault_publications" "vp"
+     JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
+     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
+  WHERE ((("vp"."id" = "publication_relations"."publication_id") OR ("vp"."id" = "publication_relations"."related_publication_id")) AND (("v"."user_id" = "auth"."uid"()) OR ("vs"."shared_with_user_id" IS NOT NULL) OR ("v"."visibility" = 'public'::"public"."vault_visibility"))))));
+
+
+
+CREATE POLICY "publication_relations_update" ON "public"."publication_relations" FOR UPDATE TO "authenticated" USING (("created_by" = "auth"."uid"())) WITH CHECK (("created_by" = "auth"."uid"()));
+
 
 
 ALTER TABLE "public"."publication_tags" ENABLE ROW LEVEL SECURITY;
@@ -1547,7 +2051,22 @@ ALTER TABLE "public"."publication_tags" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."publications" ENABLE ROW LEVEL SECURITY;
 
 
+CREATE POLICY "service_role manages api_key_vaults" ON "public"."api_key_vaults" TO "service_role" USING (true) WITH CHECK (true);
+
+
+
+CREATE POLICY "service_role manages api_keys" ON "public"."api_keys" TO "service_role" USING (true) WITH CHECK (true);
+
+
+
+CREATE POLICY "service_role manages api_request_audit_logs" ON "public"."api_request_audit_logs" TO "service_role" USING (true) WITH CHECK (true);
+
+
+
 ALTER TABLE "public"."tags" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."user_google_drive_links" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."vault_access_requests" ENABLE ROW LEVEL SECURITY;
@@ -1620,6 +2139,10 @@ ALTER PUBLICATION "supabase_realtime" ADD TABLE ONLY "public"."vault_forks";
 
 
 ALTER PUBLICATION "supabase_realtime" ADD TABLE ONLY "public"."vault_papers";
+
+
+
+ALTER PUBLICATION "supabase_realtime" ADD TABLE ONLY "public"."vault_publications";
 
 
 
@@ -1818,6 +2341,24 @@ GRANT ALL ON FUNCTION "public"."delete_user"() TO "service_role";
 
 
 
+GRANT ALL ON FUNCTION "public"."enforce_forked_vaults_public"() TO "anon";
+GRANT ALL ON FUNCTION "public"."enforce_forked_vaults_public"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."enforce_forked_vaults_public"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_researcher_stats"("p_user_ids" "uuid"[]) TO "anon";
+GRANT ALL ON FUNCTION "public"."get_researcher_stats"("p_user_ids" "uuid"[]) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_researcher_stats"("p_user_ids" "uuid"[]) TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_vault_metadata"("vault_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."get_vault_metadata"("vault_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_vault_metadata"("vault_id" "uuid") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "anon";
 GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "service_role";
@@ -1872,6 +2413,12 @@ GRANT ALL ON FUNCTION "public"."notify_vault_shared"() TO "service_role";
 
 
 
+GRANT ALL ON FUNCTION "public"."set_updated_at"() TO "anon";
+GRANT ALL ON FUNCTION "public"."set_updated_at"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."set_updated_at"() TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."update_tag_depth"() TO "anon";
 GRANT ALL ON FUNCTION "public"."update_tag_depth"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_tag_depth"() TO "service_role";
@@ -1911,6 +2458,24 @@ GRANT ALL ON FUNCTION "public"."validate_username"() TO "service_role";
 
 
 
+GRANT ALL ON TABLE "public"."api_key_vaults" TO "anon";
+GRANT ALL ON TABLE "public"."api_key_vaults" TO "authenticated";
+GRANT ALL ON TABLE "public"."api_key_vaults" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."api_keys" TO "anon";
+GRANT ALL ON TABLE "public"."api_keys" TO "authenticated";
+GRANT ALL ON TABLE "public"."api_keys" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."api_request_audit_logs" TO "anon";
+GRANT ALL ON TABLE "public"."api_request_audit_logs" TO "authenticated";
+GRANT ALL ON TABLE "public"."api_request_audit_logs" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."notifications" TO "anon";
 GRANT ALL ON TABLE "public"."notifications" TO "authenticated";
 GRANT ALL ON TABLE "public"."notifications" TO "service_role";
@@ -1920,6 +2485,12 @@ GRANT ALL ON TABLE "public"."notifications" TO "service_role";
 GRANT ALL ON TABLE "public"."profiles" TO "anon";
 GRANT ALL ON TABLE "public"."profiles" TO "authenticated";
 GRANT ALL ON TABLE "public"."profiles" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."publication_pdf_assets" TO "anon";
+GRANT ALL ON TABLE "public"."publication_pdf_assets" TO "authenticated";
+GRANT ALL ON TABLE "public"."publication_pdf_assets" TO "service_role";
 
 
 
@@ -1944,6 +2515,12 @@ GRANT ALL ON TABLE "public"."publications" TO "service_role";
 GRANT ALL ON TABLE "public"."tags" TO "anon";
 GRANT ALL ON TABLE "public"."tags" TO "authenticated";
 GRANT ALL ON TABLE "public"."tags" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."user_google_drive_links" TO "anon";
+GRANT ALL ON TABLE "public"."user_google_drive_links" TO "authenticated";
+GRANT ALL ON TABLE "public"."user_google_drive_links" TO "service_role";
 
 
 
