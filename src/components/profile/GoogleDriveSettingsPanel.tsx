@@ -50,7 +50,7 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
       try {
         setStatus(await fetchGoogleDriveStatus(accessToken));
       } catch (error) {
-        showError('Failed to load Google Drive status', (error as Error).message);
+        showError('failed to load google drive status', (error as Error).message);
       } finally {
         setLoading(false);
       }
@@ -68,7 +68,7 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
       const authorizationUrl = await startGoogleDriveLink(accessToken, returnTo);
       window.location.assign(authorizationUrl);
     } catch (error) {
-      showError('Failed to start Google Drive link', (error as Error).message);
+      showError('failed to start google drive link', (error as Error).message);
       setAction(null);
     }
   };
@@ -80,9 +80,9 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
     try {
       const nextStatus = await ensureGoogleDriveFolder(accessToken);
       setStatus(nextStatus);
-      showSuccess('Drive folder ready', `${nextStatus.folderName || 'refhub'} is available for PDF storage.`);
+      showSuccess('drive folder ready', `${nextStatus.folderName || 'refhub'} is available for pdf storage.`);
     } catch (error) {
-      showError('Failed to prepare Drive folder', (error as Error).message);
+      showError('failed to prepare drive folder', (error as Error).message);
     } finally {
       setAction(null);
     }
@@ -94,9 +94,9 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
     setAction('disconnect');
     try {
       setStatus(await disconnectGoogleDrive(accessToken));
-      showSuccess('Google Drive disconnected');
+      showSuccess('google drive disconnected');
     } catch (error) {
-      showError('Failed to disconnect Google Drive', (error as Error).message);
+      showError('failed to disconnect google drive', (error as Error).message);
     } finally {
       setAction(null);
     }
@@ -104,11 +104,11 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
 
   if (!accessToken) {
     return (
-      <Alert className="border-border bg-muted/40">
-        <Shield className="h-4 w-4" />
+      <Alert className="border-fuchsia-500/20 bg-[#171320] text-muted-foreground shadow-[0_0_0_1px_rgba(217,70,239,0.06)]">
+        <Shield className="h-4 w-4 text-fuchsia-300" />
         <AlertTitle className="font-mono">session_required</AlertTitle>
         <AlertDescription className="font-mono text-xs sm:text-sm">
-          Sign in again before managing Google Drive storage.
+          sign in again before managing google drive storage.
         </AlertDescription>
       </Alert>
     );
@@ -116,13 +116,15 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
 
   if (loading) {
     return (
-      <Card className="border-2 border-border">
+      <Card className="border border-fuchsia-500/20 bg-[#110d18] shadow-[0_0_30px_rgba(168,85,247,0.10)]">
         <CardHeader>
           <CardTitle className="font-mono text-xl">google_drive_storage</CardTitle>
-          <CardDescription className="font-mono">Loading Drive link status…</CardDescription>
+          <CardDescription className="font-mono text-xs uppercase tracking-[0.2em] text-fuchsia-200/70">
+            loading drive link status...
+          </CardDescription>
         </CardHeader>
         <CardContent className="font-mono text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <Loader2 className="h-4 w-4 animate-spin text-fuchsia-300" />
         </CardContent>
       </Card>
     );
@@ -142,12 +144,12 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
 
   return (
     <div className="space-y-6">
-      <Card className="border-2 border-border">
+      <Card className="border border-fuchsia-500/20 bg-[radial-gradient(circle_at_top_left,rgba(217,70,239,0.12),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(34,211,238,0.10),transparent_30%),#110d18] shadow-[0_0_36px_rgba(168,85,247,0.12)]">
         <CardHeader>
           <CardTitle className="font-mono text-xl">google_drive_storage</CardTitle>
-          <CardDescription className="font-mono">
-            RefHub keeps Google credentials on the backend and writes PDFs into a managed Drive folder named
-            <span className="text-foreground"> refhub</span>.
+          <CardDescription className="font-mono text-sm text-muted-foreground">
+            refhub keeps google credentials on the backend and writes pdfs into a managed drive folder named
+            <span className="text-fuchsia-200"> refhub</span>.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -160,45 +162,45 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
             </Badge>
           </div>
 
-          <Alert className="border-border bg-muted/40">
-            <Shield className="h-4 w-4" />
+          <Alert className="border-fuchsia-500/20 bg-[#171320] text-muted-foreground">
+            <Shield className="h-4 w-4 text-cyan-300" />
             <AlertTitle className="font-mono">least_privilege_scope</AlertTitle>
             <AlertDescription className="font-mono text-xs sm:text-sm">
-              RefHub requests <span className="text-foreground">drive.file</span> only. It can manage files it creates
-              inside the linked folder, without exposing Google tokens to the frontend or extension.
+              refhub requests <span className="text-fuchsia-200">drive.file</span> only. it can manage files it creates
+              inside the linked folder, without exposing google tokens to the frontend or extension.
             </AlertDescription>
           </Alert>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-xl border border-border p-4">
-              <div className="mb-2 flex items-center gap-2 font-mono text-sm text-foreground">
-                <HardDrive className="h-4 w-4" />
+            <div className="rounded-xl border border-fuchsia-500/15 bg-[#16111f] p-4">
+              <div className="mb-2 flex items-center gap-2 font-mono text-sm text-fuchsia-100">
+                <HardDrive className="h-4 w-4 text-fuchsia-300" />
                 link_status
               </div>
               <p className="font-mono text-sm text-muted-foreground">
                 {currentStatus.linked
                   ? `linked_at ${formatTimestamp(currentStatus.lastLinkedAt)}`
-                  : 'Connect Google Drive to enable backend-mediated PDF storage.'}
+                  : 'connect google drive to enable backend-mediated pdf storage.'}
               </p>
             </div>
-            <div className="rounded-xl border border-border p-4">
-              <div className="mb-2 flex items-center gap-2 font-mono text-sm text-foreground">
-                <Link2 className="h-4 w-4" />
+            <div className="rounded-xl border border-cyan-500/15 bg-[#141320] p-4">
+              <div className="mb-2 flex items-center gap-2 font-mono text-sm text-cyan-100">
+                <Link2 className="h-4 w-4 text-cyan-300" />
                 target_folder
               </div>
               <p className="font-mono text-sm text-muted-foreground">
                 {currentStatus.folderName
                   ? `${currentStatus.folderName} (${currentStatus.folderId})`
                   : currentStatus.linked
-                    ? 'Folder is pending bootstrap or needs to be recreated.'
-                    : 'No Drive folder is linked yet.'}
+                    ? 'folder is pending bootstrap or needs to be recreated.'
+                    : 'no drive folder is linked yet.'}
               </p>
             </div>
           </div>
 
           {currentStatus.lastError ? (
-            <Alert className="border-destructive/40 bg-destructive/5">
-              <FolderSync className="h-4 w-4" />
+            <Alert className="border-destructive/40 bg-destructive/5 text-muted-foreground">
+              <FolderSync className="h-4 w-4 text-destructive" />
               <AlertTitle className="font-mono">folder_sync_issue</AlertTitle>
               <AlertDescription className="font-mono text-xs sm:text-sm">
                 {currentStatus.lastError}
@@ -209,36 +211,41 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
           <Separator />
 
           <div className="flex flex-col gap-3 sm:flex-row">
-            <Button type="button" className="font-mono" onClick={() => void handleConnect()} disabled={action !== null}>
+            <Button
+              type="button"
+              className="bg-gradient-primary font-mono text-white shadow-lg shadow-fuchsia-950/40 hover:opacity-90 hover:shadow-fuchsia-900/50"
+              onClick={() => void handleConnect()}
+              disabled={action !== null}
+            >
               {action === 'connect' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
-              {currentStatus.linked ? 'reconnect_google_drive' : 'connect_google_drive'}
+              {currentStatus.linked ? 'reconnect google drive' : 'connect google drive'}
             </Button>
             <Button
               type="button"
               variant="outline"
-              className="font-mono"
+              className="border-fuchsia-500/30 bg-fuchsia-500/10 font-mono text-fuchsia-100 hover:bg-fuchsia-500/20 hover:text-fuchsia-50"
               onClick={() => void handleEnsureFolder()}
               disabled={!currentStatus.linked || action !== null}
             >
               {action === 'ensure' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderSync className="h-4 w-4" />}
-              prepare_refhub_folder
+              prepare refhub folder
             </Button>
             <Button
               type="button"
               variant="ghost"
-              className="font-mono"
+              className="font-mono text-cyan-100 hover:bg-cyan-500/10 hover:text-cyan-50"
               onClick={() => void handleDisconnect()}
               disabled={!currentStatus.linked || action !== null}
             >
               {action === 'disconnect' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Unplug className="h-4 w-4" />}
-              disconnect
+              unlink drive
             </Button>
           </div>
 
           <div className="font-mono text-xs text-muted-foreground">
-            Scope: {currentStatus.scope}
+            scope: {currentStatus.scope}
             <br />
-            Last folder check: {formatTimestamp(currentStatus.lastCheckedAt)}
+            last folder check: {formatTimestamp(currentStatus.lastCheckedAt)}
           </div>
         </CardContent>
       </Card>

@@ -68,19 +68,19 @@ export default function ProfileEdit() {
 
     // Whitelist allowed gdrive_message values to prevent rendering arbitrary user-controlled strings.
     const ALLOWED_GDRIVE_MESSAGES: Record<string, string> = {
-      'connected': 'RefHub can now store saved PDFs in your managed Drive folder.',
-      'already_linked': 'Google Drive is already linked to your account.',
-      'folder_created': 'Your RefHub folder was created in Google Drive.',
-      'oauth_error': 'The Google Drive OAuth flow did not complete.',
-      'access_denied': 'Google Drive access was denied.',
-      'token_error': 'There was a problem exchanging the Google OAuth token.',
+      'connected': 'refhub can now store saved pdfs in your managed drive folder.',
+      'already_linked': 'google drive is already linked to your account.',
+      'folder_created': 'your refhub folder was created in google drive.',
+      'oauth_error': 'the google drive oauth flow did not complete.',
+      'access_denied': 'google drive access was denied.',
+      'token_error': 'there was a problem exchanging the google oauth token.',
     };
     const driveMessage = (rawDriveMessage && ALLOWED_GDRIVE_MESSAGES[rawDriveMessage]) || null;
 
     if (driveState === 'connected') {
-      showSuccess('Google Drive connected', driveMessage || 'RefHub can now store saved PDFs in your managed Drive folder.');
+      showSuccess('google drive connected', driveMessage || 'refhub can now store saved pdfs in your managed drive folder.');
     } else if (driveState === 'error') {
-      showError('Google Drive link failed', driveMessage || 'The Google Drive OAuth flow did not complete.');
+      showError('google drive link failed', driveMessage || 'the google drive oauth flow did not complete.');
     }
 
     const next = new URLSearchParams(searchParams);
