@@ -22,11 +22,21 @@ interface VaultAccessCache {
   userId?: string;
 }
 
-export const useVaultAccess = (vaultSlug: string) => {
+interface UseVaultAccessOptions {
+  enableRealtime?: boolean;
+}
+
+let vaultAccessSubscriptionCounter = 0;
+
+export const useVaultAccess = (
+  vaultSlug: string,
+  { enableRealtime = true }: UseVaultAccessOptions = {}
+) => {
   // Check for cached data before initializing state
   const cacheKey = `vault-access-${vaultSlug}` as const;
   const cachedData = vaultSlug ? getPageCache<VaultAccessCache>(cacheKey) : null;
   const hasCachedData = useRef(!!cachedData);
+  const subscriptionInstanceId = useRef(++vaultAccessSubscriptionCounter);
   
   const [result, setResult] = useState<VaultAccessResult>(
     cachedData?.result || {
@@ -330,13 +340,14 @@ export const useVaultAccess = (vaultSlug: string) => {
 
   // Set up realtime subscriptions for permission changes
   useEffect(() => {
-    if (!result.vault?.id) return;
+    if (!enableRealtime || !result.vault?.id) return;
 
     const channels = [];
+    const topicSuffix = `${result.vault.id}-${subscriptionInstanceId.current}`;
 
     // Subscribe to vault changes
     const vaultChannel = supabase
-      .channel(`vault-${result.vault.id}`)
+      .channel(`vault-${topicSuffix}`)
       .on(
         'postgres_changes',
         {
@@ -354,7 +365,7 @@ export const useVaultAccess = (vaultSlug: string) => {
 
     // Subscribe to share changes
     const sharesChannel = supabase
-      .channel(`vault-shares-${result.vault.id}`)
+      .channel(`vault-shares-${topicSuffix}`)
       .on(
         'postgres_changes',
         {
@@ -372,7 +383,7 @@ export const useVaultAccess = (vaultSlug: string) => {
 
     // Subscribe to access request changes
     const requestsChannel = supabase
-      .channel(`vault-requests-${result.vault.id}`)
+      .channel(`vault-requests-${topicSuffix}`)
       .on(
         'postgres_changes',
         {
@@ -393,7 +404,7 @@ export const useVaultAccess = (vaultSlug: string) => {
         supabase.removeChannel(channel);
       });
     };
-  }, [result.vault?.id]);
+  }, [enableRealtime, result.vault?.id]);
 
   return {
     ...result,
