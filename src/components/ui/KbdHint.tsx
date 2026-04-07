@@ -74,6 +74,10 @@ export function KbdFooterHint({ className }: { className?: string }) {
       </span>
       <span className="text-muted-foreground/30">•</span>
       <span className="inline-flex items-center gap-1">
+        Delete: <KbdHint shortcut="Del" size="sm" />
+      </span>
+      <span className="text-muted-foreground/30">•</span>
+      <span className="inline-flex items-center gap-1">
         Help: <KbdHint shortcut="?" size="sm" />
       </span>
     </div>

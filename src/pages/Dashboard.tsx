@@ -17,7 +17,7 @@ import { ExportDialog } from '@/components/publications/ExportDialog';
 import { PhaseLoader, LoadingPhase } from '@/components/ui/loading';
 import { useToast } from '@/hooks/use-toast';
 import { Sparkles } from 'lucide-react';
-import { getPageCache, setPageCache, hasPageCache } from '@/lib/pageCache';
+import { getPageCache, setPageCache, hasPageCache, clearPageCache } from '@/lib/pageCache';
 import { buildVaultPublicationCopyPayload } from '@/lib/vaultPublicationAttribution';
 import {
   AlertDialog,
@@ -112,6 +112,7 @@ export default function Dashboard() {
   const [exportPublications, setExportPublications] = useState<Publication[]>([]);
 
   const [deleteConfirmation, setDeleteConfirmation] = useState<Publication | null>(null);
+  const [bulkDeleteConfirmation, setBulkDeleteConfirmation] = useState<Publication[]>([]);
   const [deleteVaultConfirmation, setDeleteVaultConfirmation] = useState<Vault | null>(null);
 
   // Track auth loading phase
@@ -1011,6 +1012,7 @@ export default function Dashboard() {
       // Optimistic update
       setPublications(prev => prev.filter(p => p.id !== deletedId));
       setPublicationTags(prev => prev.filter(pt => pt.publication_id !== deletedId));
+      clearPageCache('dashboard');
 
       toast({ title: 'paper_deleted' });
     } catch (error) {
@@ -1023,6 +1025,55 @@ export default function Dashboard() {
       });
     } finally {
       setDeleteConfirmation(null);
+    }
+  };
+
+  const handleBulkDeletePublications = async () => {
+    if (!bulkDeleteConfirmation.length) return;
+
+    const ids = bulkDeleteConfirmation.map(p => p.id);
+
+    try {
+      // Separate vault-specific copies from original publications
+      const { data: vaultPubs } = await supabase
+        .from('vault_publications')
+        .select('id')
+        .in('id', ids);
+
+      const vaultPubIds = new Set((vaultPubs || []).map((vp: { id: string }) => vp.id));
+      const originalIds = ids.filter(id => !vaultPubIds.has(id));
+
+      if (vaultPubIds.size > 0) {
+        const { error } = await supabase
+          .from('vault_publications')
+          .delete()
+          .in('id', Array.from(vaultPubIds));
+        if (error) throw error;
+      }
+
+      if (originalIds.length > 0) {
+        const { error } = await supabase
+          .from('publications')
+          .delete()
+          .in('id', originalIds);
+        if (error) throw error;
+      }
+
+      // Optimistic update
+      setPublications(prev => prev.filter(p => !ids.includes(p.id)));
+      setPublicationTags(prev => prev.filter(pt => !ids.includes(pt.publication_id)));
+      clearPageCache('dashboard');
+
+      toast({ title: `${ids.length} paper${ids.length !== 1 ? 's' : ''} deleted` });
+    } catch (error) {
+      fetchData();
+      toast({
+        title: 'error_deleting_papers',
+        description: (error as Error).message,
+        variant: 'destructive',
+      });
+    } finally {
+      setBulkDeleteConfirmation([]);
     }
   };
 
@@ -1312,6 +1363,7 @@ export default function Dashboard() {
           setIsPublicationDialogOpen(true);
         }}
         onDeletePublication={(pub) => setDeleteConfirmation(pub)}
+        onDeletePublications={(pubs) => pubs.length === 1 ? setDeleteConfirmation(pubs[0]) : setBulkDeleteConfirmation(pubs)}
         onExportBibtex={handleExportBibtex}
         onMobileMenuOpen={() => setIsMobileSidebarOpen(true)}
         onOpenGraph={() => setIsGraphOpen(true)}
@@ -1411,6 +1463,23 @@ export default function Dashboard() {
             <AlertDialogCancel className="font-mono">cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeletePublication} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono">
               delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={bulkDeleteConfirmation.length > 0} onOpenChange={() => setBulkDeleteConfirmation([])}>
+        <AlertDialogContent className="border-2 bg-card/95 backdrop-blur-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-bold font-mono">delete_papers?</AlertDialogTitle>
+            <AlertDialogDescription className="font-mono text-sm">
+              // this_will_permanently_delete {bulkDeleteConfirmation.length} paper{bulkDeleteConfirmation.length !== 1 ? 's' : ''}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="font-mono">cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDeletePublications} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono">
+              delete({bulkDeleteConfirmation.length})
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

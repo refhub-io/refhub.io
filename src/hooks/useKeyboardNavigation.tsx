@@ -450,16 +450,7 @@ export function useKeyboardNavigation(
         },
         allowInInput: false,
       },
-      // d or Delete: delete selected
-      {
-        combo: 'd',
-        description: 'Delete selected',
-        handler: () => {
-          const ids = Array.from(selectedIdsRef.current);
-          if (ids.length > 0) onDelete?.(ids);
-          return true;
-        },
-      },
+      // Delete key: delete selected
       {
         combo: 'Delete',
         description: 'Delete selected',
@@ -520,7 +511,6 @@ export function useKeyboardNavigation(
         handler: (e) => {
           e.preventDefault();
           clearSelection();
-          setLocalFocusedIndex(-1);
           return true;
         },
         allowInInput: false,
