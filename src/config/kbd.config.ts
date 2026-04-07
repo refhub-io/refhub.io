@@ -147,7 +147,7 @@ const kbdConfig: KbdConfig = {
       description: 'Export selected',
     },
     delete: {
-      combo: 'd / Delete',
+      combo: 'Delete',
       description: 'Delete selected',
     },
   },

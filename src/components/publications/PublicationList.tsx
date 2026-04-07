@@ -60,6 +60,7 @@ interface PublicationListProps {
   onOpenPublication?: (pub: Publication) => void;
   publicationActionLabel?: string;
   onDeletePublication?: (pub: Publication) => void;
+  onDeletePublications?: (pubs: Publication[]) => void;
   onExportBibtex: (pubs: Publication[]) => void;
   onDiscoverRelated?: (pubs: Publication[]) => void;
   onMobileMenuOpen: () => void;
@@ -88,6 +89,7 @@ export function PublicationList({
   onOpenPublication,
   publicationActionLabel = 'edit',
   onDeletePublication,
+  onDeletePublications,
   onExportBibtex,
   onDiscoverRelated,
   onMobileMenuOpen,
@@ -243,11 +245,15 @@ export function PublicationList({
 
   const handleKbDelete = useCallback(
     (ids: string[]) => {
-      if (!onDeletePublication) return;
-      const pub = publications.find((p) => ids.includes(p.id));
-      if (pub) onDeletePublication(pub);
+      const pubs = publications.filter((p) => ids.includes(p.id));
+      if (pubs.length === 0) return;
+      if (onDeletePublications) {
+        onDeletePublications(pubs);
+      } else if (onDeletePublication) {
+        onDeletePublication(pubs[0]);
+      }
     },
-    [publications, onDeletePublication],
+    [publications, onDeletePublication, onDeletePublications],
   );
 
   const handleKbToggleView = useCallback(() => {

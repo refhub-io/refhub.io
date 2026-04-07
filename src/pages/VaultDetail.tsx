@@ -7,7 +7,7 @@ import { Publication, Vault, Tag, PublicationTag, PublicationRelation, VaultShar
 import { generateBibtexKey } from '@/lib/bibtex';
 import { formatTimeAgo } from '@/lib/utils';
 import { logger } from '@/lib/logger';
-import { hasPageCache } from '@/lib/pageCache';
+import { hasPageCache, clearPageCache } from '@/lib/pageCache';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationDialog } from '@/components/publications/PublicationDialog';
@@ -154,6 +154,7 @@ export default function VaultDetail() {
   const [exportPublications, setExportPublications] = useState<Publication[]>([]);
 
   const [deleteConfirmation, setDeleteConfirmation] = useState<Publication | null>(null);
+  const [bulkDeleteConfirmation, setBulkDeleteConfirmation] = useState<Publication[]>([]);
   const [deleteVaultConfirmation, setDeleteVaultConfirmation] = useState<Vault | null>(null);
 
   // Track loading phase updates based on access status and content
@@ -937,6 +938,7 @@ export default function VaultDetail() {
       // Optimistic update
       setPublications(prev => prev.filter(p => p.id !== deletedId));
       setPublicationTags(prev => prev.filter(pt => pt.publication_id !== deletedId));
+      clearPageCache(`vault-content-${vaultId}`);
 
       // Update last activity for the deleted publication
       updateLastActivity('publication_removed', user?.id || null);
@@ -952,6 +954,59 @@ export default function VaultDetail() {
       });
     } finally {
       setDeleteConfirmation(null);
+    }
+  };
+
+  const handleBulkDeletePublications = async () => {
+    if (!bulkDeleteConfirmation.length || !vaultId || !canEdit) return;
+
+    const ids = bulkDeleteConfirmation.map(p => p.id);
+
+    try {
+      // Separate vault-specific copies from original publications
+      const { data: vaultPubs } = await supabase
+        .from('vault_publications')
+        .select('id')
+        .in('id', ids)
+        .eq('vault_id', vaultId);
+
+      const vaultPubIds = new Set((vaultPubs || []).map((vp: { id: string }) => vp.id));
+      const originalIds = ids.filter(id => !vaultPubIds.has(id));
+
+      if (vaultPubIds.size > 0) {
+        const { error } = await supabase
+          .from('vault_publications')
+          .delete()
+          .in('id', Array.from(vaultPubIds))
+          .eq('vault_id', vaultId);
+        if (error) throw error;
+      }
+
+      if (originalIds.length > 0) {
+        const { error } = await supabase
+          .from('publications')
+          .delete()
+          .in('id', originalIds);
+        if (error) throw error;
+      }
+
+      // Optimistic update
+      setPublications(prev => prev.filter(p => !ids.includes(p.id)));
+      setPublicationTags(prev => prev.filter(pt => !ids.includes(pt.publication_id)));
+      clearPageCache(`vault-content-${vaultId}`);
+
+      updateLastActivity('publication_removed', user?.id || null);
+
+      toast({ title: `${ids.length} paper${ids.length !== 1 ? 's' : ''} removed from vault` });
+    } catch (error) {
+      refetchVault();
+      toast({
+        title: 'error_removing_papers',
+        description: (error as Error).message,
+        variant: 'destructive',
+      });
+    } finally {
+      setBulkDeleteConfirmation([]);
     }
   };
 
@@ -1600,6 +1655,7 @@ export default function VaultDetail() {
             setIsPublicationDialogOpen(true);
           } : undefined}
           onDeletePublication={canEdit ? (pub) => setDeleteConfirmation(pub) : undefined}
+          onDeletePublications={canEdit ? (pubs) => pubs.length === 1 ? setDeleteConfirmation(pubs[0]) : setBulkDeleteConfirmation(pubs) : undefined}
           onExportBibtex={handleExportBibtex}
           onDiscoverRelated={canEdit ? (pubs) => {
             setAugmentPublications(pubs);
@@ -1733,6 +1789,25 @@ export default function VaultDetail() {
             <AlertDialogCancel className="font-mono">cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeletePublication} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono">
               remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={bulkDeleteConfirmation.length > 0} onOpenChange={() => setBulkDeleteConfirmation([])}>
+        <AlertDialogContent className="border-2 bg-card/95 backdrop-blur-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-bold font-mono">remove_from_vault?</AlertDialogTitle>
+            <AlertDialogDescription className="font-mono text-sm">
+              // this_will_remove {bulkDeleteConfirmation.length} paper{bulkDeleteConfirmation.length !== 1 ? 's' : ''} from this vault
+              <br />
+              // the original papers will remain in your all_papers collection
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="font-mono">cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDeletePublications} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono">
+              remove({bulkDeleteConfirmation.length})
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
