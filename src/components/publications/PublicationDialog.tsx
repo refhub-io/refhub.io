@@ -43,11 +43,12 @@ interface PublicationDialogProps {
   vaultPublications?: Publication[]; // Current vault's papers for linking
   publicationVaults?: string[]; // IDs of vaults this publication is already in
   currentVaultId?: string; // Current vault ID to pre-select when adding new paper
-  onSave: (data: Partial<Publication>, tagIds: string[], vaultIds?: string[], isAutoSave?: boolean) => Promise<void>;
+  onSave: (data: Partial<Publication>, tagIds: string[], vaultIds?: string[], isAutoSave?: boolean, driveUrl?: string | null) => Promise<void>;
   onCreateTag: (name: string, parentId?: string) => Promise<Tag | null>;
   onAddToVaults?: (publicationId: string, vaultIds: string[]) => Promise<void>;
   /** When false, dialog stays open after save (default: true). */
   closeOnSave?: boolean;
+  driveUrl?: string | null;
 }
 
 export function PublicationDialog({
@@ -65,6 +66,7 @@ export function PublicationDialog({
   onCreateTag,
   onAddToVaults,
   closeOnSave = false,
+  driveUrl,
 }: PublicationDialogProps) {
   const { user } = useAuth();
   const {
@@ -120,6 +122,7 @@ export function PublicationDialog({
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [pendingClose, setPendingClose] = useState(false);
   const [pendingExitFullscreen, setPendingExitFullscreen] = useState(false);
+  const [drivePdfInput, setDrivePdfInput] = useState<string>(driveUrl ?? '');
   const fullscreenCleanNotesRef = useRef<string>(''); // snapshot of notes when entering fullscreen
   const duplicateCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadRef = useRef(true);
@@ -200,6 +203,7 @@ export function PublicationDialog({
   useEffect(() => { keywordsInputRef2.current = keywordsInput; }, [keywordsInput]);
   useEffect(() => { formDataRef.current = formData; }, [formData]);
   useEffect(() => { selectedTagsRef.current = selectedTags; }, [selectedTags]);
+  useEffect(() => { setDrivePdfInput(driveUrl ?? ''); }, [driveUrl]);
 
   // ─── Last-save indicator timer (fullscreen notes) ──────────────────────────
   // Initialize from publication timestamp when opened
@@ -546,7 +550,7 @@ export function PublicationDialog({
 
     try {
       // Pass vaultIds only for new publications (when publication is null)
-      await onSave({ ...formData, authors, editor, keywords }, selectedTags, publication ? undefined : selectedVaultIds);
+      await onSave({ ...formData, authors, editor, keywords }, selectedTags, publication ? undefined : selectedVaultIds, undefined, drivePdfInput || null);
       setModifiedFields(new Set()); // Clear dirty state
       setLastSavedAt(new Date());
       if (closeOnSave) {
@@ -621,7 +625,7 @@ export function PublicationDialog({
         .map((k) => k.trim())
         .filter((k) => k.length > 0);
 
-      await onSave({ ...formData, authors, editor, keywords }, selectedTags, publication ? undefined : selectedVaultIds);
+      await onSave({ ...formData, authors, editor, keywords }, selectedTags, publication ? undefined : selectedVaultIds, undefined, drivePdfInput || null);
       setModifiedFields(new Set()); // Clear dirty state
       setShowUnsavedDialog(false);
       setLastSavedAt(new Date());
@@ -976,7 +980,7 @@ export function PublicationDialog({
 
             {/* PDF URL */}
             <div className="space-y-1 sm:space-y-2 w-full box-border overflow-hidden">
-              <Label htmlFor="pdf_url" className="font-semibold font-mono text-sm block">pdf_url</Label>
+              <Label htmlFor="pdf_url" className="font-semibold font-mono text-sm block">publisher_pdf</Label>
               <Input
                 id="pdf_url"
                 value={formData.pdf_url}
@@ -985,6 +989,18 @@ export function PublicationDialog({
                   trackFieldModification('pdf_url');
                 }}
                 placeholder="link_to_pdf"
+                className="font-mono text-xs sm:text-sm w-full break-all h-9 sm:h-10 box-border"
+              />
+            </div>
+
+            {/* Drive PDF */}
+            <div className="space-y-1 sm:space-y-2 w-full box-border overflow-hidden">
+              <Label htmlFor="drive_pdf" className="font-semibold font-mono text-sm block">drive_pdf</Label>
+              <Input
+                id="drive_pdf"
+                value={drivePdfInput}
+                onChange={(e) => setDrivePdfInput(e.target.value)}
+                placeholder="https://drive.google.com/file/d/..."
                 className="font-mono text-xs sm:text-sm w-full break-all h-9 sm:h-10 box-border"
               />
             </div>
