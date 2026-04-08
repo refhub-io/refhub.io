@@ -4,8 +4,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Download, Puzzle, ExternalLink } from 'lucide-react';
 
 const EXTENSION_LINKS = {
-  chrome: 'https://github.com/refhub-io/refhub-extensions/releases/latest',
-  firefox: 'https://github.com/refhub-io/refhub-extensions/releases/latest',
+  chrome: 'https://chromewebstore.google.com/detail/refhub-ext/ggoophlbadcgkmcpnbnfjacknccpkmgc',
+  firefox: 'https://addons.mozilla.org/en-US/firefox/addon/refhub/',
   repo: 'https://github.com/refhub-io/refhub-extensions',
 } as const;
 
@@ -46,7 +46,7 @@ export function BrowserExtensionInstallCard() {
               <p className="text-xs text-muted-foreground font-mono line-clamp-1">
                 save papers from the page you are{' '}
                 <span className="text-gradient-green">already reading</span>
-                {' '}— store listings not live yet, install from releases
+                {' '}— install from the browser store or view the extension repo
               </p>
             </div>
           </div>

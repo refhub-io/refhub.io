@@ -48,6 +48,10 @@ interface VaultContentContextType {
   // Last activity tracking
   lastActivity: LastActivityInfo | null;
   updateLastActivity: (type: ActivityType, userId: string | null) => void;
+  // PDF assets
+  pdfAssetsMap: Record<string, string | null>;
+  pdfAssetsLoading: boolean;
+  updatePdfAsset: (vaultPublicationId: string, url: string | null) => Promise<void>;
 }
 
 const VaultContentContext = createContext<VaultContentContextType | undefined>(undefined);
@@ -68,6 +72,8 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
   const [error, setError] = useState<string | null>(null);
   const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
   const [lastActivity, setLastActivity] = useState<LastActivityInfo | null>(null);
+  const [pdfAssetsMap, setPdfAssetsMap] = useState<Record<string, string | null>>({});
+  const [pdfAssetsLoading, setPdfAssetsLoading] = useState(false);
 
   const [currentVaultId, setCurrentVaultIdState] = useState<string | null>(null);
   
@@ -205,6 +211,66 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
     original_publication_id: vp.original_publication_id,
   }), []);
 
+  const fetchPdfAssets = useCallback(async (vaultPublicationIds: string[]) => {
+    if (vaultPublicationIds.length === 0) {
+      setPdfAssetsMap({});
+      setPdfAssetsLoading(false);
+      return;
+    }
+    try {
+      const { data, error } = await supabase
+        .from('publication_pdf_assets')
+        .select('vault_publication_id, stored_pdf_url')
+        .in('vault_publication_id', vaultPublicationIds)
+        .eq('storage_provider', 'google_drive')
+        .eq('status', 'stored');
+
+      if (error) throw error;
+
+      const map: Record<string, string | null> = {};
+      for (const row of data ?? []) {
+        map[row.vault_publication_id] = row.stored_pdf_url ?? null;
+      }
+      setPdfAssetsMap(map);
+    } catch (err) {
+      debug('VaultContentContext', 'pdf assets fetch failed (non-fatal):', err);
+      setPdfAssetsMap({});
+    } finally {
+      setPdfAssetsLoading(false);
+    }
+  }, []);
+
+  const updatePdfAsset = useCallback(async (vaultPublicationId: string, url: string | null) => {
+    if (!user) return;
+
+    // Optimistic update
+    setPdfAssetsMap(prev => ({ ...prev, [vaultPublicationId]: url || null }));
+
+    const record = {
+      user_id: user.id,
+      vault_publication_id: vaultPublicationId,
+      storage_provider: 'google_drive' as const,
+      stored_pdf_url: url || null,
+      stored_file_id: null as string | null,
+      status: url ? 'stored' : 'removed',
+      error_message: null as string | null,
+    };
+
+    const { error } = await supabase
+      .from('publication_pdf_assets')
+      .upsert(record, { onConflict: 'vault_publication_id,storage_provider' });
+
+    if (error) {
+      // Roll back optimistic update
+      setPdfAssetsMap(prev => {
+        const next = { ...prev };
+        delete next[vaultPublicationId];
+        return next;
+      });
+      throw error;
+    }
+  }, [user]);
+
   // Fetch vault content - extracted as a reusable function
   const fetchVaultContent = useCallback(async () => {
     if (!currentVaultId || !user || !canView) {
@@ -320,6 +386,9 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       // Batch state updates to reduce re-renders
       setCurrentVault(vaultData as Vault);
       setPublications(formattedVaultPublications);
+      // Fire pdf assets fetch async — does not block publication rendering
+      setPdfAssetsLoading(true);
+      fetchPdfAssets(vaultPublicationIds);
       setTags(tagsRes.data as Tag[]);
       setPublicationTags(pubTagsRes.data as PublicationTag[]);
       setPublicationRelations(relationsRes.data as PublicationRelation[]);
@@ -734,6 +803,9 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         isRealtimeConnected,
         lastActivity,
         updateLastActivity,
+        pdfAssetsMap,
+        pdfAssetsLoading,
+        updatePdfAsset,
       }}
     >
       {children}
