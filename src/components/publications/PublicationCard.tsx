@@ -5,16 +5,18 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { VisibleColumns } from './ViewSettings';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 import { useState } from 'react';
-import { 
-  ExternalLink, 
-  MoreVertical, 
-  Edit, 
-  Trash2, 
+import {
+  ExternalLink,
+  MoreVertical,
+  Edit,
+  Trash2,
   Download,
   StickyNote,
   Link2,
-  ChevronDown
+  ChevronDown,
+  Loader2
 } from 'lucide-react';
+import { GoogleDriveIcon } from '@/components/ui/GoogleDriveIcon';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,6 +43,8 @@ interface PublicationCardProps {
   primaryActionLabel?: string;
   onDelete?: () => void;
   onExportBibtex: () => void;
+  driveUrl?: string | null;
+  driveLoading?: boolean;
 }
 
 export function PublicationCard({
@@ -59,6 +63,8 @@ export function PublicationCard({
   primaryActionLabel = 'edit',
   onDelete,
   onExportBibtex,
+  driveUrl,
+  driveLoading = false,
 }: PublicationCardProps) {
   const [notesExpanded, setNotesExpanded] = useState(false);
   
@@ -151,8 +157,25 @@ export function PublicationCard({
                     onClick={(e) => e.stopPropagation()}
                     className="flex items-center gap-1 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors px-1.5 py-1 rounded-md hover:bg-muted"
                   >
-                    pdf
+                    publisher_pdf
                     <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+                {driveLoading && (
+                  <span className="flex items-center px-1.5 py-1">
+                    <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+                  </span>
+                )}
+                {!driveLoading && driveUrl && (
+                  <a
+                    href={driveUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    title="open_in_drive"
+                    className="flex items-center px-1.5 py-1 rounded-md hover:bg-muted transition-colors"
+                  >
+                    <GoogleDriveIcon className="w-3.5 h-3.5" />
                   </a>
                 )}
                 <DropdownMenu>
