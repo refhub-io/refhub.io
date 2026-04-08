@@ -43,6 +43,7 @@ interface AddImportDialogProps {
   onAddToVaults?: (publicationId: string, vaultIds: string[]) => Promise<void>;
   /** Callback for a single manually-created publication. Falls back to onImport([pub]) if not provided. */
   onManualCreate?: (publication: Partial<Publication>, targetVaultId?: string | null) => Promise<string | null>;
+  updatePdfAsset?: (vaultPublicationId: string, url: string | null) => Promise<void>;
 }
 
 type FlowTab = 'library' | 'doi' | 'bibtex' | 'manual';
@@ -56,6 +57,7 @@ export function AddImportDialog({
   onImport,
   onAddToVaults,
   onManualCreate,
+  updatePdfAsset,
 }: AddImportDialogProps) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<FlowTab>('library');
@@ -107,6 +109,7 @@ export function AddImportDialog({
   const [manualAuthorsInput, setManualAuthorsInput] = useState('');
   const [manualEditorInput, setManualEditorInput] = useState('');
   const [manualKeywordsInput, setManualKeywordsInput] = useState('');
+  const [manualDrivePdf, setManualDrivePdf] = useState('');
 
   // Import options
   const [targetVaultId, setTargetVaultId] = useState<string | null>(currentVaultId);
@@ -275,16 +278,24 @@ export function AddImportDialog({
       const editor = manualEditorInput.split(',').map(e => e.trim()).filter(e => e.length > 0);
       const keywords = manualKeywordsInput.split(',').map(k => k.trim()).filter(k => k.length > 0);
       const pub = { ...manualForm, authors, editor: editor.length > 0 ? editor : undefined, keywords: keywords.length > 0 ? keywords : undefined };
+      let newId: string | null = null;
       if (onManualCreate) {
-        await onManualCreate(pub, targetVaultId);
+        newId = await onManualCreate(pub, targetVaultId);
       } else if (onImport) {
-        await onImport([pub], targetVaultId);
+        const ids = await onImport([pub], targetVaultId);
+        newId = ids?.[0] ?? null;
       }
+
+      if (newId && manualDrivePdf.trim() && updatePdfAsset) {
+        await updatePdfAsset(newId, manualDrivePdf.trim());
+      }
+
       toast({ title: 'paper_created ✨', description: manualForm.title });
       setManualForm({ title: '', authors: [], year: null, journal: '', doi: '', url: '', pdf_url: '', abstract: '', publication_type: 'article', notes: '', volume: '', issue: '', pages: '', booktitle: '', chapter: '', edition: '', editor: [], howpublished: '', institution: '', number: '', organization: '', publisher: '', school: '', series: '', type: '', eid: '', isbn: '', issn: '', keywords: [] });
       setManualAuthorsInput('');
       setManualEditorInput('');
       setManualKeywordsInput('');
+      setManualDrivePdf('');
       onOpenChange(false);
     } catch (error) {
       toast({ title: 'create_failed', description: (error as Error).message, variant: 'destructive' });
@@ -464,11 +475,25 @@ export function AddImportDialog({
                       placeholder="https://..." className="font-mono text-sm" />
                   </div>
                 </div>
-                {/* PDF URL */}
+                {/* Publisher PDF */}
                 <div className="space-y-2">
-                  <Label className="font-semibold font-mono">pdf_url</Label>
-                  <Input value={manualForm.pdf_url || ''} onChange={(e) => setManualForm(f => ({ ...f, pdf_url: e.target.value }))}
-                    placeholder="link_to_pdf" className="font-mono text-sm" />
+                  <Label className="font-semibold font-mono">publisher_pdf</Label>
+                  <Input
+                    value={manualForm.pdf_url || ''}
+                    onChange={(e) => setManualForm(f => ({ ...f, pdf_url: e.target.value }))}
+                    placeholder="link_to_pdf"
+                    className="font-mono text-sm"
+                  />
+                </div>
+                {/* Drive PDF */}
+                <div className="space-y-2">
+                  <Label className="font-semibold font-mono">drive_pdf</Label>
+                  <Input
+                    value={manualDrivePdf}
+                    onChange={(e) => setManualDrivePdf(e.target.value)}
+                    placeholder="https://drive.google.com/file/d/..."
+                    className="font-mono text-sm"
+                  />
                 </div>
                 {/* Abstract */}
                 <div className="space-y-2">
