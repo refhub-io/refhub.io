@@ -12,7 +12,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { ExternalLink, FileText, Pencil } from 'lucide-react';
+import { ExternalLink, FileText, Loader2, Pencil } from 'lucide-react';
+import { GoogleDriveIcon } from '@/components/ui/GoogleDriveIcon';
 
 interface PublicationViewDialogProps {
   open: boolean;
@@ -21,6 +22,8 @@ interface PublicationViewDialogProps {
   tags: Tag[];
   allTags: Tag[];
   onEdit?: (publication: Publication) => void;
+  driveUrl?: string | null;
+  driveLoading?: boolean;
 }
 
 const DETAIL_FIELDS: Array<{ key: keyof Publication; label: string }> = [
@@ -52,6 +55,8 @@ export function PublicationViewDialog({
   tags,
   allTags,
   onEdit,
+  driveUrl,
+  driveLoading = false,
 }: PublicationViewDialogProps) {
   if (!publication) return null;
 
@@ -86,7 +91,7 @@ export function PublicationViewDialog({
         </DialogHeader>
 
         <div className="space-y-6">
-          {(publication.doi || publication.url || publication.pdf_url) && (
+          {(publication.doi || publication.url || publication.pdf_url || driveLoading || driveUrl) && (
             <div className="flex flex-wrap gap-2">
               {publication.doi && (
                 <Button asChild variant="outline" size="sm" className="font-mono">
@@ -112,7 +117,21 @@ export function PublicationViewDialog({
                 <Button asChild variant="outline" size="sm" className="font-mono">
                   <a href={publication.pdf_url} target="_blank" rel="noopener noreferrer">
                     <FileText className="w-4 h-4 mr-2" />
-                    pdf
+                    publisher_pdf
+                  </a>
+                </Button>
+              )}
+              {driveLoading && (
+                <Button variant="outline" size="sm" className="font-mono" disabled>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  drive_pdf
+                </Button>
+              )}
+              {!driveLoading && driveUrl && (
+                <Button asChild variant="outline" size="sm" className="font-mono">
+                  <a href={driveUrl} target="_blank" rel="noopener noreferrer">
+                    <GoogleDriveIcon className="w-4 h-4 mr-2" />
+                    drive_pdf
                   </a>
                 </Button>
               )}
