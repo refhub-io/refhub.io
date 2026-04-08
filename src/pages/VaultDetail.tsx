@@ -82,6 +82,9 @@ export default function VaultDetail() {
     isRealtimeConnected,
     lastActivity,
     updateLastActivity,
+    pdfAssetsMap,
+    pdfAssetsLoading,
+    updatePdfAsset,
   } = useVaultContent();
 
   // Use the shared vault operations hook for optimistic updates
@@ -553,7 +556,7 @@ export default function VaultDetail() {
     return duplicate;
   };
 
-  const handleSavePublication = async (data: Partial<Publication>, tagIds: string[], vaultIds?: string[], isAutoSave = false) => {
+  const handleSavePublication = async (data: Partial<Publication>, tagIds: string[], vaultIds?: string[], isAutoSave = false, driveUrl?: string | null) => {
     if (!user || !vaultId || !canEdit) return; // Only allow editing if user has edit permission
 
     try {
@@ -585,6 +588,19 @@ export default function VaultDetail() {
         if (!tagResult.success) {
           logger.error('VaultDetail', 'Error updating tags:', tagResult.error);
           // Don't throw - publication was already saved successfully
+        }
+
+        // Save Drive URL if changed (skip on auto-save to avoid excessive writes)
+        if (!isAutoSave && driveUrl !== undefined) {
+          const currentDriveUrl = pdfAssetsMap[editingPublication.id] ?? null;
+          const newDriveUrl = driveUrl || null;
+          if (newDriveUrl !== currentDriveUrl) {
+            try {
+              await updatePdfAsset(editingPublication.id, newDriveUrl);
+            } catch (err) {
+              logger.error('VaultDetail', 'Error saving drive url:', err);
+            }
+          }
         }
 
         // Update editingPublication with new data so dialog stays in sync
@@ -638,6 +654,15 @@ export default function VaultDetail() {
           }
         }
 
+        // Save Drive URL for new publication if provided
+        if (driveUrl && result.publication) {
+          try {
+            await updatePdfAsset(result.publication.id, driveUrl);
+          } catch (err) {
+            logger.error('VaultDetail', 'Error saving drive url for new publication:', err);
+          }
+        }
+
         // Update last activity for the new publication
         updateLastActivity('publication_added', user.id);
       }
@@ -652,6 +677,25 @@ export default function VaultDetail() {
         description: (error as Error).message,
         variant: 'destructive',
       });
+    }
+  };
+
+  const handleManualCreate = async (pub: Partial<Publication>, targetVaultId?: string | null): Promise<string | null> => {
+    if (!user || !canEdit) return null;
+    try {
+      const dataToSave = {
+        ...pub,
+        bibtex_key: pub.bibtex_key || generateBibtexKey(pub as Publication),
+      };
+      const result = await sharedVaultOps.createVaultPublication(dataToSave, []);
+      if (result.success && result.publication) {
+        updateLastActivity('publication_added', user.id);
+        return result.publication.id;
+      }
+      return null;
+    } catch (err) {
+      logger.error('VaultDetail', 'Error creating publication manually:', err);
+      return null;
     }
   };
 
@@ -1672,6 +1716,8 @@ export default function VaultDetail() {
           onUpdateTag={canEdit ? handleUpdateTag : undefined}
           onDeleteTag={canEdit ? handleDeleteTag : undefined}
           onCreateTag={canEdit ? handleCreateTag : undefined}
+          driveUrlsMap={pdfAssetsMap}
+          driveLoading={pdfAssetsLoading}
         />
       </div>
 
@@ -1693,6 +1739,7 @@ export default function VaultDetail() {
         vaultPublications={publications} // Use current vault's publications for paper linking
         publicationVaults={editingPublication ? publicationVaultsMap[editingPublication.id] || [] : []} // Show which vaults this publication is already in
         currentVaultId={vaultId} // Pass current vault ID to pre-select when adding new paper
+        driveUrl={editingPublication ? (pdfAssetsMap[editingPublication.id] ?? null) : null}
         onSave={canEdit ? handleSavePublication : undefined}
         onCreateTag={canEdit ? handleCreateTag : undefined}
         onAddToVaults={canEdit ? handleAddToVaults : undefined}
@@ -1708,6 +1755,8 @@ export default function VaultDetail() {
         publication={viewingPublication}
         tags={viewingPublication ? tags.filter((tag) => (publicationTagsMap[viewingPublication.id] || []).includes(tag.id)) : []}
         allTags={tags}
+        driveUrl={viewingPublication ? (pdfAssetsMap[viewingPublication.id] ?? null) : null}
+        driveLoading={pdfAssetsLoading}
       />
 
       <VaultAugmentDialog
@@ -1726,6 +1775,8 @@ export default function VaultDetail() {
         currentVaultId={vaultId || null}
         onImport={canEdit ? handleBulkImport : undefined}
         onAddToVaults={canEdit ? handleAddToVaults : undefined}
+        onManualCreate={canEdit ? handleManualCreate : undefined}
+        updatePdfAsset={canEdit ? updatePdfAsset : undefined}
       />
 
       <VaultDialog

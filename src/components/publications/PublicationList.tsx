@@ -72,6 +72,8 @@ interface PublicationListProps {
   onUpdateTag?: (tagId: string, updates: Partial<Tag>) => Promise<Tag | null>;
   onDeleteTag?: (tagId: string) => Promise<{ success: boolean; error?: Error }>;
   onCreateTag?: (name: string, parentId?: string) => Promise<Tag | null>;
+  driveUrlsMap?: Record<string, string | null>;
+  driveLoading?: boolean;
 }
 
 export function PublicationList({
@@ -100,6 +102,8 @@ export function PublicationList({
   onUpdateTag,
   onDeleteTag,
   onCreateTag,
+  driveUrlsMap,
+  driveLoading,
 }: PublicationListProps) {
   const openPublication = onOpenPublication || onEditPublication;
   const [searchQuery, setSearchQuery] = useState('');
@@ -719,6 +723,8 @@ export function PublicationList({
             onSort={handleTableSort}
             focusedIndex={kbNav.focusedIndex}
             kbItemProps={kbNav.itemProps}
+            driveUrlsMap={driveUrlsMap}
+            driveLoading={driveLoading}
           />
         ) : (
           <div className="space-y-4 max-w-4xl mx-auto">
@@ -745,6 +751,8 @@ export function PublicationList({
                   primaryActionLabel={publicationActionLabel}
                   onDelete={onDeletePublication ? () => onDeletePublication(pub) : undefined}
                   onExportBibtex={() => onExportBibtex([pub])}
+                  driveUrl={driveUrlsMap ? (driveUrlsMap[pub.id] ?? null) : null}
+                  driveLoading={driveLoading}
                 />
               </div>
             ))}
