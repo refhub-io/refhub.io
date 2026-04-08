@@ -21,6 +21,25 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    id: 5,
+    date: '2026-04-08',
+    title: 'drive pdf links + browser store installs',
+    features: [
+      {
+        tag: 'feature',
+        title: 'google drive pdf links now show up across the vault ui',
+        description:
+          'pdfs saved by the extension into your managed google drive folder now surface directly in refhub. drive badges and quick-open actions are available across cards, tables, and publication dialogs so cloud-saved copies are always one click away.',
+      },
+      {
+        tag: 'feature',
+        title: 'chrome + firefox browser extensions are now live',
+        description:
+          'the refhub browser extensions are officially out on the chrome web store and firefox add-ons. save papers straight from the page you are reading, then jump to the github repo from the add paper dialog if you want the source or release history.',
+      },
+    ],
+  },
+  {
     id: 4,
     date: '2026-03-28',
     title: 'browser extensions are here',
