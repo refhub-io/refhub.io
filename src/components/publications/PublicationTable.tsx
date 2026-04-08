@@ -30,7 +30,9 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
+  Loader2,
 } from 'lucide-react';
+import { GoogleDriveIcon } from '@/components/ui/GoogleDriveIcon';
 import { cn } from '@/lib/utils';
 
 interface PublicationTableProps {
@@ -48,6 +50,8 @@ interface PublicationTableProps {
   primaryActionLabel?: string;
   onDelete?: (pub: Publication) => void;
   onExportBibtex: (pub: Publication) => void;
+  driveUrlsMap?: Record<string, string | null>;
+  driveLoading?: boolean;
   // Sort props
   sortBy: SortField;
   sortDirection: SortDirection;
@@ -72,6 +76,8 @@ export function PublicationTable({
   primaryActionLabel = 'edit',
   onDelete,
   onExportBibtex,
+  driveUrlsMap = {},
+  driveLoading = false,
   sortBy,
   sortDirection,
   onSort,
@@ -159,7 +165,7 @@ export function PublicationTable({
               <TableHead className="font-mono text-xs w-16 text-center">DOI</TableHead>
             )}
             {visibleColumns.pdf && (
-              <TableHead className="font-mono text-xs w-16 text-center">PDF</TableHead>
+              <TableHead className="font-mono text-xs w-24 text-center">pdf</TableHead>
             )}
             {visibleColumns.notes && (
               <TableHead className="font-mono text-xs w-16 text-center">Notes</TableHead>
@@ -333,19 +339,35 @@ export function PublicationTable({
 
                 {visibleColumns.pdf && (
                   <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                    {pub.pdf_url ? (
-                      <a
-                        href={pub.pdf_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-muted-foreground hover:text-hot-pink transition-colors"
-                        title="View PDF"
-                      >
-                        <FileText className="w-4 h-4 mx-auto" />
-                      </a>
-                    ) : (
-                      <span className="text-muted-foreground text-xs">—</span>
-                    )}
+                    <div className="flex items-center justify-center gap-1.5">
+                      {pub.pdf_url ? (
+                        <a
+                          href={pub.pdf_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-muted-foreground hover:text-hot-pink transition-colors"
+                          title="publisher_pdf"
+                        >
+                          <FileText className="w-4 h-4" />
+                        </a>
+                      ) : null}
+                      {driveLoading ? (
+                        <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+                      ) : driveUrlsMap[pub.id] ? (
+                        <a
+                          href={driveUrlsMap[pub.id]!}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="open_in_drive"
+                          className="transition-colors hover:opacity-80"
+                        >
+                          <GoogleDriveIcon className="w-4 h-4" />
+                        </a>
+                      ) : null}
+                      {!pub.pdf_url && !driveLoading && !driveUrlsMap[pub.id] && (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </div>
                   </TableCell>
                 )}
 
