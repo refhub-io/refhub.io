@@ -1,7 +1,8 @@
 export const API_KEY_SCOPES = [
   { value: 'vaults:read', label: 'vaults:read', description: 'Read vault metadata and contents.' },
-  { value: 'vaults:write', label: 'vaults:write', description: 'Create and update vault items.' },
+  { value: 'vaults:write', label: 'vaults:write', description: 'Create and update vault items, tags, and relations.' },
   { value: 'vaults:export', label: 'vaults:export', description: 'Export vault contents in supported formats.' },
+  { value: 'vaults:admin', label: 'vaults:admin', description: 'Create and delete vaults, manage collaborators and visibility. Grants full vault management.' },
 ] as const;
 
 export type ApiKeyScope = (typeof API_KEY_SCOPES)[number]['value'];
