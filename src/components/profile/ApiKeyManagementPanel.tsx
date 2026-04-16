@@ -104,6 +104,7 @@ export function ApiKeyManagementPanel({ userId, userEmail, accessToken }: ApiKey
     'vaults:read': true,
     'vaults:write': false,
     'vaults:export': false,
+    'vaults:admin': false,
   });
   const [selectedVaultIds, setSelectedVaultIds] = useState<string[]>([]);
 
@@ -297,6 +298,7 @@ export function ApiKeyManagementPanel({ userId, userEmail, accessToken }: ApiKey
         'vaults:read': true,
         'vaults:write': false,
         'vaults:export': false,
+        'vaults:admin': false,
       });
 
       await fetchApiKeys();
