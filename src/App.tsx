@@ -29,11 +29,18 @@ import ResetPassword from "./pages/ResetPassword";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import { VaultContentProvider } from "./contexts/VaultContentContext";
+import { useCluckEasterEgg } from "@/hooks/useCluckEasterEgg";
+import { ChickenOverlay } from "@/components/easter-egg/ChickenOverlay";
 
 /** Activates keyboard shortcut analytics tracking. Must be inside KeyboardProvider. */
 function KeyboardAnalyticsTracker() {
   useKeyboardAnalytics();
   return null;
+}
+
+function CluckEasterEgg() {
+  const { isOpen, close } = useCluckEasterEgg();
+  return isOpen ? <ChickenOverlay onClose={close} /> : null;
 }
 
 const App = () => {
@@ -59,6 +66,7 @@ const App = () => {
               <Sonner />
               <ScrollToTopButton />
               <BugReportButton />
+              <CluckEasterEgg />
               <KeyboardHelpOverlay />
               <BrowserRouter>
                 <Routes>
