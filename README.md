@@ -2,143 +2,115 @@
   <img src="public/og-image.png" alt="refhub.io" width="100%" />
 </div>
 
-# ⭐ refhub.io
+# refhub.io
 
-> a modern reference management platform for organizing academic publications, building citation networks, and sharing research collections.
+> // organize_papers • build_collections • map_citations
 
-[![Live Demo](https://img.shields.io/badge/demo-live-green)](https://refhub.io)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
-[![React](https://img.shields.io/badge/React-18.x-61DAFB)](https://reactjs.org/)
-[![Supabase](https://img.shields.io/badge/Supabase-Powered-3ECF8E)](https://supabase.com/)
+reference management for the command-line generation. organize papers into vaults, tag them hierarchically, map citation relationships, and share collections with collaborators. bibtex import/export, keyboard-first, dark by default.
 
-refhub lets you organize papers into vaults, tag them hierarchically, map citation relationships, and share collections with the research community. supports bibtex import/export and collaborative workflows.
-
-## tech stack
-
-```
-frontend:     react 18 + typescript + vite
-ui/styling:   tailwind css + shadcn/ui
-backend:      supabase (postgresql + row level security + auth)
-state:        tanstack query (react query)
-routing:      react router v6
-forms:        react hook form + zod
-graphs:       react flow
-charts:       recharts
-```
-
-## getting started
-
-### prerequisites
-
-- node.js 18+ or bun
-- a supabase account for backend services
-
-### installation
-
-1. **clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/refhub.io.git
-   cd refhub.io
-   ```
-
-2. **install dependencies**
-   ```bash
-   # using npm
-   npm install
-   
-   # or using bun
-   bun install
-   ```
-
-3. **set up supabase**
-   - create a new project at [supabase.com](https://supabase.com)
-   - run the schema from `supabase/schema_consolidated.sql` in your supabase sql editor
-   - copy your project url and anon key
-
-4. **configure environment variables**
-   create a `.env` file in the root directory:
-   ```env
-   VITE_SUPABASE_URL=your_supabase_project_url
-   VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
-   ```
-
-5. **start the development server**
-   ```bash
-   # using npm
-   npm run dev
-   
-   # or using bun
-   bun run dev
-   ```
-
-6. **open your browser**
-   navigate to `http://localhost:5173`
-
-## build & deploy
-
-### build for production
-
-```bash
-# using npm
-npm run build
-
-# or using bun
-bun run build
-```
-
-### deploy to github pages
-
-```bash
-npm run deploy
-```
-
-the built files will be in the `dist` directory and can be deployed to any static hosting service.
-
-## project structure
-
-```
-refhub.io/
-├── src/
-│   ├── components/        # reusable ui components
-│   │   ├── layout/       # layout components (sidebar, etc.)
-│   │   ├── publications/ # publication-related components
-│   │   ├── tags/         # tag management components
-│   │   ├── vaults/       # vault management components
-│   │   └── ui/           # shadcn/ui base components
-│   ├── hooks/            # custom react hooks
-│   ├── integrations/     # external service integrations
-│   │   └── supabase/     # supabase client and queries
-│   ├── lib/              # utility functions
-│   ├── pages/            # page components
-│   └── types/            # typescript type definitions
-├── supabase/             # database schema and migrations
-└── public/               # static assets
-```
-
-## contributing
-
-contributions are welcome! please feel free to submit a pull request.
-
-1. fork the repository
-2. create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. push to the branch (`git push origin feature/AmazingFeature`)
-5. open a pull request
-
-## license
-
-this project is open source and available under the [GPLv3](LICENSE).
-
-## acknowledgments
-
-built with [shadcn/ui](https://ui.shadcn.com/), powered by [supabase](https://supabase.com/), icons from [lucide](https://lucide.dev/).
-
-## contact
-
-for questions or feedback, please open an issue on github.
+[![live](https://img.shields.io/badge/demo-live-green)](https://refhub.io)
+[![typescript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
+[![react](https://img.shields.io/badge/React-18.x-61DAFB)](https://reactjs.org/)
+[![supabase](https://img.shields.io/badge/Supabase-Powered-3ECF8E)](https://supabase.com/)
 
 ---
 
+## // stack
+
 ```
-© 2026 refhub.io
+frontend:     react 18 + typescript + vite 7
+ui:           tailwind css + shadcn/ui (radix primitives + cva)
+backend:      supabase (postgresql + rls + auth + realtime)
+state:        tanstack query v5 + context api
+routing:      react router v6
+forms:        react hook form + zod
+graphs:       react-force-graph-2d
+charts:       recharts
+fonts:        plus jakarta sans • jetbrains mono
 ```
+
+---
+
+## // setup
+
+**prerequisites:** bun · supabase account
+
+```sh
+git clone https://github.com/refhub-io/refhub.io.git
+cd refhub.io
+bun install
+```
+
+set up supabase:
+1. create a project at [supabase.com](https://supabase.com)
+2. run `supabase/schema_consolidated.sql` in your supabase sql editor
+3. copy your project url and anon key
+
+configure env:
+
+```sh
+# .env
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
+```
+
+start dev server:
+
+```sh
+bun run dev
+# → http://localhost:5173
+```
+
+---
+
+## // build
+
+```sh
+bun run build       # production build → dist/
+bun run deploy      # deploy to github pages
+```
+
+output in `dist/` — deploy to any static host.
+
+---
+
+## // structure
+
+```
+src/
+├── components/
+│   ├── ui/             # shadcn/ui primitives
+│   ├── layout/         # shell components (sidebar, vault layout, theme toggle)
+│   ├── publications/   # publication components
+│   ├── tags/           # tag management
+│   ├── vaults/         # vault management
+│   ├── notifications/
+│   └── profile/
+├── contexts/           # react context providers (vault_content, keyboard)
+├── hooks/              # custom hooks (use_auth, use_vault_access, ...)
+├── integrations/       # supabase client and queries
+├── lib/                # utilities (bibtex, export, tag_hierarchy, ...)
+├── pages/              # route-level page components
+├── types/              # typescript type definitions
+└── config/             # kbd.config.ts — keybinding source of truth
+supabase/               # schema and migrations
+public/                 # static assets
+```
+
+---
+
+## // contributing
+
+1. fork the repo
+2. create a feature branch: `git checkout -b feature/your_feature`
+3. commit: `git commit -m 'feat: description'`
+4. push: `git push origin feature/your_feature`
+5. open a pull request
+
+---
+
+## // license
+
+open source under [gplv3](LICENSE).
+
+built with [shadcn/ui](https://ui.shadcn.com/) · powered by [supabase](https://supabase.com/) · icons from [lucide](https://lucide.dev/)
