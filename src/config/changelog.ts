@@ -21,6 +21,25 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    id: 6,
+    date: '2026-04-19',
+    title: 'agentic reference management',
+    features: [
+      {
+        tag: 'feature',
+        title: 'refhub skill for claude code',
+        description:
+          'manage your vaults directly from claude code with the refhub skill. search papers, add references, and query your vault through natural language — no context switching, no browser. install from github.com/refhub/refhub-skill.',
+      },
+      {
+        tag: 'feature',
+        title: 'refhub-cli: manage references from your terminal',
+        description:
+          'a full-featured command-line interface for refhub is now available on npm. install globally with npm i -g @refhub/cli and interact with your vaults, search papers, and automate reference workflows straight from your shell. source at github.com/refhub/refhub-cli.',
+      },
+    ],
+  },
+  {
     id: 5,
     date: '2026-04-08',
     title: 'drive pdf links + browser store installs',
