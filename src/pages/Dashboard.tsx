@@ -753,10 +753,9 @@ export default function Dashboard() {
           ...newTagRecords
         ]);
 
-        // Update editingPublication with new data so dialog stays in sync
-        if (isAutoSave) {
-          setEditingPublication({ ...editingPublication, ...updatedPub } as Publication);
-        }
+        // Update editingPublication with persisted data so the still-open dialog
+        // stays in sync after manual saves as well as auto-saves.
+        setEditingPublication({ ...editingPublication, ...updatedPub } as Publication);
 
         if (!isAutoSave) {
           toast({ title: 'paper_updated ✨' });
@@ -809,10 +808,9 @@ export default function Dashboard() {
         toast({ title: 'paper_added ✨' });
       }
 
-      // Only clear editing publication on manual save, not auto-save
-      if (!isAutoSave) {
-        setEditingPublication(null);
-      }
+      // Keep the current publication selected after manual save so the dialog can
+      // continue showing the persisted values instead of reopening in empty
+      // create mode. The dialog close handler clears editingPublication.
     } catch (error) {
       toast({
         title: 'error_saving_paper',

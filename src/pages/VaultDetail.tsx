@@ -603,10 +603,12 @@ export default function VaultDetail() {
           }
         }
 
-        // Update editingPublication with new data so dialog stays in sync
-        if (isAutoSave) {
-          setEditingPublication({ ...editingPublication, ...data } as Publication);
-        } else {
+        // Update editingPublication with new data so dialog stays in sync after
+        // manual saves as well as auto-saves. Otherwise the still-open dialog can
+        // fall back to empty create state when editingPublication is cleared.
+        setEditingPublication({ ...editingPublication, ...data } as Publication);
+
+        if (!isAutoSave) {
           // Update last activity for the updated publication
           updateLastActivity('publication_updated', user.id);
         }
@@ -667,10 +669,9 @@ export default function VaultDetail() {
         updateLastActivity('publication_added', user.id);
       }
 
-      // Only clear editing publication on manual save, not auto-save
-      if (!isAutoSave) {
-        setEditingPublication(null);
-      }
+      // Keep the current publication selected after manual save so the dialog can
+      // continue showing the persisted values instead of reopening in empty
+      // create mode. The dialog close handler clears editingPublication.
     } catch (error) {
       toast({
         title: 'error_saving_paper',
