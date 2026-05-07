@@ -16,6 +16,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Select,
   SelectContent,
@@ -54,6 +56,13 @@ interface AccessRequest {
   requester_profile: null;
 }
 
+interface UserSuggestion {
+  user_id: string;
+  display_name: string | null;
+  username: string | null;
+  email: string | null;
+}
+
 interface VaultDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -82,7 +91,11 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   const [requestPermissions, setRequestPermissions] = useState<Record<string, 'viewer' | 'editor'>>({});
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [email, setEmail] = useState('');
-const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('viewer');
+  const [userSuggestions, setUserSuggestions] = useState<UserSuggestion[]>([]);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [selectedProfile, setSelectedProfile] = useState<UserSuggestion | null>(null);
+  const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('viewer');
   const [publicSlug, setPublicSlug] = useState('');
   const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
   const [checkingSlug, setCheckingSlug] = useState(false);
@@ -247,6 +260,83 @@ const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('vie
       setShares(enrichedShares as VaultShare[]);
     }
   }, []);
+
+  const handleSelectUserSuggestion = useCallback((profile: UserSuggestion) => {
+    setSelectedProfile(profile);
+    setEmail(profile.email || '');
+    setSuggestionsOpen(false);
+  }, []);
+
+  const handleShareEmailChange = useCallback((value: string) => {
+    setEmail(value);
+    setSelectedProfile(null);
+  }, []);
+
+  useEffect(() => {
+    if (!open || visibility !== 'protected' || !vault || email.trim().length < 2) {
+      setUserSuggestions([]);
+      setLoadingSuggestions(false);
+      return;
+    }
+
+    let cancelled = false;
+    const search = email.trim().replace(/[%_]/g, '');
+
+    setLoadingSuggestions(true);
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        const existingUserIds = shares
+          .map((share) => share.shared_with_user_id)
+          .filter(Boolean);
+        const existingEmails = shares
+          .map((share) => share.shared_with_email?.toLowerCase())
+          .filter(Boolean);
+
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('user_id, display_name, username, email')
+          .or(`email.ilike.%${search}%,display_name.ilike.%${search}%,username.ilike.%${search}%`)
+          .limit(8);
+
+        if (error) throw error;
+        if (cancelled) return;
+
+        const filtered = (data || []).filter((profile) => {
+          const profileEmail = profile.email?.toLowerCase();
+          return profile.user_id !== user?.id &&
+            !existingUserIds.includes(profile.user_id) &&
+            (!profileEmail || !existingEmails.includes(profileEmail));
+        });
+
+        setUserSuggestions(filtered as UserSuggestion[]);
+        setSuggestionsOpen(filtered.length > 0);
+      } catch (error) {
+        logger.error('VaultDialog', 'Error fetching user suggestions:', error);
+        if (!cancelled) setUserSuggestions([]);
+      } finally {
+        if (!cancelled) setLoadingSuggestions(false);
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [email, open, shares, user?.id, vault, visibility]);
+
+  useEffect(() => {
+    if (!open) {
+      setUserSuggestions([]);
+      setSuggestionsOpen(false);
+      setSelectedProfile(null);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (selectedProfile && email !== (selectedProfile.email || '')) {
+      setSelectedProfile(null);
+    }
+  }, [email, selectedProfile]);
 
   useEffect(() => {
     isInitialLoadRef.current = true; // Reset on dialog open
@@ -488,12 +578,16 @@ const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('vie
 
     setSaving(true);
     try {
-      // Look up the user's profile by email to get their user_id and display name
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('user_id, display_name, username, email')
-        .eq('email', email.trim().toLowerCase())
-        .single();
+      // Use the selected autocomplete profile when available; otherwise fall back to email lookup.
+      let profile = selectedProfile;
+      if (!profile) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('user_id, display_name, username, email')
+          .eq('email', email.trim().toLowerCase())
+          .maybeSingle();
+        profile = profileData as UserSuggestion | null;
+      }
 
       const shareData: {
         vault_id: string;
@@ -521,6 +615,9 @@ const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('vie
 
       toast({ title: 'user_added ✨' });
       setEmail('');
+      setSelectedProfile(null);
+      setUserSuggestions([]);
+      setSuggestionsOpen(false);
       setSharePermission('viewer');
       if (vault) fetchShares(vault.id);
       onUpdate?.();
@@ -850,16 +947,56 @@ const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('vie
 
               <div className="space-y-3">
                 <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="user@example.com"
-                      className="pl-10 font-mono text-sm"
-                    />
-                  </div>
+                  <Popover open={suggestionsOpen} onOpenChange={setSuggestionsOpen}>
+                    <PopoverTrigger asChild>
+                      <div className="relative flex-1">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          type="email"
+                          value={email}
+                          onChange={(e) => handleShareEmailChange(e.target.value)}
+                          onFocus={() => {
+                            if (userSuggestions.length > 0) setSuggestionsOpen(true);
+                          }}
+                          placeholder="user@example.com"
+                          className="pl-10 font-mono text-sm"
+                        />
+                      </div>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                      <Command shouldFilter={false}>
+                        <CommandList>
+                          {loadingSuggestions ? (
+                            <CommandEmpty>loading_users…</CommandEmpty>
+                          ) : userSuggestions.length === 0 ? (
+                            <CommandEmpty>no_matching_users</CommandEmpty>
+                          ) : (
+                            <CommandGroup heading="matching_users">
+                              {userSuggestions.map((profile) => (
+                                <CommandItem
+                                  key={profile.user_id}
+                                  value={`${profile.email || ''} ${profile.display_name || ''} ${profile.username || ''}`}
+                                  onSelect={() => handleSelectUserSuggestion(profile)}
+                                  className="font-mono text-sm"
+                                >
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="truncate">
+                                      {profile.display_name || profile.username || profile.email}
+                                    </span>
+                                    {profile.email && (
+                                      <span className="text-xs text-muted-foreground truncate">
+                                        {profile.email}
+                                      </span>
+                                    )}
+                                  </div>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          )}
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                   <Select value={sharePermission} onValueChange={(value: 'viewer' | 'editor') => setSharePermission(value)}>
                     <SelectTrigger className="w-[130px] font-mono text-sm">
                       <SelectValue />
