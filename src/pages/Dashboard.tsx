@@ -1252,8 +1252,10 @@ export default function Dashboard() {
         setVaults(prev => prev.map(v => 
           v.id === editingVault.id ? { ...v, ...updatedVault } as Vault : v
         ));
+        setEditingVault(updatedVault as Vault);
         
         toast({ title: 'vault_updated ✨' });
+        return updatedVault as Vault;
       } else {
         // Create optimistic vault with temporary ID
         const tempId = `temp_${Date.now()}`;
@@ -1289,14 +1291,14 @@ export default function Dashboard() {
           }
           
           toast({ title: 'vault_created ✨' });
+          setEditingVault(null);
+          return newVault as Vault;
         } catch (error) {
           // Rollback optimistic update on error
           setVaults(prev => prev.filter(v => v.id !== tempId));
           throw error;
         }
       }
-
-      setEditingVault(null);
     } catch (error) {
       toast({
         title: 'error_adding_to_vaults',

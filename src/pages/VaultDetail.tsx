@@ -78,6 +78,7 @@ export default function VaultDetail() {
     setPublicationTags,
     setPublicationRelations,
     setVaultShares,
+    updateCurrentVault,
     refreshVaultContent,
     isRealtimeConnected,
     lastActivity,
@@ -1268,10 +1269,18 @@ export default function VaultDetail() {
 
         // Update the editingVault state with the fresh data from the database
         setEditingVault(updatedVault as Vault);
+        updateCurrentVault(updatedVault as Vault);
+        setVaults(prev => prev.map(v =>
+          v.id === editingVault.id ? updatedVault as Vault : v
+        ));
+        setSharedVaults(prev => prev.map(v =>
+          v.id === editingVault.id ? updatedVault as Vault : v
+        ));
         
         // Update the vault in the hook's state (silent - toast provides feedback)
         silentRefresh();
         toast({ title: 'vault_updated ✨' });
+        return updatedVault as Vault;
       } else {
         const { data: newVault, error } = await supabase
           .from('vaults')
@@ -1284,6 +1293,7 @@ export default function VaultDetail() {
         // Update the vault in the hook's state (silent - toast provides feedback)
         silentRefresh();
         toast({ title: 'vault_created ✨' });
+        return newVault as Vault;
       }
 
       // Note: Don't set editingVault to null here, let the dialog stay open with updated data

@@ -74,7 +74,7 @@ interface VaultDialogProps {
   onOpenChange: (open: boolean) => void;
   vault?: Vault | null;
   initialRequestId?: string;
-  onSave: (data: Partial<Vault>) => Promise<void>;
+  onSave: (data: Partial<Vault>) => Promise<Vault | void>;
   onUpdate?: () => void;
   onDelete?: (vault: Vault) => void;
 }
@@ -112,6 +112,19 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   const slugCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadRef = useRef(true);
   const initialValuesRef = useRef<{ name: string; description: string; color: string; category: string; abstract: string; visibility: VaultVisibility; publicSlug: string } | null>(null);
+
+  const syncSavedValues = useCallback(() => {
+    initialValuesRef.current = {
+      name,
+      description,
+      color,
+      category,
+      abstract,
+      visibility: isForkedVault ? 'public' : visibility,
+      publicSlug: (isForkedVault || visibility === 'public') ? (publicSlug || generateSlug(name)) : '',
+    };
+    setHasUnsavedChanges(false);
+  }, [name, description, color, category, abstract, visibility, publicSlug, isForkedVault]);
 
   // Fetch access requests for owners and enrich with display names when possible
   async function fetchAccessRequests() {
@@ -551,7 +564,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
         visibility: isForkedVault ? 'public' : visibility,
         public_slug: (isForkedVault || visibility === 'public') ? (publicSlug || generateSlug(name)) : null,
       });
-      setHasUnsavedChanges(false);
+      syncSavedValues();
       setShowUnsavedDialog(false);
       onOpenChange(false);
     } catch (error) {
@@ -559,7 +572,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     } finally {
       setSaving(false);
     }
-  }, [name, description, color, category, abstract, visibility, publicSlug, isForkedVault, onSave, onOpenChange]);
+  }, [name, description, color, category, abstract, visibility, publicSlug, isForkedVault, onSave, onOpenChange, syncSavedValues]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -574,8 +587,11 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
         visibility: isForkedVault ? 'public' : visibility,
         public_slug: (isForkedVault || visibility === 'public') ? (publicSlug || generateSlug(name)) : null,
       });
-      setHasUnsavedChanges(false);
-      onOpenChange(false);
+      syncSavedValues();
+
+      if (!vault) {
+        onOpenChange(false);
+      }
     } finally {
       setSaving(false);
     }
