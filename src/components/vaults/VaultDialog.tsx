@@ -18,6 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { KbdHint } from '@/components/ui/KbdHint';
 import {
   Select,
   SelectContent,
@@ -25,7 +26,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Lock, Users, Globe, Mail, Trash2, Copy, Check, Link2, X } from 'lucide-react';
+import { useKeyboardContext } from '@/contexts/KeyboardContext';
+import { useHotkeys } from '@/hooks/useKeyboardNavigation';
+import { Lock, Users, Globe, Mail, Trash2, Copy, Check, Link2, X, Save, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type VaultVisibility = 'private' | 'protected' | 'public';
@@ -82,6 +85,7 @@ interface VaultDialogProps {
 export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSave, onUpdate, onDelete }: VaultDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const kbCtx = useKeyboardContext();
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -125,6 +129,17 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     };
     setHasUnsavedChanges(false);
   }, [name, description, color, category, abstract, visibility, publicSlug, isForkedVault]);
+
+  useEffect(() => {
+    if (open) {
+      kbCtx.saveFocus();
+      kbCtx.pushContext('dialog');
+    } else {
+      kbCtx.popContext();
+      kbCtx.restoreFocus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   // Fetch access requests for owners and enrich with display names when possible
   async function fetchAccessRequests() {
@@ -574,8 +589,9 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     }
   }, [name, description, color, category, abstract, visibility, publicSlug, isForkedVault, onSave, onOpenChange, syncSavedValues]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = useCallback(async () => {
+    if (!open || saving || !name.trim()) return;
+
     setSaving(true);
     try {
       await onSave({
@@ -595,7 +611,30 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     } finally {
       setSaving(false);
     }
-  };
+  }, [open, saving, name, description, color, category, abstract, visibility, publicSlug, isForkedVault, onSave, syncSavedValues, vault, onOpenChange]);
+
+  useHotkeys(
+    'dialog',
+    [
+      {
+        combo: 'Ctrl+s',
+        description: 'Save changes',
+        handler: (e) => {
+          if (!open || !vault || saving || !name.trim()) return false;
+          e.preventDefault();
+          void handleSubmit();
+          return true;
+        },
+        allowInInput: true,
+      },
+    ],
+    [open, vault, saving, name, handleSubmit],
+  );
+
+  const handleFormSubmit = useCallback((e: React.FormEvent) => {
+    e.preventDefault();
+    void handleSubmit();
+  }, [handleSubmit]);
 
   const handleShareWithUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -805,7 +844,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto space-y-5 px-6 pb-6">
+        <form onSubmit={handleFormSubmit} className="flex-1 overflow-y-auto space-y-5 px-6 pb-6">
           <div className="space-y-2">
             <Label htmlFor="name" className="font-semibold font-mono">name</Label>
             <Input
@@ -1213,8 +1252,22 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
               <Button type="button" variant="outline" onClick={() => handleDialogClose(false)} className="w-full sm:w-auto font-mono">
                 cancel
               </Button>
-              <Button type="submit" variant="glow" disabled={saving || !name.trim()} className="w-full sm:w-auto font-mono">
-                {saving ? 'saving...' : vault ? 'save_changes' : 'create_vault'}
+              <Button
+                type="submit"
+                variant="glow"
+                disabled={saving || !name.trim()}
+                className="w-full sm:w-auto font-mono text-xs sm:text-sm h-9 sm:h-10"
+              >
+                {saving ? (
+                  'saving...'
+                ) : vault ? (
+                  <><Save className="w-3 h-3 mr-1.5" />save_changes</>
+                ) : (
+                  <><Plus className="w-3 h-3 mr-1.5" />create_vault</>
+                )}
+                {vault && (
+                  <KbdHint shortcut="Ctrl+S" className="ml-1.5 hidden sm:inline-flex [&_kbd]:bg-white/20 [&_kbd]:border-white/30 [&_kbd]:text-primary-foreground [&_kbd]:shadow-none" size="sm" />
+                )}
               </Button>
             </div>
           </div>
