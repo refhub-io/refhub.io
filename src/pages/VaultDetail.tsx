@@ -422,9 +422,11 @@ export default function VaultDetail() {
 
   useEffect(() => {
     if (user && vaultId) {
-      // Only run if the vault ID has changed to prevent unnecessary checks
-      if (lastCheckedVaultIdRef.current !== vaultId) {
-        lastCheckedVaultIdRef.current = vaultId;
+      const requestCheckKey = `${vaultId}:${vault?.id || 'loading'}`;
+
+      // Only run if the route vault ID or loaded vault object has changed.
+      if (lastCheckedVaultIdRef.current !== requestCheckKey) {
+        lastCheckedVaultIdRef.current = requestCheckKey;
 
         const checkPendingRequest = async () => {
           // Only check if we have the vault object
@@ -461,8 +463,7 @@ export default function VaultDetail() {
       processedApprovedRequestRef.current = null;
       lastCheckedVaultIdRef.current = null;
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, vaultId, refresh]); // Removed 'vault' from dependencies to prevent continuous re-runs
+  }, [user, vaultId, vault, refresh]);
 
   // Combine loading states
   const combinedLoading = authLoading || contentLoading;
@@ -1691,7 +1692,7 @@ export default function VaultDetail() {
                       <GitFork className="w-4 h-4" />
                       <span className="ml-2 hidden md:inline">fork</span>
                     </Button>
-                    {vault.visibility === 'public' && userRole === 'viewer' && (
+                    {vault.visibility === 'public' && user && userRole === 'viewer' && (
                       <Button
                         variant="outline"
                         size="sm"

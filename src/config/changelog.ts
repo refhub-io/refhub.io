@@ -21,6 +21,37 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    id: 8,
+    date: '2026-05-08',
+    title: 'collaborate on public vaults',
+    features: [
+      {
+        tag: 'feature',
+        title: 'request editor access on public vaults',
+        description:
+          'signed-in users browsing a public vault can now click "collaborate" to request editor access. the vault owner receives a notification, reviews the request in vault settings, and can approve or reject it — optionally adjusting the granted role before approving.',
+      },
+      {
+        tag: 'improvement',
+        title: 'access requests visible for public vaults in settings',
+        description:
+          'the access_requests panel in vault settings now appears for public vaults, not just protected ones. it has a distinct purple tint and a scroll-to hint badge in the dialog header so pending requests are never missed.',
+      },
+      {
+        tag: 'improvement',
+        title: 'share with users section for public vaults',
+        description:
+          'vault owners can now directly grant or revoke editor access on public vaults from the settings panel, without requiring the other party to go through the request flow first.',
+      },
+      {
+        tag: 'fix',
+        title: 'vault settings gear icon now consistent everywhere',
+        description:
+          'the gear icon on sidebar vault items was missing when navigating to the codex, researchers, and researcher profile pages. it now appears uniformly across all pages that render the sidebar.',
+      },
+    ],
+  },
+  {
     id: 7,
     date: '2026-05-08',
     title: 'smoother publication + vault saves',

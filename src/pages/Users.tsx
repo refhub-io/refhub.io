@@ -8,6 +8,7 @@ import { Vault } from '@/types/database';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
+import { VaultDialog } from '@/components/vaults/VaultDialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -59,6 +60,8 @@ export default function Users() {
   const [sortBy, setSortBy] = useState<'name' | 'publications' | 'vaults' | 'joined'>('joined');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
+  const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
+  const [editingVault, setEditingVault] = useState<Vault | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -229,6 +232,20 @@ export default function Users() {
     return '?';
   };
 
+  const handleSaveVault = async (data: Partial<Vault>) => {
+    if (!editingVault) return;
+    const { data: updated, error } = await supabase
+      .from('vaults')
+      .update(data)
+      .eq('id', editingVault.id)
+      .select()
+      .single();
+    if (error) throw error;
+    setVaults(prev => prev.map(v => v.id === editingVault.id ? { ...v, ...updated } as Vault : v));
+    setEditingVault(updated as Vault);
+    return updated as Vault;
+  };
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -244,16 +261,16 @@ export default function Users() {
           vaults={vaults}
           sharedVaults={sharedVaults}
           selectedVaultId={null}
-          onSelectVault={(vaultId) => {
-            if (vaultId) {
-              navigate('/dashboard');
-            }
-          }}
+          onSelectVault={(vaultId) => { if (vaultId) navigate(`/vault/${vaultId}`); else navigate('/dashboard'); }}
           onCreateVault={() => navigate('/dashboard')}
           isMobileOpen={isMobileSidebarOpen}
           onMobileClose={() => setIsMobileSidebarOpen(false)}
           profile={profile}
           onEditProfile={() => setIsProfileDialogOpen(true)}
+          onEditVault={(vault) => {
+            setEditingVault(vault);
+            setIsVaultDialogOpen(true);
+          }}
         />
       )}
 
@@ -465,6 +482,14 @@ export default function Users() {
           onOpenChange={setIsProfileDialogOpen}
         />
       )}
+
+      <VaultDialog
+        open={isVaultDialogOpen}
+        onOpenChange={setIsVaultDialogOpen}
+        vault={editingVault}
+        onSave={handleSaveVault}
+        onUpdate={() => {}}
+      />
     </div>
   );
 }
