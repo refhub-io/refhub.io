@@ -42,6 +42,7 @@ interface VaultContentContextType {
   setPublicationTags: React.Dispatch<React.SetStateAction<PublicationTag[]>>;
   setPublicationRelations: React.Dispatch<React.SetStateAction<PublicationRelation[]>>;
   setVaultShares: React.Dispatch<React.SetStateAction<VaultShare[]>>;
+  updateCurrentVault: (vault: Vault) => void;
   // New methods for optimistic updates
   refreshVaultContent: () => Promise<void>;
   isRealtimeConnected: boolean;
@@ -96,6 +97,23 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
   const hasCachedContentRef = useRef(false);
 
   const { canView, refresh } = useVaultAccess(currentVaultId || '', { enableRealtime: false });
+
+  const updateCurrentVault = useCallback((vault: Vault) => {
+    setCurrentVault(vault);
+
+    if (!currentVaultId) return;
+
+    const cacheKey = `vault-content-${currentVaultId}` as const;
+    const cached = getPageCache<VaultContentCache>(cacheKey);
+    setPageCache<VaultContentCache>(cacheKey, {
+      currentVault: vault,
+      publications: cached?.publications || publications,
+      tags: cached?.tags || tags,
+      publicationTags: cached?.publicationTags || publicationTags,
+      publicationRelations: cached?.publicationRelations || publicationRelations,
+      vaultShares: cached?.vaultShares || vaultShares,
+    });
+  }, [currentVaultId, publications, tags, publicationTags, publicationRelations, vaultShares]);
   
   // Helper to get user display name (with caching)
   const getUserDisplayName = useCallback(async (userId: string): Promise<string | null> => {
@@ -799,6 +817,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         setPublicationTags,
         setPublicationRelations,
         setVaultShares,
+        updateCurrentVault,
         refreshVaultContent,
         isRealtimeConnected,
         lastActivity,

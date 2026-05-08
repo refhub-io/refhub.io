@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Download, Puzzle, ExternalLink } from 'lucide-react';
 
 const EXTENSION_LINKS = {
-  chrome: 'https://chromewebstore.google.com/detail/refhub-ext/ggoophlbadcgkmcpnbnfjacknccpkmgc',
+  chrome: 'https://chromewebstore.google.com/detail/refhub/ggoophlbadcgkmcpnbnfjacknccpkmgc?authuser=0&hl=en',
   firefox: 'https://addons.mozilla.org/en-US/firefox/addon/refhub/',
   repo: 'https://github.com/refhub-io/refhub-extensions',
 } as const;

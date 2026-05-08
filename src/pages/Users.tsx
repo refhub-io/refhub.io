@@ -142,10 +142,11 @@ export default function Users() {
   const fetchUsers = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      // Fetch all profiles — requires the "Authenticated users can view all profiles" RLS policy
+      // Only show researchers with completed profiles in the directory.
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
+        .eq('is_setup', true)
         .order('created_at', { ascending: false });
 
       if (profilesError) throw profilesError;

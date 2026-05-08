@@ -1,11 +1,23 @@
 import { Bug } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { version } from '../../../package.json';
 
 export function BugReportButton() {
   const handleBugReport = () => {
-    window.open('https://github.com/velitchko/refhub.io/issues/new?template=bug_report.md', '_blank', 'noopener,noreferrer');
+    const issueUrl = new URL('https://github.com/velitchko/refhub.io/issues/new');
+    issueUrl.searchParams.set('template', 'bug_report.md');
+    issueUrl.searchParams.set(
+      'body',
+      [
+        '**App version**',
+        `v${__APP_VERSION__}`,
+        '',
+        '**Describe the bug**',
+        'A clear and concise description of what the bug is.',
+      ].join('\n'),
+    );
+
+    window.open(issueUrl.toString(), '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -15,7 +27,7 @@ export function BugReportButton() {
           variant="outline"
           className="gap-1 border-primary/30 bg-background/95 font-mono text-xs text-primary backdrop-blur-sm animate-pulse"
         >
-          <span className="text-[10px]">v{version}</span>
+          <span className="text-[10px]">v{__APP_VERSION__}</span>
         </Badge>
         <Button
           onClick={handleBugReport}

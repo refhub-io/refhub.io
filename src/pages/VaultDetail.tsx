@@ -78,6 +78,7 @@ export default function VaultDetail() {
     setPublicationTags,
     setPublicationRelations,
     setVaultShares,
+    updateCurrentVault,
     refreshVaultContent,
     isRealtimeConnected,
     lastActivity,
@@ -603,10 +604,12 @@ export default function VaultDetail() {
           }
         }
 
-        // Update editingPublication with new data so dialog stays in sync
-        if (isAutoSave) {
-          setEditingPublication({ ...editingPublication, ...data } as Publication);
-        } else {
+        // Update editingPublication with new data so dialog stays in sync after
+        // manual saves as well as auto-saves. Otherwise the still-open dialog can
+        // fall back to empty create state when editingPublication is cleared.
+        setEditingPublication({ ...editingPublication, ...data } as Publication);
+
+        if (!isAutoSave) {
           // Update last activity for the updated publication
           updateLastActivity('publication_updated', user.id);
         }
@@ -667,10 +670,9 @@ export default function VaultDetail() {
         updateLastActivity('publication_added', user.id);
       }
 
-      // Only clear editing publication on manual save, not auto-save
-      if (!isAutoSave) {
-        setEditingPublication(null);
-      }
+      // Keep the current publication selected after manual save so the dialog can
+      // continue showing the persisted values instead of reopening in empty
+      // create mode. The dialog close handler clears editingPublication.
     } catch (error) {
       toast({
         title: 'error_saving_paper',
@@ -1267,10 +1269,18 @@ export default function VaultDetail() {
 
         // Update the editingVault state with the fresh data from the database
         setEditingVault(updatedVault as Vault);
+        updateCurrentVault(updatedVault as Vault);
+        setVaults(prev => prev.map(v =>
+          v.id === editingVault.id ? updatedVault as Vault : v
+        ));
+        setSharedVaults(prev => prev.map(v =>
+          v.id === editingVault.id ? updatedVault as Vault : v
+        ));
         
         // Update the vault in the hook's state (silent - toast provides feedback)
         silentRefresh();
         toast({ title: 'vault_updated ✨' });
+        return updatedVault as Vault;
       } else {
         const { data: newVault, error } = await supabase
           .from('vaults')
@@ -1283,6 +1293,7 @@ export default function VaultDetail() {
         // Update the vault in the hook's state (silent - toast provides feedback)
         silentRefresh();
         toast({ title: 'vault_created ✨' });
+        return newVault as Vault;
       }
 
       // Note: Don't set editingVault to null here, let the dialog stay open with updated data
