@@ -1692,7 +1692,7 @@ export default function VaultDetail() {
                       <GitFork className="w-4 h-4" />
                       <span className="ml-2 hidden md:inline">fork</span>
                     </Button>
-                    {vault.visibility === 'public' && (!user || userRole === 'viewer') && (
+                    {vault.visibility === 'public' && user && userRole === 'viewer' && (
                       <Button
                         variant="outline"
                         size="sm"
