@@ -232,6 +232,7 @@ export interface VaultAccessRequest {
   requester_id: string | null;
   requester_email: string | null;
   requester_name: string | null;
+  requested_role: 'viewer' | 'editor';
   note: string | null;
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;

@@ -59,10 +59,12 @@ export const vaultHelpers = {
   createAccessRequest: (
     vaultId: string,
     requesterId: string,
-    note?: string
+    note?: string,
+    requestedRole: 'viewer' | 'editor' = 'viewer'
   ) => ({
     vault_id: vaultId,
     requester_id: requesterId,
+    requested_role: requestedRole,
     note: note || null,
     status: 'pending' as const,
   } as const),

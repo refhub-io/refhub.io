@@ -52,6 +52,7 @@ interface AccessRequest {
   requester_id: string | null;
   requester_email: string | null;
   requester_name: string | null;
+  requested_role?: 'viewer' | 'editor' | null;
   status: 'pending' | 'approved' | 'rejected';
   note: string | null;
   created_at: string;
@@ -176,9 +177,9 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
 
       setAccessRequests(processed);
 
-      // Initialize per-request permission selections (default viewer)
+      // Initialize per-request permission selections from the requested role when present.
       const perms: Record<string, 'viewer' | 'editor'> = {};
-      processed.forEach((r) => { perms[r.id] = 'viewer'; });
+      processed.forEach((r) => { perms[r.id] = r.requested_role === 'editor' ? 'editor' : 'viewer'; });
       setRequestPermissions(perms);
 
       if (initialRequestId) {
@@ -1192,6 +1193,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                           <div className="text-sm">
                             <div className="font-semibold">{r.display_name}</div>
                             <div className="text-xs text-muted-foreground">{r.requester_email || r.requester_profile?.email || r.requester_profile?.username || ''}</div>
+                            <div className="text-xs text-muted-foreground font-mono">requested: {r.requested_role === 'editor' ? 'write (editor)' : 'read (viewer)'}</div>
                             <div className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString()}</div>
                             {r.note && <div className="text-xs mt-1">{r.note}</div>}
                           </div>
