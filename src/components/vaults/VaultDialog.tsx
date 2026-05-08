@@ -1234,42 +1234,39 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
             </p>
           )}
 
-          <div className="flex flex-col sm:flex-row justify-between gap-3 pt-6 mt-6 border-t-2 border-border">
-            {vault && onDelete ? (
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-3 sm:pt-4 border-t border-border w-full box-border">
+            {vault && onDelete && (
               <Button
                 type="button"
                 variant="ghost"
                 onClick={() => onDelete(vault)}
-                className="text-destructive hover:text-destructive hover:bg-destructive/10 w-full sm:w-auto font-mono"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10 font-mono w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10"
               >
-                <Trash2 className="w-4 h-4 mr-2" />
+                <Trash2 className="w-3 h-3 mr-1.5" />
                 delete_vault
               </Button>
-            ) : (
-              <div className="hidden sm:block" />
             )}
-            <div className="flex flex-col-reverse sm:flex-row gap-3 w-full sm:w-auto">
-              <Button type="button" variant="outline" onClick={() => handleDialogClose(false)} className="w-full sm:w-auto font-mono">
-                cancel
-              </Button>
-              <Button
-                type="submit"
-                variant="glow"
-                disabled={saving || !name.trim()}
-                className="w-full sm:w-auto font-mono text-xs sm:text-sm h-9 sm:h-10"
-              >
-                {saving ? (
-                  'saving...'
-                ) : vault ? (
-                  <><Save className="w-3 h-3 mr-1.5" />save_changes</>
-                ) : (
-                  <><Plus className="w-3 h-3 mr-1.5" />create_vault</>
-                )}
-                {vault && (
-                  <KbdHint shortcut="Ctrl+S" className="ml-1.5 hidden sm:inline-flex [&_kbd]:bg-white/20 [&_kbd]:border-white/30 [&_kbd]:text-primary-foreground [&_kbd]:shadow-none" size="sm" />
-                )}
-              </Button>
-            </div>
+            <Button type="button" variant="outline" onClick={() => handleDialogClose(false)} className="font-mono w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10">
+              <X className="w-3 h-3 mr-1.5" />
+              cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="glow"
+              disabled={saving || !name.trim()}
+              className="font-mono w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10"
+            >
+              {saving ? (
+                'saving...'
+              ) : vault ? (
+                <><Save className="w-3 h-3 mr-1.5" />save_changes</>
+              ) : (
+                <><Plus className="w-3 h-3 mr-1.5" />create_vault</>
+              )}
+              {vault && (
+                <KbdHint shortcut="Ctrl+S" className="ml-1.5 hidden sm:inline-flex [&_kbd]:bg-white/20 [&_kbd]:border-white/30 [&_kbd]:text-primary-foreground [&_kbd]:shadow-none" size="sm" />
+              )}
+            </Button>
           </div>
         </form>
       </DialogContent>
