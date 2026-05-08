@@ -63,6 +63,12 @@ interface UserSuggestion {
   email: string | null;
 }
 
+const sanitizeProfileSearch = (value: string) =>
+  value
+    .trim()
+    .replace(/[%_,()]/g, '')
+    .replace(/\s+/g, ' ');
+
 interface VaultDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -276,13 +282,22 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     if (!open || visibility !== 'protected' || !vault || email.trim().length < 2) {
       setUserSuggestions([]);
       setLoadingSuggestions(false);
+      setSuggestionsOpen(false);
       return;
     }
 
     let cancelled = false;
-    const search = email.trim().replace(/[%_]/g, '');
+    const search = sanitizeProfileSearch(email);
+
+    if (search.length < 2) {
+      setUserSuggestions([]);
+      setLoadingSuggestions(false);
+      setSuggestionsOpen(false);
+      return;
+    }
 
     setLoadingSuggestions(true);
+    setSuggestionsOpen(true);
     const timeoutId = window.setTimeout(async () => {
       try {
         const existingUserIds = shares
@@ -296,6 +311,9 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
           .from('profiles')
           .select('user_id, display_name, username, email')
           .or(`email.ilike.%${search}%,display_name.ilike.%${search}%,username.ilike.%${search}%`)
+          .order('display_name', { ascending: true })
+          .order('username', { ascending: true })
+          .order('email', { ascending: true })
           .limit(8);
 
         if (error) throw error;
@@ -309,10 +327,11 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
         });
 
         setUserSuggestions(filtered as UserSuggestion[]);
-        setSuggestionsOpen(filtered.length > 0);
       } catch (error) {
         logger.error('VaultDialog', 'Error fetching user suggestions:', error);
-        if (!cancelled) setUserSuggestions([]);
+        if (!cancelled) {
+          setUserSuggestions([]);
+        }
       } finally {
         if (!cancelled) setLoadingSuggestions(false);
       }
@@ -952,14 +971,17 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                       <div className="relative flex-1">
                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                         <Input
-                          type="email"
+                          type="text"
                           value={email}
                           onChange={(e) => handleShareEmailChange(e.target.value)}
                           onFocus={() => {
-                            if (userSuggestions.length > 0) setSuggestionsOpen(true);
+                            if (email.trim().length >= 2) setSuggestionsOpen(true);
                           }}
-                          placeholder="user@example.com"
+                          placeholder="name, username, or email"
                           className="pl-10 font-mono text-sm"
+                          autoComplete="off"
+                          autoCapitalize="none"
+                          spellCheck={false}
                         />
                       </div>
                     </PopoverTrigger>
