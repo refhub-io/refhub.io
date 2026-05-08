@@ -17,6 +17,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { NotificationDropdown } from '@/components/notifications/NotificationDropdown';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
+import { VaultDialog } from '@/components/vaults/VaultDialog';
 import { getPageCache, setPageCache, hasPageCache } from '@/lib/pageCache';
 import { 
   BookOpen,
@@ -82,6 +83,8 @@ export default function TheCodex() {
   const [forkingId, setForkingId] = useState<string | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
+  const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
+  const [editingVault, setEditingVault] = useState<Vault | null>(null);
 
   const fetchPublicVaults = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -339,6 +342,20 @@ export default function TheCodex() {
     }
   };
 
+  const handleSaveVault = async (data: Partial<Vault>) => {
+    if (!editingVault) return;
+    const { data: updated, error } = await supabase
+      .from('vaults')
+      .update(data)
+      .eq('id', editingVault.id)
+      .select()
+      .single();
+    if (error) throw error;
+    setUserVaults(prev => prev.map(v => v.id === editingVault.id ? { ...v, ...updated } as Vault : v));
+    setEditingVault(updated as Vault);
+    return updated as Vault;
+  };
+
   return (
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
@@ -348,17 +365,18 @@ export default function TheCodex() {
           sharedVaults={sharedVaults}
           selectedVaultId={null}
           onSelectVault={(vaultId) => {
-            if (vaultId) {
-              navigate('/');
-            } else {
-              navigate('/');
-            }
+            if (vaultId) navigate(`/vault/${vaultId}`);
+            else navigate('/dashboard');
           }}
-          onCreateVault={() => navigate('/')}
+          onCreateVault={() => navigate('/dashboard')}
           isMobileOpen={isMobileSidebarOpen}
           onMobileClose={() => setIsMobileSidebarOpen(false)}
           profile={profile}
           onEditProfile={() => setIsProfileDialogOpen(true)}
+          onEditVault={(vault) => {
+            setEditingVault(vault);
+            setIsVaultDialogOpen(true);
+          }}
         />
       )}
 
@@ -586,6 +604,14 @@ export default function TheCodex() {
             void refetchProfile();
           }
         }}
+      />
+
+      <VaultDialog
+        open={isVaultDialogOpen}
+        onOpenChange={setIsVaultDialogOpen}
+        vault={editingVault}
+        onSave={handleSaveVault}
+        onUpdate={() => {}}
       />
     </div>
   );

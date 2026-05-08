@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/select';
 import { useKeyboardContext } from '@/contexts/KeyboardContext';
 import { useHotkeys } from '@/hooks/useKeyboardNavigation';
-import { Lock, Users, Globe, Mail, Trash2, Copy, Check, Link2, X, Save, Plus } from 'lucide-react';
+import { Lock, Users, Globe, Mail, Trash2, Copy, Check, Link2, X, Save, Plus, Bell, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type VaultVisibility = 'private' | 'protected' | 'public';
@@ -116,6 +116,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   const [isForkedVault, setIsForkedVault] = useState(false);
   const slugCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadRef = useRef(true);
+  const accessRequestsSectionRef = useRef<HTMLDivElement | null>(null);
   const initialValuesRef = useRef<{ name: string; description: string; color: string; category: string; abstract: string; visibility: VaultVisibility; publicSlug: string } | null>(null);
 
   const syncSavedValues = useCallback(() => {
@@ -308,7 +309,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   }, []);
 
   useEffect(() => {
-    if (!open || visibility !== 'protected' || !vault || email.trim().length < 2) {
+    if (!open || (visibility !== 'protected' && visibility !== 'public') || !vault || email.trim().length < 2) {
       setUserSuggestions([]);
       setLoadingSuggestions(false);
       setSuggestionsOpen(false);
@@ -836,13 +837,26 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       <Dialog open={open} onOpenChange={handleDialogClose}>
         <DialogContent className="dialog-mobile rounded-2xl sm:h-auto sm:w-[95vw] sm:max-w-2xl border-2 bg-card/95 backdrop-blur-xl sm:max-h-[90vh] overflow-hidden flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4">
-          <DialogTitle className="text-2xl font-bold font-mono">
-            {vault ? (
-              <span>vault_<span className="text-gradient">settings</span></span>
-            ) : (
-              <span>create_<span className="text-gradient">vault</span></span>
+          <div className="flex items-center justify-between gap-3">
+            <DialogTitle className="text-2xl font-bold font-mono">
+              {vault ? (
+                <span>vault_<span className="text-gradient">settings</span></span>
+              ) : (
+                <span>create_<span className="text-gradient">vault</span></span>
+              )}
+            </DialogTitle>
+            {accessRequests.length > 0 && (
+              <button
+                type="button"
+                onClick={() => accessRequestsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/15 border border-purple-400/30 text-purple-400 text-xs font-mono hover:bg-purple-500/25 transition-colors shrink-0"
+              >
+                <Bell className="w-3 h-3" />
+                {accessRequests.length} pending
+                <ChevronDown className="w-3 h-3" />
+              </button>
             )}
-          </DialogTitle>
+          </div>
         </DialogHeader>
 
         <form onSubmit={handleFormSubmit} className="flex-1 overflow-y-auto space-y-5 px-6 pb-6">
@@ -1012,8 +1026,8 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
             </div>
           )}
 
-          {/* Protected Sharing Section */}
-          {visibility === 'protected' && vault && (
+          {/* Sharing Section — protected and public vaults */}
+          {(visibility === 'protected' || visibility === 'public') && vault && (
             <div className="space-y-4 p-4 rounded-xl border-2 border-blue-400/30 bg-blue-400/5">
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-blue-400" />
@@ -1167,70 +1181,74 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                 </div>
               )}
 
-              {/* Access requests block for owners (moved inside protected sharing section) */}
-              <div className="space-y-2 mt-4">
-                <div className="flex items-center justify-between">
-                  <Label className="font-semibold font-mono">access_requests</Label>
-                  <div>
-                    <Button size="sm" variant="ghost" onClick={() => fetchAccessRequests()} className="font-mono mr-2">refresh</Button>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  {accessRequests.length === 0 ? (
-                    <div className="text-sm text-muted-foreground">no_requests</div>
-                  ) : (
-                    accessRequests.map((r) => (
-                      <div
-                        id={`access_req_${r.id}`}
-                        key={r.id}
-                        className={`flex items-center justify-between gap-4 p-2 rounded-lg border ${selectedRequestId === r.id ? 'ring-2 ring-primary ring-offset-2' : 'bg-background/50'}`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center">
-                            <Mail className="w-4 h-4" />
-                          </div>
-                          <div className="text-sm">
-                            <div className="font-semibold">{r.display_name}</div>
-                            <div className="text-xs text-muted-foreground">{r.requester_email || r.requester_profile?.email || r.requester_profile?.username || ''}</div>
-                            <div className="text-xs text-muted-foreground font-mono">requested: {r.requested_role === 'editor' ? 'write (editor)' : 'read (viewer)'}</div>
-                            <div className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString()}</div>
-                            {r.note && <div className="text-xs mt-1">{r.note}</div>}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Select
-                            value={requestPermissions[r.id] || 'viewer'}
-                            onValueChange={(val) => setRequestPermissions((prev) => ({ ...prev, [r.id]: val as 'viewer' | 'editor' }))}
-                          >
-                            <SelectTrigger className="w-[110px] h-7 font-mono text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="viewer" className="font-mono text-xs">👁️ read (viewer)</SelectItem>
-                              <SelectItem value="editor" className="font-mono text-xs">✏️ write (editor)</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <Button size="sm" onClick={() => handleApproveRequest(r, requestPermissions[r.id] || 'viewer')}><Check /></Button>
-                          <Button size="sm" variant="destructive" onClick={() => handleRejectRequest(r)}><Trash2 /></Button>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
               {shares.length === 0 && (
                 <p className="text-center text-xs text-muted-foreground py-2 font-mono">
                   // no users have access yet
                 </p>
               )}
             </div>
-
-
           )}
 
-          {visibility === 'protected' && !vault && (
+          {/* Access requests — visible for both protected and public vaults */}
+          {(visibility === 'protected' || visibility === 'public') && vault && (
+            <div ref={accessRequestsSectionRef} className="space-y-2 p-4 rounded-xl border-2 border-purple-400/30 bg-purple-400/5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Bell className="w-4 h-4 text-purple-400" />
+                  <Label className="font-semibold font-mono text-purple-300">access_requests</Label>
+                  {accessRequests.length > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-xs font-mono">{accessRequests.length}</span>
+                  )}
+                </div>
+                <Button size="sm" variant="ghost" onClick={() => fetchAccessRequests()} className="font-mono text-purple-400 hover:text-purple-300">refresh</Button>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                {accessRequests.length === 0 ? (
+                  <div className="text-sm text-muted-foreground font-mono">no_requests</div>
+                ) : (
+                  accessRequests.map((r) => (
+                    <div
+                      id={`access_req_${r.id}`}
+                      key={r.id}
+                      className={`flex items-center justify-between gap-4 p-2 rounded-lg border ${selectedRequestId === r.id ? 'border-purple-400/50 bg-purple-500/10' : 'bg-background/50 border-border'}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center">
+                          <Mail className="w-4 h-4" />
+                        </div>
+                        <div className="text-sm">
+                          <div className="font-semibold">{r.display_name}</div>
+                          <div className="text-xs text-muted-foreground">{r.requester_email || r.requester_profile?.email || r.requester_profile?.username || ''}</div>
+                          <div className="text-xs text-muted-foreground font-mono">requested: {r.requested_role === 'editor' ? 'write (editor)' : 'read (viewer)'}</div>
+                          <div className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString()}</div>
+                          {r.note && <div className="text-xs mt-1">{r.note}</div>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Select
+                          value={requestPermissions[r.id] || 'viewer'}
+                          onValueChange={(val) => setRequestPermissions((prev) => ({ ...prev, [r.id]: val as 'viewer' | 'editor' }))}
+                        >
+                          <SelectTrigger className="w-[110px] h-7 font-mono text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="viewer" className="font-mono text-xs">👁️ read (viewer)</SelectItem>
+                            <SelectItem value="editor" className="font-mono text-xs">✏️ write (editor)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button size="sm" onClick={() => handleApproveRequest(r, requestPermissions[r.id] || 'viewer')}><Check /></Button>
+                        <Button size="sm" variant="destructive" onClick={() => handleRejectRequest(r)}><Trash2 /></Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {(visibility === 'protected' || visibility === 'public') && !vault && (
             <p className="text-xs text-muted-foreground text-center p-3 rounded-lg bg-muted/30">
               Save the vault first, then add users to share with.
             </p>

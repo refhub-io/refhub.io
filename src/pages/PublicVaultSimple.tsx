@@ -10,7 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
 import { useVaultFavorites } from '@/hooks/useVaultFavorites';
 import { useVaultFork } from '@/hooks/useVaultFork';
-import { useVaultAccess } from '@/hooks/useVaultAccess';
+import { useVaultAccess, requestVaultAccess } from '@/hooks/useVaultAccess';
 import { getForkSourceHref, getForkSourceLabel, getVaultForkInfo, VaultForkInfo } from '@/lib/vaultFork';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { PublicationList } from '@/components/publications/PublicationList';
@@ -18,12 +18,13 @@ import { PublicationViewDialog } from '@/components/publications/PublicationView
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { BrandMark } from '@/components/branding/BrandMark';
-import { 
+import {
   ArrowLeft,
   Globe,
   Heart,
   GitFork,
-  Clock
+  Clock,
+  PencilLine,
 } from 'lucide-react';
 import VaultAccessBadge from '../components/vaults/VaultAccessBadge';
 
@@ -55,7 +56,9 @@ export default function PublicVault() {
   const [userVaults, setUserVaults] = useState<Vault[]>([]);
   const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
   const [viewingPublication, setViewingPublication] = useState<Publication | null>(null);
-  const { canEdit } = useVaultAccess(vault?.id || '');
+  const { canEdit, isOwner, userRole } = useVaultAccess(vault?.id || '');
+  const [hasPendingRequest, setHasPendingRequest] = useState(false);
+  const [pendingRequestRole, setPendingRequestRole] = useState<'viewer' | 'editor' | null>(null);
 
   // Fetch user's own vaults and shared vaults
   const fetchUserVaults = useCallback(async () => {
@@ -291,6 +294,28 @@ export default function PublicVault() {
     fetchUserVaults();
   }, [fetchUserVaults]);
 
+  useEffect(() => {
+    if (!user || !vault) return;
+    const checkPendingRequest = async () => {
+      const { data: existingRequest } = await supabase
+        .from('vault_access_requests')
+        .select('id, status, requested_role')
+        .eq('vault_id', vault.id)
+        .eq('requester_id', user.id)
+        .in('status', ['pending', 'approved'])
+        .maybeSingle();
+
+      if (existingRequest?.status === 'pending') {
+        setHasPendingRequest(true);
+        setPendingRequestRole(existingRequest.requested_role === 'editor' ? 'editor' : 'viewer');
+      } else {
+        setHasPendingRequest(false);
+        setPendingRequestRole(null);
+      }
+    };
+    checkPendingRequest();
+  }, [user, vault]);
+
   const handleFavorite = async () => {
     if (!user) {
       toast({
@@ -512,6 +537,64 @@ export default function PublicVault() {
                           {forking ? 'forking...' : 'fork'}
                         </span>
                       </Button>
+                      {user && !isOwner && !canEdit && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={hasPendingRequest && pendingRequestRole === 'editor'}
+                          className="font-mono h-8"
+                          title="Collaborate on this vault"
+                          onClick={async () => {
+                            try {
+                              const { data: existingRequest } = await supabase
+                                .from('vault_access_requests')
+                                .select('id, status, requested_role')
+                                .eq('vault_id', vault.id)
+                                .eq('requester_id', user.id)
+                                .in('status', ['pending', 'approved'])
+                                .maybeSingle();
+
+                              if (existingRequest?.status === 'pending') {
+                                setHasPendingRequest(true);
+                                setPendingRequestRole(existingRequest.requested_role === 'editor' ? 'editor' : 'viewer');
+                                toast({
+                                  title: 'Request Already Pending',
+                                  description: existingRequest.requested_role === 'editor'
+                                    ? 'Your edit access request is pending approval.'
+                                    : 'You already have an access request pending approval.',
+                                });
+                                return;
+                              }
+
+                              if (existingRequest?.status === 'approved') {
+                                toast({ title: 'Access Approved', description: 'You already have approved access.' });
+                                return;
+                              }
+
+                              const result = await requestVaultAccess(vault.id, user.id, 'Requesting edit access to this public vault.', 'editor');
+                              if (result.error) throw result.error;
+
+                              setHasPendingRequest(true);
+                              setPendingRequestRole('editor');
+                              toast({
+                                title: 'Edit Access Requested',
+                                description: 'The vault owner has been notified.',
+                              });
+                            } catch (error) {
+                              toast({
+                                title: 'Error',
+                                description: (error as Error).message,
+                                variant: 'destructive',
+                              });
+                            }
+                          }}
+                        >
+                          <PencilLine className="w-4 h-4" />
+                          <span className="ml-2 hidden md:inline">
+                            {hasPendingRequest && pendingRequestRole === 'editor' ? 'collab requested' : 'collaborate'}
+                          </span>
+                        </Button>
+                      )}
                     </>
                   )}
                 </div>
