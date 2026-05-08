@@ -417,7 +417,8 @@ export const useVaultAccess = (
 export const requestVaultAccess = async (
   vaultId: string,
   requesterId: string,
-  note?: string
+  note?: string,
+  requestedRole: 'viewer' | 'editor' = 'viewer'
 ) => {
   // First, get the user's profile information to include in the request
   const { data: profile } = await supabase
@@ -434,6 +435,7 @@ export const requestVaultAccess = async (
       requester_name: profile?.display_name || profile?.username,
       requester_email: profile?.email,
       note,
+      requested_role: requestedRole,
       status: 'pending',
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any)

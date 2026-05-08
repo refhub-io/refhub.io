@@ -979,6 +979,7 @@ CREATE TABLE IF NOT EXISTS "public"."vault_access_requests" (
     "updated_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()),
     "requester_email" "text",
     "requester_name" "text",
+    "requested_role" "public"."vault_permission" DEFAULT 'viewer'::"public"."vault_permission" NOT NULL,
     "note" "text",
     "requester_id" "uuid" NOT NULL
 );

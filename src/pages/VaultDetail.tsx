@@ -29,7 +29,7 @@ import { useVaultContent } from '@/contexts/VaultContentContext';
 import { useSharedVaultOperations } from '@/hooks/useSharedVaultOperations';
 import { getForkSourceHref, getForkSourceLabel, getVaultForkInfo, VaultForkInfo } from '@/lib/vaultFork';
 import { buildVaultPublicationCopyPayload } from '@/lib/vaultPublicationAttribution';
-import { Lock, Globe, Shield, Users, Clock, User, ExternalLink, Sparkles, Crown, Edit, Eye, Heart, GitFork } from 'lucide-react';
+import { Lock, Globe, Shield, Users, Clock, User, ExternalLink, Sparkles, Crown, Edit, Eye, Heart, GitFork, PencilLine } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -416,6 +416,7 @@ export default function VaultDetail() {
 
   // Check for pending access requests
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
+  const [pendingRequestRole, setPendingRequestRole] = useState<'viewer' | 'editor' | null>(null);
   const processedApprovedRequestRef = useRef<string | null>(null);
   const lastCheckedVaultIdRef = useRef<string | null>(null);
 
@@ -430,7 +431,7 @@ export default function VaultDetail() {
           if (vault) {
             const { data: existingRequest } = await supabase
               .from('vault_access_requests')
-              .select('id, status')
+              .select('id, status, requested_role')
               .eq('vault_id', vault.id)
               .eq('requester_id', user.id)
               .in('status', ['pending', 'approved'])
@@ -445,8 +446,10 @@ export default function VaultDetail() {
               refresh();
             } else if (existingRequest && existingRequest.status === 'pending') {
               setHasPendingRequest(true);
+              setPendingRequestRole(existingRequest.requested_role === 'editor' ? 'editor' : 'viewer');
             } else {
               setHasPendingRequest(false);
+              setPendingRequestRole(null);
             }
           }
         };
@@ -1510,7 +1513,7 @@ export default function VaultDetail() {
                     }
 
                     // Submit new request
-                    const result = await requestVaultAccess(vault.id, user.id, '');
+                    const result = await requestVaultAccess(vault.id, user.id, '', 'viewer');
                     if (result.error) throw result.error;
 
                     toast({
@@ -1630,6 +1633,12 @@ export default function VaultDetail() {
                     viewer
                   </Badge>
                 )}
+                {!isOwner && vault.visibility === 'public' && userRole === 'viewer' && hasPendingRequest && pendingRequestRole === 'editor' && (
+                  <Badge variant="outline" className="font-mono text-xs gap-1 shrink-0 text-yellow-600 border-yellow-500/30">
+                    <Clock className="w-3 h-3" />
+                    edit_request_pending
+                  </Badge>
+                )}
                 <span className="flex items-center gap-1 text-xs text-muted-foreground font-mono">
                   <Clock className="w-3.5 h-3.5 shrink-0" />
                   <span className="truncate">
@@ -1682,6 +1691,71 @@ export default function VaultDetail() {
                       <GitFork className="w-4 h-4" />
                       <span className="ml-2 hidden md:inline">fork</span>
                     </Button>
+                    {vault.visibility === 'public' && userRole === 'viewer' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          if (!user) {
+                            localStorage.setItem('redirectAfterLogin', `/vault/${vaultId}`);
+                            navigate('/auth');
+                            return;
+                          }
+
+                          try {
+                            const { data: existingRequest } = await supabase
+                              .from('vault_access_requests')
+                              .select('id, status, requested_role')
+                              .eq('vault_id', vault.id)
+                              .eq('requester_id', user.id)
+                              .in('status', ['pending', 'approved'])
+                              .maybeSingle();
+
+                            if (existingRequest?.status === 'pending') {
+                              setHasPendingRequest(true);
+                              setPendingRequestRole(existingRequest.requested_role === 'editor' ? 'editor' : 'viewer');
+                              toast({
+                                title: 'Request Already Pending',
+                                description: existingRequest.requested_role === 'editor'
+                                  ? 'Your edit access request is pending approval.'
+                                  : 'You already have an access request pending approval.',
+                              });
+                              return;
+                            }
+
+                            if (existingRequest?.status === 'approved') {
+                              toast({ title: 'Access Approved', description: 'Refreshing...' });
+                              refresh();
+                              return;
+                            }
+
+                            const result = await requestVaultAccess(vault.id, user.id, 'Requesting edit access to this public vault.', 'editor');
+                            if (result.error) throw result.error;
+
+                            setHasPendingRequest(true);
+                            setPendingRequestRole('editor');
+                            toast({
+                              title: 'Edit Access Requested',
+                              description: 'The vault owner has been notified.',
+                            });
+                            refresh();
+                          } catch (error) {
+                            logger.error('VaultDetail', 'Error requesting edit access:', error);
+                            toast({
+                              title: 'Error',
+                              description: (error as Error).message,
+                              variant: 'destructive',
+                            });
+                          }
+                        }}
+                        disabled={hasPendingRequest && pendingRequestRole === 'editor'}
+                        className="font-mono h-8"
+                        title="Request edit access"
+                      >
+                        <PencilLine className="w-4 h-4" />
+                        <span className="ml-2 hidden md:inline">{hasPendingRequest && pendingRequestRole === 'editor' ? 'edit requested' : 'request edit'}</span>
+                      </Button>
+                    )}
                   </>
                 )}
               </div>
