@@ -21,6 +21,37 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    id: 7,
+    date: '2026-05-08',
+    title: 'smoother publication + vault saves',
+    features: [
+      {
+        tag: 'fix',
+        title: 'publication edits stay in place after save',
+        description:
+          'the add/edit publication form now preserves its current values after saving, so follow-up edits and metadata checks no longer force you to re-enter the same details.',
+      },
+      {
+        tag: 'improvement',
+        title: 'vault settings save flow feels immediate',
+        description:
+          'saving vault settings now keeps the dialog open, supports ctrl/cmd+s, and uses consistent save button styling so quick metadata updates take fewer clicks.',
+      },
+      {
+        tag: 'improvement',
+        title: 'cleaner collaboration and researcher discovery',
+        description:
+          'vault collaborator autocomplete is more reliable, and the researchers directory now focuses on profiles that have completed setup instead of showing incomplete entries.',
+      },
+      {
+        tag: 'fix',
+        title: 'version and extension links now point to the right place',
+        description:
+          'the bug report control now reports the live app version correctly, and the browser extension install flow links directly to the current chrome web store listing.',
+      },
+    ],
+  },
+  {
     id: 6,
     date: '2026-04-19',
     title: 'agentic reference management',
