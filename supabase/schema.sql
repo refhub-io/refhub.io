@@ -597,6 +597,21 @@ $$;
 ALTER FUNCTION "public"."set_updated_at"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."set_vault_publication_updated_by"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+  NEW.updated_by := auth.uid();
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."set_vault_publication_updated_by"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."update_tag_depth"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     SET "search_path" TO 'public'
@@ -1465,6 +1480,10 @@ CREATE OR REPLACE TRIGGER "validate_username_trigger" BEFORE INSERT OR UPDATE ON
 
 
 
+CREATE OR REPLACE TRIGGER "vault_publications_set_updated_by" BEFORE UPDATE ON "public"."vault_publications" FOR EACH ROW EXECUTE FUNCTION "public"."set_vault_publication_updated_by"();
+
+
+
 ALTER TABLE ONLY "public"."api_key_vaults"
     ADD CONSTRAINT "api_key_vaults_api_key_id_fkey" FOREIGN KEY ("api_key_id") REFERENCES "public"."api_keys"("id") ON DELETE CASCADE;
 
@@ -1684,6 +1703,10 @@ CREATE POLICY "Authenticated users can view profiles" ON "public"."profiles" FOR
 
 
 CREATE POLICY "Authenticated users can view set up profiles" ON "public"."profiles" FOR SELECT TO "authenticated" USING (("is_setup" = true));
+
+
+
+CREATE POLICY "Public: profiles of public vault actors are viewable by anon" ON "public"."profiles" FOR SELECT TO "anon" USING (("user_id" IN ( SELECT DISTINCT "vp"."updated_by" FROM ("public"."vault_publications" "vp" JOIN "public"."vaults" "v" ON (("v"."id" = "vp"."vault_id"))) WHERE (("v"."visibility" = 'public'::"public"."vault_visibility") AND ("vp"."updated_by" IS NOT NULL)) UNION SELECT DISTINCT "vp"."created_by" FROM ("public"."vault_publications" "vp" JOIN "public"."vaults" "v" ON (("v"."id" = "vp"."vault_id"))) WHERE (("v"."visibility" = 'public'::"public"."vault_visibility") AND ("vp"."created_by" IS NOT NULL)) UNION SELECT "v"."user_id" FROM "public"."vaults" "v" WHERE ("v"."visibility" = 'public'::"public"."vault_visibility"))));
 
 
 
