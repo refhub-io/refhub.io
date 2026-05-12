@@ -222,9 +222,10 @@ BEGIN
 
     UNION
 
-    SELECT v.user_id, COALESCE(vp.original_publication_id, vp.id) AS paper_id
+    SELECT v.user_id, vp.id AS paper_id
     FROM owned_vaults v
     JOIN public.vault_publications vp ON vp.vault_id = v.id
+    WHERE vp.original_publication_id IS NULL
   )
   SELECT
     u.user_id,
