@@ -17,13 +17,6 @@ COMMENT ON SCHEMA "public" IS 'standard public schema';
 
 
 
-CREATE EXTENSION IF NOT EXISTS "pg_graphql" WITH SCHEMA "graphql";
-
-
-
-
-
-
 CREATE EXTENSION IF NOT EXISTS "pg_stat_statements" WITH SCHEMA "extensions";
 
 
@@ -77,32 +70,105 @@ CREATE OR REPLACE FUNCTION "public"."copy_publication_to_vault"("pub_id" "uuid",
     AS $$
 DECLARE
     new_pub_id UUID;
-    pub_record RECORD;
+    pub_record publications%ROWTYPE;
+    source_record vault_publications%ROWTYPE;
 BEGIN
-    -- Get the original publication
+    -- Get the canonical publication row.
     SELECT * INTO pub_record FROM publications WHERE id = pub_id;
-    
+
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Publication not found';
     END IF;
-    
-    -- Insert a copy into vault_publications
+
+    -- Standard bibliographic metadata is mostly static/canonical. When the
+    -- canonical row is sparse, use the richest accessible vault instance for the
+    -- same original publication as a fallback. Vault-local fields (notes, tags,
+    -- and vault membership) intentionally do not get merged here.
+    SELECT * INTO source_record
+    FROM vault_publications
+    WHERE original_publication_id = pub_id
+    ORDER BY
+        (
+            (CASE WHEN title IS NOT NULL AND btrim(title) <> '' THEN 1 ELSE 0 END) +
+            (CASE WHEN authors IS NOT NULL AND cardinality(authors) > 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN year IS NOT NULL THEN 1 ELSE 0 END) +
+            (CASE WHEN journal IS NOT NULL AND btrim(journal) <> '' THEN 1 ELSE 0 END) +
+            (CASE WHEN volume IS NOT NULL AND btrim(volume) <> '' THEN 1 ELSE 0 END) +
+            (CASE WHEN issue IS NOT NULL AND btrim(issue) <> '' THEN 1 ELSE 0 END) +
+            (CASE WHEN pages IS NOT NULL AND btrim(pages) <> '' THEN 1 ELSE 0 END) +
+            (CASE WHEN doi IS NOT NULL AND btrim(doi) <> '' THEN 1 ELSE 0 END) +
+            (CASE WHEN url IS NOT NULL AND btrim(url) <> '' THEN 1 ELSE 0 END) +
+            (CASE WHEN abstract IS NOT NULL AND btrim(abstract) <> '' THEN 1 ELSE 0 END) +
+            (CASE WHEN pdf_url IS NOT NULL AND btrim(pdf_url) <> '' THEN 1 ELSE 0 END) +
+            (CASE WHEN bibtex_key IS NOT NULL AND btrim(bibtex_key) <> '' THEN 1 ELSE 0 END) +
+            (CASE WHEN publication_type IS NOT NULL AND btrim(publication_type) <> '' THEN 1 ELSE 0 END) +
+            (CASE WHEN booktitle IS NOT NULL AND btrim(booktitle) <> '' THEN 1 ELSE 0 END) +
+            (CASE WHEN chapter IS NOT NULL AND btrim(chapter) <> '' THEN 1 ELSE 0 END) +
+            (CASE WHEN edition IS NOT NULL AND btrim(edition) <> '' THEN 1 ELSE 0 END) +
+            (CASE WHEN editor IS NOT NULL AND cardinality(editor) > 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN howpublished IS NOT NULL AND btrim(howpublished) <> '' THEN 1 ELSE 0 END) +
+            (CASE WHEN institution IS NOT NULL AND btrim(institution) <> '' THEN 1 ELSE 0 END) +
+            (CASE WHEN number IS NOT NULL AND btrim(number) <> '' THEN 1 ELSE 0 END) +
+            (CASE WHEN organization IS NOT NULL AND btrim(organization) <> '' THEN 1 ELSE 0 END) +
+            (CASE WHEN publisher IS NOT NULL AND btrim(publisher) <> '' THEN 1 ELSE 0 END) +
+            (CASE WHEN school IS NOT NULL AND btrim(school) <> '' THEN 1 ELSE 0 END) +
+            (CASE WHEN series IS NOT NULL AND btrim(series) <> '' THEN 1 ELSE 0 END) +
+            (CASE WHEN type IS NOT NULL AND btrim(type) <> '' THEN 1 ELSE 0 END) +
+            (CASE WHEN eid IS NOT NULL AND btrim(eid) <> '' THEN 1 ELSE 0 END) +
+            (CASE WHEN isbn IS NOT NULL AND btrim(isbn) <> '' THEN 1 ELSE 0 END) +
+            (CASE WHEN issn IS NOT NULL AND btrim(issn) <> '' THEN 1 ELSE 0 END) +
+            (CASE WHEN keywords IS NOT NULL AND cardinality(keywords) > 0 THEN 1 ELSE 0 END)
+        ) DESC,
+        updated_at DESC NULLS LAST,
+        created_at DESC NULLS LAST
+    LIMIT 1;
+
+    -- Insert a copy into vault_publications using canonical values first, then
+    -- best-available instance metadata. Notes are vault-local, so new vault
+    -- copies start with null notes instead of inheriting another vault's notes.
     INSERT INTO vault_publications (
-        vault_id, original_publication_id, title, authors, year, journal, volume, issue, 
+        vault_id, original_publication_id, title, authors, year, journal, volume, issue,
         pages, doi, url, abstract, pdf_url, bibtex_key, publication_type, notes,
         booktitle, chapter, edition, editor, howpublished, institution, number,
         organization, publisher, school, series, type, eid, isbn, issn, keywords,
         created_by, version
     )
     VALUES (
-        target_vault_id, pub_id, pub_record.title, pub_record.authors, pub_record.year, pub_record.journal, pub_record.volume, pub_record.issue,
-        pub_record.pages, pub_record.doi, pub_record.url, pub_record.abstract, pub_record.pdf_url, pub_record.bibtex_key, pub_record.publication_type, pub_record.notes,
-        pub_record.booktitle, pub_record.chapter, pub_record.edition, pub_record.editor, pub_record.howpublished, pub_record.institution, pub_record.number,
-        pub_record.organization, pub_record.publisher, pub_record.school, pub_record.series, pub_record.type, pub_record.eid, pub_record.isbn, pub_record.issn, pub_record.keywords,
+        target_vault_id, pub_id,
+        COALESCE(NULLIF(pub_record.title, ''), NULLIF(source_record.title, '')),
+        COALESCE(NULLIF(pub_record.authors, '{}'::text[]), NULLIF(source_record.authors, '{}'::text[]), '{}'::text[]),
+        COALESCE(pub_record.year, source_record.year),
+        COALESCE(NULLIF(pub_record.journal, ''), NULLIF(source_record.journal, '')),
+        COALESCE(NULLIF(pub_record.volume, ''), NULLIF(source_record.volume, '')),
+        COALESCE(NULLIF(pub_record.issue, ''), NULLIF(source_record.issue, '')),
+        COALESCE(NULLIF(pub_record.pages, ''), NULLIF(source_record.pages, '')),
+        COALESCE(NULLIF(pub_record.doi, ''), NULLIF(source_record.doi, '')),
+        COALESCE(NULLIF(pub_record.url, ''), NULLIF(source_record.url, '')),
+        COALESCE(NULLIF(pub_record.abstract, ''), NULLIF(source_record.abstract, '')),
+        COALESCE(NULLIF(pub_record.pdf_url, ''), NULLIF(source_record.pdf_url, '')),
+        COALESCE(NULLIF(pub_record.bibtex_key, ''), NULLIF(source_record.bibtex_key, '')),
+        COALESCE(NULLIF(pub_record.publication_type, ''), NULLIF(source_record.publication_type, ''), 'article'),
+        NULL,
+        COALESCE(NULLIF(pub_record.booktitle, ''), NULLIF(source_record.booktitle, '')),
+        COALESCE(NULLIF(pub_record.chapter, ''), NULLIF(source_record.chapter, '')),
+        COALESCE(NULLIF(pub_record.edition, ''), NULLIF(source_record.edition, '')),
+        COALESCE(NULLIF(pub_record.editor, '{}'::text[]), NULLIF(source_record.editor, '{}'::text[]), '{}'::text[]),
+        COALESCE(NULLIF(pub_record.howpublished, ''), NULLIF(source_record.howpublished, '')),
+        COALESCE(NULLIF(pub_record.institution, ''), NULLIF(source_record.institution, '')),
+        COALESCE(NULLIF(pub_record.number, ''), NULLIF(source_record.number, '')),
+        COALESCE(NULLIF(pub_record.organization, ''), NULLIF(source_record.organization, '')),
+        COALESCE(NULLIF(pub_record.publisher, ''), NULLIF(source_record.publisher, '')),
+        COALESCE(NULLIF(pub_record.school, ''), NULLIF(source_record.school, '')),
+        COALESCE(NULLIF(pub_record.series, ''), NULLIF(source_record.series, '')),
+        COALESCE(NULLIF(pub_record.type, ''), NULLIF(source_record.type, '')),
+        COALESCE(NULLIF(pub_record.eid, ''), NULLIF(source_record.eid, '')),
+        COALESCE(NULLIF(pub_record.isbn, ''), NULLIF(source_record.isbn, '')),
+        COALESCE(NULLIF(pub_record.issn, ''), NULLIF(source_record.issn, '')),
+        COALESCE(NULLIF(pub_record.keywords, '{}'::text[]), NULLIF(source_record.keywords, '{}'::text[]), '{}'::text[]),
         user_id, 1
     )
     RETURNING id INTO new_pub_id;
-    
+
     RETURN new_pub_id;
 END;
 $$;
@@ -229,9 +295,9 @@ BEGIN
   )
   SELECT
     u.user_id,
-    COUNT(DISTINCT v.id)                                              AS vault_count,
+    COUNT(DISTINCT v.id)                                             AS vault_count,
     COUNT(DISTINCT v.id) FILTER (WHERE v.visibility = 'public')      AS public_vault_count,
-    COUNT(DISTINCT dp.paper_id)                                       AS publication_count
+    COUNT(DISTINCT dp.paper_id)                                      AS publication_count
   FROM requested_users u
   LEFT JOIN owned_vaults v      ON v.user_id  = u.user_id
   LEFT JOIN distinct_papers dp  ON dp.user_id = u.user_id
@@ -613,6 +679,20 @@ $$;
 
 
 ALTER FUNCTION "public"."set_updated_at"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."set_vault_publication_updated_by"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+  NEW.updated_by := auth.uid();
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."set_vault_publication_updated_by"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."update_tag_depth"() RETURNS "trigger"
@@ -997,9 +1077,9 @@ CREATE TABLE IF NOT EXISTS "public"."vault_access_requests" (
     "updated_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()),
     "requester_email" "text",
     "requester_name" "text",
-    "requested_role" "public"."vault_permission" DEFAULT 'viewer'::"public"."vault_permission" NOT NULL,
     "note" "text",
-    "requester_id" "uuid" NOT NULL
+    "requester_id" "uuid" NOT NULL,
+    "requested_role" "public"."vault_permission" DEFAULT 'viewer'::"public"."vault_permission" NOT NULL
 );
 
 
@@ -1483,6 +1563,10 @@ CREATE OR REPLACE TRIGGER "validate_username_trigger" BEFORE INSERT OR UPDATE ON
 
 
 
+CREATE OR REPLACE TRIGGER "vault_publications_set_updated_by" BEFORE UPDATE ON "public"."vault_publications" FOR EACH ROW EXECUTE FUNCTION "public"."set_vault_publication_updated_by"();
+
+
+
 ALTER TABLE ONLY "public"."api_key_vaults"
     ADD CONSTRAINT "api_key_vaults_api_key_id_fkey" FOREIGN KEY ("api_key_id") REFERENCES "public"."api_keys"("id") ON DELETE CASCADE;
 
@@ -1724,6 +1808,22 @@ CREATE POLICY "Public vault tags are viewable by everyone" ON "public"."tags" FO
 
 
 CREATE POLICY "Public vaults are viewable by everyone" ON "public"."vaults" FOR SELECT TO "authenticated", "anon" USING (("visibility" = 'public'::"public"."vault_visibility"));
+
+
+
+CREATE POLICY "Public: profiles of public vault actors are viewable by anon" ON "public"."profiles" FOR SELECT TO "anon" USING (("user_id" IN ( SELECT DISTINCT "vp"."updated_by"
+   FROM ("public"."vault_publications" "vp"
+     JOIN "public"."vaults" "v" ON (("v"."id" = "vp"."vault_id")))
+  WHERE (("v"."visibility" = 'public'::"public"."vault_visibility") AND ("vp"."updated_by" IS NOT NULL))
+UNION
+ SELECT DISTINCT "vp"."created_by"
+   FROM ("public"."vault_publications" "vp"
+     JOIN "public"."vaults" "v" ON (("v"."id" = "vp"."vault_id")))
+  WHERE (("v"."visibility" = 'public'::"public"."vault_visibility") AND ("vp"."created_by" IS NOT NULL))
+UNION
+ SELECT "v"."user_id"
+   FROM "public"."vaults" "v"
+  WHERE ("v"."visibility" = 'public'::"public"."vault_visibility"))));
 
 
 
@@ -2339,9 +2439,6 @@ GRANT ALL ON TYPE "public"."vault_visibility" TO "authenticated";
 
 
 
-
-
-
 GRANT ALL ON FUNCTION "public"."copy_publication_to_vault"("pub_id" "uuid", "target_vault_id" "uuid", "user_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."copy_publication_to_vault"("pub_id" "uuid", "target_vault_id" "uuid", "user_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."copy_publication_to_vault"("pub_id" "uuid", "target_vault_id" "uuid", "user_id" "uuid") TO "service_role";
@@ -2435,6 +2532,12 @@ GRANT ALL ON FUNCTION "public"."notify_vault_shared"() TO "service_role";
 GRANT ALL ON FUNCTION "public"."set_updated_at"() TO "anon";
 GRANT ALL ON FUNCTION "public"."set_updated_at"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."set_updated_at"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."set_vault_publication_updated_by"() TO "anon";
+GRANT ALL ON FUNCTION "public"."set_vault_publication_updated_by"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."set_vault_publication_updated_by"() TO "service_role";
 
 
 
