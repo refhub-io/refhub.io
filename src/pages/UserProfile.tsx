@@ -16,7 +16,7 @@ import { logger } from '@/lib/logger';
 import { Github, Linkedin, ArrowLeft, BookOpen, Vault as VaultIcon, ExternalLink } from 'lucide-react';
 import { Bluesky } from '@/components/icons/Bluesky';
 
-type VaultWithCount = Vault & { vault_publications: { id: string }[]; is_fork?: boolean };
+type VaultWithCount = Vault & { vault_publications: { id: string; original_publication_id: string | null }[]; is_fork?: boolean };
 
 function getInitials(p: Profile): string {
   if (p.display_name) {
@@ -87,7 +87,7 @@ export default function UserProfile() {
 
       const { data: vaultsData, error: vaultsError } = await supabase
         .from('vaults')
-        .select('*, vault_publications(id)')
+        .select('*, vault_publications(id, original_publication_id)')
         .eq('user_id', profileData.user_id)
         .eq('visibility', 'public')
         .order('created_at', { ascending: false });
@@ -141,7 +141,11 @@ export default function UserProfile() {
     return updated as Vault;
   };
 
-  const totalPapers = publicVaults.reduce((sum, v) => sum + v.vault_publications.length, 0);
+  const totalPapers = new Set(
+    publicVaults.flatMap((vault) =>
+      vault.vault_publications.map((publication) => publication.original_publication_id ?? publication.id),
+    ),
+  ).size;
 
   const joinedYear = researcherProfile?.created_at
     ? new Date(researcherProfile.created_at).getFullYear()
