@@ -860,25 +860,18 @@ export default function VaultDetail() {
 
         if (checkError) throw checkError;
 
-        // Only add if not already in vault as a copy
+        // Only add if not already in vault as a copy. Bibliographic fields are
+        // canonical/static, so copy from the richest available row. Notes and
+        // tags remain vault-local and are not copied between vaults.
         if (!existingCopy) {
-          // If we have a vault_publication, we need to copy its data directly
-          if (vaultPub) {
-            const { error: insertError } = await supabase
-              .from('vault_publications')
-              .insert(buildVaultPublicationCopyPayload(vaultPub, vaultIdToAdd, user.id));
+          const bestAvailableSource = vaultPub || publications.find(p => p.id === publicationId || p.original_publication_id === sourcePublicationId) || sourcePublication;
+          const { error: insertError } = await supabase
+            .from('vault_publications')
+            .insert(buildVaultPublicationCopyPayload(bestAvailableSource, vaultIdToAdd, user.id, undefined, {
+              originalPublicationId: sourcePublicationId,
+            }));
 
-            if (insertError) throw insertError;
-          } else {
-            // Use the RPC function for original publications
-            const { error: insertError } = await supabase.rpc('copy_publication_to_vault', {
-              pub_id: sourcePublicationId,
-              target_vault_id: vaultIdToAdd,
-              user_id: user.id
-            });
-
-            if (insertError) throw insertError;
-          }
+          if (insertError) throw insertError;
         }
       }
 
