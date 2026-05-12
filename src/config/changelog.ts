@@ -21,6 +21,25 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    id: 9,
+    date: '2026-05-12',
+    title: 'clearer all papers counts and vault context',
+    features: [
+      {
+        tag: 'improvement',
+        title: 'all papers now includes vault instance details',
+        description:
+          'the all_papers view stays deduplicated, but now enriches sparse canonical records from their vault copies and shows where each paper appears, including vault instance counts and aggregated tags.',
+      },
+      {
+        tag: 'fix',
+        title: 'profile and all papers counts now use the same denominator',
+        description:
+          'public profile paper counts now align with /all-papers by counting distinct publications instead of raw vault items, so duplicated vault instances no longer inflate the number.',
+      },
+    ],
+  },
+  {
     id: 8,
     date: '2026-05-08',
     title: 'collaborate on public vaults',
