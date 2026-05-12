@@ -16,7 +16,7 @@ import { logger } from '@/lib/logger';
 import { Github, Linkedin, ArrowLeft, BookOpen, Vault as VaultIcon, ExternalLink } from 'lucide-react';
 import { Bluesky } from '@/components/icons/Bluesky';
 
-type VaultWithCount = Vault & { vault_publications: { id: string; original_publication_id: string | null }[]; is_fork?: boolean };
+type VaultWithCount = Vault & { vault_publications: { id: string }[]; is_fork?: boolean };
 
 function getInitials(p: Profile): string {
   if (p.display_name) {
@@ -33,6 +33,7 @@ export default function UserProfile() {
 
   const [researcherProfile, setResearcherProfile] = useState<Profile | null>(null);
   const [publicVaults, setPublicVaults] = useState<VaultWithCount[]>([]);
+  const [totalPapers, setTotalPapers] = useState(0);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [sidebarVaults, setSidebarVaults] = useState<Vault[]>([]);
@@ -87,7 +88,7 @@ export default function UserProfile() {
 
       const { data: vaultsData, error: vaultsError } = await supabase
         .from('vaults')
-        .select('*, vault_publications(id, original_publication_id)')
+        .select('*, vault_publications(id)')
         .eq('user_id', profileData.user_id)
         .eq('visibility', 'public')
         .order('created_at', { ascending: false });
@@ -96,14 +97,18 @@ export default function UserProfile() {
 
       const fetchedVaults = (vaultsData ?? []) as VaultWithCount[];
       const vaultIds = fetchedVaults.map((vault) => vault.id);
-      const { data: forkedVaultRows, error: forkedVaultsError } = vaultIds.length === 0
-        ? { data: [], error: null }
-        : await supabase
-            .from('vault_forks')
-            .select('forked_vault_id')
-            .in('forked_vault_id', vaultIds);
+      const [{ data: forkedVaultRows, error: forkedVaultsError }, { data: statsData, error: statsError }] = await Promise.all([
+        vaultIds.length === 0
+          ? Promise.resolve({ data: [], error: null })
+          : supabase
+              .from('vault_forks')
+              .select('forked_vault_id')
+              .in('forked_vault_id', vaultIds),
+        supabase.rpc('get_researcher_stats', { p_user_ids: [profileData.user_id] }),
+      ]);
 
       if (forkedVaultsError) throw forkedVaultsError;
+      if (statsError) throw statsError;
 
       const forkedVaultIds = new Set((forkedVaultRows ?? []).map((row) => row.forked_vault_id));
       setPublicVaults(
@@ -112,6 +117,7 @@ export default function UserProfile() {
           is_fork: forkedVaultIds.has(vault.id),
         })),
       );
+      setTotalPapers(Number(statsData?.[0]?.publication_count ?? 0));
     } catch (err) {
       logger.error('UserProfile', 'Error fetching profile data:', err);
       setNotFound(true);
@@ -140,12 +146,6 @@ export default function UserProfile() {
     setEditingVault(updated as Vault);
     return updated as Vault;
   };
-
-  const totalPapers = new Set(
-    publicVaults.flatMap((vault) =>
-      vault.vault_publications.map((publication) => publication.original_publication_id ?? publication.id),
-    ),
-  ).size;
 
   const joinedYear = researcherProfile?.created_at
     ? new Date(researcherProfile.created_at).getFullYear()
