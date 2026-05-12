@@ -684,7 +684,8 @@ export default function Dashboard() {
           const dataToSave = {
             ...data,
             bibtex_key: data.bibtex_key || generateBibtexKey({ ...editingPublication, ...data } as Publication),
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
+            updated_by: user.id,
           };
 
           const result = await supabase

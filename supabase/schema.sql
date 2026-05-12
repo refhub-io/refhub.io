@@ -1789,6 +1789,10 @@ CREATE POLICY "Authenticated users can view set up profiles" ON "public"."profil
 
 
 
+CREATE POLICY "Public: profiles of public vault actors are viewable by anon" ON "public"."profiles" FOR SELECT TO "anon" USING (("user_id" IN ( SELECT DISTINCT "vp"."updated_by" FROM ("public"."vault_publications" "vp" JOIN "public"."vaults" "v" ON (("v"."id" = "vp"."vault_id"))) WHERE (("v"."visibility" = 'public'::"public"."vault_visibility") AND ("vp"."updated_by" IS NOT NULL)) UNION SELECT DISTINCT "vp"."created_by" FROM ("public"."vault_publications" "vp" JOIN "public"."vaults" "v" ON (("v"."id" = "vp"."vault_id"))) WHERE (("v"."visibility" = 'public'::"public"."vault_visibility") AND ("vp"."created_by" IS NOT NULL)) UNION SELECT "v"."user_id" FROM "public"."vaults" "v" WHERE ("v"."visibility" = 'public'::"public"."vault_visibility"))));
+
+
+
 CREATE POLICY "Fork counts on public vaults are viewable by everyone" ON "public"."vault_forks" FOR SELECT TO "authenticated", "anon" USING ((EXISTS ( SELECT 1
    FROM "public"."vaults" "v"
   WHERE (("v"."id" = "vault_forks"."original_vault_id") AND ("v"."visibility" = 'public'::"public"."vault_visibility")))));

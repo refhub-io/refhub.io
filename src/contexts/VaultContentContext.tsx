@@ -396,7 +396,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         if (mostRecent) {
           mostRecentActivity = {
             timestamp: mostRecent.updated_at,
-            updatedBy: mostRecent.updated_by || null, // Use updated_by if available
+            updatedBy: mostRecent.updated_by || mostRecent.created_by || null,
           };
         }
       }
