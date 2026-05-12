@@ -280,7 +280,7 @@ export default function UserProfile() {
                       <div className="flex items-center gap-1.5 text-sm font-mono text-muted-foreground">
                         <BookOpen className="w-4 h-4 text-primary" />
                         <span className="font-bold text-foreground">{totalPapers}</span>
-                        papers_public
+                        papers
                       </div>
                       <div className="flex items-center gap-1.5 text-sm font-mono text-muted-foreground">
                         <VaultIcon className="w-4 h-4 text-primary" />
