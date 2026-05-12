@@ -424,7 +424,7 @@ export function PublicationList({
               {vaultOwnerName && (
                 <span>by {vaultOwnerName} • </span>
               )}
-              {filteredPublications.length} item{filteredPublications.length !== 1 ? 's' : ''}
+              {filteredPublications.length} {selectedVault ? 'item' : 'distinct paper'}{filteredPublications.length !== 1 ? 's' : ''}
               {persistedFilters.length > 0 && (
                 <span className="text-primary"> • {persistedFilters.length} filter{persistedFilters.length !== 1 ? 's' : ''}</span>
               )}

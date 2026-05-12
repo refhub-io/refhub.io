@@ -43,6 +43,92 @@ interface DashboardCache {
   relationsCountMap: Record<string, number>;
 }
 
+type PublicationDisplayField = keyof Pick<
+  Publication,
+  | 'title'
+  | 'authors'
+  | 'year'
+  | 'journal'
+  | 'volume'
+  | 'issue'
+  | 'pages'
+  | 'doi'
+  | 'url'
+  | 'abstract'
+  | 'pdf_url'
+  | 'bibtex_key'
+  | 'publication_type'
+  | 'booktitle'
+  | 'chapter'
+  | 'edition'
+  | 'editor'
+  | 'howpublished'
+  | 'institution'
+  | 'number'
+  | 'organization'
+  | 'publisher'
+  | 'school'
+  | 'series'
+  | 'type'
+  | 'eid'
+  | 'isbn'
+  | 'issn'
+  | 'keywords'
+>;
+
+const DISPLAY_METADATA_FIELDS: PublicationDisplayField[] = [
+  'title',
+  'authors',
+  'year',
+  'journal',
+  'volume',
+  'issue',
+  'pages',
+  'doi',
+  'url',
+  'abstract',
+  'pdf_url',
+  'bibtex_key',
+  'publication_type',
+  'booktitle',
+  'chapter',
+  'edition',
+  'editor',
+  'howpublished',
+  'institution',
+  'number',
+  'organization',
+  'publisher',
+  'school',
+  'series',
+  'type',
+  'eid',
+  'isbn',
+  'issn',
+  'keywords',
+];
+
+const hasDisplayValue = (value: unknown): boolean => {
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === 'string') return value.trim().length > 0;
+  return value !== null && value !== undefined;
+};
+
+const mergeMissingDisplayMetadata = (canonical: Publication, instance: Publication): Publication => {
+  const merged: Publication = { ...canonical };
+
+  DISPLAY_METADATA_FIELDS.forEach((field) => {
+    const canonicalValue = merged[field];
+    const instanceValue = instance[field];
+
+    if (!hasDisplayValue(canonicalValue) && hasDisplayValue(instanceValue)) {
+      (merged as Record<PublicationDisplayField, Publication[PublicationDisplayField]>)[field] = instanceValue;
+    }
+  });
+
+  return merged;
+};
+
 export default function Dashboard() {
   const { user, loading: authLoading } = useAuth();
   const { profile, loading: profileLoading, refetch: refetchProfile } = useProfile();
@@ -279,15 +365,17 @@ export default function Dashboard() {
         allPublicationsMap[pub.id] = pub;
       });
 
-      // Process vault-specific copies and aggregate their information
-      // For the main publication list, we want to avoid duplicates
-      // So we'll only add vault-specific copies if they don't have an original counterpart
+      // Process vault-specific copies and aggregate their display information.
+      // all_papers remains deduplicated by canonical/original publication ID, but
+      // sparse canonical rows can borrow missing bibliography fields from richer
+      // vault instances. Vault-local copies themselves are not mutated.
       formattedVaultPublications.forEach(vp => {
-        // If this is a copy of an original publication, we don't add it separately
-        // to avoid duplication. The vault association will be tracked in publicationVaultsMap.
         if (vp.original_publication_id) {
-          // We don't add this to allPublicationsMap to avoid duplication
-          // The original publication will represent this in the UI
+          const canonical = allPublicationsMap[vp.original_publication_id];
+
+          if (canonical) {
+            allPublicationsMap[vp.original_publication_id] = mergeMissingDisplayMetadata(canonical, vp as Publication);
+          }
         } else {
           // If no original ID, treat as standalone (this shouldn't normally happen)
           if (!allPublicationsMap[vp.id]) {
