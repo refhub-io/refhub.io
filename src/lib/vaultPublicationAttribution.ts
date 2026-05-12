@@ -1,5 +1,6 @@
 type VaultPublicationIdentityFields = {
   id?: string;
+  user_id?: string;
   vault_id?: string;
   original_publication_id?: string | null;
   created_at?: string;
@@ -15,10 +16,13 @@ export function buildVaultPublicationCopyPayload(
   targetVaultId: string,
   actorUserId: string,
   timestamp = new Date().toISOString(),
+  originalPublicationId = vaultPublication.original_publication_id || null,
 ) {
   const {
     id: _id,
+    user_id: _userId,
     vault_id: _vaultId,
+    original_publication_id: _originalPublicationId,
     created_at: _createdAt,
     updated_at: _updatedAt,
     created_by: _createdBy,
@@ -30,7 +34,7 @@ export function buildVaultPublicationCopyPayload(
   return {
     ...publicationData,
     vault_id: targetVaultId,
-    original_publication_id: vaultPublication.original_publication_id || null,
+    original_publication_id: originalPublicationId,
     created_at: timestamp,
     updated_at: timestamp,
     created_by: actorUserId,

@@ -1013,23 +1013,11 @@ export default function Dashboard() {
 
         // Only add if not already in vault as a copy
         if (!existingCopy) {
-          // If we have a vault_publication, we need to copy its data directly
-          if (vaultPub) {
-            const { error: insertError } = await supabase
-              .from('vault_publications')
-              .insert(buildVaultPublicationCopyPayload(vaultPub, vaultId, user.id));
+          const { error: insertError } = await supabase
+            .from('vault_publications')
+            .insert(buildVaultPublicationCopyPayload(sourcePublication, vaultId, user.id, undefined, sourcePublicationId));
 
-            if (insertError) throw insertError;
-          } else {
-            // Use the RPC function for original publications
-            const { error: insertError } = await supabase.rpc('copy_publication_to_vault', {
-              pub_id: sourcePublicationId,
-              target_vault_id: vaultId,
-              user_id: user.id
-            });
-
-            if (insertError) throw insertError;
-          }
+          if (insertError) throw insertError;
         }
       }
 
