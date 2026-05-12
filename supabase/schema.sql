@@ -682,8 +682,7 @@ ALTER FUNCTION "public"."set_updated_at"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."set_vault_publication_updated_by"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
-    SECURITY DEFINER
+    LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
     AS $$
 BEGIN
