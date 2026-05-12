@@ -999,7 +999,10 @@ export default function Dashboard() {
         sourcePublication = publication;
       }
 
-      // For each vault, create a copy of the publication using the RPC function
+      // For each vault, create a copy from the best metadata we already have in
+      // memory. Bibliographic fields are canonical/static, so the all_papers
+      // merged display row should not fall back to a sparse public.publications
+      // row. Notes and tags remain vault-local and are not copied here.
       for (const vaultId of vaultIds) {
         // Check if publication is already in this vault (as a copy)
         const { data: existingCopy, error: checkError } = await supabase
@@ -1013,9 +1016,12 @@ export default function Dashboard() {
 
         // Only add if not already in vault as a copy
         if (!existingCopy) {
+          const bestAvailableSource = vaultPub || publications.find(p => p.id === sourcePublicationId) || sourcePublication;
           const { error: insertError } = await supabase
             .from('vault_publications')
-            .insert(buildVaultPublicationCopyPayload(sourcePublication, vaultId, user.id, undefined, sourcePublicationId));
+            .insert(buildVaultPublicationCopyPayload(bestAvailableSource, vaultId, user.id, undefined, {
+              originalPublicationId: sourcePublicationId,
+            }));
 
           if (insertError) throw insertError;
         }
