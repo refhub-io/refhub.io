@@ -1371,13 +1371,14 @@ export default function VaultDetail() {
     }
   }, [dataReady, loaderComplete, finishedInitialLoad]);
 
-  // Determine if we should show the loading screen
-  // Only show loading screen during initial load, not after initial load is complete
-  const shouldShowLoading = hasStartedInitialLoad && !finishedInitialLoad;
+  // Determine if we should show the loading screen.
+  // Cached vaults should render immediately while access/content silently refresh.
+  const hasCachedContentForRoute = hasCachedVaultData.current && Boolean(currentVault || publications.length > 0);
+  const shouldShowLoading = !hasCachedContentForRoute && hasStartedInitialLoad && !finishedInitialLoad;
 
-  // Show loading state while access is being checked and content is loading
-  // Only show "not found" after access check is complete and confirmed inaccessible
-  if (shouldShowLoading || accessStatus === 'loading') {
+  // Show loading state while access is being checked and content is loading.
+  // Do not regress cached route transitions back to the cold-load phase screen.
+  if (shouldShowLoading || (accessStatus === 'loading' && !hasCachedContentForRoute)) {
     return (
       <PhaseLoader
         phases={loadingPhases}
