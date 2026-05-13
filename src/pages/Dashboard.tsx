@@ -663,7 +663,7 @@ export default function Dashboard() {
     return duplicate;
   };
 
-  const handleSavePublication = async (data: Partial<Publication>, tagIds: string[], isAutoSave = false) => {
+  const handleSavePublication = async (data: Partial<Publication>, tagIds: string[], _vaultIds?: string[], isAutoSave = false, _driveUrl?: string | null) => {
     if (!user) return;
 
     try {
@@ -1474,6 +1474,7 @@ export default function Dashboard() {
         allPublications={publications}
         publicationVaults={editingPublication ? publicationVaultsMap[editingPublication.id] || [] : []}
         onSave={handleSavePublication}
+        driveUploadContext="publication"
         onCreateTag={handleCreateTag}
         onAddToVaults={handleAddToVaults}
       />

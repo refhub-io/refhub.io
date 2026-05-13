@@ -264,8 +264,10 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
     // Optimistic update
     setPdfAssetsMap(prev => ({ ...prev, [vaultPublicationId]: url || null }));
 
+    const publication = publications.find(p => p.id === vaultPublicationId);
     const record = {
       user_id: user.id,
+      publication_id: publication?.original_publication_id ?? null,
       vault_publication_id: vaultPublicationId,
       storage_provider: 'google_drive' as const,
       stored_pdf_url: url || null,
@@ -287,7 +289,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       });
       throw error;
     }
-  }, [user]);
+  }, [publications, user]);
 
   // Fetch vault content - extracted as a reusable function
   const fetchVaultContent = useCallback(async () => {

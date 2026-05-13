@@ -876,7 +876,7 @@ CREATE TABLE IF NOT EXISTS "public"."publication_pdf_assets" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "user_id" "uuid" NOT NULL,
     "publication_id" "uuid",
-    "vault_publication_id" "uuid" NOT NULL,
+    "vault_publication_id" "uuid",
     "storage_provider" "text" DEFAULT 'google_drive'::"text" NOT NULL,
     "source_pdf_url" "text",
     "stored_pdf_url" "text",
@@ -1270,6 +1270,9 @@ ALTER TABLE ONLY "public"."publication_pdf_assets"
 
 ALTER TABLE ONLY "public"."publication_pdf_assets"
     ADD CONSTRAINT "publication_pdf_assets_vault_publication_id_storage_provide_key" UNIQUE ("vault_publication_id", "storage_provider");
+
+
+CREATE UNIQUE INDEX IF NOT EXISTS "publication_pdf_assets_publication_storage_provider_key" ON "public"."publication_pdf_assets" USING "btree" ("publication_id", "storage_provider") WHERE (("publication_id" IS NOT NULL) AND ("vault_publication_id" IS NULL));
 
 
 

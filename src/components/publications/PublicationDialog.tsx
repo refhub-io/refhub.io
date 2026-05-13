@@ -31,6 +31,7 @@ import { RelatedPapersSection } from './RelatedPapersSection';
 import { HierarchicalTagSelector } from '@/components/tags/HierarchicalTagSelector';
 import { usePublicationRelations } from '@/hooks/usePublicationRelations';
 import { useAuth } from '@/hooks/useAuth';
+import { uploadPublicationDrivePdf, uploadVaultPublicationDrivePdf } from '@/lib/pdfUpload';
 
 interface PublicationDialogProps {
   open: boolean;
@@ -43,6 +44,7 @@ interface PublicationDialogProps {
   vaultPublications?: Publication[]; // Current vault's papers for linking
   publicationVaults?: string[]; // IDs of vaults this publication is already in
   currentVaultId?: string; // Current vault ID to pre-select when adding new paper
+  driveUploadContext?: 'publication' | 'vault';
   onSave: (data: Partial<Publication>, tagIds: string[], vaultIds?: string[], isAutoSave?: boolean, driveUrl?: string | null) => Promise<void>;
   onCreateTag: (name: string, parentId?: string) => Promise<Tag | null>;
   onAddToVaults?: (publicationId: string, vaultIds: string[]) => Promise<void>;
@@ -62,6 +64,7 @@ export function PublicationDialog({
   vaultPublications,
   publicationVaults,
   currentVaultId,
+  driveUploadContext = currentVaultId ? 'vault' : 'publication',
   onSave,
   onCreateTag,
   onAddToVaults,
@@ -123,6 +126,8 @@ export function PublicationDialog({
   const [pendingClose, setPendingClose] = useState(false);
   const [pendingExitFullscreen, setPendingExitFullscreen] = useState(false);
   const [drivePdfInput, setDrivePdfInput] = useState<string>(driveUrl ?? '');
+  const [drivePdfUploading, setDrivePdfUploading] = useState(false);
+  const drivePdfFileInputRef = useRef<HTMLInputElement | null>(null);
   const fullscreenCleanNotesRef = useRef<string>(''); // snapshot of notes when entering fullscreen
   const duplicateCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadRef = useRef(true);
@@ -204,6 +209,23 @@ export function PublicationDialog({
   useEffect(() => { formDataRef.current = formData; }, [formData]);
   useEffect(() => { selectedTagsRef.current = selectedTags; }, [selectedTags]);
   useEffect(() => { setDrivePdfInput(driveUrl ?? ''); }, [driveUrl]);
+  const handleDrivePdfFileSelected = useCallback(async (file: File | null) => {
+    if (!file || !publication?.id) return;
+
+    setDrivePdfUploading(true);
+    try {
+      const result = driveUploadContext === 'vault' && currentVaultId
+        ? await uploadVaultPublicationDrivePdf(currentVaultId, publication.id, file)
+        : await uploadPublicationDrivePdf(publication.id, file);
+      setDrivePdfInput(result.pdfUrl || '');
+    } finally {
+      setDrivePdfUploading(false);
+      if (drivePdfFileInputRef.current) {
+        drivePdfFileInputRef.current.value = '';
+      }
+    }
+  }, [currentVaultId, driveUploadContext, publication?.id]);
+
 
   // ─── Last-save indicator timer (fullscreen notes) ──────────────────────────
   // Initialize from publication timestamp when opened
@@ -643,7 +665,7 @@ export function PublicationDialog({
     } finally {
       setSaving(false);
     }
-  }, [authorsInput, editorInput, keywordsInput, formData, selectedTags, selectedVaultIds, publication, onSave, onOpenChange, pendingExitFullscreen]);
+  }, [authorsInput, editorInput, keywordsInput, formData, selectedTags, selectedVaultIds, publication, onSave, onOpenChange, pendingExitFullscreen, drivePdfInput]);
 
   const toggleTag = (tagId: string) => {
     setSelectedTags(
@@ -996,13 +1018,32 @@ export function PublicationDialog({
             {/* Drive PDF */}
             <div className="space-y-1 sm:space-y-2 w-full box-border overflow-hidden">
               <Label htmlFor="drive_pdf" className="font-semibold font-mono text-sm block">drive_pdf</Label>
-              <Input
-                id="drive_pdf"
-                value={drivePdfInput}
-                onChange={(e) => setDrivePdfInput(e.target.value)}
-                placeholder="https://drive.google.com/file/d/..."
-                className="font-mono text-xs sm:text-sm w-full break-all h-9 sm:h-10 box-border"
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="drive_pdf"
+                  value={drivePdfInput}
+                  onChange={(e) => setDrivePdfInput(e.target.value)}
+                  placeholder="https://drive.google.com/file/d/..."
+                  className="font-mono text-xs sm:text-sm w-full break-all h-9 sm:h-10 box-border"
+                />
+                <input
+                  ref={drivePdfFileInputRef}
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  className="hidden"
+                  onChange={(e) => void handleDrivePdfFileSelected(e.target.files?.[0] ?? null)}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!publication?.id || drivePdfUploading}
+                  onClick={() => drivePdfFileInputRef.current?.click()}
+                  className="font-mono shrink-0"
+                >
+                  {drivePdfUploading ? 'uploading…' : 'upload_pdf'}
+                </Button>
+              </div>
             </div>
 
             {/* Additional BibTeX Fields - shown conditionally based on publication type */}
