@@ -17,6 +17,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { GoogleDriveIcon } from '@/components/ui/GoogleDriveIcon';
+import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,6 +46,9 @@ interface PublicationCardProps {
   onExportBibtex: () => void;
   driveUrl?: string | null;
   driveLoading?: boolean;
+  syncDiffCount?: number;
+  syncLoading?: boolean;
+  onCheckSync?: () => void;
 }
 
 export function PublicationCard({
@@ -65,6 +69,9 @@ export function PublicationCard({
   onExportBibtex,
   driveUrl,
   driveLoading = false,
+  syncDiffCount,
+  syncLoading = false,
+  onCheckSync,
 }: PublicationCardProps) {
   const [notesExpanded, setNotesExpanded] = useState(false);
   
@@ -166,6 +173,11 @@ export function PublicationCard({
                     <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
                   </span>
                 )}
+                {typeof syncDiffCount === 'number' && syncDiffCount > 0 && (
+                  <Badge variant="outline" className="font-mono text-[10px] text-neon-orange border-neon-orange/40 bg-neon-orange/10">
+                    sync+{syncDiffCount}
+                  </Badge>
+                )}
                 {!driveLoading && driveUrl && (
                   <a
                     href={driveUrl}
@@ -193,6 +205,12 @@ export function PublicationCard({
                       <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onOpen(); }}>
                         <Edit className="w-4 h-4 mr-2" />
                         {primaryActionLabel}
+                      </DropdownMenuItem>
+                    )}
+                    {onCheckSync && (
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onCheckSync(); }} disabled={syncLoading || !publication.doi}>
+                        <Loader2 className={`w-4 h-4 mr-2 ${syncLoading ? 'animate-spin' : ''}`} />
+                        sync details
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onExportBibtex(); }}>

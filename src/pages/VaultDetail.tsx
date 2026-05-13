@@ -13,7 +13,8 @@ import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationDialog } from '@/components/publications/PublicationDialog';
 import { PublicationViewDialog } from '@/components/publications/PublicationViewDialog';
 import { VaultAugmentDialog } from '@/components/publications/VaultAugmentDialog';
-import { SSPaper } from '@/lib/semanticScholar';
+import { fetchSemanticScholarMetadataByDoi, SSPaper, SemanticScholarMetadata } from '@/lib/semanticScholar';
+import { createPublicationSyncPatch, formatSyncValue, getPublicationSyncDiffs, PublicationSyncDiff } from '@/lib/publicationSync';
 import { AddImportDialog } from '@/components/publications/AddImportDialog';
 import { VaultDialog } from '@/components/vaults/VaultDialog';
 import { CollectionAnalytics } from '@/components/publications/CollectionAnalytics';
@@ -29,7 +30,7 @@ import { useVaultContent } from '@/contexts/VaultContentContext';
 import { useSharedVaultOperations } from '@/hooks/useSharedVaultOperations';
 import { getForkSourceHref, getForkSourceLabel, getVaultForkInfo, VaultForkInfo } from '@/lib/vaultFork';
 import { buildVaultPublicationCopyPayload } from '@/lib/vaultPublicationAttribution';
-import { Lock, Globe, Shield, Users, Clock, User, ExternalLink, Sparkles, Crown, Edit, Eye, Heart, GitFork, PencilLine } from 'lucide-react';
+import { Lock, Globe, Shield, Users, Clock, User, ExternalLink, Sparkles, Crown, Edit, Eye, Heart, GitFork, PencilLine, RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -149,6 +150,10 @@ export default function VaultDetail() {
   const [editingPublication, setEditingPublication] = useState<Publication | null>(null);
   const [viewingPublication, setViewingPublication] = useState<Publication | null>(null);
   const currentlyEditingPublicationId = useRef<string | null>(null);
+  const [syncDiffsByPublication, setSyncDiffsByPublication] = useState<Record<string, PublicationSyncDiff[]>>({});
+  const [syncMetadataByPublication, setSyncMetadataByPublication] = useState<Record<string, SemanticScholarMetadata>>({});
+  const [syncLoadingIds, setSyncLoadingIds] = useState<Set<string>>(new Set());
+  const [syncPreviewPublication, setSyncPreviewPublication] = useState<Publication | null>(null);
 
   const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
   const [editingVault, setEditingVault] = useState<Vault | null>(null);
@@ -812,6 +817,65 @@ export default function VaultDetail() {
       return [];
     }
   };
+
+  const syncDiffCounts = useMemo(
+    () => Object.fromEntries(Object.entries(syncDiffsByPublication).map(([id, diffs]) => [id, diffs.length])),
+    [syncDiffsByPublication],
+  );
+
+  const handleCheckPublicationSync = useCallback(async (publication: Publication) => {
+    if (!publication.doi) {
+      toast({ title: 'sync_needs_doi', description: 'Semantic Scholar detail sync currently needs a DOI.', variant: 'destructive' });
+      return;
+    }
+
+    setSyncLoadingIds(prev => new Set(prev).add(publication.id));
+    try {
+      const metadata = await fetchSemanticScholarMetadataByDoi(publication.doi);
+      if (!metadata) {
+        setSyncDiffsByPublication(prev => ({ ...prev, [publication.id]: [] }));
+        toast({ title: 'sync_no_semantic_scholar_match', description: 'No Semantic Scholar metadata found for this DOI.' });
+        return;
+      }
+
+      const diffs = getPublicationSyncDiffs(publication, metadata);
+      setSyncMetadataByPublication(prev => ({ ...prev, [publication.id]: metadata }));
+      setSyncDiffsByPublication(prev => ({ ...prev, [publication.id]: diffs }));
+      if (diffs.length > 0) {
+        setSyncPreviewPublication(publication);
+        toast({ title: `sync_found_${diffs.length}_field${diffs.length === 1 ? '' : 's'}`, description: 'Review incoming Semantic Scholar details before applying.' });
+      } else {
+        toast({ title: 'sync_up_to_date', description: 'Semantic Scholar details match this publication.' });
+      }
+    } catch (error) {
+      toast({ title: 'sync_failed', description: (error as Error).message, variant: 'destructive' });
+    } finally {
+      setSyncLoadingIds(prev => {
+        const next = new Set(prev);
+        next.delete(publication.id);
+        return next;
+      });
+    }
+  }, [toast]);
+
+  const handleApplyPublicationSync = useCallback(async () => {
+    if (!syncPreviewPublication || !canEdit) return;
+    const diffs = syncDiffsByPublication[syncPreviewPublication.id] || [];
+    if (diffs.length === 0) return;
+
+    const result = await sharedVaultOps.updateVaultPublication(
+      syncPreviewPublication.id,
+      createPublicationSyncPatch(diffs),
+    );
+    if (!result.success) {
+      toast({ title: 'sync_apply_failed', description: result.error?.message || 'Could not apply Semantic Scholar details.', variant: 'destructive' });
+      return;
+    }
+
+    setSyncDiffsByPublication(prev => ({ ...prev, [syncPreviewPublication.id]: [] }));
+    setSyncPreviewPublication(null);
+    updateLastActivity('publication_updated', user?.id || null);
+  }, [canEdit, sharedVaultOps, syncDiffsByPublication, syncPreviewPublication, toast, updateLastActivity, user?.id]);
 
   const handleAddToVaults = async (publicationId: string, vaultIds: string[]) => {
     if (!user || !canEdit) return; // Only allow adding if user has edit permission
@@ -1798,6 +1862,9 @@ export default function VaultDetail() {
           onCreateTag={canEdit ? handleCreateTag : undefined}
           driveUrlsMap={pdfAssetsMap}
           driveLoading={pdfAssetsLoading}
+          syncDiffCounts={syncDiffCounts}
+          syncLoadingIds={syncLoadingIds}
+          onCheckPublicationSync={canEdit ? handleCheckPublicationSync : undefined}
         />
       </div>
 
@@ -1838,6 +1905,43 @@ export default function VaultDetail() {
         driveUrl={viewingPublication ? (pdfAssetsMap[viewingPublication.id] ?? null) : null}
         driveLoading={pdfAssetsLoading}
       />
+
+      <AlertDialog open={!!syncPreviewPublication} onOpenChange={(open) => !open && setSyncPreviewPublication(null)}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-mono flex items-center gap-2">
+              <RefreshCw className="w-4 h-4" />
+              semantic_scholar_sync()
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Review incoming publication-level details. This does not touch vault notes or tags.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="max-h-[50vh] overflow-y-auto space-y-2">
+            {(syncPreviewPublication ? syncDiffsByPublication[syncPreviewPublication.id] || [] : []).map((diff) => (
+              <div key={diff.field} className="rounded-lg border bg-muted/20 p-3">
+                <div className="text-xs font-mono text-muted-foreground mb-1">{diff.label}</div>
+                <div className="grid gap-2 sm:grid-cols-2 text-sm">
+                  <div>
+                    <div className="text-xs font-mono text-muted-foreground">current</div>
+                    <div className="break-words">{formatSyncValue(diff.current)}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-mono text-neon-green">incoming</div>
+                    <div className="break-words">{formatSyncValue(diff.incoming)}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>not_now</AlertDialogCancel>
+            <AlertDialogAction onClick={handleApplyPublicationSync} disabled={!canEdit}>
+              apply_updates
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <VaultAugmentDialog
         open={isAugmentDialogOpen}
