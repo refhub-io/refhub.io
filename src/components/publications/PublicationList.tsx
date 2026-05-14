@@ -550,8 +550,15 @@ export function PublicationList({
               placeholder="search_papers..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-9 font-mono"
+              className={cn("pl-10 h-9 font-mono", !searchQuery && "md:pr-16")}
             />
+            {!searchQuery && (
+              <KbdHint
+                shortcut="Ctrl+K"
+                size="sm"
+                className="absolute right-3 top-1/2 -translate-y-1/2 hidden md:inline-flex pointer-events-none"
+              />
+            )}
           </div>
 
           {/* Filter button with shortcut hint */}
