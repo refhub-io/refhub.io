@@ -40,3 +40,6 @@ dist-ssr
 supabase/.temp
 supabase/migrations
 supabase/.branches
+
+# superpowers
+.superpowers
