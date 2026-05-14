@@ -400,8 +400,8 @@ export function PublicationList({
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-x-hidden">
       {/* Header */}
-      <header className="bg-card/50 backdrop-blur-xl border-b-2 border-border px-4 lg:px-8 py-4 shrink-0 sticky top-0 z-10">
-        <div className="flex items-center gap-3">
+      <header className="bg-card/50 backdrop-blur-xl border-b-2 border-border px-3 sm:px-4 lg:px-8 py-3 sm:py-4 shrink-0 sticky top-0 z-10">
+        <div className="flex items-center gap-2 sm:gap-3">
           <MobileMenuButton 
             onClick={onMobileMenuOpen}
             className="shrink-0"
@@ -440,7 +440,7 @@ export function PublicationList({
             </p>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             <NotificationDropdown />
 
             {/* Visible buttons on larger screens */}
@@ -531,7 +531,7 @@ export function PublicationList({
             )}
 
             {onAddPublication && (
-              <Button onClick={onAddPublication} variant="glow" className="h-9 font-mono">
+              <Button onClick={onAddPublication} variant="glow" className="h-9 w-9 sm:w-auto sm:px-3 font-mono">
                 <Plus className="w-4 h-4 sm:mr-2" />
                 <span className="hidden sm:inline">add_paper</span>
               </Button>
@@ -540,9 +540,9 @@ export function PublicationList({
         </div>
 
         {/* Search, filters and view settings */}
-        <div className="flex items-center gap-3 mt-5 flex-wrap">
+        <div className="mt-4 sm:mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
           {/* Search input — left side, grows to fill available space */}
-          <div className="relative flex-1 min-w-[160px]">
+          <div className="relative w-full sm:flex-1 sm:min-w-[220px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               ref={searchInputRef}
@@ -692,7 +692,7 @@ export function PublicationList({
       {/* Publication list */}
       <div
         ref={listContainerRef}
-        className="flex-1 overflow-y-auto scrollbar-thin overflow-x-hidden p-4 lg:p-8 outline-none"
+        className="flex-1 overflow-y-auto scrollbar-thin overflow-x-hidden p-3 sm:p-4 lg:p-8 pb-[calc(1rem+env(safe-area-inset-bottom))] outline-none"
         {...kbNav.containerProps}
       >
         {filteredPublications.length === 0 ? (
@@ -743,7 +743,7 @@ export function PublicationList({
             onCheckSync={onCheckPublicationSync}
           />
         ) : (
-          <div className="space-y-4 max-w-4xl mx-auto">
+          <div className="space-y-3 sm:space-y-4 max-w-4xl mx-auto">
             {filteredPublications.map((pub, index) => (
               <div
                 key={pub.id}

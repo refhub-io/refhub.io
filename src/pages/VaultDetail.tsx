@@ -1664,11 +1664,11 @@ export default function VaultDetail() {
         onEditProfile={() => setIsProfileDialogOpen(true)}
       />
 
-      <div className="flex-1 lg:pl-72 min-w-0">
+      <div className="flex-1 lg:pl-72 min-w-0 flex flex-col min-h-screen">
         {/* Vault Header */}
-        <div className="border-b border-border bg-card/50 backdrop-blur-xl sticky top-0 z-30">
-          <div className="px-4 py-3">
-            <div className="flex items-center justify-between gap-2">
+        <div className="border-b border-border bg-card/50 backdrop-blur-xl sticky top-0 z-30 shrink-0">
+          <div className="px-3 sm:px-4 py-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2 min-w-0 flex-wrap">
                 {visibilityBadge}
                 {forkInfo?.forkedFrom && (
@@ -1716,7 +1716,7 @@ export default function VaultDetail() {
                 </span>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 shrink-0 overflow-x-auto pb-1 sm:overflow-visible sm:pb-0">
                 {/* Stats for owners */}
                 {isOwner && currentVault && (
                   <>
