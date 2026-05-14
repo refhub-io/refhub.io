@@ -15,6 +15,7 @@ export interface HotkeyDef {
   description: string;
   handler: (e: KeyboardEvent) => boolean | void;
   allowInInput?: boolean;
+  appWide?: boolean;
 }
 
 /**
@@ -37,6 +38,7 @@ export function useHotkeys(
       context,
       handler: d.handler,
       allowInInput: d.allowInInput,
+      appWide: d.appWide,
     }));
 
     return registerShortcuts(shortcutDefs);
@@ -72,6 +74,8 @@ export interface UseKeyboardNavigationOptions {
    * do NOT enable for sidebar / secondary lists to avoid context conflicts.
    */
   bootstrapOnNav?: boolean;
+  /** Make this list's shortcuts available across normal app contexts. */
+  appWideShortcuts?: boolean;
 }
 
 export interface UseKeyboardNavigationReturn {
@@ -128,6 +132,7 @@ export function useKeyboardNavigation(
     containerRef,
     resetKey,
     bootstrapOnNav = false,
+    appWideShortcuts = false,
   } = options;
 
   const kb = useKeyboardContext();
@@ -364,6 +369,7 @@ export function useKeyboardNavigation(
       {
         combo: 'j',
         description: 'Move focus down',
+        appWide: appWideShortcuts,
         handler: () => { moveFocus(1); return true; },
       },
       {
@@ -374,6 +380,7 @@ export function useKeyboardNavigation(
       {
         combo: 'k',
         description: 'Move focus up',
+        appWide: appWideShortcuts,
         handler: () => { moveFocus(-1); return true; },
       },
       {
@@ -396,6 +403,7 @@ export function useKeyboardNavigation(
       {
         combo: 'Shift+g',
         description: 'Jump to last item',
+        appWide: appWideShortcuts,
         handler: () => { jumpTo(itemIdsRef.current.length - 1); return true; },
       },
       // Enter: open
@@ -426,6 +434,7 @@ export function useKeyboardNavigation(
       {
         combo: 'v',
         description: 'Toggle view mode',
+        appWide: appWideShortcuts,
         handler: () => {
           onToggleView?.();
           return true;
@@ -486,6 +495,7 @@ export function useKeyboardNavigation(
       {
         combo: 'Shift+j',
         description: 'Range select down',
+        appWide: appWideShortcuts,
         handler: () => {
           if (rangeAnchorRef.current == null) rangeAnchorRef.current = focusedIndexRef.current;
           moveFocus(1);
@@ -497,6 +507,7 @@ export function useKeyboardNavigation(
       {
         combo: 'Shift+k',
         description: 'Range select up',
+        appWide: appWideShortcuts,
         handler: () => {
           if (rangeAnchorRef.current == null) rangeAnchorRef.current = focusedIndexRef.current;
           moveFocus(-1);
@@ -519,20 +530,22 @@ export function useKeyboardNavigation(
     [moveFocus, jumpTo, toggleSelection, doRangeSelect, selectAll, clearSelection, onOpen, onDelete, onToggleView, onExport],
   );
 
-  // Feed single non-modifier keys into chord machine
+  // Feed single non-modifier keys into chord machine. App-wide primary lists
+  // keep gg working even when activeContext is stale; scoped lists keep the old
+  // context gate so sidebar/vault-list chords cannot accidentally compete.
   useEffect(() => {
     if (!kb.enabled) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (shouldSuppressSingleKey()) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (kb.activeContext !== context) return;
+      if (!appWideShortcuts && kb.activeContext !== context) return;
       chordRef.current?.feed(e.key);
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [kb.enabled, kb.activeContext, context]);
+  }, [kb.enabled, kb.activeContext, context, appWideShortcuts]);
 
   // Item props generator
   const itemProps = useCallback(

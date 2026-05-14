@@ -290,6 +290,7 @@ export function PublicationList({
     onExport: handleKbExport,
     activateOnMount: true,
     bootstrapOnNav: true,
+    appWideShortcuts: true,
     containerRef: listContainerRef as React.RefObject<HTMLElement>,
     resetKey: selectedVault?.id ?? 'all_papers',
   });
@@ -328,7 +329,9 @@ export function PublicationList({
   const selectedPublications = publications.filter((p) => selectedIds.has(p.id));
 
 
-  // Meta+K / Ctrl+K → focus search (registered through keyboard system)
+  // Meta+K / Ctrl+K → focus search (registered through keyboard system).
+  // Escape from the focused search clears/blurs so single-letter shortcuts
+  // resume without requiring a click elsewhere.
   useHotkeys(
     'global',
     [
@@ -342,17 +345,32 @@ export function PublicationList({
         },
         allowInInput: true,
       },
+      {
+        combo: 'Escape',
+        description: 'Clear search',
+        handler: () => {
+          if (document.activeElement !== searchInputRef.current) return false;
+          if (searchQuery) setSearchQuery('');
+          searchInputRef.current?.blur();
+          return true;
+        },
+        allowInInput: true,
+      },
     ],
-    [],
+    [searchQuery],
   );
 
-  // publication-list context: p, f, s shortcuts
+  // Publication page shortcuts are unique app-wide; register them as appWide so
+  // stale activeContext never forces a click before f/s/p/r work. The keyboard
+  // provider still blocks them while typing in editable fields and while modal
+  // contexts are active.
   useHotkeys(
     kbContext,
     [
       {
         combo: 'p',
         description: 'Show properties popup',
+        appWide: true,
         handler: (e) => {
           e.preventDefault();
           setPropertiesOpen((prev) => !prev);
@@ -364,6 +382,7 @@ export function PublicationList({
       {
         combo: 'f',
         description: 'Show filter popup',
+        appWide: true,
         handler: (e) => {
           e.preventDefault();
           setFilterOpen((prev) => !prev);
@@ -375,6 +394,7 @@ export function PublicationList({
       {
         combo: 's',
         description: 'Show sort popup',
+        appWide: true,
         handler: (e) => {
           e.preventDefault();
           setSortDropdownOpen((prev) => !prev);
@@ -386,6 +406,7 @@ export function PublicationList({
       {
         combo: 'r',
         description: 'Discover related papers',
+        appWide: true,
         handler: (e) => {
           if (!onDiscoverRelated || selectedPublications.length === 0) return false;
           e.preventDefault();
