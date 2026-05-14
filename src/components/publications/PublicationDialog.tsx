@@ -7,7 +7,7 @@ import { useHotkeys } from '@/hooks/useKeyboardNavigation';
 import { useKeyboardContext } from '@/contexts/KeyboardContext';
 import { KbdHint } from '@/components/ui/KbdHint';
 import { formatTimeAgo } from '@/lib/utils';
-import { Maximize, Minimize, Save, X, Plus } from 'lucide-react';
+import { Maximize, Minimize, Save, X, Plus, Loader2, Upload, CheckCircle2, AlertCircle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -48,6 +48,8 @@ interface PublicationDialogProps {
   onSave: (data: Partial<Publication>, tagIds: string[], vaultIds?: string[], isAutoSave?: boolean, driveUrl?: string | null) => Promise<void>;
   onCreateTag: (name: string, parentId?: string) => Promise<Tag | null>;
   onAddToVaults?: (publicationId: string, vaultIds: string[]) => Promise<void>;
+  onCheckSync?: (publication: Publication) => void;
+  syncLoading?: boolean;
   /** When false, dialog stays open after save (default: true). */
   closeOnSave?: boolean;
   driveUrl?: string | null;
@@ -68,6 +70,8 @@ export function PublicationDialog({
   onSave,
   onCreateTag,
   onAddToVaults,
+  onCheckSync,
+  syncLoading = false,
   closeOnSave = false,
   driveUrl,
 }: PublicationDialogProps) {
@@ -126,8 +130,10 @@ export function PublicationDialog({
   const [pendingClose, setPendingClose] = useState(false);
   const [pendingExitFullscreen, setPendingExitFullscreen] = useState(false);
   const [drivePdfInput, setDrivePdfInput] = useState<string>(driveUrl ?? '');
-  const [drivePdfUploading, setDrivePdfUploading] = useState(false);
+  const [driveUploadStatus, setDriveUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  const [driveUploadError, setDriveUploadError] = useState('');
   const drivePdfFileInputRef = useRef<HTMLInputElement | null>(null);
+  const driveUploadResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fullscreenCleanNotesRef = useRef<string>(''); // snapshot of notes when entering fullscreen
   const duplicateCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadRef = useRef(true);
@@ -212,17 +218,22 @@ export function PublicationDialog({
   const handleDrivePdfFileSelected = useCallback(async (file: File | null) => {
     if (!file || !publication?.id) return;
 
-    setDrivePdfUploading(true);
+    if (driveUploadResetRef.current) clearTimeout(driveUploadResetRef.current);
+    setDriveUploadStatus('uploading');
+    setDriveUploadError('');
+
     try {
       const result = driveUploadContext === 'vault' && currentVaultId
         ? await uploadVaultPublicationDrivePdf(currentVaultId, publication.id, file)
         : await uploadPublicationDrivePdf(publication.id, file);
       setDrivePdfInput(result.pdfUrl || '');
+      setDriveUploadStatus('success');
+      driveUploadResetRef.current = setTimeout(() => setDriveUploadStatus('idle'), 2500);
+    } catch (err) {
+      setDriveUploadError((err as Error).message);
+      setDriveUploadStatus('error');
     } finally {
-      setDrivePdfUploading(false);
-      if (drivePdfFileInputRef.current) {
-        drivePdfFileInputRef.current.value = '';
-      }
+      if (drivePdfFileInputRef.current) drivePdfFileInputRef.current.value = '';
     }
   }, [currentVaultId, driveUploadContext, publication?.id]);
 
@@ -816,13 +827,32 @@ export function PublicationDialog({
           className="w-screen max-w-none box-border h-screen sm:w-[95vw] sm:max-w-3xl sm:h-auto sm:max-h-[90vh] m-0 p-0 border-0 sm:border-2 bg-card/95 backdrop-blur-xl overflow-x-hidden overflow-y-auto flex flex-col"
         >
         <DialogHeader className="px-2 py-3 sm:p-6 pb-2 sm:pb-0">
-          <DialogTitle className="text-lg sm:text-2xl font-bold font-mono pr-2 sm:pr-0">
+          <DialogTitle className="text-lg sm:text-2xl font-bold font-mono pr-8 sm:pr-10">
             {publication ? (
               <span>edit_<span className="text-gradient">paper</span></span>
             ) : (
               <span>add_<span className="text-gradient">paper</span></span>
             )}
           </DialogTitle>
+          {publication && onCheckSync && (
+            <div className="flex items-center gap-2 pt-1.5">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onCheckSync(publication)}
+                disabled={syncLoading || !publication.doi}
+                className="font-mono text-xs h-7 px-2.5"
+                title={publication.doi ? 'Sync metadata from Semantic Scholar' : 'DOI required for sync'}
+              >
+                <Loader2 className={`w-3 h-3 mr-1.5 ${syncLoading ? 'animate-spin' : ''}`} />
+                sync_details
+              </Button>
+              {!publication.doi && (
+                <span className="text-[10px] font-mono text-muted-foreground">doi required</span>
+              )}
+            </div>
+          )}
         </DialogHeader>
 
         {duplicateWarning && (
@@ -1024,7 +1054,10 @@ export function PublicationDialog({
                   value={drivePdfInput}
                   onChange={(e) => setDrivePdfInput(e.target.value)}
                   placeholder="https://drive.google.com/file/d/..."
-                  className="font-mono text-xs sm:text-sm w-full break-all h-9 sm:h-10 box-border"
+                  className={`font-mono text-xs sm:text-sm w-full break-all h-9 sm:h-10 box-border transition-colors ${
+                    driveUploadStatus === 'success' ? 'border-neon-green focus-visible:ring-neon-green' :
+                    driveUploadStatus === 'error' ? 'border-destructive focus-visible:ring-destructive' : ''
+                  }`}
                 />
                 <input
                   ref={drivePdfFileInputRef}
@@ -1037,13 +1070,33 @@ export function PublicationDialog({
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={!publication?.id || drivePdfUploading}
-                  onClick={() => drivePdfFileInputRef.current?.click()}
-                  className="font-mono shrink-0"
+                  disabled={!publication?.id || driveUploadStatus === 'uploading'}
+                  onClick={() => {
+                    setDriveUploadStatus('idle');
+                    setDriveUploadError('');
+                    drivePdfFileInputRef.current?.click();
+                  }}
+                  className={`font-mono shrink-0 transition-all ${
+                    driveUploadStatus === 'uploading' ? 'border-primary text-primary' :
+                    driveUploadStatus === 'success' ? 'border-neon-green text-neon-green bg-neon-green/10' :
+                    driveUploadStatus === 'error' ? 'border-destructive text-destructive bg-destructive/10' : ''
+                  }`}
                 >
-                  {drivePdfUploading ? 'uploading…' : 'upload_pdf'}
+                  {driveUploadStatus === 'uploading' && <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
+                  {driveUploadStatus === 'success' && <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />}
+                  {driveUploadStatus === 'error' && <AlertCircle className="w-3.5 h-3.5 mr-1.5" />}
+                  {driveUploadStatus === 'idle' && <Upload className="w-3.5 h-3.5 mr-1.5" />}
+                  {driveUploadStatus === 'uploading' ? 'uploading…' :
+                   driveUploadStatus === 'success' ? 'uploaded!' :
+                   driveUploadStatus === 'error' ? 'retry' : 'upload_pdf'}
                 </Button>
               </div>
+              {driveUploadStatus === 'error' && driveUploadError && (
+                <p className="text-xs font-mono text-destructive flex items-start gap-1.5 pt-0.5">
+                  <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
+                  {driveUploadError}
+                </p>
+              )}
             </div>
 
             {/* Additional BibTeX Fields - shown conditionally based on publication type */}

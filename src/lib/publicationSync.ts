@@ -1,6 +1,27 @@
 import { Publication } from '@/types/database';
 import { SemanticScholarMetadata } from '@/lib/semanticScholar';
 
+// Fields that are shared bibliographic data and should propagate across all copies
+// of a publication. Vault-specific fields (notes, tags) are intentionally excluded.
+export const BIBLIOGRAPHIC_FIELDS = [
+  'title', 'authors', 'year', 'journal', 'volume', 'issue', 'pages', 'doi', 'url',
+  'abstract', 'pdf_url', 'bibtex_key', 'publication_type', 'booktitle', 'chapter',
+  'edition', 'editor', 'howpublished', 'institution', 'number', 'organization',
+  'publisher', 'school', 'series', 'type', 'eid', 'isbn', 'issn', 'keywords',
+] as const;
+
+export type BibliographicField = typeof BIBLIOGRAPHIC_FIELDS[number];
+
+export function extractBibliographicPatch(data: Partial<Publication>): Partial<Publication> {
+  const patch: Partial<Publication> = {};
+  for (const field of BIBLIOGRAPHIC_FIELDS) {
+    if (field in data) {
+      (patch as Record<string, unknown>)[field] = data[field as keyof Publication];
+    }
+  }
+  return patch;
+}
+
 export type PublicationSyncField = 'title' | 'authors' | 'year' | 'journal' | 'doi' | 'url' | 'abstract' | 'publication_type';
 
 export interface PublicationSyncDiff {

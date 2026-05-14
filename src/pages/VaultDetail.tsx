@@ -14,7 +14,8 @@ import { PublicationDialog } from '@/components/publications/PublicationDialog';
 import { PublicationViewDialog } from '@/components/publications/PublicationViewDialog';
 import { VaultAugmentDialog } from '@/components/publications/VaultAugmentDialog';
 import { fetchSemanticScholarMetadataByDoi, SSPaper, SemanticScholarMetadata } from '@/lib/semanticScholar';
-import { createPublicationSyncPatch, formatSyncValue, getPublicationSyncDiffs, PublicationSyncDiff } from '@/lib/publicationSync';
+import { createPublicationSyncPatch, getPublicationSyncDiffs, PublicationSyncDiff } from '@/lib/publicationSync';
+import { PublicationSyncDialog } from '@/components/publications/PublicationSyncDialog';
 import { AddImportDialog } from '@/components/publications/AddImportDialog';
 import { VaultDialog } from '@/components/vaults/VaultDialog';
 import { CollectionAnalytics } from '@/components/publications/CollectionAnalytics';
@@ -30,7 +31,7 @@ import { useVaultContent } from '@/contexts/VaultContentContext';
 import { useSharedVaultOperations } from '@/hooks/useSharedVaultOperations';
 import { getForkSourceHref, getForkSourceLabel, getVaultForkInfo, VaultForkInfo } from '@/lib/vaultFork';
 import { buildVaultPublicationCopyPayload } from '@/lib/vaultPublicationAttribution';
-import { Lock, Globe, Shield, Users, Clock, User, ExternalLink, Sparkles, Crown, Edit, Eye, Heart, GitFork, PencilLine, RefreshCw } from 'lucide-react';
+import { Lock, Globe, Shield, Users, Clock, User, ExternalLink, Sparkles, Crown, Edit, Eye, Heart, GitFork, PencilLine } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -858,24 +859,28 @@ export default function VaultDetail() {
     }
   }, [toast]);
 
-  const handleApplyPublicationSync = useCallback(async () => {
-    if (!syncPreviewPublication || !canEdit) return;
-    const diffs = syncDiffsByPublication[syncPreviewPublication.id] || [];
-    if (diffs.length === 0) return;
+  const handleApplyPublicationSync = useCallback(async (selectedDiffs: PublicationSyncDiff[]) => {
+    if (!syncPreviewPublication || !canEdit || selectedDiffs.length === 0) return;
 
+    const patch = createPublicationSyncPatch(selectedDiffs);
     const result = await sharedVaultOps.updateVaultPublication(
       syncPreviewPublication.id,
-      createPublicationSyncPatch(diffs),
+      patch,
     );
     if (!result.success) {
       toast({ title: 'sync_apply_failed', description: result.error?.message || 'Could not apply Semantic Scholar details.', variant: 'destructive' });
       return;
     }
 
+    // Keep the edit dialog form in sync with the applied changes
+    if (editingPublication?.id === syncPreviewPublication.id) {
+      setEditingPublication(prev => prev ? { ...prev, ...patch } as Publication : prev);
+    }
+
     setSyncDiffsByPublication(prev => ({ ...prev, [syncPreviewPublication.id]: [] }));
     setSyncPreviewPublication(null);
     updateLastActivity('publication_updated', user?.id || null);
-  }, [canEdit, sharedVaultOps, syncDiffsByPublication, syncPreviewPublication, toast, updateLastActivity, user?.id]);
+  }, [canEdit, editingPublication, sharedVaultOps, syncDiffsByPublication, syncPreviewPublication, toast, updateLastActivity, user?.id]);
 
   const handleAddToVaults = async (publicationId: string, vaultIds: string[]) => {
     if (!user || !canEdit) return; // Only allow adding if user has edit permission
@@ -1890,6 +1895,8 @@ export default function VaultDetail() {
         onSave={canEdit ? handleSavePublication : undefined}
         onCreateTag={canEdit ? handleCreateTag : undefined}
         onAddToVaults={canEdit ? handleAddToVaults : undefined}
+        onCheckSync={canEdit ? handleCheckPublicationSync : undefined}
+        syncLoading={editingPublication ? syncLoadingIds.has(editingPublication.id) : false}
       />
 
       <PublicationViewDialog
@@ -1906,42 +1913,13 @@ export default function VaultDetail() {
         driveLoading={pdfAssetsLoading}
       />
 
-      <AlertDialog open={!!syncPreviewPublication} onOpenChange={(open) => !open && setSyncPreviewPublication(null)}>
-        <AlertDialogContent className="max-w-2xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="font-mono flex items-center gap-2">
-              <RefreshCw className="w-4 h-4" />
-              semantic_scholar_sync()
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Review incoming publication-level details. This does not touch vault notes or tags.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="max-h-[50vh] overflow-y-auto space-y-2">
-            {(syncPreviewPublication ? syncDiffsByPublication[syncPreviewPublication.id] || [] : []).map((diff) => (
-              <div key={diff.field} className="rounded-lg border bg-muted/20 p-3">
-                <div className="text-xs font-mono text-muted-foreground mb-1">{diff.label}</div>
-                <div className="grid gap-2 sm:grid-cols-2 text-sm">
-                  <div>
-                    <div className="text-xs font-mono text-muted-foreground">current</div>
-                    <div className="break-words">{formatSyncValue(diff.current)}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs font-mono text-neon-green">incoming</div>
-                    <div className="break-words">{formatSyncValue(diff.incoming)}</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel>not_now</AlertDialogCancel>
-            <AlertDialogAction onClick={handleApplyPublicationSync} disabled={!canEdit}>
-              apply_updates
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <PublicationSyncDialog
+        open={!!syncPreviewPublication}
+        onOpenChange={(open) => !open && setSyncPreviewPublication(null)}
+        diffs={syncPreviewPublication ? syncDiffsByPublication[syncPreviewPublication.id] || [] : []}
+        onApply={handleApplyPublicationSync}
+        disabled={!canEdit}
+      />
 
       <VaultAugmentDialog
         open={isAugmentDialogOpen}
