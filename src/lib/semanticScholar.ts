@@ -14,6 +14,17 @@ export interface SSPaper {
   openAccessPdfUrl: string | null;
 }
 
+export interface SemanticScholarMetadata {
+  title: string;
+  authors: string[];
+  year?: number;
+  journal?: string;
+  doi: string;
+  url?: string;
+  abstract?: string;
+  type?: string;
+}
+
 interface BackendPaperAuthor {
   author_id?: string | null;
   authorId?: string | null;
@@ -251,3 +262,32 @@ export async function getRecommendationsForSet(paperIds: string[]): Promise<SSPa
     return [];
   }
 }
+
+export async function fetchSemanticScholarMetadataByDoi(doi: string): Promise<SemanticScholarMetadata | null> {
+  const cleanDoi = doi.trim().replace(/^doi:/i, '');
+  if (!cleanDoi) return null;
+
+  const accessToken = await getAccessToken();
+  const response = await fetch(getSemanticScholarProxyUrl('/doi-metadata'), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ doi: cleanDoi }),
+  });
+
+  let payload: unknown = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(getErrorMessage(payload, response.status));
+  }
+
+  return ((payload as { data?: SemanticScholarMetadata | null } | null)?.data ?? null);
+}
+

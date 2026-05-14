@@ -33,6 +33,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { GoogleDriveIcon } from '@/components/ui/GoogleDriveIcon';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
 interface PublicationTableProps {
@@ -52,6 +53,9 @@ interface PublicationTableProps {
   onExportBibtex: (pub: Publication) => void;
   driveUrlsMap?: Record<string, string | null>;
   driveLoading?: boolean;
+  syncDiffCounts?: Record<string, number>;
+  syncLoadingIds?: Set<string>;
+  onCheckSync?: (pub: Publication) => void;
   // Sort props
   sortBy: SortField;
   sortDirection: SortDirection;
@@ -78,6 +82,9 @@ export function PublicationTable({
   onExportBibtex,
   driveUrlsMap = {},
   driveLoading = false,
+  syncDiffCounts = {},
+  syncLoadingIds = new Set(),
+  onCheckSync,
   sortBy,
   sortDirection,
   onSort,
@@ -224,6 +231,11 @@ export function PublicationTable({
                     <span className="line-clamp-2 hover:text-primary transition-colors">
                       {pub.title}
                     </span>
+                    {syncDiffCounts[pub.id] > 0 && (
+                      <Badge variant="outline" className="mt-1 w-fit font-mono text-[10px] text-neon-orange border-neon-orange/40 bg-neon-orange/10">
+                        sync+{syncDiffCounts[pub.id]}
+                      </Badge>
+                    )}
                   </TableCell>
                 )}
 
@@ -401,6 +413,12 @@ export function PublicationTable({
                         <DropdownMenuItem onClick={() => onOpen(pub)}>
                           <Edit className="w-4 h-4 mr-2" />
                           {primaryActionLabel}
+                        </DropdownMenuItem>
+                      )}
+                      {onCheckSync && (
+                        <DropdownMenuItem onClick={() => onCheckSync(pub)} disabled={syncLoadingIds.has(pub.id) || !pub.doi}>
+                          <Loader2 className={`w-4 h-4 mr-2 ${syncLoadingIds.has(pub.id) ? 'animate-spin' : ''}`} />
+                          sync details
                         </DropdownMenuItem>
                       )}
                       <DropdownMenuItem onClick={() => onExportBibtex(pub)}>

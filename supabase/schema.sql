@@ -876,7 +876,7 @@ CREATE TABLE IF NOT EXISTS "public"."publication_pdf_assets" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "user_id" "uuid" NOT NULL,
     "publication_id" "uuid",
-    "vault_publication_id" "uuid" NOT NULL,
+    "vault_publication_id" "uuid",
     "storage_provider" "text" DEFAULT 'google_drive'::"text" NOT NULL,
     "source_pdf_url" "text",
     "stored_pdf_url" "text",
@@ -1503,6 +1503,10 @@ CREATE INDEX "idx_vaults_visibility" ON "public"."vaults" USING "btree" ("visibi
 
 
 
+CREATE UNIQUE INDEX "publication_pdf_assets_publication_storage_provider_key" ON "public"."publication_pdf_assets" USING "btree" ("publication_id", "storage_provider") WHERE (("publication_id" IS NOT NULL) AND ("vault_publication_id" IS NULL));
+
+
+
 CREATE UNIQUE INDEX "publication_tags_publication_id_tag_id_idx" ON "public"."publication_tags" USING "btree" ("publication_id", "tag_id") WHERE ("publication_id" IS NOT NULL);
 
 
@@ -1786,10 +1790,6 @@ CREATE POLICY "Authenticated users can view profiles" ON "public"."profiles" FOR
 
 
 CREATE POLICY "Authenticated users can view set up profiles" ON "public"."profiles" FOR SELECT TO "authenticated" USING (("is_setup" = true));
-
-
-
-CREATE POLICY "Public: profiles of public vault actors are viewable by anon" ON "public"."profiles" FOR SELECT TO "anon" USING (("user_id" IN ( SELECT DISTINCT "vp"."updated_by" FROM ("public"."vault_publications" "vp" JOIN "public"."vaults" "v" ON (("v"."id" = "vp"."vault_id"))) WHERE (("v"."visibility" = 'public'::"public"."vault_visibility") AND ("vp"."updated_by" IS NOT NULL)) UNION SELECT DISTINCT "vp"."created_by" FROM ("public"."vault_publications" "vp" JOIN "public"."vaults" "v" ON (("v"."id" = "vp"."vault_id"))) WHERE (("v"."visibility" = 'public'::"public"."vault_visibility") AND ("vp"."created_by" IS NOT NULL)) UNION SELECT "v"."user_id" FROM "public"."vaults" "v" WHERE ("v"."visibility" = 'public'::"public"."vault_visibility"))));
 
 
 

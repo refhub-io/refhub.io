@@ -2,6 +2,7 @@ import { useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Publication, Tag, PublicationTag } from '@/types/database';
 import { useToast } from '@/hooks/use-toast';
+import { extractBibliographicPatch } from '@/lib/publicationSync';
 
 interface OptimisticUpdate<T> {
   id: string;
@@ -113,6 +114,28 @@ export function useSharedVaultOperations({
         .eq('id', publicationId);
 
       if (error) throw error;
+
+      // Fan out bibliographic changes to canonical publication and sibling vault copies.
+      // Notes and tags are vault-specific and are excluded by extractBibliographicPatch.
+      const vaultPub = publications.find(p => p.id === publicationId);
+      const originalId = vaultPub?.original_publication_id;
+      if (originalId) {
+        const bibPatch = extractBibliographicPatch(updates);
+        if (Object.keys(bibPatch).length > 0) {
+          const now = new Date().toISOString();
+          // Canonical publications record (no updated_by column)
+          supabase.from('publications')
+            .update({ ...bibPatch, updated_at: now })
+            .eq('id', originalId)
+            .then(({ error: e }) => { if (e) console.warn('[sync] canonical fan-out error:', e.message); });
+          // Sibling vault copies in other vaults
+          supabase.from('vault_publications')
+            .update({ ...bibPatch, updated_at: now, updated_by: userId })
+            .eq('original_publication_id', originalId)
+            .neq('id', publicationId)
+            .then(({ error: e }) => { if (e) console.warn('[sync] sibling fan-out error:', e.message); });
+        }
+      }
 
       // Clean up pending update tracking
       pendingPublicationUpdates.current.delete(operationId);

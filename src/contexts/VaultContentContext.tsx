@@ -229,26 +229,62 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
     original_publication_id: vp.original_publication_id,
   }), []);
 
-  const fetchPdfAssets = useCallback(async (vaultPublicationIds: string[]) => {
-    if (vaultPublicationIds.length === 0) {
+  const fetchPdfAssets = useCallback(async (vaultPublications: Publication[]) => {
+    if (vaultPublications.length === 0) {
       setPdfAssetsMap({});
       setPdfAssetsLoading(false);
       return;
     }
-    try {
-      const { data, error } = await supabase
-        .from('publication_pdf_assets')
-        .select('vault_publication_id, stored_pdf_url')
-        .in('vault_publication_id', vaultPublicationIds)
-        .eq('storage_provider', 'google_drive')
-        .eq('status', 'stored');
 
-      if (error) throw error;
+    const vaultPublicationIds = vaultPublications.map(pub => pub.id).filter(Boolean);
+    const originalPublicationIds = vaultPublications
+      .map(pub => pub.original_publication_id)
+      .filter((id): id is string => Boolean(id));
+
+    try {
+      const [vaultAssetsRes, publicationAssetsRes] = await Promise.all([
+        vaultPublicationIds.length > 0
+          ? supabase
+              .from('publication_pdf_assets')
+              .select('vault_publication_id, stored_pdf_url')
+              .in('vault_publication_id', vaultPublicationIds)
+              .eq('storage_provider', 'google_drive')
+              .eq('status', 'stored')
+          : Promise.resolve({ data: [], error: null }),
+        originalPublicationIds.length > 0
+          ? supabase
+              .from('publication_pdf_assets')
+              .select('publication_id, stored_pdf_url')
+              .in('publication_id', originalPublicationIds)
+              .is('vault_publication_id', null)
+              .eq('storage_provider', 'google_drive')
+              .eq('status', 'stored')
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+
+      if (vaultAssetsRes.error) throw vaultAssetsRes.error;
+      if (publicationAssetsRes.error) throw publicationAssetsRes.error;
+
+      const publicationAssetMap = new Map<string, string | null>();
+      for (const row of publicationAssetsRes.data ?? []) {
+        if (row.publication_id) {
+          publicationAssetMap.set(row.publication_id, row.stored_pdf_url ?? null);
+        }
+      }
 
       const map: Record<string, string | null> = {};
-      for (const row of data ?? []) {
-        map[row.vault_publication_id] = row.stored_pdf_url ?? null;
+      for (const publication of vaultPublications) {
+        map[publication.id] = publication.original_publication_id
+          ? publicationAssetMap.get(publication.original_publication_id) ?? null
+          : null;
       }
+      for (const row of vaultAssetsRes.data ?? []) {
+        if (row.vault_publication_id) {
+          // Vault-specific rows win, but publication-level rows provide the cross-vault fallback.
+          map[row.vault_publication_id] = row.stored_pdf_url ?? null;
+        }
+      }
+
       setPdfAssetsMap(map);
     } catch (err) {
       debug('VaultContentContext', 'pdf assets fetch failed (non-fatal):', err);
@@ -264,8 +300,11 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
     // Optimistic update
     setPdfAssetsMap(prev => ({ ...prev, [vaultPublicationId]: url || null }));
 
+    const publication = publications.find(p => p.id === vaultPublicationId);
+    const publicationId = publication?.original_publication_id ?? null;
     const record = {
       user_id: user.id,
+      publication_id: publicationId,
       vault_publication_id: vaultPublicationId,
       storage_provider: 'google_drive' as const,
       stored_pdf_url: url || null,
@@ -287,7 +326,21 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       });
       throw error;
     }
-  }, [user]);
+
+    if (publicationId) {
+      const { error: publicationError } = await supabase
+        .from('publication_pdf_assets')
+        .upsert(
+          {
+            ...record,
+            vault_publication_id: null,
+          },
+          { onConflict: 'publication_id,storage_provider' },
+        );
+
+      if (publicationError) throw publicationError;
+    }
+  }, [publications, user]);
 
   // Fetch vault content - extracted as a reusable function
   const fetchVaultContent = useCallback(async () => {
@@ -406,7 +459,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       setPublications(formattedVaultPublications);
       // Fire pdf assets fetch async — does not block publication rendering
       setPdfAssetsLoading(true);
-      fetchPdfAssets(vaultPublicationIds);
+      fetchPdfAssets(formattedVaultPublications);
       setTags(tagsRes.data as Tag[]);
       setPublicationTags(pubTagsRes.data as PublicationTag[]);
       setPublicationRelations(relationsRes.data as PublicationRelation[]);

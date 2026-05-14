@@ -74,6 +74,9 @@ interface PublicationListProps {
   onCreateTag?: (name: string, parentId?: string) => Promise<Tag | null>;
   driveUrlsMap?: Record<string, string | null>;
   driveLoading?: boolean;
+  syncDiffCounts?: Record<string, number>;
+  syncLoadingIds?: Set<string>;
+  onCheckPublicationSync?: (pub: Publication) => void;
 }
 
 export function PublicationList({
@@ -104,6 +107,9 @@ export function PublicationList({
   onCreateTag,
   driveUrlsMap,
   driveLoading,
+  syncDiffCounts = {},
+  syncLoadingIds = new Set(),
+  onCheckPublicationSync,
 }: PublicationListProps) {
   const openPublication = onOpenPublication || onEditPublication;
   const [searchQuery, setSearchQuery] = useState('');
@@ -544,8 +550,15 @@ export function PublicationList({
               placeholder="search_papers..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-9 font-mono"
+              className={cn("pl-10 h-9 font-mono", !searchQuery && "md:pr-16")}
             />
+            {!searchQuery && (
+              <KbdHint
+                shortcut="Ctrl+K"
+                size="sm"
+                className="absolute right-3 top-1/2 -translate-y-1/2 hidden md:inline-flex pointer-events-none"
+              />
+            )}
           </div>
 
           {/* Filter button with shortcut hint */}
@@ -725,6 +738,9 @@ export function PublicationList({
             kbItemProps={kbNav.itemProps}
             driveUrlsMap={driveUrlsMap}
             driveLoading={driveLoading}
+            syncDiffCounts={syncDiffCounts}
+            syncLoadingIds={syncLoadingIds}
+            onCheckSync={onCheckPublicationSync}
           />
         ) : (
           <div className="space-y-4 max-w-4xl mx-auto">
@@ -753,6 +769,9 @@ export function PublicationList({
                   onExportBibtex={() => onExportBibtex([pub])}
                   driveUrl={driveUrlsMap ? (driveUrlsMap[pub.id] ?? null) : null}
                   driveLoading={driveLoading}
+                  syncDiffCount={syncDiffCounts[pub.id]}
+                  syncLoading={syncLoadingIds.has(pub.id)}
+                  onCheckSync={onCheckPublicationSync ? () => onCheckPublicationSync(pub) : undefined}
                 />
               </div>
             ))}

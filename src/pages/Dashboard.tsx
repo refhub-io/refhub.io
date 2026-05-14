@@ -19,6 +19,9 @@ import { useToast } from '@/hooks/use-toast';
 import { Sparkles } from 'lucide-react';
 import { getPageCache, setPageCache, hasPageCache, clearPageCache } from '@/lib/pageCache';
 import { buildVaultPublicationCopyPayload } from '@/lib/vaultPublicationAttribution';
+import { fetchSemanticScholarMetadataByDoi, SemanticScholarMetadata } from '@/lib/semanticScholar';
+import { createPublicationSyncPatch, extractBibliographicPatch, getPublicationSyncDiffs, PublicationSyncDiff } from '@/lib/publicationSync';
+import { PublicationSyncDialog } from '@/components/publications/PublicationSyncDialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -200,6 +203,12 @@ export default function Dashboard() {
   const [deleteConfirmation, setDeleteConfirmation] = useState<Publication | null>(null);
   const [bulkDeleteConfirmation, setBulkDeleteConfirmation] = useState<Publication[]>([]);
   const [deleteVaultConfirmation, setDeleteVaultConfirmation] = useState<Vault | null>(null);
+  const [syncLoadingIds, setSyncLoadingIds] = useState<Set<string>>(new Set());
+  const [syncDiffsByPublication, setSyncDiffsByPublication] = useState<Record<string, PublicationSyncDiff[]>>({});
+  const [syncMetadataByPublication, setSyncMetadataByPublication] = useState<Record<string, SemanticScholarMetadata>>({});
+  const [syncPreviewPublication, setSyncPreviewPublication] = useState<Publication | null>(null);
+  const [pdfAssetsMap, setPdfAssetsMap] = useState<Record<string, string | null>>({});
+  const [pdfAssetsLoading, setPdfAssetsLoading] = useState(false);
 
   // Track auth loading phase
   useEffect(() => {
@@ -294,7 +303,8 @@ export default function Dashboard() {
       updatePhase('vaults', 'loading');
 
       // Fetch owned vaults, shared vaults, and other data
-      const [pubsRes, ownedVaultsRes, sharedVaultsRes, vaultPubsRes, tagsRes, pubTagsRes, relationsRes] = await Promise.all([
+      setPdfAssetsLoading(true);
+      const [pubsRes, ownedVaultsRes, sharedVaultsRes, vaultPubsRes, tagsRes, pubTagsRes, relationsRes, pdfAssetsRes] = await Promise.all([
         supabase.from('publications').select('*').order('created_at', { ascending: false }),
         supabase.from('vaults').select('*').eq('user_id', user.id).order('name'),
         // Fetch vaults shared with current user (via email or user_id)
@@ -306,7 +316,24 @@ export default function Dashboard() {
         supabase.from('tags').select('*').order('name'),
         supabase.from('publication_tags').select('*'),
         supabase.from('publication_relations').select('*'),
+        supabase
+          .from('publication_pdf_assets')
+          .select('publication_id, vault_publication_id, stored_pdf_url')
+          .eq('storage_provider', 'google_drive')
+          .eq('status', 'stored'),
       ]);
+
+      // Build PDF assets map (keyed by publication_id for canonical, vault_publication_id for vault copies)
+      const assetsMap: Record<string, string | null> = {};
+      for (const row of (pdfAssetsRes.data || [])) {
+        if (row.vault_publication_id) {
+          assetsMap[row.vault_publication_id] = row.stored_pdf_url ?? null;
+        } else if (row.publication_id) {
+          assetsMap[row.publication_id] = row.stored_pdf_url ?? null;
+        }
+      }
+      setPdfAssetsMap(assetsMap);
+      setPdfAssetsLoading(false);
 
       // Complete vaults phase
       if (ownedVaultsRes.data) setVaults(ownedVaultsRes.data as Vault[]);
@@ -663,7 +690,7 @@ export default function Dashboard() {
     return duplicate;
   };
 
-  const handleSavePublication = async (data: Partial<Publication>, tagIds: string[], isAutoSave = false) => {
+  const handleSavePublication = async (data: Partial<Publication>, tagIds: string[], _vaultIds?: string[], isAutoSave = false, driveUrl?: string | null) => {
     if (!user) return;
 
     try {
@@ -697,6 +724,46 @@ export default function Dashboard() {
 
           updatedPub = result.data;
           updateError = result.error;
+
+          // Fan out bibliographic fields to canonical publication and sibling vault copies
+          if (!updateError && vaultPub.original_publication_id) {
+            const bibPatch = extractBibliographicPatch(dataToSave);
+            if (Object.keys(bibPatch).length > 0) {
+              const now = new Date().toISOString();
+              supabase.from('publications')
+                .update({ ...bibPatch, updated_at: now })
+                .eq('id', vaultPub.original_publication_id)
+                .then(({ error: e }) => { if (e) console.warn('[sync] canonical fan-out error:', e.message); });
+              supabase.from('vault_publications')
+                .update({ ...bibPatch, updated_at: now, updated_by: user.id })
+                .eq('original_publication_id', vaultPub.original_publication_id)
+                .neq('id', editingPublication.id)
+                .then(({ error: e }) => { if (e) console.warn('[sync] sibling fan-out error:', e.message); });
+            }
+          }
+
+          // Persist Drive PDF asset if a new URL was uploaded
+          if (!updateError && driveUrl) {
+            const assetRecord = {
+              user_id: user.id,
+              publication_id: vaultPub.original_publication_id,
+              vault_publication_id: editingPublication.id,
+              storage_provider: 'google_drive' as const,
+              stored_pdf_url: driveUrl,
+              stored_file_id: null as string | null,
+              status: 'stored',
+              error_message: null as string | null,
+            };
+            supabase.from('publication_pdf_assets')
+              .upsert(assetRecord, { onConflict: 'vault_publication_id,storage_provider' })
+              .then(({ error: e }) => { if (e) console.warn('[drive] pdf asset upsert:', e.message); });
+            if (vaultPub.original_publication_id) {
+              supabase.from('publication_pdf_assets')
+                .upsert({ ...assetRecord, vault_publication_id: null }, { onConflict: 'publication_id,storage_provider' })
+                .then(({ error: e }) => { if (e) console.warn('[drive] canonical pdf asset upsert:', e.message); });
+            }
+            setPdfAssetsMap(prev => ({ ...prev, [editingPublication.id]: driveUrl }));
+          }
         } else {
           // This is an original publication, update the publications table
           const dataToSave = {
@@ -713,6 +780,34 @@ export default function Dashboard() {
 
           updatedPub = result.data;
           updateError = result.error;
+
+          // Fan out bibliographic fields to all vault copies of this publication
+          if (!updateError) {
+            const bibPatch = extractBibliographicPatch(dataToSave);
+            if (Object.keys(bibPatch).length > 0) {
+              supabase.from('vault_publications')
+                .update({ ...bibPatch, updated_at: new Date().toISOString(), updated_by: user.id })
+                .eq('original_publication_id', editingPublication.id)
+                .then(({ error: e }) => { if (e) console.warn('[sync] vault fan-out error:', e.message); });
+            }
+          }
+
+          // Persist Drive PDF asset for canonical publication
+          if (!updateError && driveUrl) {
+            supabase.from('publication_pdf_assets')
+              .upsert({
+                user_id: user.id,
+                publication_id: editingPublication.id,
+                vault_publication_id: null,
+                storage_provider: 'google_drive' as const,
+                stored_pdf_url: driveUrl,
+                stored_file_id: null as string | null,
+                status: 'stored',
+                error_message: null as string | null,
+              }, { onConflict: 'publication_id,storage_provider' })
+              .then(({ error: e }) => { if (e) console.warn('[drive] pdf asset upsert:', e.message); });
+            setPdfAssetsMap(prev => ({ ...prev, [editingPublication.id]: driveUrl }));
+          }
         }
 
         if (updateError) throw updateError;
@@ -1041,6 +1136,72 @@ export default function Dashboard() {
       throw error;
     }
   };
+
+  const handleCheckPublicationSync = useCallback(async (publication: Publication) => {
+    if (!publication.doi) {
+      toast({ title: 'sync_needs_doi', description: 'Semantic Scholar detail sync currently needs a DOI.', variant: 'destructive' });
+      return;
+    }
+    setSyncLoadingIds(prev => new Set(prev).add(publication.id));
+    try {
+      const metadata = await fetchSemanticScholarMetadataByDoi(publication.doi);
+      if (!metadata) {
+        setSyncDiffsByPublication(prev => ({ ...prev, [publication.id]: [] }));
+        toast({ title: 'sync_no_semantic_scholar_match', description: 'No Semantic Scholar metadata found for this DOI.' });
+        return;
+      }
+      const diffs = getPublicationSyncDiffs(publication, metadata);
+      setSyncMetadataByPublication(prev => ({ ...prev, [publication.id]: metadata }));
+      setSyncDiffsByPublication(prev => ({ ...prev, [publication.id]: diffs }));
+      if (diffs.length > 0) {
+        setSyncPreviewPublication(publication);
+        toast({ title: `sync_found_${diffs.length}_field${diffs.length === 1 ? '' : 's'}`, description: 'Review incoming Semantic Scholar details before applying.' });
+      } else {
+        toast({ title: 'sync_up_to_date', description: 'Semantic Scholar details match this publication.' });
+      }
+    } catch (error) {
+      toast({ title: 'sync_failed', description: (error as Error).message, variant: 'destructive' });
+    } finally {
+      setSyncLoadingIds(prev => {
+        const next = new Set(prev);
+        next.delete(publication.id);
+        return next;
+      });
+    }
+  }, [toast]);
+
+  const handleApplyPublicationSync = useCallback(async (selectedDiffs: PublicationSyncDiff[]) => {
+    if (!syncPreviewPublication || selectedDiffs.length === 0) return;
+
+    const patch = createPublicationSyncPatch(selectedDiffs);
+    const { error } = await supabase
+      .from('publications')
+      .update(patch)
+      .eq('id', syncPreviewPublication.id);
+
+    if (error) {
+      toast({ title: 'sync_apply_failed', description: error.message, variant: 'destructive' });
+      return;
+    }
+
+    // Fan out the same bibliographic patch to all vault copies
+    const bibPatch = extractBibliographicPatch(patch);
+    if (Object.keys(bibPatch).length > 0) {
+      supabase.from('vault_publications')
+        .update({ ...bibPatch, updated_at: new Date().toISOString(), updated_by: user?.id })
+        .eq('original_publication_id', syncPreviewPublication.id)
+        .then(({ error: e }) => { if (e) console.warn('[sync] vault fan-out error:', e.message); });
+    }
+
+    // Keep the edit dialog form in sync with the applied changes
+    if (editingPublication?.id === syncPreviewPublication.id) {
+      setEditingPublication(prev => prev ? { ...prev, ...patch } as Publication : prev);
+    }
+
+    setSyncDiffsByPublication(prev => ({ ...prev, [syncPreviewPublication.id]: [] }));
+    setSyncPreviewPublication(null);
+    await fetchData();
+  }, [syncDiffsByPublication, syncPreviewPublication, toast, fetchData, user?.id, editingPublication]);
 
   const handleDeletePublication = async () => {
     if (!deleteConfirmation) return;
@@ -1455,6 +1616,8 @@ export default function Dashboard() {
           setIsVaultDialogOpen(true);
         }}
         onVaultUpdate={refetchVaults}
+        driveUrlsMap={pdfAssetsMap}
+        driveLoading={pdfAssetsLoading}
       />
       </div>
 
@@ -1474,8 +1637,19 @@ export default function Dashboard() {
         allPublications={publications}
         publicationVaults={editingPublication ? publicationVaultsMap[editingPublication.id] || [] : []}
         onSave={handleSavePublication}
+        driveUploadContext="publication"
+        driveUrl={editingPublication ? (pdfAssetsMap[editingPublication.id] ?? null) : null}
         onCreateTag={handleCreateTag}
         onAddToVaults={handleAddToVaults}
+        onCheckSync={handleCheckPublicationSync}
+        syncLoading={editingPublication ? syncLoadingIds.has(editingPublication.id) : false}
+      />
+
+      <PublicationSyncDialog
+        open={!!syncPreviewPublication}
+        onOpenChange={(open) => !open && setSyncPreviewPublication(null)}
+        diffs={syncPreviewPublication ? syncDiffsByPublication[syncPreviewPublication.id] || [] : []}
+        onApply={handleApplyPublicationSync}
       />
 
       <AddImportDialog
