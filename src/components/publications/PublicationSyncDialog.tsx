@@ -56,9 +56,8 @@ export function PublicationSyncDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl bg-card border-2 backdrop-blur-xl">
         <DialogHeader>
-          <DialogTitle className="font-mono flex items-center gap-2 text-base">
-            <RefreshCw className="w-4 h-4" />
-            semantic_scholar_sync()
+          <DialogTitle className="font-mono text-xl sm:text-2xl font-bold">
+            // semantic_scholar_sync()
           </DialogTitle>
           <DialogDescription className="font-mono text-xs">
             Review incoming metadata. Notes and tags are not affected.

@@ -67,14 +67,8 @@ export function KeyboardHelpOverlay() {
         {/* ── Header ────────────────────────────────────────────── */}
         <DialogHeader className="shrink-0 px-6 pt-6 pb-4 border-b border-border/60">
           <div className="flex items-center justify-between">
-            <DialogTitle className="font-mono flex items-center gap-2.5 text-base">
-              <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center shadow-md glow-purple">
-                <Terminal className="w-4 h-4 text-white" />
-              </div>
-              <span>
-                <span className="text-gradient">keyboard</span>
-                <span className="text-muted-foreground">_shortcuts()</span>
-              </span>
+            <DialogTitle className="font-mono flex items-center gap-2.5 text-xl sm:text-2xl font-bold">
+              <span>// <span className="text-gradient">keyboard</span><span className="text-muted-foreground">_shortcuts()</span></span>
             </DialogTitle>
             <div className="flex items-center gap-2">
               <Button

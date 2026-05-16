@@ -81,8 +81,8 @@ export function PublicationViewDialog({
               </Badge>
             )}
           </div>
-          <DialogTitle className="pr-8 text-lg sm:text-2xl font-bold leading-tight">
-            {publication.title}
+          <DialogTitle className="pr-8 text-xl sm:text-2xl font-bold font-mono leading-tight">
+            // {publication.title}
           </DialogTitle>
           <DialogDescription className="text-sm font-mono">
             {publication.authors.length > 0 ? publication.authors.join(', ') : 'unknown author'}

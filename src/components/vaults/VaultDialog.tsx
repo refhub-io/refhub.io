@@ -838,11 +838,11 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
         <DialogContent className="dialog-mobile max-w-[100vw] sm:rounded-2xl sm:h-auto sm:w-[95vw] sm:max-w-2xl border-2 bg-card/95 backdrop-blur-xl sm:max-h-[90vh] overflow-hidden flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4">
           <div className="flex items-center justify-between gap-3">
-            <DialogTitle className="text-2xl font-bold font-mono">
+            <DialogTitle className="text-xl sm:text-2xl font-bold font-mono">
               {vault ? (
-                <span>vault_<span className="text-gradient">settings</span></span>
+                <span>// vault_<span className="text-gradient">settings</span></span>
               ) : (
-                <span>create_<span className="text-gradient">vault</span></span>
+                <span>// create_<span className="text-gradient">vault</span></span>
               )}
             </DialogTitle>
             {accessRequests.length > 0 && (

@@ -162,9 +162,8 @@ export function ExportDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="dialog-mobile max-w-[100vw] sm:rounded-2xl sm:h-auto sm:w-[95vw] sm:max-w-lg sm:max-h-[90vh] flex flex-col overflow-hidden border-2 bg-card/95 backdrop-blur-xl p-0">
         <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-4">
-          <DialogTitle className="flex items-center gap-2 font-mono text-lg sm:text-xl">
-            <FileText className="w-5 h-5 text-primary" />
-            export_references
+          <DialogTitle className="flex items-center gap-2 font-mono text-xl sm:text-2xl font-bold">
+            // export_references
             <KbdHint shortcut="Ctrl+E" className="ml-auto" size="sm" />
           </DialogTitle>
         </DialogHeader>
