@@ -137,8 +137,8 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
         {canShare && (
           <DialogContent className="sm:max-w-sm">
             <DialogHeader>
-              <DialogTitle className="text-center font-mono">
-                share "{vault.name}"
+              <DialogTitle className="text-xl sm:text-2xl font-bold font-mono">
+                // share "{vault.name}"
               </DialogTitle>
             </DialogHeader>
             <div className="flex flex-col items-center gap-4 sm:gap-6 py-2 sm:py-4">

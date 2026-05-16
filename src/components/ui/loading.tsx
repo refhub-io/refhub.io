@@ -254,7 +254,7 @@ export function FullScreenLoader({ message, variant = 'terminal', progress = fal
         {/* Terminal content */}
         <div className="p-4 sm:p-6 font-mono text-sm space-y-4">
           {/* ASCII art logo */}
-          <pre className="text-gradient text-[10px] sm:text-xs leading-tight select-none overflow-x-auto">
+          <pre className="text-gradient text-[8px] sm:text-xs leading-tight select-none">
 {`
  *******   ******** ******** **      ** **     ** ******  
 /**////** /**///// /**///// /**     /**/**    /**/*////** 
@@ -365,7 +365,7 @@ export function PhaseLoader({ phases, title = 'initializing_refhub', subtitle, c
 
   return (
     <div className={cn("min-h-screen bg-background flex items-center justify-center", className)}>
-      <div className="w-full max-w-lg px-6">
+      <div className="w-full max-w-lg px-3 sm:px-6">
         {/* Terminal window */}
         <div className="bg-card border-2 border-border rounded-lg overflow-hidden shadow-2xl">
           {/* Terminal header */}
@@ -379,7 +379,7 @@ export function PhaseLoader({ phases, title = 'initializing_refhub', subtitle, c
           </div>
 
           {/* Terminal content */}
-          <div className="p-6 font-mono text-sm space-y-6">
+          <div className="p-4 sm:p-6 font-mono text-sm space-y-4 sm:space-y-6">
             {/* Title with glitch effect */}
             <div className="space-y-1">
               <h1 className={cn(

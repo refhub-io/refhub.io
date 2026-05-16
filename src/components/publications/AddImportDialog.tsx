@@ -308,7 +308,7 @@ export function AddImportDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent forceMount className="dialog-mobile rounded-2xl p-0 border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col gap-0 min-h-0 sm:h-auto sm:w-[95vw] sm:max-w-4xl sm:max-h-[90vh] data-[state=closed]:hidden">
+      <DialogContent forceMount className="dialog-mobile max-w-[100vw] p-0 border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col gap-0 min-h-0 sm:rounded-2xl sm:h-auto sm:w-[95vw] sm:max-w-4xl sm:max-h-[90vh] data-[state=closed]:hidden">
         <DialogHeader className="p-4 sm:p-6 pb-0">
           <DialogTitle className="text-xl sm:text-2xl font-bold font-mono">
             // add_<span className="text-gradient">papers</span>
@@ -422,7 +422,7 @@ export function AddImportDialog({
                     placeholder="Author 1, Author 2, ..." className="font-mono text-sm" />
                 </div>
                 {/* Year + Type */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="font-semibold font-mono">year</Label>
                     <Input type="number" value={manualForm.year ?? ''} onChange={(e) => setManualForm(f => ({ ...f, year: e.target.value ? parseInt(e.target.value) : null }))}
@@ -445,7 +445,7 @@ export function AddImportDialog({
                     placeholder="Journal name" className="font-mono text-sm" />
                 </div>
                 {/* Volume / Issue / Pages */}
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label className="font-semibold font-mono">volume</Label>
                     <Input value={manualForm.volume || ''} onChange={(e) => setManualForm(f => ({ ...f, volume: e.target.value }))}
@@ -463,7 +463,7 @@ export function AddImportDialog({
                   </div>
                 </div>
                 {/* DOI + URL */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="font-semibold font-mono">doi</Label>
                     <Input value={manualForm.doi || ''} onChange={(e) => setManualForm(f => ({ ...f, doi: e.target.value }))}
@@ -614,7 +614,7 @@ export function AddImportDialog({
 
                 {/* ISSN + EID (articles) */}
                 {manualForm.publication_type === 'article' && (
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="font-semibold font-mono">issn</Label>
                       <Input value={manualForm.issn || ''} onChange={(e) => setManualForm(f => ({ ...f, issn: e.target.value }))}

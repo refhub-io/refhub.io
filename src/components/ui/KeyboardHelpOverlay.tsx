@@ -63,18 +63,12 @@ export function KeyboardHelpOverlay() {
 
   return (
     <Dialog open={helpOverlayOpen} onOpenChange={setHelpOverlayOpen}>
-      <DialogContent className="max-w-3xl max-h-[85vh] p-0 gap-0 border-primary/20 shadow-2xl shadow-primary/10">
+      <DialogContent className="dialog-mobile max-w-[100vw] flex flex-col p-0 gap-0 border-primary/20 shadow-2xl shadow-primary/10 sm:rounded-2xl sm:max-w-3xl sm:h-auto sm:max-h-[85vh]">
         {/* ── Header ────────────────────────────────────────────── */}
-        <DialogHeader className="px-6 pt-6 pb-4 border-b border-border/60">
+        <DialogHeader className="shrink-0 px-6 pt-6 pb-4 border-b border-border/60">
           <div className="flex items-center justify-between">
-            <DialogTitle className="font-mono flex items-center gap-2.5 text-base">
-              <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center shadow-md glow-purple">
-                <Terminal className="w-4 h-4 text-white" />
-              </div>
-              <span>
-                <span className="text-gradient">keyboard</span>
-                <span className="text-muted-foreground">_shortcuts()</span>
-              </span>
+            <DialogTitle className="font-mono flex items-center gap-2.5 text-xl sm:text-2xl font-bold">
+              <span>// <span className="text-gradient">keyboard</span><span className="text-muted-foreground">_shortcuts()</span></span>
             </DialogTitle>
             <div className="flex items-center gap-2">
               <Button
@@ -95,7 +89,7 @@ export function KeyboardHelpOverlay() {
         </DialogHeader>
 
         {/* ── Shortcut grid ─────────────────────────────────────── */}
-        <ScrollArea className="max-h-[60vh]">
+        <ScrollArea className="flex-1 min-h-0">
           <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
             {SHORTCUT_HELP.map((group) => (
               <div
@@ -153,7 +147,7 @@ export function KeyboardHelpOverlay() {
         </ScrollArea>
 
         {/* ── Footer ────────────────────────────────────────────── */}
-        <div className="px-6 py-4 border-t border-border/60 bg-muted/20">
+        <div className="shrink-0 px-6 py-4 border-t border-border/60 bg-muted/20">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Label htmlFor="kbd-toggle" className="text-xs text-muted-foreground font-mono cursor-pointer">

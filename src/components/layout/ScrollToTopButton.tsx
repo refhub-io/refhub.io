@@ -27,7 +27,7 @@ export function ScrollToTopButton() {
   };
 
   return (
-    <div className="pointer-events-none fixed bottom-[calc(1rem+4.75rem)] right-4 z-40 sm:bottom-[calc(1.5rem+4.75rem)] sm:right-6">
+    <div className="pointer-events-none fixed bottom-[calc(1rem+4.75rem+env(safe-area-inset-bottom))] right-4 z-40 sm:bottom-[calc(1.5rem+4.75rem)] sm:right-6">
       <Button
         onClick={handleScrollToTop}
         size="icon"

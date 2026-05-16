@@ -1592,7 +1592,7 @@ export default function Dashboard() {
         onEditProfile={() => setIsProfileDialogOpen(true)}
       />
 
-      <div className="flex-1 lg:pl-72 min-w-0">
+      <div className="flex-1 lg:pl-72 min-w-0 flex flex-col min-h-screen">
         <PublicationList
         publications={publications}
         tags={tags}

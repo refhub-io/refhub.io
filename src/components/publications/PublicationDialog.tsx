@@ -827,11 +827,11 @@ export function PublicationDialog({
           className="w-screen max-w-none box-border h-screen sm:w-[95vw] sm:max-w-3xl sm:h-auto sm:max-h-[90vh] m-0 p-0 border-0 sm:border-2 bg-card/95 backdrop-blur-xl overflow-x-hidden overflow-y-auto flex flex-col"
         >
         <DialogHeader className="px-2 py-3 sm:p-6 pb-2 sm:pb-0">
-          <DialogTitle className="text-lg sm:text-2xl font-bold font-mono pr-8 sm:pr-10">
+          <DialogTitle className="text-xl sm:text-2xl font-bold font-mono pr-8 sm:pr-10">
             {publication ? (
-              <span>edit_<span className="text-gradient">paper</span></span>
+              <span>// edit_<span className="text-gradient">paper</span></span>
             ) : (
-              <span>add_<span className="text-gradient">paper</span></span>
+              <span>// add_<span className="text-gradient">paper</span></span>
             )}
           </DialogTitle>
           {publication && onCheckSync && (

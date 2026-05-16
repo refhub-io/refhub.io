@@ -84,7 +84,7 @@ export function Loader({ message, className }: LoaderProps) {
         {/* Terminal content */}
         <div className="p-4 sm:p-6 font-mono text-sm space-y-4">
           {/* ASCII art logo */}
-          <pre className="text-gradient text-[10px] sm:text-xs leading-tight select-none overflow-x-auto">
+          <pre className="text-gradient text-[8px] sm:text-xs leading-tight select-none">
 {`
  *******   ******** ******** **      ** **     ** ******  
 /**////** /**///// /**///// /**     /**/**    /**/*////** 

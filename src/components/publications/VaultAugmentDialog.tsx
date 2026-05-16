@@ -304,9 +304,9 @@ export function VaultAugmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="dialog-mobile rounded-2xl sm:w-[95vw] sm:max-w-4xl sm:h-auto sm:min-h-[400px] sm:max-h-[90vh] flex flex-col bg-card/95 backdrop-blur-xl border-2 p-0 overflow-hidden">
+      <DialogContent className="dialog-mobile max-w-[100vw] sm:rounded-2xl sm:w-[95vw] sm:max-w-4xl sm:h-auto sm:min-h-[400px] sm:max-h-[90vh] flex flex-col bg-card/95 backdrop-blur-xl border-2 p-0 overflow-hidden">
         <DialogHeader className="shrink-0 px-6 pt-5 pb-3 border-b border-border/50">
-          <DialogTitle className="text-xl font-bold font-mono">
+          <DialogTitle className="text-xl sm:text-2xl font-bold font-mono">
             // vault_augmentation
           </DialogTitle>
           <DialogDescription className="font-mono text-sm text-muted-foreground">

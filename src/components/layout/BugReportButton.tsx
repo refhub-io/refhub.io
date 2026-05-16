@@ -21,7 +21,7 @@ export function BugReportButton() {
   };
 
   return (
-    <div className="pointer-events-none fixed bottom-4 right-4 z-40 sm:bottom-6 sm:right-6">
+    <div className="pointer-events-none fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-4 z-40 sm:bottom-6 sm:right-6">
       <div className="flex flex-col items-end gap-2 pointer-events-auto">
         <Badge
           variant="outline"

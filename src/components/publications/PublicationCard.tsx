@@ -110,8 +110,8 @@ export function PublicationCard({
       )}
       onClick={onOpen}
     >
-      <CardContent className="p-5">
-        <div className="flex items-start gap-4">
+      <CardContent className="p-3 sm:p-5">
+        <div className="flex items-start gap-3 sm:gap-4">
           <div 
             className="pt-1"
             onClick={(e) => {
@@ -126,13 +126,13 @@ export function PublicationCard({
           </div>
 
           <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-lg text-foreground leading-tight line-clamp-2 group-hover:text-primary transition-colors">
+                <h3 className="font-bold text-base sm:text-lg text-foreground leading-tight line-clamp-3 sm:line-clamp-2 group-hover:text-primary transition-colors">
                   {publication.title}
                 </h3>
                 {(show.authors || show.year || show.type) && (
-                  <p className="text-sm text-muted-foreground mt-1.5 font-mono">
+                  <p className="text-xs sm:text-sm text-muted-foreground mt-1.5 font-mono">
                     {show.authors && formatAuthors(publication.authors)}
                     {show.year && publication.year && (
                       <span className="text-neon-green">{show.authors ? ' • ' : ''}{publication.year}</span>
@@ -155,7 +155,7 @@ export function PublicationCard({
                 )}
               </div>
 
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="flex flex-wrap items-center gap-1 shrink-0 sm:justify-end">
                 {show.pdf && publication.pdf_url && (
                   <a
                     href={publication.pdf_url}
@@ -195,7 +195,7 @@ export function PublicationCard({
                     <Button 
                       variant="ghost" 
                       size="icon" 
-                      className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity h-9 w-9"
+                      className="shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-9 w-9"
                     >
                       <MoreVertical className="w-4 h-4" />
                     </Button>

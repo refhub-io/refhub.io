@@ -67,8 +67,8 @@ export function PublicationViewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="publication-view-dialog w-[min(calc(100vw-2rem),48rem)] max-w-[calc(100vw-2rem)] rounded-2xl border-2 bg-card/95 backdrop-blur-xl max-h-[min(90vh,56rem)] overflow-y-auto shadow-2xl sm:max-w-3xl">
-        <DialogHeader className="space-y-3">
+      <DialogContent className="dialog-mobile publication-view-dialog max-w-[100vw] border-2 bg-card/95 backdrop-blur-xl overflow-hidden shadow-2xl sm:rounded-2xl sm:h-auto sm:w-[95vw] sm:max-w-3xl sm:max-h-[90vh] p-0 gap-0">
+        <DialogHeader className="shrink-0 space-y-3 px-4 sm:px-6 pt-4 sm:pt-6 pb-4 border-b border-border/60">
           <div className="flex flex-wrap items-center gap-2">
             {publication.publication_type && (
               <Badge variant="outline" className="font-mono text-xs">
@@ -81,8 +81,8 @@ export function PublicationViewDialog({
               </Badge>
             )}
           </div>
-          <DialogTitle className="text-xl sm:text-2xl font-bold leading-tight">
-            {publication.title}
+          <DialogTitle className="pr-8 text-xl sm:text-2xl font-bold font-mono leading-tight">
+            // {publication.title}
           </DialogTitle>
           <DialogDescription className="text-sm font-mono">
             {publication.authors.length > 0 ? publication.authors.join(', ') : 'unknown author'}
@@ -90,11 +90,11 @@ export function PublicationViewDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-5 sm:space-y-6 px-4 sm:px-6 py-4 sm:py-6">
           {(publication.doi || publication.url || publication.pdf_url || driveLoading || driveUrl) && (
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-2">
               {publication.doi && (
-                <Button asChild variant="outline" size="sm" className="font-mono">
+                <Button asChild variant="outline" size="sm" className="w-full justify-start sm:w-auto font-mono">
                   <a
                     href={`https://doi.org/${encodeURIComponent(publication.doi)}`}
                     target="_blank"
@@ -106,7 +106,7 @@ export function PublicationViewDialog({
                 </Button>
               )}
               {publication.url && (
-                <Button asChild variant="outline" size="sm" className="font-mono">
+                <Button asChild variant="outline" size="sm" className="w-full justify-start sm:w-auto font-mono">
                   <a href={publication.url} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="w-4 h-4 mr-2" />
                     link
@@ -114,7 +114,7 @@ export function PublicationViewDialog({
                 </Button>
               )}
               {publication.pdf_url && (
-                <Button asChild variant="outline" size="sm" className="font-mono">
+                <Button asChild variant="outline" size="sm" className="w-full justify-start sm:w-auto font-mono">
                   <a href={publication.pdf_url} target="_blank" rel="noopener noreferrer">
                     <FileText className="w-4 h-4 mr-2" />
                     publisher_pdf
@@ -122,13 +122,13 @@ export function PublicationViewDialog({
                 </Button>
               )}
               {driveLoading && (
-                <Button variant="outline" size="sm" className="font-mono" disabled>
+                <Button variant="outline" size="sm" className="w-full justify-start sm:w-auto font-mono" disabled>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   drive_pdf
                 </Button>
               )}
               {!driveLoading && driveUrl && (
-                <Button asChild variant="outline" size="sm" className="font-mono">
+                <Button asChild variant="outline" size="sm" className="w-full justify-start sm:w-auto font-mono">
                   <a href={driveUrl} target="_blank" rel="noopener noreferrer">
                     <GoogleDriveIcon className="w-4 h-4 mr-2" />
                     drive_pdf
@@ -201,8 +201,8 @@ export function PublicationViewDialog({
         </div>
 
         {onEdit && (
-          <DialogFooter>
-            <Button type="button" className="font-mono" onClick={() => onEdit(publication)}>
+          <DialogFooter className="shrink-0 border-t border-border/60 px-4 sm:px-6 py-4 flex-col-reverse sm:flex-row gap-2">
+            <Button type="button" className="w-full sm:w-auto font-mono" onClick={() => onEdit(publication)}>
               <Pencil className="w-4 h-4 mr-2" />
               edit
             </Button>

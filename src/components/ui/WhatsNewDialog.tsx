@@ -70,8 +70,7 @@ export function WhatsNewDialog({ open, onOpenChange }: WhatsNewDialogProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[95vw] max-w-lg flex flex-col bg-card/95 backdrop-blur-xl border-2 p-0 overflow-hidden max-h-[80vh]">
         <DialogHeader className="shrink-0 px-6 pt-5 pb-4 border-b border-border/50">
-          <DialogTitle className="text-xl font-bold font-mono flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-primary" />
+          <DialogTitle className="text-xl sm:text-2xl font-bold font-mono">
             // whats_new
           </DialogTitle>
           <DialogDescription className="font-mono text-sm text-muted-foreground">
