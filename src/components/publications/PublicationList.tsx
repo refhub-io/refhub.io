@@ -119,18 +119,14 @@ export function PublicationList({
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const listContainerRef = useRef<HTMLDivElement>(null);
 
-  const { pushContext, popContext } = useKeyboardContext();
+  const { setActiveContext } = useKeyboardContext();
 
-  // While any toolbar popup is open, push 'dialog' context so publication-list
-  // shortcuts (j/k/up/down/space/enter) don't fire inside them. Radix handles
-  // arrow key / Escape navigation natively. When all popups close, context pops
-  // back to publication-list automatically.
-  useEffect(() => {
-    if (filterOpen || sortDropdownOpen || propertiesOpen) {
-      pushContext('dialog');
-      return () => popContext();
+  const releaseToolbarFocus = useCallback(() => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
     }
-  }, [filterOpen, sortDropdownOpen, propertiesOpen, pushContext, popContext]);
+    setActiveContext('publication-list');
+  }, [setActiveContext]);
 
   // Calculate tag usage counts
   const tagUsageCounts = useMemo(() => {
@@ -271,7 +267,8 @@ export function PublicationList({
     setFilterOpen(false);
     setSortDropdownOpen(false);
     setPropertiesOpen(false);
-  }, []);
+    releaseToolbarFocus();
+  }, [releaseToolbarFocus]);
 
   const handleKbExport = useCallback(
     (ids: string[]) => {
@@ -351,22 +348,25 @@ export function PublicationList({
         handler: () => {
           if (document.activeElement === searchInputRef.current) {
             if (searchQuery) setSearchQuery('');
-            searchInputRef.current?.blur();
+            releaseToolbarFocus();
             return true;
           }
 
           if (propertiesOpen) {
             setPropertiesOpen(false);
+            releaseToolbarFocus();
             return true;
           }
 
           if (sortDropdownOpen) {
             setSortDropdownOpen(false);
+            releaseToolbarFocus();
             return true;
           }
 
           if (filterOpen) {
             setFilterOpen(false);
+            releaseToolbarFocus();
             return true;
           }
 
@@ -391,6 +391,7 @@ export function PublicationList({
         appWide: true,
         handler: (e) => {
           e.preventDefault();
+          releaseToolbarFocus();
           setPropertiesOpen((prev) => !prev);
           setFilterOpen(false);
           setSortDropdownOpen(false);
@@ -403,6 +404,7 @@ export function PublicationList({
         appWide: true,
         handler: (e) => {
           e.preventDefault();
+          releaseToolbarFocus();
           setFilterOpen((prev) => !prev);
           setSortDropdownOpen(false);
           setPropertiesOpen(false);
@@ -415,6 +417,7 @@ export function PublicationList({
         appWide: true,
         handler: (e) => {
           e.preventDefault();
+          releaseToolbarFocus();
           setSortDropdownOpen((prev) => !prev);
           setFilterOpen(false);
           setPropertiesOpen(false);
@@ -433,7 +436,7 @@ export function PublicationList({
         },
       },
     ],
-    [kbContext, onDiscoverRelated, selectedPublications],
+    [kbContext, onDiscoverRelated, releaseToolbarFocus, selectedPublications],
   );
 
   return (
