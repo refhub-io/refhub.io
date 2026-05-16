@@ -60,6 +60,7 @@ interface FilterBuilderProps {
   vaults: Vault[];
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  onCloseAutoFocus?: (event: Event) => void;
 }
 
 const FIELD_OPTIONS: { value: FilterField; label: string }[] = [
@@ -116,7 +117,7 @@ const needsValueInput = (operator: FilterOperator): boolean => {
   return !['is_empty', 'is_not_empty'].includes(operator);
 };
 
-export function FilterBuilder({ filters, onFiltersChange, tags, vaults, open: controlledOpen, onOpenChange }: FilterBuilderProps) {
+export function FilterBuilder({ filters, onFiltersChange, tags, vaults, open: controlledOpen, onOpenChange, onCloseAutoFocus }: FilterBuilderProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const isOpen = controlledOpen ?? internalOpen;
   const setIsOpen = (v: boolean) => { setInternalOpen(v); onOpenChange?.(v); };
@@ -358,7 +359,7 @@ export function FilterBuilder({ filters, onFiltersChange, tags, vaults, open: co
         <SheetTrigger asChild>
           {filterTrigger}
         </SheetTrigger>
-        <SheetContent side="bottom" className="px-4 pb-8 pt-4 max-h-[80vh] overflow-y-auto">
+        <SheetContent side="bottom" className="px-4 pb-8 pt-4 max-h-[80vh] overflow-y-auto" onCloseAutoFocus={onCloseAutoFocus}>
           <SheetHeader className="mb-4">
             <SheetTitle className="font-mono text-left">filter_papers</SheetTitle>
           </SheetHeader>
@@ -378,6 +379,7 @@ export function FilterBuilder({ filters, onFiltersChange, tags, vaults, open: co
         side="bottom"
         sideOffset={8}
         className="w-auto min-w-[400px] p-3 bg-popover border-2"
+        onCloseAutoFocus={onCloseAutoFocus}
       >
         {filterContent}
       </PopoverContent>

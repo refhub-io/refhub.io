@@ -119,18 +119,22 @@ export function PublicationList({
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const listContainerRef = useRef<HTMLDivElement>(null);
 
-  const { pushContext, popContext } = useKeyboardContext();
+  const { setActiveContext } = useKeyboardContext();
 
-  // While any toolbar popup is open, push 'dialog' context so publication-list
-  // shortcuts (j/k/up/down/space/enter) don't fire inside them. Radix handles
-  // arrow key / Escape navigation natively. When all popups close, context pops
-  // back to publication-list automatically.
-  useEffect(() => {
-    if (filterOpen || sortDropdownOpen || propertiesOpen) {
-      pushContext('dialog');
-      return () => popContext();
-    }
-  }, [filterOpen, sortDropdownOpen, propertiesOpen, pushContext, popContext]);
+  const releaseToolbarFocus = useCallback(() => {
+    requestAnimationFrame(() => {
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+      listContainerRef.current?.focus();
+      setActiveContext('publication-list');
+    });
+  }, [setActiveContext]);
+
+  const handleToolbarCloseAutoFocus = useCallback((event: Event) => {
+    event.preventDefault();
+    releaseToolbarFocus();
+  }, [releaseToolbarFocus]);
 
   // Calculate tag usage counts
   const tagUsageCounts = useMemo(() => {
@@ -271,7 +275,8 @@ export function PublicationList({
     setFilterOpen(false);
     setSortDropdownOpen(false);
     setPropertiesOpen(false);
-  }, []);
+    releaseToolbarFocus();
+  }, [releaseToolbarFocus]);
 
   const handleKbExport = useCallback(
     (ids: string[]) => {
@@ -290,6 +295,7 @@ export function PublicationList({
     onExport: handleKbExport,
     activateOnMount: true,
     bootstrapOnNav: true,
+    appWideShortcuts: true,
     containerRef: listContainerRef as React.RefObject<HTMLElement>,
     resetKey: selectedVault?.id ?? 'all_papers',
   });
@@ -328,7 +334,9 @@ export function PublicationList({
   const selectedPublications = publications.filter((p) => selectedIds.has(p.id));
 
 
-  // Meta+K / Ctrl+K → focus search (registered through keyboard system)
+  // Meta+K / Ctrl+K → focus search (registered through keyboard system).
+  // Escape always closes the currently active toolbar/search affordance first,
+  // without disturbing the other shortcuts that now work app-wide.
   useHotkeys(
     'global',
     [
@@ -342,19 +350,56 @@ export function PublicationList({
         },
         allowInInput: true,
       },
+      {
+        combo: 'Escape',
+        description: 'Close active search or popup',
+        handler: () => {
+          if (document.activeElement === searchInputRef.current) {
+            if (searchQuery) setSearchQuery('');
+            releaseToolbarFocus();
+            return true;
+          }
+
+          if (propertiesOpen) {
+            setPropertiesOpen(false);
+            releaseToolbarFocus();
+            return true;
+          }
+
+          if (sortDropdownOpen) {
+            setSortDropdownOpen(false);
+            releaseToolbarFocus();
+            return true;
+          }
+
+          if (filterOpen) {
+            setFilterOpen(false);
+            releaseToolbarFocus();
+            return true;
+          }
+
+          return false;
+        },
+        allowInInput: true,
+      },
     ],
-    [],
+    [filterOpen, propertiesOpen, searchQuery, sortDropdownOpen],
   );
 
-  // publication-list context: p, f, s shortcuts
+  // Publication page shortcuts are unique app-wide; register them as appWide so
+  // stale activeContext never forces a click before f/s/p/r work. The keyboard
+  // provider still blocks them while typing in editable fields and while modal
+  // contexts are active.
   useHotkeys(
     kbContext,
     [
       {
         combo: 'p',
         description: 'Show properties popup',
+        appWide: true,
         handler: (e) => {
           e.preventDefault();
+          releaseToolbarFocus();
           setPropertiesOpen((prev) => !prev);
           setFilterOpen(false);
           setSortDropdownOpen(false);
@@ -364,8 +409,10 @@ export function PublicationList({
       {
         combo: 'f',
         description: 'Show filter popup',
+        appWide: true,
         handler: (e) => {
           e.preventDefault();
+          releaseToolbarFocus();
           setFilterOpen((prev) => !prev);
           setSortDropdownOpen(false);
           setPropertiesOpen(false);
@@ -375,8 +422,10 @@ export function PublicationList({
       {
         combo: 's',
         description: 'Show sort popup',
+        appWide: true,
         handler: (e) => {
           e.preventDefault();
+          releaseToolbarFocus();
           setSortDropdownOpen((prev) => !prev);
           setFilterOpen(false);
           setPropertiesOpen(false);
@@ -386,6 +435,7 @@ export function PublicationList({
       {
         combo: 'r',
         description: 'Discover related papers',
+        appWide: true,
         handler: (e) => {
           if (!onDiscoverRelated || selectedPublications.length === 0) return false;
           e.preventDefault();
@@ -394,7 +444,7 @@ export function PublicationList({
         },
       },
     ],
-    [kbContext, onDiscoverRelated, selectedPublications],
+    [kbContext, onDiscoverRelated, releaseToolbarFocus, selectedPublications],
   );
 
   return (
@@ -574,6 +624,7 @@ export function PublicationList({
                 onFiltersChange={setFilters}
                 open={filterOpen}
                 onOpenChange={setFilterOpen}
+                onCloseAutoFocus={handleToolbarCloseAutoFocus}
               />
               {persistedFilters.length > 0 && (
                 <span className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full z-10"></span>
@@ -602,7 +653,7 @@ export function PublicationList({
                     )}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="font-mono">
+                <DropdownMenuContent align="end" className="font-mono" onCloseAutoFocus={handleToolbarCloseAutoFocus}>
                   <DropdownMenuItem onClick={() => { setSortBy('created'); setSortDirection('desc'); }}>
                     recently_added
                   </DropdownMenuItem>
@@ -629,6 +680,7 @@ export function PublicationList({
             propertiesHint={<KbdHint shortcut="p" size="xs" className="hidden md:inline-flex !px-1 !py-0.5 !text-[10px] !leading-none !h-4" />}
             propertiesOpen={propertiesOpen}
             onPropertiesOpenChange={setPropertiesOpen}
+            onPropertiesCloseAutoFocus={handleToolbarCloseAutoFocus}
           />
 
           {selectedIds.size > 0 && onDiscoverRelated && (

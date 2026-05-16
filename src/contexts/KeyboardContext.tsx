@@ -14,10 +14,24 @@ import {
   parseCombo,
   matchesCombo,
   isEditableTarget,
+  isNativeInteractiveTarget,
   ChordMachine,
   ChordDef,
 } from '@/lib/keyboard';
 import { debug } from '@/lib/logger';
+
+const MODAL_CONTEXTS = new Set<KeyboardContextName>(['dialog', 'editor', 'export', 'search']);
+
+function isContextActive(def: ShortcutDef, currentContext: KeyboardContextName): boolean {
+  if (def.context === currentContext || def.context === 'global') return true;
+
+  // RefHub shortcuts are intentionally unique app-wide. Let normal page-level
+  // shortcuts fire even if activeContext is stale after a route/view change,
+  // but never steal keys from modal/editor/search/export contexts.
+  if (def.appWide && !MODAL_CONTEXTS.has(currentContext)) return true;
+
+  return false;
+}
 
 // ─── Feature flag ────────────────────────────────────────────────────────────
 
@@ -226,15 +240,17 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
       const currentContext = contextStackRef.current[contextStackRef.current.length - 1];
       const inInput = isEditableTarget(e);
 
-      // Sort shortcuts by context priority (highest first)
+      // Sort shortcuts by context priority (highest first). For equal priority,
+      // the most recently registered shortcut wins; this keeps the active
+      // PublicationList instance authoritative when toggling card/table views.
       const sorted = [...allShortcuts].sort(
         (a, b) =>
-          (CONTEXT_PRIORITY[b.context] ?? 0) - (CONTEXT_PRIORITY[a.context] ?? 0),
+          (CONTEXT_PRIORITY[b.context] ?? 0) - (CONTEXT_PRIORITY[a.context] ?? 0) ||
+          allShortcuts.lastIndexOf(b) - allShortcuts.lastIndexOf(a),
       );
 
       for (const def of sorted) {
-        // Only fire shortcuts from the active context or from 'global'
-        if (def.context !== currentContext && def.context !== 'global') continue;
+        if (!isContextActive(def, currentContext)) continue;
 
         const parsed = parseCombo(def.combo);
 
@@ -244,12 +260,19 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
         // Ctrl+C to copy, etc.) work normally inside inputs / textareas.
         if (inInput && !def.allowInInput) continue;
 
+        // App-wide shortcuts are for normal page chrome/list contexts only.
+        // Do not let them hijack focused buttons, links, dropdown/menu items,
+        // checkboxes, radios, selects, or other native/ARIA controls.
+        if (def.appWide && isNativeInteractiveTarget(e)) continue;
+
         if (matchesCombo(e, parsed)) {
-          e.preventDefault();
           const handled = def.handler(e);
-          emitAnalytics(def.combo, def.context);
-          debug('KeyboardContext', `shortcut matched: ${def.combo} in ${def.context}`);
-          if (handled !== false) return; // stop propagation to lower-priority shortcuts
+          if (handled !== false) {
+            e.preventDefault();
+            emitAnalytics(def.combo, def.context);
+            debug('KeyboardContext', `shortcut matched: ${def.combo} in ${def.context}`);
+            return; // stop propagation to lower-priority shortcuts
+          }
         }
       }
 

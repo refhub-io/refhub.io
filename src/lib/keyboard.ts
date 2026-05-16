@@ -198,6 +198,75 @@ export function isEditableTarget(e: KeyboardEvent): boolean {
   return false;
 }
 
+const NATIVE_INTERACTIVE_SELECTOR = [
+  'button',
+  'a[href]',
+  'select',
+  'summary',
+  '[role="button"]',
+  '[role="link"]',
+  '[role="menuitem"]',
+  '[role="menuitemcheckbox"]',
+  '[role="menuitemradio"]',
+  '[role="option"]',
+  '[role="tab"]',
+  '[role="checkbox"]',
+  '[role="radio"]',
+  '[role="switch"]',
+  '[role="combobox"]',
+  '[role="slider"]',
+  '[role="spinbutton"]',
+  '[contenteditable="false"][tabindex]',
+].join(',');
+
+function isNativeInteractiveElement(el?: Element | null): boolean {
+  if (!el) return false;
+
+  const htmlEl = el as HTMLElement;
+  if (htmlEl.dataset?.keyboardIgnore !== undefined) return true;
+
+  if (el instanceof HTMLInputElement) {
+    // Text-like inputs are already covered by isEditableTarget; keep the native
+    // guard focused on controls whose Enter/Space/arrows/Delete behavior belongs
+    // to the browser or component library.
+    return [
+      'button',
+      'checkbox',
+      'color',
+      'file',
+      'image',
+      'radio',
+      'range',
+      'reset',
+      'submit',
+    ].includes(el.type);
+  }
+
+  return el.matches?.(NATIVE_INTERACTIVE_SELECTOR) ?? false;
+}
+
+/**
+ * Returns true when an event originates from, or focus is currently inside, a
+ * native/ARIA interactive control. App-wide shortcuts should not steal these
+ * controls' Enter/Space/arrows/Delete handling just because a page-level list
+ * registered global key listeners.
+ */
+export function isNativeInteractiveTarget(e: KeyboardEvent): boolean {
+  const candidates = [e.target as Element | null, document.activeElement].filter(
+    Boolean,
+  ) as Element[];
+
+  for (const candidate of candidates) {
+    let el: Element | null = candidate;
+    while (el) {
+      if (isNativeInteractiveElement(el)) return true;
+      el = el.parentElement;
+    }
+  }
+
+  return false;
+}
+
 // ─── Chorded key state machine ───────────────────────────────────────────────
 
 export type ChordCallback = () => void;
@@ -303,6 +372,12 @@ export interface ShortcutDef {
   handler: (e: KeyboardEvent) => boolean | void;
   /** If true, this shortcut works even when text input is focused. Default: false. */
   allowInInput?: boolean;
+  /**
+   * If true, this shortcut is available across normal app pages even when the
+   * active keyboard context is stale. Modal/editor contexts still take
+   * priority and editable targets are still protected unless allowInInput is set.
+   */
+  appWide?: boolean;
 }
 
 // ─── Shortcut map for help overlay ───────────────────────────────────────────

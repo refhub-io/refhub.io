@@ -32,6 +32,7 @@ import { HierarchicalTagSelector } from '@/components/tags/HierarchicalTagSelect
 import { usePublicationRelations } from '@/hooks/usePublicationRelations';
 import { useAuth } from '@/hooks/useAuth';
 import { uploadPublicationDrivePdf, uploadVaultPublicationDrivePdf } from '@/lib/pdfUpload';
+import { fetchGoogleDriveStatus, GoogleDriveStatus } from '@/lib/googleDrive';
 
 interface PublicationDialogProps {
   open: boolean;
@@ -75,7 +76,7 @@ export function PublicationDialog({
   closeOnSave = false,
   driveUrl,
 }: PublicationDialogProps) {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const {
     relations,
     loading: relationsLoading,
@@ -132,6 +133,9 @@ export function PublicationDialog({
   const [drivePdfInput, setDrivePdfInput] = useState<string>(driveUrl ?? '');
   const [driveUploadStatus, setDriveUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [driveUploadError, setDriveUploadError] = useState('');
+  const [driveStatus, setDriveStatus] = useState<GoogleDriveStatus | null>(null);
+  const [driveStatusLoading, setDriveStatusLoading] = useState(false);
+  const [driveStatusError, setDriveStatusError] = useState('');
   const drivePdfFileInputRef = useRef<HTMLInputElement | null>(null);
   const driveUploadResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fullscreenCleanNotesRef = useRef<string>(''); // snapshot of notes when entering fullscreen
@@ -215,8 +219,53 @@ export function PublicationDialog({
   useEffect(() => { formDataRef.current = formData; }, [formData]);
   useEffect(() => { selectedTagsRef.current = selectedTags; }, [selectedTags]);
   useEffect(() => { setDrivePdfInput(driveUrl ?? ''); }, [driveUrl]);
+
+  useEffect(() => {
+    if (!open || !session?.access_token) {
+      setDriveStatus(null);
+      setDriveStatusError('');
+      setDriveStatusLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const loadDriveStatus = async () => {
+      setDriveStatusLoading(true);
+      setDriveStatusError('');
+      try {
+        const nextStatus = await fetchGoogleDriveStatus(session.access_token);
+        if (!cancelled) setDriveStatus(nextStatus);
+      } catch (err) {
+        if (!cancelled) {
+          setDriveStatus(null);
+          setDriveStatusError((err as Error).message);
+        }
+      } finally {
+        if (!cancelled) setDriveStatusLoading(false);
+      }
+    };
+
+    void loadDriveStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, session?.access_token]);
+
+  const isDriveUploadReady = Boolean(driveStatus?.linked && driveStatus.folderStatus === 'ready');
+  const driveUploadSetupHint = !session?.access_token
+    ? 'sign in again before uploading PDFs to Google Drive.'
+    : driveStatusLoading
+      ? 'checking Google Drive setup...'
+      : driveStatusError
+        ? 'could not verify Google Drive setup. Open settings > storage and reconnect Google Drive.'
+        : !driveStatus?.linked
+          ? 'connect Google Drive in profile settings > storage to upload PDFs.'
+          : driveStatus.folderStatus !== 'ready'
+            ? 'prepare the RefHub Drive folder in profile settings > storage before uploading PDFs.'
+            : '';
+
   const handleDrivePdfFileSelected = useCallback(async (file: File | null) => {
-    if (!file || !publication?.id) return;
+    if (!file || !publication?.id || !isDriveUploadReady) return;
 
     if (driveUploadResetRef.current) clearTimeout(driveUploadResetRef.current);
     setDriveUploadStatus('uploading');
@@ -235,7 +284,7 @@ export function PublicationDialog({
     } finally {
       if (drivePdfFileInputRef.current) drivePdfFileInputRef.current.value = '';
     }
-  }, [currentVaultId, driveUploadContext, publication?.id]);
+  }, [currentVaultId, driveUploadContext, isDriveUploadReady, publication?.id]);
 
 
   // ─── Last-save indicator timer (fullscreen notes) ──────────────────────────
@@ -1070,8 +1119,10 @@ export function PublicationDialog({
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={!publication?.id || driveUploadStatus === 'uploading'}
+                  disabled={!publication?.id || !isDriveUploadReady || driveUploadStatus === 'uploading'}
+                  aria-describedby={!isDriveUploadReady ? 'drive_pdf_setup_hint' : undefined}
                   onClick={() => {
+                    if (!isDriveUploadReady) return;
                     setDriveUploadStatus('idle');
                     setDriveUploadError('');
                     drivePdfFileInputRef.current?.click();
@@ -1085,12 +1136,18 @@ export function PublicationDialog({
                   {driveUploadStatus === 'uploading' && <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
                   {driveUploadStatus === 'success' && <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />}
                   {driveUploadStatus === 'error' && <AlertCircle className="w-3.5 h-3.5 mr-1.5" />}
-                  {driveUploadStatus === 'idle' && <Upload className="w-3.5 h-3.5 mr-1.5" />}
+                  {driveUploadStatus === 'idle' && (driveStatusLoading ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Upload className="w-3.5 h-3.5 mr-1.5" />)}
                   {driveUploadStatus === 'uploading' ? 'uploading…' :
                    driveUploadStatus === 'success' ? 'uploaded!' :
                    driveUploadStatus === 'error' ? 'retry' : 'upload_pdf'}
                 </Button>
               </div>
+              {!isDriveUploadReady && driveUploadSetupHint && (
+                <p id="drive_pdf_setup_hint" className="text-xs font-mono text-muted-foreground flex items-start gap-1.5 pt-0.5">
+                  <AlertCircle className="w-3 h-3 shrink-0 mt-0.5 text-fuchsia-300" />
+                  {driveUploadSetupHint}
+                </p>
+              )}
               {driveUploadStatus === 'error' && driveUploadError && (
                 <p className="text-xs font-mono text-destructive flex items-start gap-1.5 pt-0.5">
                   <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />

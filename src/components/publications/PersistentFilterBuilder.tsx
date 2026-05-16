@@ -9,9 +9,10 @@ interface PersistentFilterBuilderProps {
   onFiltersChange?: (filters: PublicationFilter[]) => void;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  onCloseAutoFocus?: (event: Event) => void;
 }
 
-export function PersistentFilterBuilder({ tags, vaults, onFiltersChange, open, onOpenChange }: PersistentFilterBuilderProps) {
+export function PersistentFilterBuilder({ tags, vaults, onFiltersChange, open, onOpenChange, onCloseAutoFocus }: PersistentFilterBuilderProps) {
   const {
     filters: persistedFilters,
     updateFilters
@@ -32,6 +33,7 @@ export function PersistentFilterBuilder({ tags, vaults, onFiltersChange, open, o
       vaults={vaults}
       open={open}
       onOpenChange={onOpenChange}
+      onCloseAutoFocus={onCloseAutoFocus}
     />
   );
 }
