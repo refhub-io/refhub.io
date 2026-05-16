@@ -1666,7 +1666,7 @@ export default function VaultDetail() {
 
       <div className="flex-1 lg:pl-72 min-w-0 flex flex-col min-h-screen">
         {/* Vault Header */}
-        <div className="border-b border-border bg-card/50 backdrop-blur-xl sticky top-0 z-30 shrink-0">
+        <div className="border-b border-border bg-card/50 backdrop-blur-xl sm:sticky sm:top-0 sm:z-30 shrink-0">
           <div className="px-3 sm:px-4 py-3">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2 min-w-0 flex-wrap">
