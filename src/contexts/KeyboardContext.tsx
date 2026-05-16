@@ -266,11 +266,13 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
         if (def.appWide && isNativeInteractiveTarget(e)) continue;
 
         if (matchesCombo(e, parsed)) {
-          e.preventDefault();
           const handled = def.handler(e);
-          emitAnalytics(def.combo, def.context);
-          debug('KeyboardContext', `shortcut matched: ${def.combo} in ${def.context}`);
-          if (handled !== false) return; // stop propagation to lower-priority shortcuts
+          if (handled !== false) {
+            e.preventDefault();
+            emitAnalytics(def.combo, def.context);
+            debug('KeyboardContext', `shortcut matched: ${def.combo} in ${def.context}`);
+            return; // stop propagation to lower-priority shortcuts
+          }
         }
       }
 
