@@ -222,7 +222,7 @@ export default function ProfileEdit() {
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-bold font-mono sm:text-2xl">account_<span className="text-gradient">settings</span></h1>
+            <h1 className="text-xl font-bold font-mono sm:text-2xl">// account_<span className="text-gradient">settings</span></h1>
             <p className="text-xs text-muted-foreground font-mono sm:text-sm">// manage your profile, security, API access, and linked storage</p>
           </div>
         </div>
