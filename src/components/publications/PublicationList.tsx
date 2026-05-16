@@ -540,7 +540,7 @@ export function PublicationList({
         </div>
 
         {/* Search, filters and view settings */}
-        <div className="mt-4 sm:mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="mt-4 sm:mt-5 flex flex-row flex-wrap gap-2 sm:gap-3 items-center">
           {/* Search input — left side, grows to fill available space */}
           <div className="relative w-full sm:flex-1 sm:min-w-[220px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
