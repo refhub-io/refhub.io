@@ -122,11 +122,19 @@ export function PublicationList({
   const { setActiveContext } = useKeyboardContext();
 
   const releaseToolbarFocus = useCallback(() => {
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
-    setActiveContext('publication-list');
+    requestAnimationFrame(() => {
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+      listContainerRef.current?.focus();
+      setActiveContext('publication-list');
+    });
   }, [setActiveContext]);
+
+  const handleToolbarCloseAutoFocus = useCallback((event: Event) => {
+    event.preventDefault();
+    releaseToolbarFocus();
+  }, [releaseToolbarFocus]);
 
   // Calculate tag usage counts
   const tagUsageCounts = useMemo(() => {
@@ -616,6 +624,7 @@ export function PublicationList({
                 onFiltersChange={setFilters}
                 open={filterOpen}
                 onOpenChange={setFilterOpen}
+                onCloseAutoFocus={handleToolbarCloseAutoFocus}
               />
               {persistedFilters.length > 0 && (
                 <span className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full z-10"></span>
@@ -644,7 +653,7 @@ export function PublicationList({
                     )}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="font-mono">
+                <DropdownMenuContent align="end" className="font-mono" onCloseAutoFocus={handleToolbarCloseAutoFocus}>
                   <DropdownMenuItem onClick={() => { setSortBy('created'); setSortDirection('desc'); }}>
                     recently_added
                   </DropdownMenuItem>
@@ -671,6 +680,7 @@ export function PublicationList({
             propertiesHint={<KbdHint shortcut="p" size="xs" className="hidden md:inline-flex !px-1 !py-0.5 !text-[10px] !leading-none !h-4" />}
             propertiesOpen={propertiesOpen}
             onPropertiesOpenChange={setPropertiesOpen}
+            onPropertiesCloseAutoFocus={handleToolbarCloseAutoFocus}
           />
 
           {selectedIds.size > 0 && onDiscoverRelated && (

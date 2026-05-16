@@ -39,6 +39,7 @@ interface ViewSettingsProps {
   propertiesHint?: ReactNode;
   propertiesOpen?: boolean;
   onPropertiesOpenChange?: (open: boolean) => void;
+  onPropertiesCloseAutoFocus?: (event: Event) => void;
 }
 
 const COLUMN_OPTIONS: { key: keyof VisibleColumns; label: string }[] = [
@@ -83,6 +84,7 @@ export function ViewSettings({
   propertiesHint,
   propertiesOpen,
   onPropertiesOpenChange,
+  onPropertiesCloseAutoFocus,
 }: ViewSettingsProps) {
   const {
     viewMode: persistedViewMode,
@@ -186,7 +188,7 @@ export function ViewSettings({
             {/* p shortcut hint now outside in PublicationList */}
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="end" className="w-56 p-3 bg-popover border-2">
+        <PopoverContent align="end" className="w-56 p-3 bg-popover border-2" onCloseAutoFocus={onPropertiesCloseAutoFocus}>
           <div className="space-y-3">
             <h4 className="text-sm font-semibold">Visible Properties</h4>
             <p className="text-xs text-muted-foreground font-mono">
