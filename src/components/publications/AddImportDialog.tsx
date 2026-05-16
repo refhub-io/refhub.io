@@ -308,7 +308,7 @@ export function AddImportDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent forceMount className="dialog-mobile rounded-2xl p-0 border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col gap-0 min-h-0 sm:h-auto sm:w-[95vw] sm:max-w-4xl sm:max-h-[90vh] data-[state=closed]:hidden">
+      <DialogContent forceMount className="dialog-mobile max-w-[100vw] p-0 border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col gap-0 min-h-0 sm:rounded-2xl sm:h-auto sm:w-[95vw] sm:max-w-4xl sm:max-h-[90vh] data-[state=closed]:hidden">
         <DialogHeader className="p-4 sm:p-6 pb-0">
           <DialogTitle className="text-xl sm:text-2xl font-bold font-mono">
             // add_<span className="text-gradient">papers</span>

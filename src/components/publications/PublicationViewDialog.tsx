@@ -67,7 +67,7 @@ export function PublicationViewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="dialog-mobile publication-view-dialog rounded-2xl border-2 bg-card/95 backdrop-blur-xl overflow-hidden shadow-2xl sm:h-auto sm:w-[95vw] sm:max-w-3xl sm:max-h-[90vh] p-0 gap-0">
+      <DialogContent className="dialog-mobile publication-view-dialog max-w-[100vw] border-2 bg-card/95 backdrop-blur-xl overflow-hidden shadow-2xl sm:rounded-2xl sm:h-auto sm:w-[95vw] sm:max-w-3xl sm:max-h-[90vh] p-0 gap-0">
         <DialogHeader className="shrink-0 space-y-3 px-4 sm:px-6 pt-4 sm:pt-6 pb-4 border-b border-border/60">
           <div className="flex flex-wrap items-center gap-2">
             {publication.publication_type && (
