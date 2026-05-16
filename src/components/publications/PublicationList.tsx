@@ -330,8 +330,8 @@ export function PublicationList({
 
 
   // Meta+K / Ctrl+K → focus search (registered through keyboard system).
-  // Escape from the focused search clears/blurs so single-letter shortcuts
-  // resume without requiring a click elsewhere.
+  // Escape always closes the currently active toolbar/search affordance first,
+  // without disturbing the other shortcuts that now work app-wide.
   useHotkeys(
     'global',
     [
@@ -347,17 +347,35 @@ export function PublicationList({
       },
       {
         combo: 'Escape',
-        description: 'Clear search',
+        description: 'Close active search or popup',
         handler: () => {
-          if (document.activeElement !== searchInputRef.current) return false;
-          if (searchQuery) setSearchQuery('');
-          searchInputRef.current?.blur();
-          return true;
+          if (document.activeElement === searchInputRef.current) {
+            if (searchQuery) setSearchQuery('');
+            searchInputRef.current?.blur();
+            return true;
+          }
+
+          if (propertiesOpen) {
+            setPropertiesOpen(false);
+            return true;
+          }
+
+          if (sortDropdownOpen) {
+            setSortDropdownOpen(false);
+            return true;
+          }
+
+          if (filterOpen) {
+            setFilterOpen(false);
+            return true;
+          }
+
+          return false;
         },
         allowInInput: true,
       },
     ],
-    [searchQuery],
+    [filterOpen, propertiesOpen, searchQuery, sortDropdownOpen],
   );
 
   // Publication page shortcuts are unique app-wide; register them as appWide so
