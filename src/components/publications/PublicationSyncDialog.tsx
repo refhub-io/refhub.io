@@ -43,7 +43,11 @@ export function PublicationSyncDialog({
   const toggleField = (field: string) => {
     setCheckedFields((prev) => {
       const next = new Set(prev);
-      next.has(field) ? next.delete(field) : next.add(field);
+      if (next.has(field)) {
+        next.delete(field);
+      } else {
+        next.add(field);
+      }
       return next;
     });
   };

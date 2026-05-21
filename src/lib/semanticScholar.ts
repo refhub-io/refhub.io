@@ -16,13 +16,15 @@ export interface SSPaper {
 
 export interface SemanticScholarMetadata {
   title: string;
-  authors: string[];
+  authors: string[] | { name?: string | null }[];
   year?: number;
   journal?: string;
+  venue?: string;
   doi: string;
   url?: string;
   abstract?: string;
   type?: string;
+  publication_type?: string;
 }
 
 interface BackendPaperAuthor {
@@ -53,6 +55,17 @@ const paperCache = new Map<string, SSPaper[]>();
 
 function getSemanticScholarProxyUrl(path: string) {
   return `${getBackendApiBaseUrl()}${path}`;
+}
+
+function normalizeMetadataAuthors(authors: SemanticScholarMetadata['authors'] | undefined | null): string[] {
+  if (!Array.isArray(authors)) return [];
+
+  return authors
+    .map((author) => {
+      if (typeof author === 'string') return author.trim();
+      return author.name?.trim() || '';
+    })
+    .filter((author) => author.length > 0);
 }
 
 function normalizePaper(record: BackendPaper): SSPaper | null {
@@ -288,6 +301,16 @@ export async function fetchSemanticScholarMetadataByDoi(doi: string): Promise<Se
     throw new Error(getErrorMessage(payload, response.status));
   }
 
-  return ((payload as { data?: SemanticScholarMetadata | null } | null)?.data ?? null);
+  const metadata = (payload as { data?: SemanticScholarMetadata | null } | null)?.data ?? null;
+  if (!metadata) return null;
+
+  return {
+    ...metadata,
+    title: metadata.title?.trim() || '',
+    authors: normalizeMetadataAuthors(metadata.authors),
+    journal: metadata.journal || metadata.venue || undefined,
+    type: metadata.type || metadata.publication_type || undefined,
+    doi: metadata.doi || cleanDoi,
+  };
 }
 

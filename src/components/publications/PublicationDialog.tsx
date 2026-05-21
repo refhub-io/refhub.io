@@ -505,7 +505,10 @@ export function PublicationDialog({
 
         // Only update fields that haven't been modified by the user
         if (!modifiedFields.has('title')) updatedData.title = publication.title;
-        if (!modifiedFields.has('authors')) updatedData.authors = publication.authors;
+        if (!modifiedFields.has('authors')) {
+          updatedData.authors = publication.authors;
+          setAuthorsInput(publication.authors.join(', '));
+        }
         if (!modifiedFields.has('year')) updatedData.year = publication.year;
         if (!modifiedFields.has('journal')) updatedData.journal = publication.journal || '';
         if (!modifiedFields.has('volume')) updatedData.volume = publication.volume || '';
@@ -521,7 +524,10 @@ export function PublicationDialog({
         if (!modifiedFields.has('booktitle')) updatedData.booktitle = publication.booktitle || '';
         if (!modifiedFields.has('chapter')) updatedData.chapter = publication.chapter || '';
         if (!modifiedFields.has('edition')) updatedData.edition = publication.edition || '';
-        if (!modifiedFields.has('editor')) updatedData.editor = publication.editor || [];
+        if (!modifiedFields.has('editor')) {
+          updatedData.editor = publication.editor || [];
+          setEditorInput((publication.editor || []).join(', '));
+        }
         if (!modifiedFields.has('howpublished')) updatedData.howpublished = publication.howpublished || '';
         if (!modifiedFields.has('institution')) updatedData.institution = publication.institution || '';
         if (!modifiedFields.has('number')) updatedData.number = publication.number || '';
@@ -533,7 +539,10 @@ export function PublicationDialog({
         if (!modifiedFields.has('eid')) updatedData.eid = publication.eid || '';
         if (!modifiedFields.has('isbn')) updatedData.isbn = publication.isbn || '';
         if (!modifiedFields.has('issn')) updatedData.issn = publication.issn || '';
-        if (!modifiedFields.has('keywords')) updatedData.keywords = publication.keywords || [];
+        if (!modifiedFields.has('keywords')) {
+          updatedData.keywords = publication.keywords || [];
+          setKeywordsInput((publication.keywords || []).join(', '));
+        }
 
         return updatedData;
       });
