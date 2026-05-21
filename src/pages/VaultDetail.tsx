@@ -155,6 +155,7 @@ export default function VaultDetail() {
   const [syncMetadataByPublication, setSyncMetadataByPublication] = useState<Record<string, SemanticScholarMetadata>>({});
   const [syncLoadingIds, setSyncLoadingIds] = useState<Set<string>>(new Set());
   const [syncPreviewPublication, setSyncPreviewPublication] = useState<Publication | null>(null);
+  const [syncCooldowns, setSyncCooldowns] = useState<Record<string, number>>({});
 
   const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
   const [editingVault, setEditingVault] = useState<Vault | null>(null);
@@ -824,12 +825,37 @@ export default function VaultDetail() {
     [syncDiffsByPublication],
   );
 
+  const startSyncCooldown = useCallback((publicationId: string) => {
+    setSyncCooldowns(prev => ({ ...prev, [publicationId]: 10 }));
+  }, []);
+
+  useEffect(() => {
+    const hasActiveCooldown = Object.values(syncCooldowns).some(seconds => seconds > 0);
+    if (!hasActiveCooldown) return;
+
+    const timer = window.setTimeout(() => {
+      setSyncCooldowns(prev => {
+        const next: Record<string, number> = {};
+        for (const [id, seconds] of Object.entries(prev)) {
+          const remaining = Math.max(0, seconds - 1);
+          if (remaining > 0) next[id] = remaining;
+        }
+        return next;
+      });
+    }, 1000);
+
+    return () => window.clearTimeout(timer);
+  }, [syncCooldowns]);
+
   const handleCheckPublicationSync = useCallback(async (publication: Publication) => {
     if (!publication.doi) {
       toast({ title: 'sync_needs_doi', description: 'Semantic Scholar detail sync currently needs a DOI.', variant: 'destructive' });
       return;
     }
-
+    if ((syncCooldowns[publication.id] || 0) > 0 || syncLoadingIds.has(publication.id)) {
+      return;
+    }
+    startSyncCooldown(publication.id);
     setSyncLoadingIds(prev => new Set(prev).add(publication.id));
     try {
       const metadata = await fetchSemanticScholarMetadataByDoi(publication.doi);
@@ -857,7 +883,7 @@ export default function VaultDetail() {
         return next;
       });
     }
-  }, [toast]);
+  }, [startSyncCooldown, syncCooldowns, syncLoadingIds, toast]);
 
   const handleApplyPublicationSync = useCallback(async (selectedDiffs: PublicationSyncDiff[]) => {
     if (!syncPreviewPublication || !canEdit || selectedDiffs.length === 0) return;
@@ -1869,6 +1895,7 @@ export default function VaultDetail() {
           driveLoading={pdfAssetsLoading}
           syncDiffCounts={syncDiffCounts}
           syncLoadingIds={syncLoadingIds}
+          syncCooldowns={syncCooldowns}
           onCheckPublicationSync={canEdit ? handleCheckPublicationSync : undefined}
         />
       </div>
@@ -1897,6 +1924,7 @@ export default function VaultDetail() {
         onAddToVaults={canEdit ? handleAddToVaults : undefined}
         onCheckSync={canEdit ? handleCheckPublicationSync : undefined}
         syncLoading={editingPublication ? syncLoadingIds.has(editingPublication.id) : false}
+        syncCooldownSeconds={editingPublication ? syncCooldowns[editingPublication.id] || 0 : 0}
       />
 
       <PublicationViewDialog

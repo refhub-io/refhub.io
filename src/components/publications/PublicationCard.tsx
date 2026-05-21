@@ -48,6 +48,7 @@ interface PublicationCardProps {
   driveLoading?: boolean;
   syncDiffCount?: number;
   syncLoading?: boolean;
+  syncCooldownSeconds?: number;
   onCheckSync?: () => void;
 }
 
@@ -71,6 +72,7 @@ export function PublicationCard({
   driveLoading = false,
   syncDiffCount,
   syncLoading = false,
+  syncCooldownSeconds = 0,
   onCheckSync,
 }: PublicationCardProps) {
   const [notesExpanded, setNotesExpanded] = useState(false);
@@ -208,9 +210,9 @@ export function PublicationCard({
                       </DropdownMenuItem>
                     )}
                     {onCheckSync && (
-                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onCheckSync(); }} disabled={syncLoading || !publication.doi}>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onCheckSync(); }} disabled={syncLoading || syncCooldownSeconds > 0 || !publication.doi}>
                         <Loader2 className={`w-4 h-4 mr-2 ${syncLoading ? 'animate-spin' : ''}`} />
-                        sync details
+                        {syncCooldownSeconds > 0 ? `sync cooldown ${syncCooldownSeconds}s` : 'sync details'}
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onExportBibtex(); }}>

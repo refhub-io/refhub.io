@@ -51,6 +51,7 @@ interface PublicationDialogProps {
   onAddToVaults?: (publicationId: string, vaultIds: string[]) => Promise<void>;
   onCheckSync?: (publication: Publication) => void;
   syncLoading?: boolean;
+  syncCooldownSeconds?: number;
   /** When false, dialog stays open after save (default: true). */
   closeOnSave?: boolean;
   driveUrl?: string | null;
@@ -73,6 +74,7 @@ export function PublicationDialog({
   onAddToVaults,
   onCheckSync,
   syncLoading = false,
+  syncCooldownSeconds = 0,
   closeOnSave = false,
   driveUrl,
 }: PublicationDialogProps) {
@@ -899,12 +901,12 @@ export function PublicationDialog({
                 variant="outline"
                 size="sm"
                 onClick={() => onCheckSync(publication)}
-                disabled={syncLoading || !publication.doi}
+                disabled={syncLoading || syncCooldownSeconds > 0 || !publication.doi}
                 className="font-mono text-xs h-7 px-2.5"
-                title={publication.doi ? 'Sync metadata from Semantic Scholar' : 'DOI required for sync'}
+                title={publication.doi ? (syncCooldownSeconds > 0 ? `Semantic Scholar sync cooldown: ${syncCooldownSeconds}s` : 'Sync metadata from Semantic Scholar') : 'DOI required for sync'}
               >
                 <Loader2 className={`w-3 h-3 mr-1.5 ${syncLoading ? 'animate-spin' : ''}`} />
-                sync_details
+                {syncCooldownSeconds > 0 ? `sync_cooldown_${syncCooldownSeconds}s` : 'sync_details'}
               </Button>
               {!publication.doi && (
                 <span className="text-[10px] font-mono text-muted-foreground">doi required</span>

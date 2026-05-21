@@ -55,6 +55,7 @@ interface PublicationTableProps {
   driveLoading?: boolean;
   syncDiffCounts?: Record<string, number>;
   syncLoadingIds?: Set<string>;
+  syncCooldowns?: Record<string, number>;
   onCheckSync?: (pub: Publication) => void;
   // Sort props
   sortBy: SortField;
@@ -84,6 +85,7 @@ export function PublicationTable({
   driveLoading = false,
   syncDiffCounts = {},
   syncLoadingIds = new Set(),
+  syncCooldowns = {},
   onCheckSync,
   sortBy,
   sortDirection,
@@ -416,9 +418,9 @@ export function PublicationTable({
                         </DropdownMenuItem>
                       )}
                       {onCheckSync && (
-                        <DropdownMenuItem onClick={() => onCheckSync(pub)} disabled={syncLoadingIds.has(pub.id) || !pub.doi}>
+                        <DropdownMenuItem onClick={() => onCheckSync(pub)} disabled={syncLoadingIds.has(pub.id) || (syncCooldowns[pub.id] || 0) > 0 || !pub.doi}>
                           <Loader2 className={`w-4 h-4 mr-2 ${syncLoadingIds.has(pub.id) ? 'animate-spin' : ''}`} />
-                          sync details
+                          {(syncCooldowns[pub.id] || 0) > 0 ? `sync cooldown ${syncCooldowns[pub.id]}s` : 'sync details'}
                         </DropdownMenuItem>
                       )}
                       <DropdownMenuItem onClick={() => onExportBibtex(pub)}>
