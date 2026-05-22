@@ -221,20 +221,25 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
             </DialogHeader>
             <div className="flex flex-col items-center gap-3 sm:gap-6 py-2 sm:py-5">
               <div className="w-full max-w-[276px] sm:max-w-[456px] p-3 sm:p-7 bg-gradient-to-br from-background via-background/95 to-sidebar-accent rounded-2xl sm:rounded-3xl shadow-xl border-2 border-border/50 glow-purple">
-                <div className="p-2 sm:p-5 bg-white rounded-xl sm:rounded-2xl relative">
+                <div className="p-0 bg-transparent rounded-xl sm:rounded-2xl relative">
                   <div 
                     ref={qrRef}
-                    className="relative flex items-center justify-center"
+                    className={cn(
+                      "relative flex items-center justify-center",
+                      customQrLoading && !customQrError && "min-h-[220px] sm:min-h-[360px]"
+                    )}
                     style={{
-                      filter: customQrUrl ? undefined : `drop-shadow(0 0 8px ${gradientColor}40)`,
+                      filter: customQrError ? `drop-shadow(0 0 8px ${gradientColor}40)` : undefined,
                     }}
                   >
                     {customQrUrl ? (
                       <img
                         src={customQrUrl}
                         alt={`QR code for ${vault.name || 'vault'}`}
-                        className="block h-auto w-full max-w-[220px] object-contain sm:max-w-[360px]"
+                        className="block h-auto w-full max-w-[236px] object-contain sm:max-w-[390px]"
                       />
+                    ) : customQrLoading && !customQrError ? (
+                      <LoadingSpinner size="lg" />
                     ) : (
                       <QRCodeCanvas
                         value={shareUrl}
@@ -244,11 +249,6 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
                         bgColor="#ffffff"
                         fgColor={gradientColor}
                       />
-                    )}
-                    {customQrLoading && (
-                      <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-white/70">
-                        <LoadingSpinner size="sm" />
-                      </div>
                     )}
                   </div>
                 </div>
