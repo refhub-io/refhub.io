@@ -26,6 +26,7 @@ import { cn } from '@/lib/utils';
 
 const CUSTOM_QR_ENDPOINT = 'https://refhub-qr.netlify.app/api/generate-qr';
 const CUSTOM_QR_FREEDOM = 0;
+const QR_DOWNLOAD_BACKGROUND = '#0d0d0f';
 
 interface QRCodeDialogProps {
   vault: Vault;
@@ -174,11 +175,19 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
     }
   };
 
+  const getDownloadableSvg = (svg: string) => {
+    const viewBoxMatch = svg.match(/<svg[^>]*viewBox="([^"]+)"/);
+    const [, , width = '1024', height = '1024'] = viewBoxMatch?.[1]?.split(/\s+/) ?? [];
+    const background = `<rect width="${width}" height="${height}" fill="${QR_DOWNLOAD_BACKGROUND}"/>`;
+    return svg.replace(/(<svg\b[^>]*>)/, `$1${background}`);
+  };
+
   const downloadQR = () => {
     const link = document.createElement('a');
 
     if (customQrSvg) {
-      const blobUrl = URL.createObjectURL(new Blob([customQrSvg], { type: 'image/svg+xml' }));
+      const svgForDownload = getDownloadableSvg(customQrSvg);
+      const blobUrl = URL.createObjectURL(new Blob([svgForDownload], { type: 'image/svg+xml' }));
       link.download = `${vault.name || 'vault'}-qr.svg`;
       link.href = blobUrl;
       link.click();
