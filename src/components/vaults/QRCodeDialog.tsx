@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useRef } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,6 +26,39 @@ import { Vault } from '@/types/database';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 
+const REFHUB_QR_DARK = '#4c1d95';
+const REFHUB_QR_PURPLE = '#a855f7';
+const REFHUB_QR_PINK = '#ec4899';
+const REFHUB_LOGO_SRC = '/logo_c.svg';
+
+const drawRoundedRect = (
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+) => {
+  context.beginPath();
+  context.moveTo(x + radius, y);
+  context.lineTo(x + width - radius, y);
+  context.quadraticCurveTo(x + width, y, x + width, y + radius);
+  context.lineTo(x + width, y + height - radius);
+  context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  context.lineTo(x + radius, y + height);
+  context.quadraticCurveTo(x, y + height, x, y + height - radius);
+  context.lineTo(x, y + radius);
+  context.quadraticCurveTo(x, y, x + radius, y);
+  context.closePath();
+};
+
+const loadImage = (src: string) => new Promise<HTMLImageElement>((resolve, reject) => {
+  const image = new Image();
+  image.onload = () => resolve(image);
+  image.onerror = reject;
+  image.src = src;
+});
+
 interface QRCodeDialogProps {
   vault: Vault;
   onVaultUpdate?: () => void;
@@ -36,20 +69,11 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
   const [open, setOpen] = useState(false);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [upgrading, setUpgrading] = useState(false);
-  const [gradientColor, setGradientColor] = useState('#8b5cf6');
   const qrRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
   const isPrivate = vault.visibility === 'private';
   const canShare = vault.visibility !== 'private';
-
-  // Generate random aesthetic gradient color
-  const generateRandomColor = () => {
-    const hue = Math.random() * 360;
-    const saturation = 70 + Math.random() * 20; // 70-90%
-    const lightness = 55 + Math.random() * 15; // 55-70%
-    return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-  };
 
   // Only use public slug URL for public vaults, always use /vault/{id} for protected
   const shareUrl = vault.visibility === 'public' && vault.public_slug
@@ -68,10 +92,6 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
       setShowUpgradeDialog(true);
     } else {
       setOpen(newOpen);
-      if (newOpen) {
-        // Generate new random color each time dialog opens
-        setGradientColor(generateRandomColor());
-      }
     }
   };
 
@@ -101,15 +121,87 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
     }
   };
 
-  const downloadQR = () => {
+  const downloadQR = async () => {
     const canvas = qrRef.current?.querySelector('canvas');
     if (!canvas) return;
-    
-    const link = document.createElement('a');
-    link.download = `${vault.name || 'vault'}-qr.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-    toast({ title: 'qr_code_downloaded' });
+
+    try {
+      const exportCanvas = document.createElement('canvas');
+      const size = 720;
+      const outerPadding = 44;
+      const qrPadding = 42;
+      const footerHeight = 96;
+      const cardSize = size - outerPadding * 2;
+      const qrSize = cardSize - qrPadding * 2;
+      const context = exportCanvas.getContext('2d');
+      if (!context) return;
+
+      exportCanvas.width = size;
+      exportCanvas.height = size + footerHeight;
+
+      const background = context.createLinearGradient(0, 0, size, size + footerHeight);
+      background.addColorStop(0, REFHUB_QR_PURPLE);
+      background.addColorStop(0.58, '#7c3aed');
+      background.addColorStop(1, REFHUB_QR_PINK);
+      context.fillStyle = background;
+      context.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+
+      context.save();
+      context.globalAlpha = 0.22;
+      context.fillStyle = '#ffffff';
+      context.beginPath();
+      context.arc(94, 86, 84, 0, Math.PI * 2);
+      context.arc(size - 74, size - 22, 118, 0, Math.PI * 2);
+      context.fill();
+      context.restore();
+
+      context.fillStyle = '#ffffff';
+      drawRoundedRect(context, outerPadding, outerPadding, cardSize, cardSize, 44);
+      context.fill();
+
+      context.drawImage(canvas, outerPadding + qrPadding, outerPadding + qrPadding, qrSize, qrSize);
+
+      const logo = await loadImage(REFHUB_LOGO_SRC);
+      const logoBackingSize = 132;
+      const logoSize = 92;
+      const logoBackingX = size / 2 - logoBackingSize / 2;
+      const logoBackingY = outerPadding + cardSize / 2 - logoBackingSize / 2;
+
+      context.fillStyle = '#ffffff';
+      drawRoundedRect(context, logoBackingX, logoBackingY, logoBackingSize, logoBackingSize, 30);
+      context.fill();
+      context.strokeStyle = 'rgba(168, 85, 247, 0.24)';
+      context.lineWidth = 6;
+      context.stroke();
+      context.drawImage(
+        logo,
+        size / 2 - logoSize / 2,
+        outerPadding + cardSize / 2 - logoSize / 2,
+        logoSize,
+        logoSize,
+      );
+
+      context.fillStyle = '#ffffff';
+      context.font = '700 30px ui-monospace, SFMono-Regular, Menlo, monospace';
+      context.textAlign = 'center';
+      context.fillText('refhub.io', size / 2, size + 42);
+      context.font = '500 18px ui-monospace, SFMono-Regular, Menlo, monospace';
+      context.globalAlpha = 0.82;
+      context.fillText('scan_to_access_vault', size / 2, size + 72);
+
+      const link = document.createElement('a');
+      const fileName = (vault.name || 'vault').replace(/[^a-z0-9_-]+/gi, '-').replace(/^-|-$/g, '') || 'vault';
+      link.download = `${fileName}-qr.png`;
+      link.href = exportCanvas.toDataURL('image/png');
+      link.click();
+      toast({ title: 'qr_code_downloaded' });
+    } catch (error) {
+      toast({
+        title: 'error_downloading_qr_code',
+        description: (error as Error).message,
+        variant: 'destructive',
+      });
+    }
   };
 
   return (
@@ -142,15 +234,12 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
               </DialogTitle>
             </DialogHeader>
             <div className="flex flex-col items-center gap-4 sm:gap-6 py-2 sm:py-4">
-              {/* QR Code with gradient effect */}
-              <div className="p-4 sm:p-6 bg-gradient-to-br from-background via-background/95 to-sidebar-accent rounded-2xl shadow-xl border-2 border-border/50 glow-purple">
-                <div className="p-3 sm:p-4 bg-white rounded-xl relative">
-                  <div 
+              {/* Branded QR code; keep the QR itself high contrast with a quiet zone. */}
+              <div className="p-4 sm:p-6 bg-gradient-to-br from-neon-purple/20 via-background to-neon-pink/20 rounded-2xl shadow-xl border-2 border-neon-purple/20 glow-purple">
+                <div className="p-3 sm:p-4 bg-white rounded-[1.25rem] relative shadow-inner">
+                  <div
                     ref={qrRef}
-                    className="relative"
-                    style={{
-                      filter: `drop-shadow(0 0 8px ${gradientColor}40)`,
-                    }}
+                    className="relative drop-shadow-[0_0_14px_rgba(168,85,247,0.22)]"
                   >
                     <QRCodeCanvas
                       value={shareUrl}
@@ -158,8 +247,18 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
                       level="H"
                       marginSize={2}
                       bgColor="#ffffff"
-                      fgColor={gradientColor}
+                      fgColor={REFHUB_QR_DARK}
                     />
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-2xl bg-white shadow-lg ring-2 ring-neon-purple/20">
+                        <img
+                          src={REFHUB_LOGO_SRC}
+                          alt="RefHub"
+                          className="h-9 w-9 sm:h-10 sm:w-10"
+                          draggable={false}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
