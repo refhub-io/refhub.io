@@ -212,15 +212,15 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
           </Button>
         </DialogTrigger>
         {canShare && (
-          <DialogContent className="sm:max-w-sm">
+          <DialogContent className="sm:max-w-xl">
             <DialogHeader>
               <DialogTitle className="text-xl sm:text-2xl font-bold font-mono">
                 // share "{vault.name}"
               </DialogTitle>
             </DialogHeader>
-            <div className="flex flex-col items-center gap-4 sm:gap-6 py-2 sm:py-4">
-              <div className="p-4 sm:p-6 bg-gradient-to-br from-background via-background/95 to-sidebar-accent rounded-2xl shadow-xl border-2 border-border/50 glow-purple">
-                <div className="p-3 sm:p-4 bg-white rounded-xl relative">
+            <div className="flex flex-col items-center gap-4 sm:gap-6 py-2 sm:py-5">
+              <div className="p-4 sm:p-7 bg-gradient-to-br from-background via-background/95 to-sidebar-accent rounded-3xl shadow-xl border-2 border-border/50 glow-purple">
+                <div className="p-3 sm:p-5 bg-white rounded-2xl relative">
                   <div 
                     ref={qrRef}
                     className="relative flex items-center justify-center"
@@ -232,12 +232,12 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
                       <img
                         src={customQrUrl}
                         alt={`QR code for ${vault.name || 'vault'}`}
-                        className="h-[180px] w-[180px] sm:h-[200px] sm:w-[200px]"
+                        className="h-[240px] w-[240px] sm:h-[360px] sm:w-[360px]"
                       />
                     ) : (
                       <QRCodeCanvas
                         value={shareUrl}
-                        size={window.innerWidth < 640 ? 180 : 200}
+                        size={window.innerWidth < 640 ? 240 : 360}
                         level="H"
                         marginSize={2}
                         bgColor="#ffffff"
