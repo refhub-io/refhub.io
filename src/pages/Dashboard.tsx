@@ -211,6 +211,11 @@ export default function Dashboard() {
   const [pdfAssetsMap, setPdfAssetsMap] = useState<Record<string, string | null>>({});
   const [pdfAssetsLoading, setPdfAssetsLoading] = useState(false);
 
+  const syncDiffCounts = useMemo(
+    () => Object.fromEntries(Object.entries(syncDiffsByPublication).map(([id, diffs]) => [id, diffs.length])),
+    [syncDiffsByPublication],
+  );
+
   // Track auth loading phase
   useEffect(() => {
     if (!authLoading && user) {
