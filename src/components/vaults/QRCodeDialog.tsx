@@ -19,7 +19,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { QrCode, Download, Copy, Check, Lock, Globe, Users, AlertTriangle } from 'lucide-react';
-import { LoadingSpinner } from '@/components/ui/loading';
 import { useToast } from '@/hooks/use-toast';
 import { Vault } from '@/types/database';
 import { supabase } from '@/integrations/supabase/client';
@@ -67,9 +66,11 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
     if (!open || !canShare) {
       setCustomQrSvg(null);
       setCustomQrError(null);
+      setCustomQrLoading(false);
       return;
     }
 
+    let isCurrent = true;
     const controller = new AbortController();
 
     const generateCustomQr = async () => {
@@ -95,12 +96,14 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
           throw new Error('custom QR generator returned non-SVG content');
         }
 
-        setCustomQrSvg(svg);
+        if (isCurrent) {
+          setCustomQrSvg(svg);
+        }
       } catch (error) {
-        if ((error as DOMException).name === 'AbortError') return;
+        if ((error as DOMException).name === 'AbortError' || !isCurrent) return;
         setCustomQrError((error as Error).message);
       } finally {
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted && isCurrent) {
           setCustomQrLoading(false);
         }
       }
@@ -108,7 +111,10 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
 
     generateCustomQr();
 
-    return () => controller.abort();
+    return () => {
+      isCurrent = false;
+      controller.abort();
+    };
   }, [canShare, open, shareUrl]);
 
   useEffect(() => {
@@ -220,12 +226,12 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
               </DialogTitle>
             </DialogHeader>
             <div className="flex flex-col items-center gap-3 sm:gap-6 py-2 sm:py-5">
-              <div className="w-full max-w-[276px] sm:max-w-[456px] p-3 sm:p-7 bg-gradient-to-br from-background via-background/95 to-sidebar-accent rounded-2xl sm:rounded-3xl shadow-xl border-2 border-border/50 glow-purple">
-                <div className="p-0 bg-transparent rounded-xl sm:rounded-2xl relative">
+              <div className="w-full max-w-[276px] sm:max-w-[456px] p-0 rounded-2xl sm:rounded-3xl shadow-xl glow-purple">
+                <div className="p-0 bg-transparent rounded-xl sm:rounded-2xl relative overflow-hidden">
                   <div 
                     ref={qrRef}
                     className={cn(
-                      "relative flex items-center justify-center",
+                      "relative flex items-center justify-center rounded-xl sm:rounded-2xl",
                       customQrLoading && !customQrError && "min-h-[220px] sm:min-h-[360px]"
                     )}
                     style={{
@@ -239,7 +245,14 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
                         className="block h-auto w-full max-w-[236px] object-contain sm:max-w-[390px]"
                       />
                     ) : customQrLoading && !customQrError ? (
-                      <LoadingSpinner size="lg" />
+                      <div className="flex flex-col items-center justify-center gap-3 text-center font-mono text-sm text-muted-foreground">
+                        <span className="tracking-[0.25em] text-primary">qr-coding</span>
+                        <span className="flex gap-1" aria-hidden="true">
+                          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
+                          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
+                          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce" />
+                        </span>
+                      </div>
                     ) : (
                       <QRCodeCanvas
                         value={shareUrl}
