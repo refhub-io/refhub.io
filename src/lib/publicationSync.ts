@@ -50,6 +50,9 @@ function normalizeComparable(value: unknown): string {
   if (Array.isArray(value)) {
     return value.map(normalizeString).filter(Boolean).join('|').toLowerCase();
   }
+  if (typeof value === 'number') {
+    return String(value);
+  }
   return normalizeString(value).toLowerCase();
 }
 

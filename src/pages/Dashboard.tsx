@@ -207,8 +207,14 @@ export default function Dashboard() {
   const [syncDiffsByPublication, setSyncDiffsByPublication] = useState<Record<string, PublicationSyncDiff[]>>({});
   const [syncMetadataByPublication, setSyncMetadataByPublication] = useState<Record<string, SemanticScholarMetadata>>({});
   const [syncPreviewPublication, setSyncPreviewPublication] = useState<Publication | null>(null);
+  const [syncCooldowns, setSyncCooldowns] = useState<Record<string, number>>({});
   const [pdfAssetsMap, setPdfAssetsMap] = useState<Record<string, string | null>>({});
   const [pdfAssetsLoading, setPdfAssetsLoading] = useState(false);
+
+  const syncDiffCounts = useMemo(
+    () => Object.fromEntries(Object.entries(syncDiffsByPublication).map(([id, diffs]) => [id, diffs.length])),
+    [syncDiffsByPublication],
+  );
 
   // Track auth loading phase
   useEffect(() => {
@@ -1137,11 +1143,37 @@ export default function Dashboard() {
     }
   };
 
+  const startSyncCooldown = useCallback((publicationId: string) => {
+    setSyncCooldowns(prev => ({ ...prev, [publicationId]: 10 }));
+  }, []);
+
+  useEffect(() => {
+    const hasActiveCooldown = Object.values(syncCooldowns).some(seconds => seconds > 0);
+    if (!hasActiveCooldown) return;
+
+    const timer = window.setTimeout(() => {
+      setSyncCooldowns(prev => {
+        const next: Record<string, number> = {};
+        for (const [id, seconds] of Object.entries(prev)) {
+          const remaining = Math.max(0, seconds - 1);
+          if (remaining > 0) next[id] = remaining;
+        }
+        return next;
+      });
+    }, 1000);
+
+    return () => window.clearTimeout(timer);
+  }, [syncCooldowns]);
+
   const handleCheckPublicationSync = useCallback(async (publication: Publication) => {
     if (!publication.doi) {
       toast({ title: 'sync_needs_doi', description: 'Semantic Scholar detail sync currently needs a DOI.', variant: 'destructive' });
       return;
     }
+    if ((syncCooldowns[publication.id] || 0) > 0 || syncLoadingIds.has(publication.id)) {
+      return;
+    }
+    startSyncCooldown(publication.id);
     setSyncLoadingIds(prev => new Set(prev).add(publication.id));
     try {
       const metadata = await fetchSemanticScholarMetadataByDoi(publication.doi);
@@ -1168,7 +1200,7 @@ export default function Dashboard() {
         return next;
       });
     }
-  }, [toast]);
+  }, [startSyncCooldown, syncCooldowns, syncLoadingIds, toast]);
 
   const handleApplyPublicationSync = useCallback(async (selectedDiffs: PublicationSyncDiff[]) => {
     if (!syncPreviewPublication || selectedDiffs.length === 0) return;
@@ -1618,6 +1650,10 @@ export default function Dashboard() {
         onVaultUpdate={refetchVaults}
         driveUrlsMap={pdfAssetsMap}
         driveLoading={pdfAssetsLoading}
+        syncDiffCounts={syncDiffCounts}
+        syncLoadingIds={syncLoadingIds}
+        syncCooldowns={syncCooldowns}
+        onCheckPublicationSync={handleCheckPublicationSync}
       />
       </div>
 
@@ -1643,6 +1679,7 @@ export default function Dashboard() {
         onAddToVaults={handleAddToVaults}
         onCheckSync={handleCheckPublicationSync}
         syncLoading={editingPublication ? syncLoadingIds.has(editingPublication.id) : false}
+        syncCooldownSeconds={editingPublication ? syncCooldowns[editingPublication.id] || 0 : 0}
       />
 
       <PublicationSyncDialog

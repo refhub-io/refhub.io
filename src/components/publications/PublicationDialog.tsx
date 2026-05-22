@@ -51,6 +51,7 @@ interface PublicationDialogProps {
   onAddToVaults?: (publicationId: string, vaultIds: string[]) => Promise<void>;
   onCheckSync?: (publication: Publication) => void;
   syncLoading?: boolean;
+  syncCooldownSeconds?: number;
   /** When false, dialog stays open after save (default: true). */
   closeOnSave?: boolean;
   driveUrl?: string | null;
@@ -73,6 +74,7 @@ export function PublicationDialog({
   onAddToVaults,
   onCheckSync,
   syncLoading = false,
+  syncCooldownSeconds = 0,
   closeOnSave = false,
   driveUrl,
 }: PublicationDialogProps) {
@@ -505,7 +507,10 @@ export function PublicationDialog({
 
         // Only update fields that haven't been modified by the user
         if (!modifiedFields.has('title')) updatedData.title = publication.title;
-        if (!modifiedFields.has('authors')) updatedData.authors = publication.authors;
+        if (!modifiedFields.has('authors')) {
+          updatedData.authors = publication.authors;
+          setAuthorsInput(publication.authors.join(', '));
+        }
         if (!modifiedFields.has('year')) updatedData.year = publication.year;
         if (!modifiedFields.has('journal')) updatedData.journal = publication.journal || '';
         if (!modifiedFields.has('volume')) updatedData.volume = publication.volume || '';
@@ -521,7 +526,10 @@ export function PublicationDialog({
         if (!modifiedFields.has('booktitle')) updatedData.booktitle = publication.booktitle || '';
         if (!modifiedFields.has('chapter')) updatedData.chapter = publication.chapter || '';
         if (!modifiedFields.has('edition')) updatedData.edition = publication.edition || '';
-        if (!modifiedFields.has('editor')) updatedData.editor = publication.editor || [];
+        if (!modifiedFields.has('editor')) {
+          updatedData.editor = publication.editor || [];
+          setEditorInput((publication.editor || []).join(', '));
+        }
         if (!modifiedFields.has('howpublished')) updatedData.howpublished = publication.howpublished || '';
         if (!modifiedFields.has('institution')) updatedData.institution = publication.institution || '';
         if (!modifiedFields.has('number')) updatedData.number = publication.number || '';
@@ -533,7 +541,10 @@ export function PublicationDialog({
         if (!modifiedFields.has('eid')) updatedData.eid = publication.eid || '';
         if (!modifiedFields.has('isbn')) updatedData.isbn = publication.isbn || '';
         if (!modifiedFields.has('issn')) updatedData.issn = publication.issn || '';
-        if (!modifiedFields.has('keywords')) updatedData.keywords = publication.keywords || [];
+        if (!modifiedFields.has('keywords')) {
+          updatedData.keywords = publication.keywords || [];
+          setKeywordsInput((publication.keywords || []).join(', '));
+        }
 
         return updatedData;
       });
@@ -890,12 +901,12 @@ export function PublicationDialog({
                 variant="outline"
                 size="sm"
                 onClick={() => onCheckSync(publication)}
-                disabled={syncLoading || !publication.doi}
+                disabled={syncLoading || syncCooldownSeconds > 0 || !publication.doi}
                 className="font-mono text-xs h-7 px-2.5"
-                title={publication.doi ? 'Sync metadata from Semantic Scholar' : 'DOI required for sync'}
+                title={publication.doi ? (syncCooldownSeconds > 0 ? `Semantic Scholar sync cooldown: ${syncCooldownSeconds}s` : 'Sync metadata from Semantic Scholar') : 'DOI required for sync'}
               >
                 <Loader2 className={`w-3 h-3 mr-1.5 ${syncLoading ? 'animate-spin' : ''}`} />
-                sync_details
+                {syncCooldownSeconds > 0 ? `sync_cooldown_${syncCooldownSeconds}s` : 'sync_details'}
               </Button>
               {!publication.doi && (
                 <span className="text-[10px] font-mono text-muted-foreground">doi required</span>

@@ -76,6 +76,7 @@ interface PublicationListProps {
   driveLoading?: boolean;
   syncDiffCounts?: Record<string, number>;
   syncLoadingIds?: Set<string>;
+  syncCooldowns?: Record<string, number>;
   onCheckPublicationSync?: (pub: Publication) => void;
 }
 
@@ -109,6 +110,7 @@ export function PublicationList({
   driveLoading,
   syncDiffCounts = {},
   syncLoadingIds = new Set(),
+  syncCooldowns = {},
   onCheckPublicationSync,
 }: PublicationListProps) {
   const openPublication = onOpenPublication || onEditPublication;
@@ -792,6 +794,7 @@ export function PublicationList({
             driveLoading={driveLoading}
             syncDiffCounts={syncDiffCounts}
             syncLoadingIds={syncLoadingIds}
+            syncCooldowns={syncCooldowns}
             onCheckSync={onCheckPublicationSync}
           />
         ) : (
@@ -823,6 +826,7 @@ export function PublicationList({
                   driveLoading={driveLoading}
                   syncDiffCount={syncDiffCounts[pub.id]}
                   syncLoading={syncLoadingIds.has(pub.id)}
+                  syncCooldownSeconds={syncCooldowns[pub.id] || 0}
                   onCheckSync={onCheckPublicationSync ? () => onCheckPublicationSync(pub) : undefined}
                 />
               </div>
