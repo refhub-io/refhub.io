@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { parseBibtex, fetchDOIMetadata, generateBibtexKey } from '@/lib/bibtex';
+import { orderImportPreviewIndices } from '@/lib/importOrdering';
 import { FileText, Link, Upload, Check, X, Library, PenLine, Loader2 } from 'lucide-react';
 import { LoadingSpinner } from '@/components/ui/loading';
 import { useToast } from '@/hooks/use-toast';
@@ -264,6 +265,11 @@ export function AddImportDialog({
 
   const selectAll = () => setSelectedIndices(new Set(parsedPublications.map((_, i) => i)));
   const selectNone = () => setSelectedIndices(new Set());
+
+  const orderedPreviewIndices = orderImportPreviewIndices(
+    parsedPublications.length,
+    duplicateIndices,
+  );
 
   // ─── Manual entry ────────────────────────────────────────────────────────────
 
@@ -694,7 +700,8 @@ export function AddImportDialog({
 
               <div className="border-2 rounded-lg max-h-40 overflow-y-auto">
                 <div className="p-2 space-y-2">
-                  {parsedPublications.map((pub, index) => {
+                  {orderedPreviewIndices.map((index) => {
+                    const pub = parsedPublications[index];
                     const isDuplicate = duplicateIndices.has(index);
                     return (
                       <div key={index}

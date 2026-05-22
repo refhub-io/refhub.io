@@ -21,6 +21,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { parseBibtex, fetchDOIMetadata, generateBibtexKey } from '@/lib/bibtex';
+import { orderImportPreviewIndices } from '@/lib/importOrdering';
 import { FileText, Link, Upload, Check, X, Loader2, Library } from 'lucide-react';
 import { LoadingSpinner } from '@/components/ui/loading';
 import { useToast } from '@/hooks/use-toast';
@@ -296,6 +297,11 @@ export function ImportDialog({
     setSelectedIndices(new Set());
   };
 
+  const orderedPreviewIndices = orderImportPreviewIndices(
+    parsedPublications.length,
+    duplicateIndices,
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent forceMount className="w-full max-w-[100vw] h-full sm:h-auto sm:w-[95vw] sm:max-w-4xl sm:max-h-[90vh] p-0 border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col data-[state=closed]:hidden">
@@ -444,7 +450,8 @@ export function ImportDialog({
 
               <div className="border-2 rounded-lg max-h-40 overflow-y-auto">
                 <div className="p-2 space-y-2">
-                  {parsedPublications.map((pub, index) => {
+                  {orderedPreviewIndices.map((index) => {
+                    const pub = parsedPublications[index];
                     const isDuplicate = duplicateIndices.has(index);
                     return (
                     <div
