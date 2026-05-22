@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils';
 const CUSTOM_QR_ENDPOINT = 'https://refhub-qr.netlify.app/api/generate-qr';
 const CUSTOM_QR_FREEDOM = 0;
 const QR_DOWNLOAD_BACKGROUND = '#0d0d0f';
+const QR_DOWNLOAD_SIZE = 2048;
 
 interface QRCodeDialogProps {
   vault: Vault;
@@ -182,23 +183,58 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
     return svg.replace(/(<svg\b[^>]*>)/, `$1${background}`);
   };
 
-  const downloadQR = () => {
-    const link = document.createElement('a');
+  const downloadPngFromSvg = async (svg: string) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = QR_DOWNLOAD_SIZE;
+    canvas.height = QR_DOWNLOAD_SIZE;
 
-    if (customQrSvg) {
-      const svgForDownload = getDownloadableSvg(customQrSvg);
-      const blobUrl = URL.createObjectURL(new Blob([svgForDownload], { type: 'image/svg+xml' }));
-      link.download = `${vault.name || 'vault'}-qr.svg`;
-      link.href = blobUrl;
-      link.click();
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('unable to prepare qr download');
+
+    const svgForDownload = getDownloadableSvg(svg);
+    const blobUrl = URL.createObjectURL(new Blob([svgForDownload], { type: 'image/svg+xml' }));
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => {
+          context.clearRect(0, 0, QR_DOWNLOAD_SIZE, QR_DOWNLOAD_SIZE);
+          context.drawImage(image, 0, 0, QR_DOWNLOAD_SIZE, QR_DOWNLOAD_SIZE);
+          resolve();
+        };
+        image.onerror = () => reject(new Error('unable to render qr download'));
+        image.src = blobUrl;
+      });
+    } finally {
       URL.revokeObjectURL(blobUrl);
-      toast({ title: 'qr_code_downloaded' });
+    }
+
+    const pngUrl = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.download = `${vault.name || 'vault'}-qr.png`;
+    link.href = pngUrl;
+    link.click();
+  };
+
+  const downloadQR = async () => {
+    if (customQrSvg) {
+      try {
+        await downloadPngFromSvg(customQrSvg);
+        toast({ title: 'qr_code_downloaded' });
+      } catch (error) {
+        toast({
+          title: 'error_downloading_qr_code',
+          description: (error as Error).message,
+          variant: 'destructive',
+        });
+      }
       return;
     }
 
     const canvas = qrRef.current?.querySelector('canvas');
     if (!canvas) return;
 
+    const link = document.createElement('a');
     link.download = `${vault.name || 'vault'}-qr.png`;
     link.href = canvas.toDataURL('image/png');
     link.click();
