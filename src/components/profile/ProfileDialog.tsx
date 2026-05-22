@@ -283,7 +283,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
       />
       <Dialog open={open} onOpenChange={handleDialogClose}>
         <DialogContent className="dialog-mobile max-w-[100vw] sm:rounded-2xl sm:h-auto sm:w-[95vw] sm:max-w-3xl sm:max-h-[90vh] border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col gap-0 p-0">
-        <DialogHeader className="px-6 pt-6 pb-4">
+        <DialogHeader className="px-6 pt-[max(env(safe-area-inset-top),1.5rem)] sm:pt-6 pb-4">
           <DialogTitle className="text-xl sm:text-2xl font-bold font-mono">// edit_profile</DialogTitle>
         </DialogHeader>
 
@@ -484,7 +484,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
             </div>
             </div>
 
-            <div className="shrink-0 flex items-center justify-between gap-2 py-3 px-6 border-t border-border">
+            <div className="shrink-0 flex items-center justify-between gap-2 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] sm:py-3 px-6 border-t border-border">
               <div className="flex items-center gap-1">
                 <Button
                   type="button"

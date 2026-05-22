@@ -105,7 +105,7 @@ export function PublicationViewDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="dialog-mobile publication-view-dialog max-w-[100vw] border-2 bg-card/95 backdrop-blur-xl overflow-hidden shadow-2xl sm:rounded-2xl sm:h-auto sm:w-[95vw] sm:max-w-3xl sm:max-h-[90vh] p-0 gap-0">
-        <DialogHeader className="shrink-0 space-y-3 px-4 sm:px-6 pt-4 sm:pt-6 pb-4 border-b border-border/60">
+        <DialogHeader className="shrink-0 space-y-3 px-4 sm:px-6 pt-[max(env(safe-area-inset-top),1rem)] sm:pt-6 pb-4 border-b border-border/60">
           <div className="flex flex-wrap items-center gap-2">
             {publication.publication_type && (
               <Badge variant="outline" className="font-mono text-xs">
@@ -286,7 +286,7 @@ export function PublicationViewDialog({
         </div>
 
         {(onEdit || onExport) && (
-          <DialogFooter className="shrink-0 border-t border-border/60 px-4 sm:px-6 py-4 flex-col-reverse sm:flex-row gap-2">
+          <DialogFooter className="shrink-0 border-t border-border/60 px-4 sm:px-6 pt-4 pb-[max(env(safe-area-inset-bottom),1rem)] sm:py-4 flex-col-reverse sm:flex-row gap-2">
             {onExport && (
               <Button type="button" variant="outline" className="w-full sm:w-auto font-mono" onClick={() => onExport(publication)}>
                 <Download className="w-4 h-4 mr-2" />
