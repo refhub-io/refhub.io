@@ -21,21 +21,40 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    id: 10,
+    date: '2026-05-22',
+    title: 'better vault sharing',
+    features: [
+      {
+        tag: 'feature',
+        title: 'branded qr codes',
+        description:
+          'vault share links now use custom refhub qr codes with a cleaner branded design and svg downloads.',
+      },
+      {
+        tag: 'improvement',
+        title: 'polished qr share dialog',
+        description:
+          'qr sharing now loads cleanly, avoids visual flicker, and fits better on mobile screens.',
+      },
+    ],
+  },
+  {
     id: 9,
     date: '2026-05-12',
     title: 'clearer all papers counts and vault context',
     features: [
       {
         tag: 'improvement',
-        title: 'all papers now includes vault instance details',
+        title: 'vault context in all papers',
         description:
-          'the all_papers view stays deduplicated, but now enriches sparse canonical records from their vault copies and shows where each paper appears, including vault instance counts and aggregated tags.',
+          'the all_papers view now shows where each paper appears, including vault instance counts and aggregated tags.',
       },
       {
         tag: 'fix',
-        title: 'profile and all papers counts now use the same denominator',
+        title: 'consistent public paper counts',
         description:
-          'public profile paper counts now align with /all-papers by counting distinct publications instead of raw vault items, so duplicated vault instances no longer inflate the number.',
+          'public profile counts now match /all-papers by counting distinct publications instead of duplicate vault copies.',
       },
     ],
   },
@@ -46,27 +65,27 @@ const changelog: ChangelogEntry[] = [
     features: [
       {
         tag: 'feature',
-        title: 'request editor access on public vaults',
+        title: 'request editor access',
         description:
-          'signed-in users browsing a public vault can now click "collaborate" to request editor access. the vault owner receives a notification, reviews the request in vault settings, and can approve or reject it — optionally adjusting the granted role before approving.',
+          'signed-in users can request editor access from public vault pages, and owners can review and approve requests in settings.',
       },
       {
         tag: 'improvement',
-        title: 'access requests visible for public vaults in settings',
+        title: 'public vault access requests',
         description:
-          'the access_requests panel in vault settings now appears for public vaults, not just protected ones. it has a distinct purple tint and a scroll-to hint badge in the dialog header so pending requests are never missed.',
+          'access requests are now visible in public vault settings, with clearer pending-request indicators for vault owners.',
       },
       {
         tag: 'improvement',
-        title: 'share with users section for public vaults',
+        title: 'direct sharing for public vaults',
         description:
-          'vault owners can now directly grant or revoke editor access on public vaults from the settings panel, without requiring the other party to go through the request flow first.',
+          'vault owners can grant or revoke editor access on public vaults directly from the sharing settings.',
       },
       {
         tag: 'fix',
-        title: 'vault settings gear icon now consistent everywhere',
+        title: 'consistent vault settings access',
         description:
-          'the gear icon on sidebar vault items was missing when navigating to the codex, researchers, and researcher profile pages. it now appears uniformly across all pages that render the sidebar.',
+          'the vault settings gear now appears consistently across pages that render the sidebar.',
       },
     ],
   },
@@ -77,27 +96,27 @@ const changelog: ChangelogEntry[] = [
     features: [
       {
         tag: 'fix',
-        title: 'publication edits stay in place after save',
+        title: 'publication edits stay in place',
         description:
-          'the add/edit publication form now preserves its current values after saving, so follow-up edits and metadata checks no longer force you to re-enter the same details.',
+          'saving a publication no longer resets the form, so follow-up edits and metadata checks are less disruptive.',
       },
       {
         tag: 'improvement',
-        title: 'vault settings save flow feels immediate',
+        title: 'faster vault settings saves',
         description:
-          'saving vault settings now keeps the dialog open, supports ctrl/cmd+s, and uses consistent save button styling so quick metadata updates take fewer clicks.',
+          'vault settings now save in place with keyboard shortcut support and clearer button styling.',
       },
       {
         tag: 'improvement',
-        title: 'cleaner collaboration and researcher discovery',
+        title: 'cleaner collaboration discovery',
         description:
-          'vault collaborator autocomplete is more reliable, and the researchers directory now focuses on profiles that have completed setup instead of showing incomplete entries.',
+          'collaborator autocomplete is more reliable, and researcher discovery focuses on completed profiles.',
       },
       {
         tag: 'fix',
-        title: 'version and extension links now point to the right place',
+        title: 'correct version and extension links',
         description:
-          'the bug report control now reports the live app version correctly, and the browser extension install flow links directly to the current chrome web store listing.',
+          'bug reports now include the live app version, and extension links point to the current browser store listing.',
       },
     ],
   },
@@ -110,13 +129,13 @@ const changelog: ChangelogEntry[] = [
         tag: 'feature',
         title: 'refhub skill for claude code',
         description:
-          'manage your vaults directly from claude code with the refhub skill. search papers, add references, and query your vault through natural language — no context switching, no browser. install from github.com/refhub/refhub-skill.',
+          'manage vaults from claude code by searching papers, adding references, and querying vault content directly.',
       },
       {
         tag: 'feature',
-        title: 'refhub-cli: manage references from your terminal',
+        title: 'refhub cli',
         description:
-          'a full-featured command-line interface for refhub is now available on npm. install globally with npm i -g @refhub/cli and interact with your vaults, search papers, and automate reference workflows straight from your shell. source at github.com/refhub/refhub-cli.',
+          'a command-line interface is now available for searching papers, managing vaults, and automating reference workflows.',
       },
     ],
   },
@@ -127,15 +146,15 @@ const changelog: ChangelogEntry[] = [
     features: [
       {
         tag: 'feature',
-        title: 'google drive pdf links now show up across the vault ui',
+        title: 'google drive pdf links',
         description:
-          'pdfs saved by the extension into your managed google drive folder now surface directly in refhub. drive badges and quick-open actions are available across cards, tables, and publication dialogs so cloud-saved copies are always one click away.',
+          'pdfs saved by the extension now appear across vault cards, tables, and publication dialogs with quick-open actions.',
       },
       {
         tag: 'feature',
-        title: 'chrome + firefox browser extensions are now live',
+        title: 'browser extensions live',
         description:
-          'the refhub browser extensions are officially out on the chrome web store and firefox add-ons. save papers straight from the page you are reading, then jump to the github repo from the add paper dialog if you want the source or release history.',
+          'the chrome and firefox extensions are now available from the official browser stores for saving papers from the page.',
       },
     ],
   },
@@ -146,9 +165,9 @@ const changelog: ChangelogEntry[] = [
     features: [
       {
         tag: 'feature',
-        title: 'chrome & firefox extensions released on github',
+        title: 'chrome and firefox extensions',
         description:
-          'the refhub browser extensions are now available — install directly from github releases today. save papers to your vaults without ever leaving the tab you\'re reading. chrome & firefox store submissions are pending validation and dropping soon™.',
+          'the refhub browser extensions are available from github releases, with browser store submissions underway.',
       },
     ],
   },
@@ -161,25 +180,25 @@ const changelog: ChangelogEntry[] = [
         tag: 'feature',
         title: 'codex launched',
         description:
-          'the codex page is now live for browse-oriented research exploration. search and filter across public vaults with instant graph previews, nodes-of-interest hovers, and keyboard-first navigation for power users.',
+          'the codex page now supports browsing public vaults with search, filters, graph previews, and keyboard navigation.',
       },
       {
         tag: 'feature',
-        title: 'semantic scholar pipeline for smarter discovery',
+        title: 'semantic scholar discovery',
         description:
-          'deep integration with semantic scholar is now active: related works, citation paths, and referenced-by graphs are sourced from semantic scholar and link directly into your select/save workflow.',
+          'related works, citation paths, and referenced-by graphs now use semantic scholar data for richer paper discovery.',
       },
       {
         tag: 'feature',
-        title: 'vault forking + hearting',
+        title: 'vault forking and favorites',
         description:
-          'you can now fork public vaults to clone their paper sets instantly, and favorite vaults with a ❤️ for fast access in the dashboard. backup, remix, and curate with confidence.',
+          'public vaults can now be forked into your workspace and favorited for faster access from the dashboard.',
       },
       {
         tag: 'improvement',
-        title: 'minor ux improvements and fixes',
+        title: 'general ux polish',
         description:
-          'various small ui/ux polish updates were applied across auth, vault lists, and reader mode. improved focus ring handling, button spacing, keyboard response, and notification clarity.',
+          'auth, vault lists, reader mode, focus states, buttons, shortcuts, and notifications received small usability improvements.',
       },
     ],
   },
@@ -192,31 +211,31 @@ const changelog: ChangelogEntry[] = [
         tag: 'feature',
         title: 'researcher profile pages',
         description:
-          'every researcher now has a public profile at /profile/@username. click any card in the researchers directory to see their bio, stats, and a grid of their public vaults — each linking directly to the vault.',
+          'researchers now have public profile pages with bio, stats, and a grid of their public vaults.',
       },
       {
         tag: 'fix',
-        title: 'researcher directory showing correct counts',
+        title: 'accurate researcher counts',
         description:
-          'vault and paper counts for other researchers were always 0 due to an RLS policy restricting visibility to the owner only. a new migration and security definer function fix this — counts are now accurate for all researchers.',
+          'researcher directory vault and paper counts now display correctly for profiles beyond the current user.',
       },
       {
         tag: 'improvement',
-        title: 'relationship graph: disconnected components stay put',
+        title: 'steadier relationship graph',
         description:
-          'disconnected paper clusters no longer drift to the edges of the canvas. nodes are pre-positioned in a grid and pinned in place, rendering immediately without any animated settle or zoom jump.',
+          'disconnected paper clusters now stay positioned instead of drifting around the graph canvas.',
       },
       {
         tag: 'improvement',
-        title: 'keyboard shortcuts reorganised',
+        title: 'organized keyboard shortcuts',
         description:
-          'the help overlay (press ?) now groups shortcuts into focused panels: paper navigation, paper selection, paper popups & actions, and a combined dialogs & editor section — no more scrolling through a single long list.',
+          'the keyboard help overlay now groups shortcuts by task, making paper and dialog actions easier to scan.',
       },
       {
         tag: 'improvement',
-        title: 'mobile: toolbar keyboard hints hidden on narrow screens',
+        title: 'mobile toolbar polish',
         description:
-          'inline keyboard hint badges are now hidden below 768 px, preventing toolbar overflow. the discover_related button is also visible as an icon on all screen sizes.',
+          'toolbar keyboard hints are hidden on narrow screens, reducing overflow on mobile.',
       },
     ],
   },
@@ -227,33 +246,33 @@ const changelog: ChangelogEntry[] = [
     features: [
       {
         tag: 'feature',
-        title: 'vault augmentation via semantic scholar',
+        title: 'semantic scholar vault augmentation',
         description:
-          'select one or more papers and press r (or click discover_related) to discover related work — references, papers that cite them, and recommendations — directly from the semantic scholar api. add any discovery to the vault with one click.',
+          'select papers and discover related references, citations, and recommendations directly from semantic scholar.',
       },
       {
         tag: 'feature',
         title: 'automatic citation links',
         description:
-          'when you add a paper from the references or cited_by tabs, the citation relationship is automatically created and appears in the collection graph.',
+          'adding papers from references or cited_by results now creates the matching citation relationship automatically.',
       },
       {
         tag: 'improvement',
-        title: 'forward + backward search',
+        title: 'forward and backward search',
         description:
-          'the discovery panel distinguishes cites→ (papers the selected work builds on) from ←cited_by (papers that build on the selected work), making it easy to trace intellectual lineage in both directions.',
+          'discovery now separates papers a work cites from papers that cite it, making citation trails easier to follow.',
       },
       {
         tag: 'improvement',
-        title: 'abstract previews in discovery panel',
+        title: 'abstract previews in discovery',
         description:
-          'each discovered paper now shows an abstract snippet, full author list, and a direct doi or semantic scholar link so you can evaluate relevance before adding.',
+          'discovered papers now show abstracts, authors, and source links before you add them to a vault.',
       },
       {
         tag: 'improvement',
-        title: 'keyboard shortcut r',
+        title: 'keyboard shortcut for discovery',
         description:
-          'press r with one or more papers selected to open vault augmentation without reaching for the mouse.',
+          'press r with selected papers to open vault augmentation without leaving the keyboard.',
       },
     ],
   },
