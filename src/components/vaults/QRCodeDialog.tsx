@@ -271,7 +271,7 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
               </DialogTitle>
             </DialogHeader>
             <div className="flex flex-col items-center gap-3 sm:gap-6 py-2 sm:py-5">
-              <div className="w-full max-w-[276px] sm:max-w-[456px] rounded-2xl bg-[#0d0d0f] p-0 shadow-xl glow-purple sm:rounded-3xl">
+              <div className="mx-auto w-full max-w-[276px] self-center rounded-2xl bg-[#0d0d0f] p-0 shadow-xl glow-purple sm:max-w-[456px] sm:rounded-3xl">
                 <div className="relative overflow-hidden rounded-xl bg-[#0d0d0f] p-0 sm:rounded-2xl">
                   <div 
                     ref={qrRef}
@@ -287,7 +287,7 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
                       <img
                         src={customQrUrl}
                         alt={`QR code for ${vault.name || 'vault'}`}
-                        className="block h-auto w-full max-w-[236px] object-contain sm:max-w-[390px]"
+                        className="mx-auto block h-auto w-full max-w-[236px] object-contain sm:max-w-[390px]"
                       />
                     ) : customQrLoading && !customQrError ? (
                       <div className="flex flex-col items-center justify-center gap-3 text-center font-mono text-sm text-muted-foreground">
