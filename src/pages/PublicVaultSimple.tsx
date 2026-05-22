@@ -16,6 +16,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationViewDialog } from '@/components/publications/PublicationViewDialog';
 import { CollectionAnalytics } from '@/components/publications/CollectionAnalytics';
+import { ExportDialog } from '@/components/publications/ExportDialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { BrandMark } from '@/components/branding/BrandMark';
@@ -59,6 +60,7 @@ export default function PublicVault() {
   const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
   const [viewingPublication, setViewingPublication] = useState<Publication | null>(null);
   const [isGraphOpen, setIsGraphOpen] = useState(false);
+  const [exportPublications, setExportPublications] = useState<Publication[]>([]);
   const { canEdit, isOwner, userRole } = useVaultAccess(vault?.id || '');
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
   const [pendingRequestRole, setPendingRequestRole] = useState<'viewer' | 'editor' | null>(null);
@@ -79,25 +81,37 @@ export default function PublicVault() {
     return pubTagsMap;
   }, [publicationTags, publications]);
 
-  const relationsCountMap = useMemo(() => {
-    const originalToVaultMap = new Map<string, string>();
+  const originalToVaultPublicationMap = useMemo(() => {
+    const map = new Map<string, string>();
     publications.forEach((pub) => {
       if (pub.original_publication_id) {
-        originalToVaultMap.set(pub.original_publication_id, pub.id);
+        map.set(pub.original_publication_id, pub.id);
       }
     });
+    return map;
+  }, [publications]);
 
+  const normalizedPublicationRelations = useMemo(() => {
+    const publicationIds = new Set(publications.map((pub) => pub.id));
+
+    return publicationRelations
+      .map((rel) => ({
+        ...rel,
+        publication_id: originalToVaultPublicationMap.get(rel.publication_id) || rel.publication_id,
+        related_publication_id: originalToVaultPublicationMap.get(rel.related_publication_id) || rel.related_publication_id,
+      }))
+      .filter((rel) => publicationIds.has(rel.publication_id) && publicationIds.has(rel.related_publication_id));
+  }, [originalToVaultPublicationMap, publicationRelations, publications]);
+
+  const relationsCountMap = useMemo(() => {
     const map: Record<string, number> = {};
-    publicationRelations.forEach((rel) => {
-      const vaultPubId1 = originalToVaultMap.get(rel.publication_id) || rel.publication_id;
-      const vaultPubId2 = originalToVaultMap.get(rel.related_publication_id) || rel.related_publication_id;
-
-      map[vaultPubId1] = (map[vaultPubId1] || 0) + 1;
-      map[vaultPubId2] = (map[vaultPubId2] || 0) + 1;
+    normalizedPublicationRelations.forEach((rel) => {
+      map[rel.publication_id] = (map[rel.publication_id] || 0) + 1;
+      map[rel.related_publication_id] = (map[rel.related_publication_id] || 0) + 1;
     });
 
     return map;
-  }, [publicationRelations, publications]);
+  }, [normalizedPublicationRelations]);
 
   // Fetch user's own vaults and shared vaults
   const fetchUserVaults = useCallback(async () => {
@@ -682,10 +696,8 @@ export default function PublicVault() {
             onOpenGraph={() => setIsGraphOpen(true)}
             publicationActionLabel="view"
             onExportBibtex={(pubs) => {
-              if (pubs.length > 0 && vault) {
-                // Increment download count
-                supabase.rpc('increment_vault_downloads', { vault_uuid: vault.id });
-                toast({ title: `exported_${pubs.length}_references 📄` });
+              if (pubs.length > 0) {
+                setExportPublications(pubs);
               }
             }}
             onMobileMenuOpen={() => setIsMobileSidebarOpen(true)}
@@ -708,19 +720,35 @@ export default function PublicVault() {
             return publicationTagIds.includes(tag.id);
           }) : []}
           allTags={tags}
+          publications={publications}
+          relations={normalizedPublicationRelations}
           onEdit={canEdit && vault ? (publication) => {
             setViewingPublication(null);
             navigate(`/vault/${vault.id}`, {
               state: { publicationIdToEdit: publication.id },
             });
           } : undefined}
+          onExport={(publication) => setExportPublications([publication])}
+        />
+
+        <ExportDialog
+          open={exportPublications.length > 0}
+          onOpenChange={(open) => {
+            if (!open) {
+              setExportPublications([]);
+            }
+          }}
+          publications={exportPublications}
+          vaultName={vault?.name}
+          tags={tags}
+          publicationTags={publicationTags}
         />
 
         <CollectionAnalytics
           open={isGraphOpen}
           onOpenChange={setIsGraphOpen}
           publications={publications}
-          relations={publicationRelations}
+          relations={normalizedPublicationRelations}
           tags={tags}
           publicationTags={publicationTags}
           onSelectPublication={(publication) => setViewingPublication(publication)}
