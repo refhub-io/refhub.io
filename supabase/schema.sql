@@ -1831,7 +1831,7 @@ UNION
 
 
 
-CREATE POLICY "Users can access publication tags for accessible publications" ON "public"."publication_tags" FOR SELECT TO "authenticated" USING (((("publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
+CREATE POLICY "Users can access publication tags for accessible publications" ON "public"."publication_tags" FOR SELECT TO "anon", "authenticated" USING (((("publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM "public"."publications" "p"
   WHERE (("p"."id" = "publication_tags"."publication_id") AND ("p"."user_id" = "auth"."uid"()))))) OR (("publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM ((("public"."publications" "p"
