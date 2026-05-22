@@ -2156,7 +2156,7 @@ CREATE POLICY "publication_relations_insert" ON "public"."publication_relations"
 
 
 
-CREATE POLICY "publication_relations_select" ON "public"."publication_relations" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
+CREATE POLICY "publication_relations_select" ON "public"."publication_relations" FOR SELECT TO "anon", "authenticated" USING ((EXISTS ( SELECT 1
    FROM (("public"."vault_publications" "vp"
      JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
      LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
