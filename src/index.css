@@ -280,4 +280,22 @@
     height: 100dvh;
     max-height: 100dvh;
   }
+
+  .dialog-mobile-safe-header {
+    padding-top: max(env(safe-area-inset-top), 0px);
+  }
+
+  .dialog-mobile-safe-footer {
+    padding-bottom: max(env(safe-area-inset-bottom), 0px);
+  }
+
+  @media (min-width: 640px) {
+    .dialog-mobile-safe-header {
+      padding-top: 0;
+    }
+
+    .dialog-mobile-safe-footer {
+      padding-bottom: 0;
+    }
+  }
 }
