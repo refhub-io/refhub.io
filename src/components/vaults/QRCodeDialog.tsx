@@ -44,7 +44,7 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
   const [customQrLoading, setCustomQrLoading] = useState(false);
   const [customQrError, setCustomQrError] = useState<string | null>(null);
   const qrRef = useRef<HTMLDivElement>(null);
-  const fallbackQrSize = typeof window !== 'undefined' && window.innerWidth < 640 ? 240 : 360;
+  const fallbackQrSize = typeof window !== 'undefined' && window.innerWidth < 640 ? 220 : 360;
   const { toast } = useToast();
 
   const isPrivate = vault.visibility === 'private';
@@ -213,15 +213,15 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
           </Button>
         </DialogTrigger>
         {canShare && (
-          <DialogContent className="dialog-mobile max-w-[100vw] sm:rounded-2xl sm:w-[95vw] sm:max-w-xl sm:max-h-[90vh] overflow-y-auto">
+          <DialogContent className="dialog-mobile w-[100vw] max-w-[100vw] gap-3 overflow-y-auto p-4 sm:rounded-2xl sm:w-[95vw] sm:max-w-xl sm:max-h-[90vh] sm:gap-4 sm:p-6">
             <DialogHeader className="px-1 sm:px-0">
               <DialogTitle className="text-lg sm:text-2xl font-bold font-mono break-words">
                 // share "{vault.name}"
               </DialogTitle>
             </DialogHeader>
-            <div className="flex flex-col items-center gap-4 sm:gap-6 py-2 sm:py-5">
-              <div className="w-full max-w-[312px] sm:max-w-[456px] p-4 sm:p-7 bg-gradient-to-br from-background via-background/95 to-sidebar-accent rounded-2xl sm:rounded-3xl shadow-xl border-2 border-border/50 glow-purple">
-                <div className="p-3 sm:p-5 bg-white rounded-xl sm:rounded-2xl relative">
+            <div className="flex flex-col items-center gap-3 sm:gap-6 py-2 sm:py-5">
+              <div className="w-full max-w-[276px] sm:max-w-[456px] p-3 sm:p-7 bg-gradient-to-br from-background via-background/95 to-sidebar-accent rounded-2xl sm:rounded-3xl shadow-xl border-2 border-border/50 glow-purple">
+                <div className="p-2 sm:p-5 bg-white rounded-xl sm:rounded-2xl relative">
                   <div 
                     ref={qrRef}
                     className="relative flex items-center justify-center"
@@ -233,7 +233,7 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
                       <img
                         src={customQrUrl}
                         alt={`QR code for ${vault.name || 'vault'}`}
-                        className="h-[min(70vw,240px)] w-[min(70vw,240px)] sm:h-[360px] sm:w-[360px]"
+                        className="block h-auto w-full max-w-[220px] object-contain sm:max-w-[360px]"
                       />
                     ) : (
                       <QRCodeCanvas
