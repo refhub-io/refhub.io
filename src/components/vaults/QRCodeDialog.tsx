@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,11 +20,13 @@ import {
 } from '@/components/ui/alert-dialog';
 import { QrCode, Download, Copy, Check, Lock, Globe, Users, AlertTriangle } from 'lucide-react';
 import { LoadingSpinner } from '@/components/ui/loading';
-import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Vault } from '@/types/database';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+
+const CUSTOM_QR_ENDPOINT = 'https://refhub-qr.netlify.app/api/generate-qr';
+const CUSTOM_QR_FREEDOM = 0;
 
 interface QRCodeDialogProps {
   vault: Vault;
@@ -37,13 +39,17 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [upgrading, setUpgrading] = useState(false);
   const [gradientColor, setGradientColor] = useState('#8b5cf6');
+  const [customQrSvg, setCustomQrSvg] = useState<string | null>(null);
+  const [customQrUrl, setCustomQrUrl] = useState<string | null>(null);
+  const [customQrLoading, setCustomQrLoading] = useState(false);
+  const [customQrError, setCustomQrError] = useState<string | null>(null);
   const qrRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
   const isPrivate = vault.visibility === 'private';
   const canShare = vault.visibility !== 'private';
 
-  // Generate random aesthetic gradient color
+  // Generate random aesthetic gradient color for the fallback QR.
   const generateRandomColor = () => {
     const hue = Math.random() * 360;
     const saturation = 70 + Math.random() * 20; // 70-90%
@@ -55,6 +61,66 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
   const shareUrl = vault.visibility === 'public' && vault.public_slug
     ? `${window.location.origin}/public/${vault.public_slug}`
     : `${window.location.origin}/vault/${vault.id}`;
+
+  useEffect(() => {
+    if (!open || !canShare) {
+      setCustomQrSvg(null);
+      setCustomQrError(null);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    const generateCustomQr = async () => {
+      setCustomQrLoading(true);
+      setCustomQrError(null);
+      setCustomQrSvg(null);
+
+      try {
+        const response = await fetch(CUSTOM_QR_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: shareUrl, freedom: CUSTOM_QR_FREEDOM }),
+          signal: controller.signal,
+        });
+
+        const contentType = response.headers.get('content-type') ?? '';
+        if (!response.ok || !contentType.includes('image/svg+xml')) {
+          throw new Error('custom QR generator returned an invalid response');
+        }
+
+        const svg = await response.text();
+        if (!svg.trimStart().startsWith('<svg')) {
+          throw new Error('custom QR generator returned non-SVG content');
+        }
+
+        setCustomQrSvg(svg);
+      } catch (error) {
+        if ((error as DOMException).name === 'AbortError') return;
+        setCustomQrError((error as Error).message);
+      } finally {
+        if (!controller.signal.aborted) {
+          setCustomQrLoading(false);
+        }
+      }
+    };
+
+    generateCustomQr();
+
+    return () => controller.abort();
+  }, [canShare, open, shareUrl]);
+
+  useEffect(() => {
+    if (!customQrSvg) {
+      setCustomQrUrl(null);
+      return;
+    }
+
+    const blobUrl = URL.createObjectURL(new Blob([customQrSvg], { type: 'image/svg+xml' }));
+    setCustomQrUrl(blobUrl);
+
+    return () => URL.revokeObjectURL(blobUrl);
+  }, [customQrSvg]);
 
   const copyShareUrl = () => {
     navigator.clipboard.writeText(shareUrl);
@@ -102,10 +168,21 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
   };
 
   const downloadQR = () => {
+    const link = document.createElement('a');
+
+    if (customQrSvg) {
+      const blobUrl = URL.createObjectURL(new Blob([customQrSvg], { type: 'image/svg+xml' }));
+      link.download = `${vault.name || 'vault'}-qr.svg`;
+      link.href = blobUrl;
+      link.click();
+      URL.revokeObjectURL(blobUrl);
+      toast({ title: 'qr_code_downloaded' });
+      return;
+    }
+
     const canvas = qrRef.current?.querySelector('canvas');
     if (!canvas) return;
-    
-    const link = document.createElement('a');
+
     link.download = `${vault.name || 'vault'}-qr.png`;
     link.href = canvas.toDataURL('image/png');
     link.click();
@@ -142,27 +219,44 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
               </DialogTitle>
             </DialogHeader>
             <div className="flex flex-col items-center gap-4 sm:gap-6 py-2 sm:py-4">
-              {/* QR Code with gradient effect */}
               <div className="p-4 sm:p-6 bg-gradient-to-br from-background via-background/95 to-sidebar-accent rounded-2xl shadow-xl border-2 border-border/50 glow-purple">
                 <div className="p-3 sm:p-4 bg-white rounded-xl relative">
                   <div 
                     ref={qrRef}
-                    className="relative"
+                    className="relative flex items-center justify-center"
                     style={{
-                      filter: `drop-shadow(0 0 8px ${gradientColor}40)`,
+                      filter: customQrUrl ? undefined : `drop-shadow(0 0 8px ${gradientColor}40)`,
                     }}
                   >
-                    <QRCodeCanvas
-                      value={shareUrl}
-                      size={window.innerWidth < 640 ? 180 : 200}
-                      level="H"
-                      marginSize={2}
-                      bgColor="#ffffff"
-                      fgColor={gradientColor}
-                    />
+                    {customQrUrl ? (
+                      <img
+                        src={customQrUrl}
+                        alt={`QR code for ${vault.name || 'vault'}`}
+                        className="h-[180px] w-[180px] sm:h-[200px] sm:w-[200px]"
+                      />
+                    ) : (
+                      <QRCodeCanvas
+                        value={shareUrl}
+                        size={window.innerWidth < 640 ? 180 : 200}
+                        level="H"
+                        marginSize={2}
+                        bgColor="#ffffff"
+                        fgColor={gradientColor}
+                      />
+                    )}
+                    {customQrLoading && (
+                      <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-white/70">
+                        <LoadingSpinner size="sm" />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
+              {customQrError && (
+                <p className="-mt-2 text-center text-[11px] text-muted-foreground font-mono">
+                  // custom_qr_unavailable_using_fallback
+                </p>
+              )}
               
               <div className="text-center space-y-1">
                 <p className="text-xs text-muted-foreground font-mono">
