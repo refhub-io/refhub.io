@@ -333,7 +333,7 @@ export function PublicationList({
     return tags.filter((t) => tagIds.includes(t.id));
   };
 
-  const selectedPublications = publications.filter((p) => selectedIds.has(p.id));
+  const selectedPublications = filteredPublications.filter((p) => selectedIds.has(p.id));
 
 
   // Meta+K / Ctrl+K → focus search (registered through keyboard system).

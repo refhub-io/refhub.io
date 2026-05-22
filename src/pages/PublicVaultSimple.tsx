@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { logger } from '@/lib/logger';
 import { supabase } from '@/integrations/supabase/client';
-import { Publication, Vault, Tag, PublicationTag } from '@/types/database';
+import { Publication, Vault, Tag, PublicationTag, PublicationRelation } from '@/types/database';
 import { formatTimeAgo } from '@/lib/utils';
 import { resolveLastUpdatedActivity } from '@/lib/vaultPublicationAttribution';
 import { useToast } from '@/hooks/use-toast';
@@ -15,6 +15,8 @@ import { getForkSourceHref, getForkSourceLabel, getVaultForkInfo, VaultForkInfo 
 import { Sidebar } from '@/components/layout/Sidebar';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationViewDialog } from '@/components/publications/PublicationViewDialog';
+import { CollectionAnalytics } from '@/components/publications/CollectionAnalytics';
+import { ExportDialog } from '@/components/publications/ExportDialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { BrandMark } from '@/components/branding/BrandMark';
@@ -47,6 +49,7 @@ export default function PublicVault() {
   const [publications, setPublications] = useState<Publication[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [publicationTags, setPublicationTags] = useState<PublicationTag[]>([]);
+  const [publicationRelations, setPublicationRelations] = useState<PublicationRelation[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [notFound, setNotFound] = useState(false);
@@ -56,9 +59,59 @@ export default function PublicVault() {
   const [userVaults, setUserVaults] = useState<Vault[]>([]);
   const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
   const [viewingPublication, setViewingPublication] = useState<Publication | null>(null);
+  const [isGraphOpen, setIsGraphOpen] = useState(false);
+  const [exportPublications, setExportPublications] = useState<Publication[]>([]);
   const { canEdit, isOwner, userRole } = useVaultAccess(vault?.id || '');
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
   const [pendingRequestRole, setPendingRequestRole] = useState<'viewer' | 'editor' | null>(null);
+
+  const publicationTagsMap = useMemo(() => {
+    const vaultPubTagsMap: Record<string, string[]> = {};
+    publicationTags.forEach((pt) => {
+      const vaultPubId = pt.vault_publication_id || pt.publication_id;
+      if (!vaultPubTagsMap[vaultPubId]) vaultPubTagsMap[vaultPubId] = [];
+      vaultPubTagsMap[vaultPubId].push(pt.tag_id);
+    });
+
+    const pubTagsMap: Record<string, string[]> = {};
+    publications.forEach((pub) => {
+      pubTagsMap[pub.id] = vaultPubTagsMap[pub.id] || [];
+    });
+
+    return pubTagsMap;
+  }, [publicationTags, publications]);
+
+  const originalToVaultPublicationMap = useMemo(() => {
+    const map = new Map<string, string>();
+    publications.forEach((pub) => {
+      if (pub.original_publication_id) {
+        map.set(pub.original_publication_id, pub.id);
+      }
+    });
+    return map;
+  }, [publications]);
+
+  const normalizedPublicationRelations = useMemo(() => {
+    const publicationIds = new Set(publications.map((pub) => pub.id));
+
+    return publicationRelations
+      .map((rel) => ({
+        ...rel,
+        publication_id: originalToVaultPublicationMap.get(rel.publication_id) || rel.publication_id,
+        related_publication_id: originalToVaultPublicationMap.get(rel.related_publication_id) || rel.related_publication_id,
+      }))
+      .filter((rel) => publicationIds.has(rel.publication_id) && publicationIds.has(rel.related_publication_id));
+  }, [originalToVaultPublicationMap, publicationRelations, publications]);
+
+  const relationsCountMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    normalizedPublicationRelations.forEach((rel) => {
+      map[rel.publication_id] = (map[rel.publication_id] || 0) + 1;
+      map[rel.related_publication_id] = (map[rel.related_publication_id] || 0) + 1;
+    });
+
+    return map;
+  }, [normalizedPublicationRelations]);
 
   // Fetch user's own vaults and shared vaults
   const fetchUserVaults = useCallback(async () => {
@@ -111,6 +164,7 @@ export default function PublicVault() {
     if (!slug) return;
     
     setLoading(true);
+    setNotFound(false);
     try {
       // First, try to find a public vault with this slug
       const { data: vaultData, error } = await supabase
@@ -251,12 +305,28 @@ export default function PublicVault() {
           keywords: vp.keywords,
           created_at: vp.created_at,
           updated_at: vp.updated_at,
+          original_publication_id: vp.original_publication_id,
         }));
         setPublications(pubsData);
-        
+
         // Fetch tags using vault_publication_id
         const vaultPubIds = pubsData.map(p => p.id);
+        const originalPublicationIds = pubsData
+          .map((p) => p.original_publication_id)
+          .filter((id): id is string => Boolean(id));
         if (vaultPubIds.length > 0) {
+          const { data: allRelationsData } = await supabase
+            .from('publication_relations')
+            .select('*');
+
+          const allPublicationIdsSet = new Set([...vaultPubIds, ...originalPublicationIds]);
+          setPublicationRelations(
+            (allRelationsData || []).filter((rel) =>
+              allPublicationIdsSet.has(rel.publication_id) ||
+              allPublicationIdsSet.has(rel.related_publication_id)
+            ) as PublicationRelation[]
+          );
+
           const { data: pubTagsData } = await supabase
             .from('publication_tags')
             .select('*')
@@ -275,9 +345,18 @@ export default function PublicVault() {
               if (tagsData) {
                 setTags(tagsData);
               }
+            } else {
+              setTags([]);
             }
+          } else {
+            setPublicationTags([]);
+            setTags([]);
           }
         }
+      } else {
+        setPublicationRelations([]);
+        setPublicationTags([]);
+        setTags([]);
       }
     } catch (error) {
       setNotFound(true);
@@ -610,35 +689,15 @@ export default function PublicVault() {
             tags={tags}
             vaults={[vault]}
             vaultOwnerName={vaultOwner?.display_name || vaultOwner?.username || undefined}
-            publicationTagsMap={(() => {
-              // Create a map from vault publication IDs to tags
-              const vaultPubTagsMap: Record<string, string[]> = {};
-              publicationTags.forEach(pt => {
-                // Use vault_publication_id if available, otherwise fall back to publication_id
-                const vaultPubId = pt.vault_publication_id || pt.publication_id;
-                if (!vaultPubTagsMap[vaultPubId]) vaultPubTagsMap[vaultPubId] = [];
-                vaultPubTagsMap[vaultPubId].push(pt.tag_id);
-              });
-
-              // Create a map from publication IDs to tags
-              const pubTagsMap: Record<string, string[]> = {};
-              publications.forEach(pub => {
-                // In the copy-based model, publications are vault-specific copies
-                // Look up the tags using the vault publication ID
-                pubTagsMap[pub.id] = vaultPubTagsMap[pub.id] || [];
-              });
-
-              return pubTagsMap;
-            })()}
-            relationsCountMap={{}}
+            publicationTagsMap={publicationTagsMap}
+            relationsCountMap={relationsCountMap}
             selectedVault={vault}
             onOpenPublication={(pub) => setViewingPublication(pub)}
+            onOpenGraph={() => setIsGraphOpen(true)}
             publicationActionLabel="view"
             onExportBibtex={(pubs) => {
-              if (pubs.length > 0 && vault) {
-                // Increment download count
-                supabase.rpc('increment_vault_downloads', { vault_uuid: vault.id });
-                toast({ title: `exported_${pubs.length}_references 📄` });
+              if (pubs.length > 0) {
+                setExportPublications(pubs);
               }
             }}
             onMobileMenuOpen={() => setIsMobileSidebarOpen(true)}
@@ -661,12 +720,38 @@ export default function PublicVault() {
             return publicationTagIds.includes(tag.id);
           }) : []}
           allTags={tags}
+          publications={publications}
+          relations={normalizedPublicationRelations}
           onEdit={canEdit && vault ? (publication) => {
             setViewingPublication(null);
             navigate(`/vault/${vault.id}`, {
               state: { publicationIdToEdit: publication.id },
             });
           } : undefined}
+          onExport={(publication) => setExportPublications([publication])}
+        />
+
+        <ExportDialog
+          open={exportPublications.length > 0}
+          onOpenChange={(open) => {
+            if (!open) {
+              setExportPublications([]);
+            }
+          }}
+          publications={exportPublications}
+          vaultName={vault?.name}
+          tags={tags}
+          publicationTags={publicationTags}
+        />
+
+        <CollectionAnalytics
+          open={isGraphOpen}
+          onOpenChange={setIsGraphOpen}
+          publications={publications}
+          relations={normalizedPublicationRelations}
+          tags={tags}
+          publicationTags={publicationTags}
+          onSelectPublication={(publication) => setViewingPublication(publication)}
         />
       </div>
     </div>
