@@ -21,6 +21,25 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    id: 10,
+    date: '2026-05-22',
+    title: 'custom vault qr sharing',
+    features: [
+      {
+        tag: 'feature',
+        title: 'custom refhub qr codes',
+        description:
+          'vault sharing now uses the custom refhub qr generator for branded svg qr codes with the refhub mark and dot-matrix styling, while keeping a standard qr fallback if generation fails.',
+      },
+      {
+        tag: 'improvement',
+        title: 'cleaner qr share dialog on mobile',
+        description:
+          'the qr share dialog now gives the generated svg more room, removes the extra white matte, and shows a clean loading spinner instead of flashing the fallback qr while the custom code is loading.',
+      },
+    ],
+  },
+  {
     id: 9,
     date: '2026-05-12',
     title: 'clearer all papers counts and vault context',
