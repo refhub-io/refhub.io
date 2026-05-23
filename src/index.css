@@ -281,3 +281,27 @@
     max-height: 100dvh;
   }
 }
+
+@layer components {
+  .qr-code-svg svg {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .qr-code-svg .qr-background {
+    fill: #ffffff;
+  }
+
+  .qr-code-svg .qr-module {
+    fill: #0d0d0f;
+  }
+
+  .dark .qr-code-svg .qr-background {
+    fill: #0d0d0f;
+  }
+
+  .dark .qr-code-svg .qr-module {
+    fill: #ffffff;
+  }
+}

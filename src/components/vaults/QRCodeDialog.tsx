@@ -28,6 +28,7 @@ const CUSTOM_QR_ENDPOINT = 'https://refhub-qr.netlify.app/api/generate-qr';
 const CUSTOM_QR_FREEDOM = 0;
 const QR_DOWNLOAD_BACKGROUND = '#0d0d0f';
 const QR_DOWNLOAD_SIZE = 2048;
+const QR_DARK_BACKGROUND = '#0d0d0f';
 
 interface QRCodeDialogProps {
   vault: Vault;
@@ -176,6 +177,18 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
     }
   };
 
+  const getThemeAwareSvg = (svg: string) => {
+    const withModuleClass = svg.replace(/<circle\b/g, '<circle class="qr-module"');
+
+    if (/<rect\b/.test(withModuleClass)) {
+      return withModuleClass.replace(/<rect\b(?![^>]*class=)/, '<rect class="qr-background"');
+    }
+
+    return withModuleClass.replace(/(<svg\b[^>]*>)/, '$1<rect class="qr-background" width="100%" height="100%"/>');
+  };
+
+  const themedCustomQrSvg = customQrSvg ? getThemeAwareSvg(customQrSvg) : null;
+
   const getDownloadableSvg = (svg: string) => {
     const viewBoxMatch = svg.match(/<svg[^>]*viewBox="([^"]+)"/);
     const [, , width = '1024', height = '1024'] = viewBoxMatch?.[1]?.split(/\s+/) ?? [];
@@ -217,9 +230,9 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
   };
 
   const downloadQR = async () => {
-    if (customQrSvg) {
+    if (themedCustomQrSvg) {
       try {
-        await downloadPngFromSvg(customQrSvg);
+        await downloadPngFromSvg(themedCustomQrSvg);
         toast({ title: 'qr_code_downloaded' });
       } catch (error) {
         toast({
@@ -270,24 +283,24 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
                 // share "{vault.name}"
               </DialogTitle>
             </DialogHeader>
-            <div className="flex flex-col items-center gap-3 sm:gap-6 py-2 sm:py-5">
-              <div className="mx-auto w-full max-w-[276px] self-center rounded-2xl bg-[#0d0d0f] p-0 shadow-xl glow-purple sm:max-w-[456px] sm:rounded-3xl">
-                <div className="relative overflow-hidden rounded-xl bg-[#0d0d0f] p-0 sm:rounded-2xl">
+            <div className="flex min-h-[calc(100dvh-9rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] flex-col items-center justify-center gap-3 py-2 sm:min-h-0 sm:gap-6 sm:py-5">
+              <div className="mx-auto w-full max-w-[276px] self-center rounded-2xl bg-white p-0 shadow-xl glow-purple dark:bg-[#0d0d0f] sm:max-w-[456px] sm:rounded-3xl">
+                <div className="relative overflow-hidden rounded-xl bg-white p-0 dark:bg-[#0d0d0f] sm:rounded-2xl">
                   <div 
                     ref={qrRef}
                     className={cn(
-                      "relative flex items-center justify-center rounded-xl bg-[#0d0d0f] sm:rounded-2xl",
+                      "relative flex items-center justify-center rounded-xl bg-white dark:bg-[#0d0d0f] sm:rounded-2xl",
                       customQrLoading && !customQrError && "min-h-[220px] sm:min-h-[360px]"
                     )}
                     style={{
                       filter: customQrError ? `drop-shadow(0 0 8px ${gradientColor}40)` : undefined,
                     }}
                   >
-                    {customQrUrl ? (
-                      <img
-                        src={customQrUrl}
-                        alt={`QR code for ${vault.name || 'vault'}`}
-                        className="mx-auto block h-auto w-full max-w-[236px] object-contain sm:max-w-[390px]"
+                    {themedCustomQrSvg ? (
+                      <div
+                        aria-label={`QR code for ${vault.name || 'vault'}`}
+                        className="qr-code-svg mx-auto block h-auto w-full max-w-[236px] object-contain sm:max-w-[390px]"
+                        dangerouslySetInnerHTML={{ __html: themedCustomQrSvg }}
                       />
                     ) : customQrLoading && !customQrError ? (
                       <div className="flex flex-col items-center justify-center gap-3 text-center font-mono text-sm text-muted-foreground">
@@ -304,7 +317,7 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
                         size={fallbackQrSize}
                         level="H"
                         marginSize={2}
-                        bgColor={QR_DOWNLOAD_BACKGROUND}
+                        bgColor={QR_DARK_BACKGROUND}
                         fgColor={gradientColor}
                       />
                     )}
