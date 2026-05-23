@@ -281,3 +281,24 @@
     max-height: 100dvh;
   }
 }
+
+@layer components {
+  .qr-code > svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    background: #ffffff;
+  }
+
+  .qr-code > svg > circle[fill="rgb(255,255,255)"] {
+    fill: #0d0d0f;
+  }
+
+  .dark .qr-code > svg {
+    background: #0d0d0f;
+  }
+
+  .dark .qr-code > svg > circle[fill="rgb(255,255,255)"] {
+    fill: #ffffff;
+  }
+}
