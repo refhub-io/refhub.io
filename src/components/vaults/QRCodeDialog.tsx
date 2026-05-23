@@ -177,18 +177,6 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
     }
   };
 
-  const getThemeAwareSvg = (svg: string) => {
-    const withModuleClass = svg.replace(/<circle\b/g, '<circle class="qr-module"');
-
-    if (/<rect\b/.test(withModuleClass)) {
-      return withModuleClass.replace(/<rect\b(?![^>]*class=)/, '<rect class="qr-background"');
-    }
-
-    return withModuleClass.replace(/(<svg\b[^>]*>)/, '$1<rect class="qr-background" width="100%" height="100%"/>');
-  };
-
-  const themedCustomQrSvg = customQrSvg ? getThemeAwareSvg(customQrSvg) : null;
-
   const getDownloadableSvg = (svg: string) => {
     const viewBoxMatch = svg.match(/<svg[^>]*viewBox="([^"]+)"/);
     const [, , width = '1024', height = '1024'] = viewBoxMatch?.[1]?.split(/\s+/) ?? [];
@@ -230,9 +218,9 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
   };
 
   const downloadQR = async () => {
-    if (themedCustomQrSvg) {
+    if (customQrSvg) {
       try {
-        await downloadPngFromSvg(themedCustomQrSvg);
+        await downloadPngFromSvg(customQrSvg);
         toast({ title: 'qr_code_downloaded' });
       } catch (error) {
         toast({
@@ -296,11 +284,11 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
                       filter: customQrError ? `drop-shadow(0 0 8px ${gradientColor}40)` : undefined,
                     }}
                   >
-                    {themedCustomQrSvg ? (
+                    {customQrSvg ? (
                       <div
                         aria-label={`QR code for ${vault.name || 'vault'}`}
-                        className="qr-code-svg mx-auto block h-auto w-full max-w-[236px] object-contain sm:max-w-[390px]"
-                        dangerouslySetInnerHTML={{ __html: themedCustomQrSvg }}
+                        className="qr-code mx-auto block h-auto w-full max-w-[236px] object-contain sm:max-w-[390px]"
+                        dangerouslySetInnerHTML={{ __html: customQrSvg }}
                       />
                     ) : customQrLoading && !customQrError ? (
                       <div className="flex flex-col items-center justify-center gap-3 text-center font-mono text-sm text-muted-foreground">

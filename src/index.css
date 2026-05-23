@@ -283,25 +283,22 @@
 }
 
 @layer components {
-  .qr-code-svg svg {
+  .qr-code > svg {
     display: block;
     width: 100%;
     height: auto;
+    background: #ffffff;
   }
 
-  .qr-code-svg .qr-background {
-    fill: #ffffff;
-  }
-
-  .qr-code-svg .qr-module {
+  .qr-code > svg > circle[fill="rgb(255,255,255)"] {
     fill: #0d0d0f;
   }
 
-  .dark .qr-code-svg .qr-background {
-    fill: #0d0d0f;
+  .dark .qr-code > svg {
+    background: #0d0d0f;
   }
 
-  .dark .qr-code-svg .qr-module {
+  .dark .qr-code > svg > circle[fill="rgb(255,255,255)"] {
     fill: #ffffff;
   }
 }
