@@ -290,6 +290,7 @@
     background: #ffffff;
   }
 
+  /* Target only the plain white QR modules from the generator; leave colored circles untouched. */
   .qr-code > svg > circle[fill="rgb(255,255,255)"] {
     fill: #0d0d0f;
   }
