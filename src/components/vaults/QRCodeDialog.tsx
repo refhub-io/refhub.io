@@ -210,13 +210,13 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
 
       {/* Upgrade Dialog */}
       <AlertDialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent className="overflow-x-hidden rounded-lg sm:max-w-sm">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2 font-mono">
               <AlertTriangle className="w-5 h-5 text-yellow-500" />
               private_vault
             </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-3 font-mono text-sm">
+            <AlertDialogDescription className="space-y-3 font-mono text-sm break-all">
               <p>
                 // qr_code_sharing_requires_vault_to_be_protected_or_public
               </p>
