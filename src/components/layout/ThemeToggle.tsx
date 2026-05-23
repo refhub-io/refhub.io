@@ -7,7 +7,7 @@ export function ThemeToggle() {
   const [isDark, setIsDark] = useState(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('theme');
-      return stored ? stored === 'dark' : true; // default to dark if no preference
+      return stored ? stored === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
     }
     return true;
   });
