@@ -884,9 +884,9 @@ export function PublicationDialog({
       {/* Main Dialog - hidden when fullscreen is active */}
       <Dialog open={open && !notesFullscreen} onOpenChange={handleDialogClose}>
         <DialogContent 
-          className="w-screen max-w-none box-border h-screen sm:w-[95vw] sm:max-w-3xl sm:h-auto sm:max-h-[90vh] m-0 p-0 border-0 sm:border-2 bg-card/95 backdrop-blur-xl overflow-x-hidden overflow-y-auto flex flex-col"
+          className="w-screen max-w-none box-border h-[100dvh] max-h-[100dvh] sm:w-[95vw] sm:max-w-3xl sm:h-auto sm:max-h-[90vh] m-0 p-0 border-0 sm:border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col"
         >
-        <DialogHeader className="px-2 py-3 sm:p-6 pb-2 sm:pb-0">
+        <DialogHeader className="shrink-0 px-2 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-2 sm:p-6 sm:pb-0">
           <DialogTitle className="text-xl sm:text-2xl font-bold font-mono pr-8 sm:pr-10">
             {publication ? (
               <span>// edit_<span className="text-gradient">paper</span></span>
@@ -926,8 +926,8 @@ export function PublicationDialog({
           </div>
         )}
 
-        <ScrollArea className="flex-1 overflow-auto w-full min-w-0">
-          <form onSubmit={handleSubmit} className="px-2 py-3 sm:p-6 sm:pt-4 space-y-3 sm:space-y-5 w-full box-border overflow-hidden">
+        <ScrollArea className="flex-1 min-h-0 overflow-auto w-full min-w-0">
+          <form onSubmit={handleSubmit} className="px-2 pt-3 pb-[calc(env(safe-area-inset-bottom)+5.75rem)] sm:p-6 sm:pt-4 sm:pb-6 space-y-3 sm:space-y-5 w-full box-border overflow-hidden">
             {/* Title */}
             <div className="space-y-1 sm:space-y-2 w-full box-border overflow-hidden">
               <div className="flex items-center gap-2">
@@ -1636,12 +1636,12 @@ export function PublicationDialog({
             )}
 
             {/* Actions */}
-            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-3 sm:pt-4 border-t border-border w-full box-border">
-              <Button type="button" variant="outline" onClick={() => handleDialogClose(false)} className="font-mono w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10">
+            <div className="sticky bottom-0 z-20 -mx-2 flex flex-col-reverse gap-2 border-t border-border bg-card/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur sm:static sm:z-auto sm:mx-0 sm:flex-row sm:justify-end sm:gap-3 sm:bg-transparent sm:px-0 sm:pb-0 sm:pt-4 sm:backdrop-blur-none w-auto sm:w-full box-border">
+              <Button type="button" variant="outline" onClick={() => handleDialogClose(false)} className="font-mono w-full sm:w-auto text-xs sm:text-sm h-10">
                 <X className="w-3 h-3 mr-1.5" />
                 close
               </Button>
-              <Button type="submit" variant="glow" disabled={saving} className="font-mono w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10">
+              <Button type="submit" variant="glow" disabled={saving} className="font-mono w-full sm:w-auto text-xs sm:text-sm h-10">
                 {saving ? (
                   'saving...'
                 ) : publication ? (

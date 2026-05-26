@@ -359,7 +359,7 @@ export function FilterBuilder({ filters, onFiltersChange, tags, vaults, open: co
         <SheetTrigger asChild>
           {filterTrigger}
         </SheetTrigger>
-        <SheetContent side="bottom" className="px-4 pb-8 pt-4 max-h-[80vh] overflow-y-auto" onCloseAutoFocus={onCloseAutoFocus}>
+        <SheetContent side="bottom" className="px-4 pb-[max(env(safe-area-inset-bottom),2rem)] pt-4 max-h-[80vh] overflow-y-auto" onCloseAutoFocus={onCloseAutoFocus}>
           <SheetHeader className="mb-4">
             <SheetTitle className="font-mono text-left">filter_papers</SheetTitle>
           </SheetHeader>
