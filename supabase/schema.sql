@@ -1805,12 +1805,6 @@ CREATE POLICY "Public vault publications are viewable by everyone" ON "public"."
 
 
 
-CREATE POLICY "Public vault tags are viewable by everyone" ON "public"."tags" FOR SELECT TO "authenticated", "anon" USING ((("vault_id" IS NOT NULL) AND (EXISTS ( SELECT 1
-   FROM "public"."vaults" "v"
-  WHERE (("v"."id" = "tags"."vault_id") AND ("v"."visibility" = 'public'::"public"."vault_visibility"))))));
-
-
-
 CREATE POLICY "Public vaults are viewable by everyone" ON "public"."vaults" FOR SELECT TO "authenticated", "anon" USING (("visibility" = 'public'::"public"."vault_visibility"));
 
 
@@ -2049,7 +2043,7 @@ CREATE POLICY "Users can view own publications and publications in accessible " 
 CREATE POLICY "Users can view own tags and tags in accessible vaults" ON "public"."tags" FOR SELECT TO "authenticated" USING ((("auth"."uid"() = "user_id") OR (("vault_id" IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM ("public"."vaults" "v"
      LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-  WHERE (("v"."id" = "tags"."vault_id") AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL)) OR ("v"."visibility" = 'public'::"public"."vault_visibility"))))))));
+  WHERE (("v"."id" = "tags"."vault_id") AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL)))))))));
 
 
 
