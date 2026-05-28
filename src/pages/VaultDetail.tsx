@@ -1897,6 +1897,8 @@ export default function VaultDetail() {
           syncLoadingIds={syncLoadingIds}
           syncCooldowns={syncCooldowns}
           onCheckPublicationSync={canEdit ? handleCheckPublicationSync : undefined}
+          isLoadingPublications={contentLoading && publications.length === 0}
+          loadingMessage="hang_on_getting_your_papers"
         />
       </div>
 
