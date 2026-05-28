@@ -27,6 +27,49 @@ export interface SemanticScholarMetadata {
   publication_type?: string;
 }
 
+interface SemanticScholarErrorPayload {
+  error?: {
+    code?: string;
+    message?: string;
+    details?: Record<string, unknown> | string;
+  } | null;
+  message?: string;
+  details?: Record<string, unknown> | string;
+  meta?: {
+    request_id?: string;
+  } | null;
+}
+
+export interface SemanticScholarRequestError extends Error {
+  code: string;
+  status: number;
+  retryAfterSeconds: number | null;
+  requestId: string | null;
+  details?: Record<string, unknown> | string;
+}
+
+export interface SemanticScholarQueueProgress {
+  completed: number;
+  total: number;
+  active: number;
+  succeeded: number;
+  failed: number;
+  rateLimited: number;
+}
+
+export interface SemanticScholarQueueResult<TItem, TResult> {
+  item: TItem;
+  ok: boolean;
+  data?: TResult;
+  error?: SemanticScholarRequestError;
+}
+
+interface SemanticScholarQueueOptions {
+  concurrency?: number;
+  minDelayMs?: number;
+  onProgress?: (progress: SemanticScholarQueueProgress) => void;
+}
+
 interface BackendPaperAuthor {
   author_id?: string | null;
   authorId?: string | null;
@@ -55,6 +98,114 @@ const paperCache = new Map<string, SSPaper[]>();
 
 function getSemanticScholarProxyUrl(path: string) {
   return `${getBackendApiBaseUrl()}${path}`;
+}
+
+function createSemanticScholarRequestError(
+  message: string,
+  options: {
+    code?: string;
+    status: number;
+    retryAfterSeconds?: number | null;
+    requestId?: string | null;
+    details?: Record<string, unknown> | string;
+  },
+): SemanticScholarRequestError {
+  const error = new Error(message) as SemanticScholarRequestError;
+  error.name = 'SemanticScholarRequestError';
+  error.code = options.code || 'semantic_scholar_error';
+  error.status = options.status;
+  error.retryAfterSeconds = options.retryAfterSeconds ?? null;
+  error.requestId = options.requestId ?? null;
+  error.details = options.details;
+  return error;
+}
+
+function getRetryAfterSecondsFromHeader(value: string | null): number | null {
+  if (!value) return null;
+
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && numeric >= 0) {
+    return Math.max(0, Math.ceil(numeric));
+  }
+
+  const dateMs = Date.parse(value);
+  if (Number.isNaN(dateMs)) return null;
+
+  const diffMs = dateMs - Date.now();
+  return diffMs > 0 ? Math.max(1, Math.ceil(diffMs / 1000)) : 0;
+}
+
+function getRetryAfterSecondsFromPayload(payload: SemanticScholarErrorPayload | null): number | null {
+  const details = payload?.error?.details ?? payload?.details;
+  if (!details || typeof details !== 'object') return null;
+
+  const retryAfterSeconds = (details as { retry_after_seconds?: unknown }).retry_after_seconds;
+  return typeof retryAfterSeconds === 'number' && Number.isFinite(retryAfterSeconds)
+    ? Math.max(0, Math.ceil(retryAfterSeconds))
+    : null;
+}
+
+function getRequestIdFromPayload(payload: SemanticScholarErrorPayload | null): string | null {
+  const requestId = payload?.meta?.request_id;
+  return typeof requestId === 'string' && requestId.trim().length > 0 ? requestId.trim() : null;
+}
+
+export function isSemanticScholarRequestError(error: unknown): error is SemanticScholarRequestError {
+  return error instanceof Error && 'code' in error && 'status' in error;
+}
+
+export function isSemanticScholarRateLimitError(error: unknown): error is SemanticScholarRequestError {
+  return isSemanticScholarRequestError(error)
+    && (error.status === 429 || error.code === 'semantic_scholar_rate_limited' || error.code === 'rate_limit_exceeded');
+}
+
+function normalizeSemanticScholarError(
+  payload: SemanticScholarErrorPayload | null,
+  response: Response,
+): SemanticScholarRequestError {
+  const status = response.status;
+  const retryAfterSeconds =
+    getRetryAfterSecondsFromPayload(payload) ?? getRetryAfterSecondsFromHeader(response.headers.get('retry-after'));
+  const baseMessage =
+    payload?.error?.message ||
+    (typeof payload?.error?.details === 'string' ? payload.error.details : '') ||
+    payload?.message ||
+    (typeof payload?.details === 'string' ? payload.details : '') ||
+    `Semantic Scholar request failed (${status})`;
+  const message = retryAfterSeconds != null && retryAfterSeconds > 0
+    ? `${baseMessage} Retry in about ${retryAfterSeconds}s.`
+    : baseMessage;
+
+  return createSemanticScholarRequestError(message, {
+    code:
+      payload?.error?.code ||
+      (status === 429 ? 'semantic_scholar_rate_limited' : 'semantic_scholar_error'),
+    status,
+    retryAfterSeconds,
+    requestId: getRequestIdFromPayload(payload),
+    details: payload?.error?.details ?? payload?.details,
+  });
+}
+
+function normalizeUnknownSemanticScholarError(error: unknown): SemanticScholarRequestError {
+  if (isSemanticScholarRequestError(error)) return error;
+  if (error instanceof Error) {
+    return createSemanticScholarRequestError(error.message, {
+      code: 'semantic_scholar_error',
+      status: 500,
+    });
+  }
+
+  return createSemanticScholarRequestError('Semantic Scholar request failed.', {
+    code: 'semantic_scholar_error',
+    status: 500,
+  });
+}
+
+export function formatSemanticScholarErrorMessage(error: unknown, fallback = 'Semantic Scholar request failed.'): string {
+  if (isSemanticScholarRequestError(error)) return error.message;
+  if (error instanceof Error && error.message.trim().length > 0) return error.message;
+  return fallback;
 }
 
 function normalizeMetadataAuthors(authors: SemanticScholarMetadata['authors'] | undefined | null): string[] {
@@ -116,19 +267,109 @@ async function getAccessToken() {
   return accessToken;
 }
 
-function getErrorMessage(payload: unknown, status: number) {
-  return (
-    (payload as { error?: { message?: string; details?: string } } | null)?.error?.message ||
-    (payload as { error?: { details?: string } } | null)?.error?.details ||
-    (payload as { message?: string; details?: string } | null)?.message ||
-    (payload as { details?: string } | null)?.details ||
-    `Semantic Scholar request failed (${status})`
-  );
+async function parseResponsePayload(response: Response): Promise<SemanticScholarErrorPayload | null> {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+async function fetchWithSemanticScholarError(path: string, init: RequestInit): Promise<SemanticScholarErrorPayload | null> {
+  const response = await fetch(getSemanticScholarProxyUrl(path), init);
+  const payload = await parseResponsePayload(response);
+
+  if (!response.ok) {
+    throw normalizeSemanticScholarError(payload, response);
+  }
+
+  return payload;
+}
+
+async function paceQueue(schedule: { nextStartAt: number }, minDelayMs: number) {
+  if (minDelayMs <= 0) return;
+
+  const waitMs = Math.max(0, schedule.nextStartAt - Date.now());
+  schedule.nextStartAt = Math.max(schedule.nextStartAt, Date.now()) + minDelayMs;
+
+  if (waitMs > 0) {
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+  }
+}
+
+export async function runSemanticScholarQueue<TItem, TResult>(
+  items: TItem[],
+  worker: (item: TItem, index: number) => Promise<TResult>,
+  options: SemanticScholarQueueOptions = {},
+): Promise<SemanticScholarQueueResult<TItem, TResult>[]> {
+  if (items.length === 0) return [];
+
+  const concurrency = Math.max(1, options.concurrency ?? 2);
+  const minDelayMs = Math.max(0, options.minDelayMs ?? 350);
+  const results = new Array<SemanticScholarQueueResult<TItem, TResult>>(items.length);
+  const progress: SemanticScholarQueueProgress = {
+    completed: 0,
+    total: items.length,
+    active: 0,
+    succeeded: 0,
+    failed: 0,
+    rateLimited: 0,
+  };
+  const schedule = { nextStartAt: Date.now() };
+  let nextIndex = 0;
+
+  const emitProgress = () => {
+    options.onProgress?.({ ...progress });
+  };
+
+  emitProgress();
+
+  const runWorker = async () => {
+    while (true) {
+      const index = nextIndex;
+      nextIndex += 1;
+
+      if (index >= items.length) return;
+
+      progress.active += 1;
+      emitProgress();
+
+      await paceQueue(schedule, minDelayMs);
+
+      try {
+        const data = await worker(items[index], index);
+        results[index] = {
+          item: items[index],
+          ok: true,
+          data,
+        };
+        progress.succeeded += 1;
+      } catch (error) {
+        const normalizedError = normalizeUnknownSemanticScholarError(error);
+        results[index] = {
+          item: items[index],
+          ok: false,
+          error: normalizedError,
+        };
+        progress.failed += 1;
+        if (isSemanticScholarRateLimitError(normalizedError)) {
+          progress.rateLimited += 1;
+        }
+      } finally {
+        progress.active -= 1;
+        progress.completed += 1;
+        emitProgress();
+      }
+    }
+  };
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => runWorker()));
+  return results;
 }
 
 async function lookupPaperIdFromBackend(input: { doi?: string; title?: string }): Promise<string | null> {
   const accessToken = await getAccessToken();
-  const response = await fetch(getSemanticScholarProxyUrl('/lookup'), {
+  const payload = await fetchWithSemanticScholarError('/lookup', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -136,17 +377,6 @@ async function lookupPaperIdFromBackend(input: { doi?: string; title?: string })
     },
     body: JSON.stringify(input),
   });
-
-  let payload: unknown = null;
-  try {
-    payload = await response.json();
-  } catch {
-    payload = null;
-  }
-
-  if (!response.ok) {
-    throw new Error(getErrorMessage(payload, response.status));
-  }
 
   const paperId =
     (payload as { data?: { paper_id?: unknown; paperId?: unknown } | null } | null)?.data?.paper_id ??
@@ -162,7 +392,7 @@ async function fetchPaperListFromBackend(
   limit: number,
 ): Promise<SSPaper[]> {
   const accessToken = await getAccessToken();
-  const response = await fetch(getSemanticScholarProxyUrl(`/${route}`), {
+  const payload = await fetchWithSemanticScholarError(`/${route}`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -174,17 +404,6 @@ async function fetchPaperListFromBackend(
     }),
   });
 
-  let payload: unknown = null;
-  try {
-    payload = await response.json();
-  } catch {
-    payload = null;
-  }
-
-  if (!response.ok) {
-    throw new Error(getErrorMessage(payload, response.status));
-  }
-
   const records = Array.isArray((payload as { data?: unknown } | null)?.data)
     ? ((payload as { data: BackendPaper[] }).data ?? [])
     : [];
@@ -193,58 +412,38 @@ async function fetchPaperListFromBackend(
 }
 
 export async function lookupPaperByDOI(doi: string): Promise<string | null> {
-  try {
-    return await lookupPaperIdFromBackend({ doi });
-  } catch {
-    return null;
-  }
+  return lookupPaperIdFromBackend({ doi });
 }
 
 export async function lookupPaperByTitle(title: string): Promise<string | null> {
-  try {
-    return await lookupPaperIdFromBackend({ title });
-  } catch {
-    return null;
-  }
+  return lookupPaperIdFromBackend({ title });
 }
 
 export async function getReferences(paperId: string): Promise<SSPaper[]> {
   const cacheKey = `refs:${paperId}`;
   if (paperCache.has(cacheKey)) return paperCache.get(cacheKey)!;
 
-  try {
-    const papers = await fetchPaperListFromBackend('references', paperId, 25);
-    paperCache.set(cacheKey, papers);
-    return papers;
-  } catch {
-    return [];
-  }
+  const papers = await fetchPaperListFromBackend('references', paperId, 25);
+  paperCache.set(cacheKey, papers);
+  return papers;
 }
 
 export async function getCitations(paperId: string): Promise<SSPaper[]> {
   const cacheKey = `cites:${paperId}`;
   if (paperCache.has(cacheKey)) return paperCache.get(cacheKey)!;
 
-  try {
-    const papers = await fetchPaperListFromBackend('citations', paperId, 25);
-    paperCache.set(cacheKey, papers);
-    return papers;
-  } catch {
-    return [];
-  }
+  const papers = await fetchPaperListFromBackend('citations', paperId, 25);
+  paperCache.set(cacheKey, papers);
+  return papers;
 }
 
 export async function getRecommendations(paperId: string): Promise<SSPaper[]> {
   const cacheKey = `recs:${paperId}`;
   if (paperCache.has(cacheKey)) return paperCache.get(cacheKey)!;
 
-  try {
-    const papers = await fetchPaperListFromBackend('recommendations', paperId, 20);
-    paperCache.set(cacheKey, papers);
-    return papers;
-  } catch {
-    return [];
-  }
+  const papers = await fetchPaperListFromBackend('recommendations', paperId, 20);
+  paperCache.set(cacheKey, papers);
+  return papers;
 }
 
 export async function getRecommendationsForSet(paperIds: string[]): Promise<SSPaper[]> {
@@ -254,26 +453,30 @@ export async function getRecommendationsForSet(paperIds: string[]): Promise<SSPa
   const cacheKey = `recs-set:${[...dedupedPaperIds].sort().join(',')}`;
   if (paperCache.has(cacheKey)) return paperCache.get(cacheKey)!;
 
-  try {
-    const recommendationSets = await Promise.all(
-      dedupedPaperIds.map((paperId) => fetchPaperListFromBackend('recommendations', paperId, 20))
-    );
+  const recommendationSets = await runSemanticScholarQueue(
+    dedupedPaperIds,
+    (paperId) => fetchPaperListFromBackend('recommendations', paperId, 20),
+  );
 
-    const merged = new Map<string, SSPaper>();
-    for (const papers of recommendationSets) {
-      for (const paper of papers) {
-        if (!merged.has(paper.paperId)) {
-          merged.set(paper.paperId, paper);
-        }
+  const firstError = recommendationSets.find((result) => !result.ok)?.error;
+  if (firstError) {
+    throw firstError;
+  }
+
+  const merged = new Map<string, SSPaper>();
+  for (const result of recommendationSets) {
+    if (!result.ok || !result.data) continue;
+
+    for (const paper of result.data) {
+      if (!merged.has(paper.paperId)) {
+        merged.set(paper.paperId, paper);
       }
     }
-
-    const papers = [...merged.values()];
-    paperCache.set(cacheKey, papers);
-    return papers;
-  } catch {
-    return [];
   }
+
+  const papers = [...merged.values()];
+  paperCache.set(cacheKey, papers);
+  return papers;
 }
 
 export async function fetchSemanticScholarMetadataByDoi(doi: string): Promise<SemanticScholarMetadata | null> {
@@ -281,7 +484,7 @@ export async function fetchSemanticScholarMetadataByDoi(doi: string): Promise<Se
   if (!cleanDoi) return null;
 
   const accessToken = await getAccessToken();
-  const response = await fetch(getSemanticScholarProxyUrl('/doi-metadata'), {
+  const payload = await fetchWithSemanticScholarError('/doi-metadata', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -289,17 +492,6 @@ export async function fetchSemanticScholarMetadataByDoi(doi: string): Promise<Se
     },
     body: JSON.stringify({ doi: cleanDoi }),
   });
-
-  let payload: unknown = null;
-  try {
-    payload = await response.json();
-  } catch {
-    payload = null;
-  }
-
-  if (!response.ok) {
-    throw new Error(getErrorMessage(payload, response.status));
-  }
 
   const metadata = (payload as { data?: SemanticScholarMetadata | null } | null)?.data ?? null;
   if (!metadata) return null;
@@ -313,4 +505,3 @@ export async function fetchSemanticScholarMetadataByDoi(doi: string): Promise<Se
     doi: metadata.doi || cleanDoi,
   };
 }
-

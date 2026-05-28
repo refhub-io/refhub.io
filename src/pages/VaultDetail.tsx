@@ -13,7 +13,12 @@ import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationDialog } from '@/components/publications/PublicationDialog';
 import { PublicationViewDialog } from '@/components/publications/PublicationViewDialog';
 import { VaultAugmentDialog } from '@/components/publications/VaultAugmentDialog';
-import { fetchSemanticScholarMetadataByDoi, SSPaper, SemanticScholarMetadata } from '@/lib/semanticScholar';
+import {
+  fetchSemanticScholarMetadataByDoi,
+  formatSemanticScholarErrorMessage,
+  SSPaper,
+  SemanticScholarMetadata,
+} from '@/lib/semanticScholar';
 import { createPublicationSyncPatch, getPublicationSyncDiffs, PublicationSyncDiff } from '@/lib/publicationSync';
 import { PublicationSyncDialog } from '@/components/publications/PublicationSyncDialog';
 import { AddImportDialog } from '@/components/publications/AddImportDialog';
@@ -875,7 +880,11 @@ export default function VaultDetail() {
         toast({ title: 'sync_up_to_date', description: 'Semantic Scholar details match this publication.' });
       }
     } catch (error) {
-      toast({ title: 'sync_failed', description: (error as Error).message, variant: 'destructive' });
+      toast({
+        title: 'sync_failed',
+        description: formatSemanticScholarErrorMessage(error),
+        variant: 'destructive',
+      });
     } finally {
       setSyncLoadingIds(prev => {
         const next = new Set(prev);
