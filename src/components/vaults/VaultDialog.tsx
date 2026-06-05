@@ -30,6 +30,7 @@ import { useKeyboardContext } from '@/contexts/KeyboardContext';
 import { useHotkeys } from '@/hooks/useKeyboardNavigation';
 import { Lock, Users, Globe, Mail, Trash2, Copy, Check, Link2, X, Save, Plus, Bell, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { createVaultPublicSlugCandidate, normalizeVaultPublicSlug } from '@/lib/vaultSlug';
 
 type VaultVisibility = 'private' | 'protected' | 'public';
 
@@ -78,7 +79,7 @@ interface VaultDialogProps {
   onOpenChange: (open: boolean) => void;
   vault?: Vault | null;
   initialRequestId?: string;
-  onSave: (data: Partial<Vault>) => Promise<Vault | void>;
+  onSave?: (data: Partial<Vault>) => Promise<Vault | void>;
   onUpdate?: () => void;
   onDelete?: (vault: Vault) => void;
 }
@@ -127,7 +128,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       category,
       abstract,
       visibility: isForkedVault ? 'public' : visibility,
-      publicSlug: (isForkedVault || visibility === 'public') ? (publicSlug || generateSlug(name)) : '',
+      publicSlug: (isForkedVault || visibility === 'public') ? (publicSlug || createVaultPublicSlugCandidate(name)) : '',
     };
     setHasUnsavedChanges(false);
   }, [name, description, color, category, abstract, visibility, publicSlug, isForkedVault]);
@@ -236,13 +237,46 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     return v.visibility || 'private';
   };
 
-  const generateSlug = (name: string) => {
-    return name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '')
-      .slice(0, 50);
-  };
+  const ensureUniquePublicSlug = useCallback(async (desiredSlug: string) => {
+    const baseSlug = normalizeVaultPublicSlug(desiredSlug) || createVaultPublicSlugCandidate(name);
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const suffix = attempt === 0 ? '' : `-${attempt + 1}`;
+      const candidate = `${baseSlug.slice(0, 50 - suffix.length)}${suffix}`;
+
+      const { data, error } = await supabase
+        .from('vaults')
+        .select('id')
+        .eq('public_slug', candidate)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data || data.id === vault?.id) return candidate;
+    }
+
+    return `${baseSlug.slice(0, 41)}-${Date.now().toString(36)}`;
+  }, [name, vault?.id]);
+
+  const buildSavePayload = useCallback(async (): Promise<Partial<Vault>> => {
+    const shouldHavePublicSlug = isForkedVault || visibility === 'public';
+    const resolvedPublicSlug = shouldHavePublicSlug
+      ? await ensureUniquePublicSlug(publicSlug || name)
+      : null;
+
+    if (shouldHavePublicSlug && resolvedPublicSlug !== publicSlug) {
+      setPublicSlug(resolvedPublicSlug);
+    }
+
+    return {
+      name,
+      description: description || null,
+      color,
+      category: category || null,
+      abstract: abstract || null,
+      visibility: isForkedVault ? 'public' : visibility,
+      public_slug: resolvedPublicSlug,
+    };
+  }, [abstract, category, color, description, ensureUniquePublicSlug, isForkedVault, name, publicSlug, visibility]);
 
   const fetchShares = useCallback(async (vaultId: string) => {
     const { data, error } = await supabase
@@ -398,7 +432,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       const initialCategory = vault.category || '';
       const initialAbstract = vault.abstract || '';
       const initialVisibility = getVisibility(vault);
-      const initialPublicSlug = vault.public_slug || generateSlug(vault.name);
+      const initialPublicSlug = vault.public_slug || createVaultPublicSlugCandidate(vault.name);
       
       setName(initialName);
       setDescription(initialDescription);
@@ -568,19 +602,11 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
 
   // Handle save and close
   const handleSaveAndClose = useCallback(async () => {
-    if (!name.trim()) return;
+    if (!name.trim() || !onSave) return;
     
     setSaving(true);
     try {
-      await onSave({
-        name,
-        description,
-        color,
-        category: category || null,
-        abstract: abstract || null,
-        visibility: isForkedVault ? 'public' : visibility,
-        public_slug: (isForkedVault || visibility === 'public') ? (publicSlug || generateSlug(name)) : null,
-      });
+      await onSave(await buildSavePayload());
       syncSavedValues();
       setShowUnsavedDialog(false);
       onOpenChange(false);
@@ -589,22 +615,14 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     } finally {
       setSaving(false);
     }
-  }, [name, description, color, category, abstract, visibility, publicSlug, isForkedVault, onSave, onOpenChange, syncSavedValues]);
+  }, [buildSavePayload, name, onSave, onOpenChange, syncSavedValues]);
 
   const handleSubmit = useCallback(async () => {
-    if (!open || saving || !name.trim()) return;
+    if (!open || saving || !name.trim() || !onSave) return;
 
     setSaving(true);
     try {
-      await onSave({
-        name,
-        description,
-        color,
-        category: category || null,
-        abstract: abstract || null,
-        visibility: isForkedVault ? 'public' : visibility,
-        public_slug: (isForkedVault || visibility === 'public') ? (publicSlug || generateSlug(name)) : null,
-      });
+      await onSave(await buildSavePayload());
       syncSavedValues();
 
       if (!vault) {
@@ -613,7 +631,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     } finally {
       setSaving(false);
     }
-  }, [open, saving, name, description, color, category, abstract, visibility, publicSlug, isForkedVault, onSave, syncSavedValues, vault, onOpenChange]);
+  }, [buildSavePayload, open, saving, name, onSave, syncSavedValues, vault, onOpenChange]);
 
   useHotkeys(
     'dialog',
@@ -975,7 +993,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                 <Input
                   value={publicSlug}
                   onChange={(e) => {
-                    setPublicSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''));
+                    setPublicSlug(normalizeVaultPublicSlug(e.target.value));
                     setSlugAvailable(null); // Reset while typing
                   }}
                   placeholder="my-research-vault"
@@ -1273,7 +1291,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
             <Button
               type="submit"
               variant="glow"
-              disabled={saving || !name.trim()}
+              disabled={saving || !name.trim() || !onSave}
               className="font-mono w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10"
             >
               {saving ? (
