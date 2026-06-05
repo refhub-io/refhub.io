@@ -925,7 +925,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
               onChange={(e) => setAbstract(e.target.value)}
               placeholder="describe_contents_and_purpose..."
               rows={3}
-              className="text-sm"
+              className="font-mono text-sm"
             />
             <p className="text-xs text-muted-foreground font-mono">
               // shown_on_the_codex_when_published
