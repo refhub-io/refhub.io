@@ -10,7 +10,10 @@ import { ScrollToTopButton } from "@/components/layout/ScrollToTopButton";
 import { queryClient, initQueryPersistence } from "@/lib/queryClient";
 import { KeyboardProvider } from "@/contexts/KeyboardContext";
 import { KeyboardHelpOverlay } from "@/components/ui/KeyboardHelpOverlay";
+import { OnboardingWelcomeDialog } from "@/components/ui/OnboardingWelcomeDialog";
 import { useKeyboardAnalytics } from "@/hooks/useKeyboardAnalytics";
+import { useOnboarding } from "@/hooks/useOnboarding";
+import { useKeyboardContext } from "@/contexts/KeyboardContext";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
@@ -36,6 +39,24 @@ import { ChickenOverlay } from "@/components/easter-egg/ChickenOverlay";
 function KeyboardAnalyticsTracker() {
   useKeyboardAnalytics();
   return null;
+}
+
+function OnboardingWelcome() {
+  const { open, onOpenChange, dismiss } = useOnboarding();
+  const { openHelpOverlay } = useKeyboardContext();
+
+  const handleOpenGuide = () => {
+    dismiss();
+    openHelpOverlay('guide');
+  };
+
+  return (
+    <OnboardingWelcomeDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      onOpenGuide={handleOpenGuide}
+    />
+  );
 }
 
 function CluckEasterEgg() {
@@ -68,6 +89,7 @@ const App = () => {
               <BugReportButton />
               <CluckEasterEgg />
               <KeyboardHelpOverlay />
+              <OnboardingWelcome />
               <BrowserRouter>
                 <Routes>
                   <Route path="/" element={<Index />} />
