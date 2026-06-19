@@ -146,12 +146,12 @@ export function OnboardingWelcomeDialog({ open, onOpenChange, onOpenGuide }: Onb
             {isLastStep && (
               <Button variant="outline" className="font-mono" onClick={handleOpenGuide}>
                 <BookOpen className="mr-2 h-4 w-4" />
-                open_guide
+                open guide
               </Button>
             )}
             <Button variant="glow" className="font-mono" onClick={isLastStep ? handleOpenApp : handleNext}>
               {isLastStep ? (
-                'open_app'
+                'open app'
               ) : (
                 <>
                   next
