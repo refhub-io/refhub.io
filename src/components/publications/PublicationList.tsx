@@ -63,6 +63,7 @@ interface PublicationListProps {
   onDeletePublications?: (pubs: Publication[]) => void;
   onExportBibtex: (pubs: Publication[]) => void;
   onDiscoverRelated?: (pubs: Publication[]) => void;
+  onDiscoverByTopic?: () => void;
   onMobileMenuOpen: () => void;
   onOpenGraph?: () => void;
   onEditVault?: (vault: Vault) => void;
@@ -98,6 +99,7 @@ export function PublicationList({
   onDeletePublications,
   onExportBibtex,
   onDiscoverRelated,
+  onDiscoverByTopic,
   onMobileMenuOpen,
   onOpenGraph,
   onEditVault,
@@ -763,10 +765,20 @@ export function PublicationList({
                 : '// add_your_first_paper_to_start_building_your_library'}
             </p>
             {!searchQuery && filters.length === 0 && (
-              <Button onClick={onAddPublication} variant="glow" className="font-mono">
-                <Plus className="w-4 h-4 mr-2" />
-                add_your_first_paper
-              </Button>
+              <div className="flex flex-col sm:flex-row items-center gap-3">
+                {onAddPublication && (
+                  <Button onClick={onAddPublication} variant="glow" className="font-mono">
+                    <Plus className="w-4 h-4 mr-2" />
+                    add_your_first_paper
+                  </Button>
+                )}
+                {onDiscoverByTopic && (
+                  <Button onClick={onDiscoverByTopic} variant="outline" className="font-mono">
+                    <Telescope className="w-4 h-4 mr-2" />
+                    discover_by_topic
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         ) : viewMode === 'table' ? (

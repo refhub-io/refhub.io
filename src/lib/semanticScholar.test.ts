@@ -16,6 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   fetchSemanticScholarMetadataByDoi,
   runSemanticScholarQueue,
+  searchPapersByTopic,
   type SemanticScholarQueueProgress,
   type SemanticScholarRequestError,
 } from './semanticScholar';
@@ -59,6 +60,38 @@ describe('semanticScholar', () => {
       status: 429,
       retryAfterSeconds: 12,
     });
+  });
+
+  it('searches papers by topic through the backend proxy', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [
+            {
+              paper_id: 'paper-1',
+              title: 'Topic Paper',
+              authors: [{ name: 'Ada' }],
+              year: 2025,
+              venue: 'VIS',
+              external_ids: { DOI: '10.123/topic' },
+            },
+          ],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+
+    await expect(searchPapersByTopic('visual analytics', 10)).resolves.toEqual([
+      expect.objectContaining({
+        paperId: 'paper-1',
+        title: 'Topic Paper',
+        externalIds: { DOI: '10.123/topic' },
+      }),
+    ]);
+    expect(fetch).toHaveBeenCalledWith('https://refhub.test/search', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ query: 'visual analytics', limit: 10 }),
+    }));
   });
 
   it('runs queued tasks with bounded concurrency and progress updates', async () => {

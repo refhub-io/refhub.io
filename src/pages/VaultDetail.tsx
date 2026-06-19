@@ -734,8 +734,8 @@ export default function VaultDetail() {
       volume: null,
       issue: null,
       pages: null,
-      abstract: null,
-      pdf_url: null,
+      abstract: paper.abstract,
+      pdf_url: paper.openAccessPdfUrl,
       bibtex_key: null,
       notes: null,
       booktitle: null,
@@ -1887,6 +1887,10 @@ export default function VaultDetail() {
           onExportBibtex={handleExportBibtex}
           onDiscoverRelated={canEdit ? (pubs) => {
             setAugmentPublications(pubs);
+            setIsAugmentDialogOpen(true);
+          } : undefined}
+          onDiscoverByTopic={canEdit ? () => {
+            setAugmentPublications([]);
             setIsAugmentDialogOpen(true);
           } : undefined}
           onMobileMenuOpen={() => setIsMobileSidebarOpen(true)}

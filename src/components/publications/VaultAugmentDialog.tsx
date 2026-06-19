@@ -12,6 +12,7 @@ import {
   getReferences,
   getCitations,
   runSemanticScholarQueue,
+  searchPapersByTopic,
 } from '@/lib/semanticScholar';
 import {
   Dialog,
@@ -22,13 +23,14 @@ import {
 } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { SpinnerLoader } from '@/components/ui/loader';
-import { Plus, Check, ExternalLink, BookOpen, AlertCircle, RotateCcw, CheckCircle2 } from 'lucide-react';
+import { Plus, Check, ExternalLink, BookOpen, AlertCircle, RotateCcw, CheckCircle2, Search } from 'lucide-react';
 
-export type AugmentTab = 'references' | 'citations' | 'related';
+export type AugmentTab = 'references' | 'citations' | 'related' | 'topic';
 
 export interface DiscoveredPaper {
   paper: SSPaper;
@@ -95,6 +97,7 @@ function createIdleTabStatus(): Record<AugmentTab, TabStatus> {
     related: { state: 'idle', progress: null, failures: [] },
     references: { state: 'idle', progress: null, failures: [] },
     citations: { state: 'idle', progress: null, failures: [] },
+    topic: { state: 'idle', progress: null, failures: [] },
   };
 }
 
@@ -361,10 +364,13 @@ export function VaultAugmentDialog({
   onOpenChange,
   onAddPaper,
 }: VaultAugmentDialogProps) {
-  const [activeTab, setActiveTab] = useState<AugmentTab>('related');
+  const isTopicDiscovery = publications.length === 0;
+  const [activeTab, setActiveTab] = useState<AugmentTab>(isTopicDiscovery ? 'topic' : 'related');
   const [references, setReferences] = useState<DiscoveredPaper[]>([]);
   const [citations, setCitations] = useState<DiscoveredPaper[]>([]);
   const [related, setRelated] = useState<DiscoveredPaper[]>([]);
+  const [topicResults, setTopicResults] = useState<DiscoveredPaper[]>([]);
+  const [topicQuery, setTopicQuery] = useState('');
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
   const [tabStatus, setTabStatus] = useState<Record<AugmentTab, TabStatus>>(() => createIdleTabStatus());
@@ -509,6 +515,48 @@ export function VaultAugmentDialog({
     fetchedTabs.current.add('related');
   }, [publications, resolveSelectedPaperIds, updateTabStatus]);
 
+  const fetchTopicData = useCallback(async (force = false) => {
+    const query = topicQuery.trim();
+    if (query.length < 2) {
+      setTopicResults([]);
+      updateTabStatus('topic', { state: 'idle', progress: null, failures: [] });
+      return;
+    }
+
+    const fetchKey = `topic:${query.toLowerCase()}`;
+    if (!force && fetchedTabs.current.has(fetchKey)) return;
+
+    updateTabStatus('topic', { state: 'loading', progress: null, failures: [] });
+    const results = await runSemanticScholarQueue(
+      [query],
+      (searchQuery) => searchPapersByTopic(searchQuery, 25),
+      {
+        concurrency: 1,
+        minDelayMs: 500,
+        onProgress: (progress) => updateTabStatus('topic', { progress, state: 'loading' }),
+      },
+    );
+
+    const result = results[0];
+    if (!result.ok) {
+      setTopicResults([]);
+      updateTabStatus('topic', {
+        state: 'error',
+        failures: [{ pubId: 'topic-search', label: query, stage: 'topic', error: result.error! }],
+      });
+      return;
+    }
+
+    const papers = (result.data ?? []).map((paper) => ({
+      paper,
+      tab: 'topic' as const,
+      sourcePublicationIds: [],
+    }));
+    setTopicResults(papers);
+    updateTabStatus('topic', { state: 'ready', failures: [] });
+    fetchedTabs.current.add(fetchKey);
+  }, [topicQuery, updateTabStatus]);
+
   const fetchTabData = useCallback(async (tab: 'references' | 'citations', force = false) => {
     if (!force && fetchedTabs.current.has(tab)) return;
     if (resolvedPaperIds.current.length === 0) {
@@ -568,29 +616,34 @@ export function VaultAugmentDialog({
     fetchedTabs.current.add(tab);
   }, [tabStatus.related.failures, updateTabStatus]);
 
-  // Open dialog: kick off the fast batch fetch for recommendations
+  // Open dialog: kick off seed-based recommendations when seeds exist; otherwise show topic discovery.
   useEffect(() => {
-    if (open && !fetchedTabs.current.has('related')) {
+    if (open && !isTopicDiscovery && !fetchedTabs.current.has('related')) {
       void fetchRelated();
+    }
+    if (open && isTopicDiscovery) {
+      setActiveTab('topic');
     }
     if (!open) {
       fetchedTabs.current = new Set();
       resolvedPaperIds.current = [];
-      setActiveTab('related');
+      setActiveTab(isTopicDiscovery ? 'topic' : 'related');
       setReferences([]);
       setCitations([]);
       setRelated([]);
+      setTopicResults([]);
+      setTopicQuery('');
       setAddedIds(new Set());
       setLoadingIds(new Set());
       setTabStatus(createIdleTabStatus());
       setAcknowledgedTabs(new Set());
     }
-  }, [open, fetchRelated]);
+  }, [open, fetchRelated, isTopicDiscovery]);
 
   // Switch tab → lazy-load refs/citations if not yet fetched
   const handleTabChange = (tab: AugmentTab) => {
     setActiveTab(tab);
-    if (tab !== 'related') {
+    if (tab === 'references' || tab === 'citations') {
       void fetchTabData(tab);
     }
   };
@@ -611,9 +664,9 @@ export function VaultAugmentDialog({
   };
 
   const activePapers =
-    activeTab === 'related' ? related : activeTab === 'references' ? references : citations;
+    activeTab === 'topic' ? topicResults : activeTab === 'related' ? related : activeTab === 'references' ? references : citations;
   const activeStatus = tabStatus[activeTab];
-  const initialLoading = tabStatus.related.state === 'loading' && related.length === 0;
+  const initialLoading = !isTopicDiscovery && tabStatus.related.state === 'loading' && related.length === 0;
   const acknowledgeTab = (tab: AugmentTab) => {
     setAcknowledgedTabs((prev) => new Set(prev).add(tab));
   };
@@ -626,7 +679,9 @@ export function VaultAugmentDialog({
             // vault_augmentation
           </DialogTitle>
           <DialogDescription className="font-mono text-sm text-muted-foreground">
-            // semantic_scholar • {publications.length} paper{publications.length !== 1 ? 's' : ''} selected
+            {isTopicDiscovery
+              ? '// semantic_scholar • topic_discovery'
+              : `// semantic_scholar • ${publications.length} paper${publications.length !== 1 ? 's' : ''} selected`}
           </DialogDescription>
         </DialogHeader>
 
@@ -644,31 +699,53 @@ export function VaultAugmentDialog({
 
         {!initialLoading && (
           <>
-            <Tabs
-              value={activeTab}
-              onValueChange={(v) => handleTabChange(v as AugmentTab)}
-              className="shrink-0 px-6 pt-3"
-            >
-              <TabsList className="justify-start w-auto h-8">
-                <TabsTrigger value="related" className="text-xs font-mono h-6 px-3">
-                  related ({related.length})
-                </TabsTrigger>
-                <TabsTrigger
-                  value="references"
-                  className="text-xs font-mono h-6 px-3"
-                  disabled={tabStatus.related.state === 'loading'}
-                >
-                  cites→ ({references.length})
-                </TabsTrigger>
-                <TabsTrigger
-                  value="citations"
-                  className="text-xs font-mono h-6 px-3"
-                  disabled={tabStatus.related.state === 'loading'}
-                >
-                  ←cited_by ({citations.length})
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+            {isTopicDiscovery ? (
+              <form
+                className="shrink-0 px-6 pt-4 flex flex-col sm:flex-row gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void fetchTopicData(true);
+                }}
+              >
+                <Input
+                  value={topicQuery}
+                  onChange={(event) => setTopicQuery(event.target.value)}
+                  placeholder="topic, keyword, or paper title"
+                  className="font-mono"
+                  disabled={tabStatus.topic.state === 'loading'}
+                />
+                <Button type="submit" variant="glow" className="font-mono" disabled={topicQuery.trim().length < 2 || tabStatus.topic.state === 'loading'}>
+                  {tabStatus.topic.state === 'loading' ? <SpinnerLoader className="w-4 h-4 mr-2" /> : <Search className="w-4 h-4 mr-2" />}
+                  search
+                </Button>
+              </form>
+            ) : (
+              <Tabs
+                value={activeTab}
+                onValueChange={(v) => handleTabChange(v as AugmentTab)}
+                className="shrink-0 px-6 pt-3"
+              >
+                <TabsList className="justify-start w-auto h-8">
+                  <TabsTrigger value="related" className="text-xs font-mono h-6 px-3">
+                    related ({related.length})
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="references"
+                    className="text-xs font-mono h-6 px-3"
+                    disabled={tabStatus.related.state === 'loading'}
+                  >
+                    cites→ ({references.length})
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="citations"
+                    className="text-xs font-mono h-6 px-3"
+                    disabled={tabStatus.related.state === 'loading'}
+                  >
+                    ←cited_by ({citations.length})
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            )}
 
             <QueueStatusCard
               status={activeStatus}
@@ -676,6 +753,10 @@ export function VaultAugmentDialog({
               acknowledged={acknowledgedTabs.has(activeTab)}
               onAcknowledge={() => acknowledgeTab(activeTab)}
               onRetry={() => {
+                if (activeTab === 'topic') {
+                  void fetchTopicData(true);
+                  return;
+                }
                 if (activeTab === 'related') {
                   void fetchRelated(true);
                   return;

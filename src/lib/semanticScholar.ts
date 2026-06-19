@@ -411,6 +411,31 @@ async function fetchPaperListFromBackend(
   return records.map(normalizePaper).filter((paper): paper is SSPaper => paper !== null);
 }
 
+export async function searchPapersByTopic(query: string, limit = 20): Promise<SSPaper[]> {
+  const cleanQuery = query.trim();
+  if (cleanQuery.length < 2) return [];
+
+  const cacheKey = `search:${cleanQuery.toLowerCase()}:${limit}`;
+  if (paperCache.has(cacheKey)) return paperCache.get(cacheKey)!;
+
+  const accessToken = await getAccessToken();
+  const payload = await fetchWithSemanticScholarError('/search', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ query: cleanQuery, limit }),
+  });
+
+  const records = Array.isArray((payload as { data?: unknown } | null)?.data)
+    ? ((payload as { data: BackendPaper[] }).data ?? [])
+    : [];
+  const papers = records.map(normalizePaper).filter((paper): paper is SSPaper => paper !== null);
+  paperCache.set(cacheKey, papers);
+  return papers;
+}
+
 export async function lookupPaperByDOI(doi: string): Promise<string | null> {
   return lookupPaperIdFromBackend({ doi });
 }
