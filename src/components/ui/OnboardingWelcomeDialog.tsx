@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { OnboardingSpotlight } from '@/components/ui/OnboardingSpotlight';
 import { cn } from '@/lib/utils';
 
 interface OnboardingWelcomeDialogProps {
@@ -22,20 +23,26 @@ const ONBOARDING_STEPS = [
     eyebrow: 'step_01',
     title: 'create vaults',
     description: 'group papers by project, survey, topic, lab, or reading list. vaults keep curation separate from paper metadata.',
+    targetLabel: 'vaults live in the sidebar. start with new_vault.',
+    targetSelectors: ['[data-onboarding-target="new-vault"]', '[data-onboarding-target="vault-list"]'],
   },
   {
     icon: Search,
     eyebrow: 'step_02',
     title: 'import and discover',
     description: 'add papers by doi, bibtex, url, existing library item, pdf, or semantic scholar discovery.',
+    targetLabel: 'add papers from the main toolbar or empty state.',
+    targetSelectors: ['[data-onboarding-target="add-paper"]', '[data-onboarding-target="publication-content"]'],
   },
   {
     icon: Share2,
     eyebrow: 'step_03',
     title: 'share when ready',
     description: 'keep vaults private, invite collaborators, or publish curated collections to the codex.',
+    targetLabel: 'use help, profile, vault settings, or the codex when ready.',
+    targetSelectors: ['[data-onboarding-target="help-center"]', '[data-onboarding-target="codex-link"]', '[data-onboarding-target="vault-settings"]'],
   },
-];
+] as const;
 
 export function OnboardingWelcomeDialog({ open, onOpenChange, onOpenGuide }: OnboardingWelcomeDialogProps) {
   const [stepIndex, setStepIndex] = useState(0);
@@ -60,9 +67,15 @@ export function OnboardingWelcomeDialog({ open, onOpenChange, onOpenGuide }: Onb
   const Icon = activeStep.icon;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-lg overflow-hidden border-primary/20 bg-card/95 p-0 shadow-2xl shadow-primary/10 backdrop-blur-xl sm:rounded-2xl">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b border-border/60">
+    <>
+      <OnboardingSpotlight
+        enabled={open}
+        selectors={activeStep.targetSelectors}
+        label={activeStep.targetLabel}
+      />
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="w-[95vw] max-w-lg overflow-hidden border-primary/20 bg-card/95 p-0 shadow-2xl shadow-primary/10 backdrop-blur-xl sm:rounded-2xl md:left-auto md:right-6 md:top-1/2 md:translate-x-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-border/60">
           <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <Sparkles className="h-5 w-5" />
           </div>
@@ -72,9 +85,9 @@ export function OnboardingWelcomeDialog({ open, onOpenChange, onOpenGuide }: Onb
           <DialogDescription className="text-sm leading-relaxed">
             refhub helps collect papers, organize vaults, and share curated research context.
           </DialogDescription>
-        </DialogHeader>
+          </DialogHeader>
 
-        <div className="px-6 py-5">
+          <div className="px-6 py-5">
           <div className="mb-4 flex items-center justify-between font-mono text-[10px] text-muted-foreground">
             <span>// onboarding</span>
             <span>{progressLabel}</span>
@@ -117,7 +130,7 @@ export function OnboardingWelcomeDialog({ open, onOpenChange, onOpenGuide }: Onb
           </div>
         </div>
 
-        <div className="flex flex-col-reverse gap-2 border-t border-border/60 bg-muted/20 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col-reverse gap-2 border-t border-border/60 bg-muted/20 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           <Button variant="ghost" className="font-mono" onClick={() => onOpenChange(false)}>
             skip
           </Button>
@@ -145,8 +158,9 @@ export function OnboardingWelcomeDialog({ open, onOpenChange, onOpenGuide }: Onb
               )}
             </Button>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

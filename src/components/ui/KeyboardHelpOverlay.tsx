@@ -224,6 +224,7 @@ export function KeyboardShortcutsButton({ className }: { className?: string }) {
       size="icon"
       onClick={() => openHelpOverlay('keyboard')}
       title="help center (?)"
+      data-onboarding-target="help-center"
       className={cn('h-9 w-9 text-muted-foreground hover:text-primary relative group', className)}
     >
       <Keyboard className="w-4 h-4" />
