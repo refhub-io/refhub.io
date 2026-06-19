@@ -26,7 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { SpinnerLoader } from '@/components/ui/loader';
-import { Plus, Check, ExternalLink, BookOpen, AlertCircle, RotateCcw } from 'lucide-react';
+import { Plus, Check, ExternalLink, BookOpen, AlertCircle, RotateCcw, CheckCircle2 } from 'lucide-react';
 
 export type AugmentTab = 'references' | 'citations' | 'related';
 
@@ -119,18 +119,23 @@ function summarizeFailures(failures: TabFailure[]): string {
 function QueueStatusCard({
   status,
   title,
+  acknowledged,
+  onAcknowledge,
   onRetry,
 }: {
   status: TabStatus;
   title: string;
+  acknowledged: boolean;
+  onAcknowledge: () => void;
   onRetry: () => void;
 }) {
   const progress = status.progress;
   const hasFailures = status.failures.length > 0;
   const firstFailure = status.failures[0];
   const progressValue = getProgressValue(progress);
+  const isReady = status.state === 'ready' && !hasFailures;
 
-  if (status.state === 'idle' && !hasFailures) return null;
+  if ((status.state === 'idle' && !hasFailures) || (isReady && acknowledged)) return null;
 
   return (
     <div className="px-6 pt-3">
@@ -148,7 +153,24 @@ function QueueStatusCard({
                     : '// results_ready'}
             </p>
           </div>
-          {(status.state === 'partial' || status.state === 'error') && (
+          {isReady ? (
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="font-mono text-xs border-neon-green text-neon-green bg-neon-green/10 hover:bg-neon-green/20 hover:text-neon-green"
+                onClick={onAcknowledge}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+                ok
+              </Button>
+              <Button type="button" variant="outline" size="sm" className="font-mono text-xs" onClick={onRetry}>
+                <RotateCcw className="w-3 h-3 mr-1.5" />
+                rerun
+              </Button>
+            </div>
+          ) : (status.state === 'partial' || status.state === 'error') && (
             <Button type="button" variant="outline" size="sm" className="font-mono text-xs" onClick={onRetry}>
               <RotateCcw className="w-3 h-3 mr-1.5" />
               retry_failed
@@ -156,7 +178,7 @@ function QueueStatusCard({
           )}
         </div>
 
-        {progress && (
+        {progress && !isReady && (
           <div className="space-y-2">
             <Progress value={progressValue} className="h-2" />
             <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs text-muted-foreground">
@@ -172,6 +194,13 @@ function QueueStatusCard({
           <div className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
             <SpinnerLoader className="w-3.5 h-3.5" />
             <span>processing_semantic_scholar_queue...</span>
+          </div>
+        )}
+
+        {isReady && progress && (
+          <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs text-muted-foreground">
+            <span>{progress.completed}/{progress.total}_done</span>
+            <span>{progress.succeeded}_ok</span>
           </div>
         )}
 
@@ -339,6 +368,7 @@ export function VaultAugmentDialog({
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
   const [tabStatus, setTabStatus] = useState<Record<AugmentTab, TabStatus>>(() => createIdleTabStatus());
+  const [acknowledgedTabs, setAcknowledgedTabs] = useState<Set<AugmentTab>>(new Set());
 
   const fetchedTabs = useRef<Set<AugmentTab>>(new Set());
   const resolvedPaperIds = useRef<ResolvedPaper[]>([]);
@@ -351,6 +381,14 @@ export function VaultAugmentDialog({
         ...next,
       },
     }));
+    if (next.state === 'loading') {
+      setAcknowledgedTabs((prev) => {
+        if (!prev.has(tab)) return prev;
+        const nextAcknowledged = new Set(prev);
+        nextAcknowledged.delete(tab);
+        return nextAcknowledged;
+      });
+    }
   }, []);
 
   const resolveSelectedPaperIds = useCallback(async (): Promise<{ resolved: ResolvedPaper[]; failures: TabFailure[] }> => {
@@ -545,6 +583,7 @@ export function VaultAugmentDialog({
       setAddedIds(new Set());
       setLoadingIds(new Set());
       setTabStatus(createIdleTabStatus());
+      setAcknowledgedTabs(new Set());
     }
   }, [open, fetchRelated]);
 
@@ -575,6 +614,9 @@ export function VaultAugmentDialog({
     activeTab === 'related' ? related : activeTab === 'references' ? references : citations;
   const activeStatus = tabStatus[activeTab];
   const initialLoading = tabStatus.related.state === 'loading' && related.length === 0;
+  const acknowledgeTab = (tab: AugmentTab) => {
+    setAcknowledgedTabs((prev) => new Set(prev).add(tab));
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -593,6 +635,8 @@ export function VaultAugmentDialog({
             <QueueStatusCard
               status={tabStatus.related}
               title="// resolving_lookup_and_related_queue"
+              acknowledged={acknowledgedTabs.has('related')}
+              onAcknowledge={() => acknowledgeTab('related')}
               onRetry={() => void fetchRelated(true)}
             />
           </div>
@@ -629,6 +673,8 @@ export function VaultAugmentDialog({
             <QueueStatusCard
               status={activeStatus}
               title={`// ${activeTab}_queue_status`}
+              acknowledged={acknowledgedTabs.has(activeTab)}
+              onAcknowledge={() => acknowledgeTab(activeTab)}
               onRetry={() => {
                 if (activeTab === 'related') {
                   void fetchRelated(true);
