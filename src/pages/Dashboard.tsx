@@ -25,6 +25,7 @@ import {
   SemanticScholarMetadata,
 } from '@/lib/semanticScholar';
 import { createPublicationSyncPatch, extractBibliographicPatch, getPublicationSyncDiffs, PublicationSyncDiff } from '@/lib/publicationSync';
+import { filterDashboardTags, getDashboardAccessibleVaultIds } from '@/lib/dashboardTagScope';
 import { PublicationSyncDialog } from '@/components/publications/PublicationSyncDialog';
 import {
   AlertDialog,
@@ -314,7 +315,7 @@ export default function Dashboard() {
 
       // Fetch owned vaults, shared vaults, and other data
       setPdfAssetsLoading(true);
-      const [pubsRes, ownedVaultsRes, sharedVaultsRes, vaultPubsRes, tagsRes, pubTagsRes, relationsRes, pdfAssetsRes] = await Promise.all([
+      const [pubsRes, ownedVaultsRes, sharedVaultsRes, vaultPubsRes, pubTagsRes, relationsRes, pdfAssetsRes] = await Promise.all([
         supabase.from('publications').select('*').order('created_at', { ascending: false }),
         supabase.from('vaults').select('*').eq('user_id', user.id).order('name'),
         // Fetch vaults shared with current user (via email or user_id)
@@ -323,7 +324,6 @@ export default function Dashboard() {
           .select('vault_id')
           .or(`shared_with_email.eq.${user.email},shared_with_user_id.eq.${user.id}`),
         supabase.from('vault_publications').select('*').order('created_at', { ascending: false }),
-        supabase.from('tags').select('*').order('name'),
         supabase.from('publication_tags').select('*'),
         supabase.from('publication_relations').select('*'),
         supabase
@@ -346,7 +346,42 @@ export default function Dashboard() {
       setPdfAssetsLoading(false);
 
       // Complete vaults phase
-      if (ownedVaultsRes.data) setVaults(ownedVaultsRes.data as Vault[]);
+      const ownedVaults = (ownedVaultsRes.data as Vault[]) || [];
+      const sharedVaultIds = (sharedVaultsRes.data || []).map((share) => share.vault_id);
+      const scopedVaultIds = getDashboardAccessibleVaultIds({ ownedVaults, sharedVaultIds });
+
+      const tagQueries = [
+        supabase
+          .from('tags')
+          .select('*')
+          .eq('user_id', user.id)
+          .is('vault_id', null)
+          .order('name'),
+      ];
+
+      if (scopedVaultIds.length > 0) {
+        tagQueries.push(
+          supabase
+            .from('tags')
+            .select('*')
+            .in('vault_id', scopedVaultIds)
+            .order('name'),
+        );
+      }
+
+      const tagResults = await Promise.all(tagQueries);
+      const tagQueryError = tagResults.find((result) => result.error)?.error;
+      if (tagQueryError) throw tagQueryError;
+
+      const scopedTags = filterDashboardTags(
+        tagResults.flatMap((result) => (result.data as Tag[] | null) || []),
+        { userId: user.id, ownedVaults, sharedVaultIds },
+      );
+      const dedupedTags = Array.from(
+        new Map(scopedTags.map((tag) => [tag.id, tag])).values(),
+      ).sort((a, b) => a.name.localeCompare(b.name));
+
+      setVaults(ownedVaults);
       updatePhase('vaults', 'complete');
 
       // Combine original publications with vault-specific copies
@@ -423,11 +458,9 @@ export default function Dashboard() {
 
       const allPublications = Object.values(allPublicationsMap);
 
-      if (ownedVaultsRes.data) setVaults(ownedVaultsRes.data as Vault[]);
       if (sharedVaultsRes.data) {
         // Process shared vaults
         if (sharedVaultsRes.data.length > 0) {
-          const sharedVaultIds = sharedVaultsRes.data.map(s => s.vault_id);
           const { data: sharedVaultDetails } = await supabase
             .from('vaults')
             .select('*')
@@ -439,7 +472,7 @@ export default function Dashboard() {
         }
       }
       setPublications(allPublications);
-      if (tagsRes.data) setTags(tagsRes.data as Tag[]);
+      setTags(dedupedTags);
       if (pubTagsRes.data) setPublicationTags(pubTagsRes.data as PublicationTag[]);
       if (relationsRes.data) setPublicationRelations(relationsRes.data as PublicationRelation[]);
 
@@ -547,7 +580,7 @@ export default function Dashboard() {
 
       // Set the state with the processed data
       setPublications(allPublications);
-      if (tagsRes.data) setTags(tagsRes.data as Tag[]);
+      setTags(dedupedTags);
       if (pubTagsRes.data) setPublicationTags(pubTagsRes.data as PublicationTag[]);
       if (relationsRes.data) setPublicationRelations(relationsRes.data as PublicationRelation[]);
 
@@ -578,9 +611,9 @@ export default function Dashboard() {
       // Save to cache for future visits
       setPageCache<DashboardCache>('dashboard', {
         publications: allPublications,
-        vaults: ownedVaultsRes.data as Vault[] || [],
+        vaults: ownedVaults,
         sharedVaults: processedSharedVaults,
-        tags: tagsRes.data as Tag[] || [],
+        tags: dedupedTags,
         publicationTags: pubTagsRes.data as PublicationTag[] || [],
         publicationRelations: relationsRes.data as PublicationRelation[] || [],
         publicationVaultsMap: newPublicationVaultsMap,

@@ -37,6 +37,7 @@ import {
   MoreVertical,
   Tags,
   Telescope,
+  Loader2,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -79,6 +80,8 @@ interface PublicationListProps {
   syncLoadingIds?: Set<string>;
   syncCooldowns?: Record<string, number>;
   onCheckPublicationSync?: (pub: Publication) => void;
+  isLoadingPublications?: boolean;
+  loadingMessage?: string;
 }
 
 export function PublicationList({
@@ -114,6 +117,8 @@ export function PublicationList({
   syncLoadingIds = new Set(),
   syncCooldowns = {},
   onCheckPublicationSync,
+  isLoadingPublications = false,
+  loadingMessage = 'hang_on_getting_your_papers',
 }: PublicationListProps) {
   const openPublication = onOpenPublication || onEditPublication;
   const [searchQuery, setSearchQuery] = useState('');
@@ -752,35 +757,49 @@ export function PublicationList({
         {...kbNav.containerProps}
       >
         {filteredPublications.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-20 h-20 rounded-3xl bg-gradient-primary flex items-center justify-center mb-6 shadow-lg glow-purple">
-              <Sparkles className="w-10 h-10 text-white" />
-            </div>
-            <h3 className="text-2xl font-bold mb-2 font-mono">
-              {searchQuery || filters.length > 0 ? 'no_results_found' : 'no_papers_yet'}
-            </h3>
-            <p className="text-muted-foreground max-w-sm mb-8 font-mono text-sm">
-              {searchQuery || filters.length > 0
-                ? '// try_adjusting_your_search_or_filters'
-                : '// add_your_first_paper_to_start_building_your_library'}
-            </p>
-            {!searchQuery && filters.length === 0 && (
-              <div className="flex flex-col sm:flex-row items-center gap-3">
-                {onAddPublication && (
-                  <Button onClick={onAddPublication} variant="glow" className="font-mono">
-                    <Plus className="w-4 h-4 mr-2" />
-                    add_your_first_paper
-                  </Button>
-                )}
-                {onDiscoverByTopic && (
-                  <Button onClick={onDiscoverByTopic} variant="outline" className="font-mono">
-                    <Telescope className="w-4 h-4 mr-2" />
-                    discover_by_topic
-                  </Button>
-                )}
+          isLoadingPublications ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center" role="status" aria-live="polite">
+              <div className="w-20 h-20 rounded-3xl bg-gradient-primary flex items-center justify-center mb-6 shadow-lg glow-purple">
+                <Loader2 className="w-10 h-10 text-white animate-spin" />
               </div>
-            )}
-          </div>
+              <h3 className="text-2xl font-bold mb-2 font-mono">
+                {loadingMessage}
+              </h3>
+              <p className="text-muted-foreground max-w-sm mb-8 font-mono text-sm">
+                // fetching_your_research_collection
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-20 h-20 rounded-3xl bg-gradient-primary flex items-center justify-center mb-6 shadow-lg glow-purple">
+                <Sparkles className="w-10 h-10 text-white" />
+              </div>
+              <h3 className="text-2xl font-bold mb-2 font-mono">
+                {searchQuery || filters.length > 0 ? 'no_results_found' : 'no_papers_yet'}
+              </h3>
+              <p className="text-muted-foreground max-w-sm mb-8 font-mono text-sm">
+                {searchQuery || filters.length > 0
+                  ? '// try_adjusting_your_search_or_filters'
+                  : '// add_your_first_paper_to_start_building_your_library'}
+              </p>
+              {!searchQuery && filters.length === 0 && (
+                <div className="flex flex-col sm:flex-row items-center gap-3">
+                  {onAddPublication && (
+                    <Button onClick={onAddPublication} variant="glow" className="font-mono">
+                      <Plus className="w-4 h-4 mr-2" />
+                      add_your_first_paper
+                    </Button>
+                  )}
+                  {onDiscoverByTopic && (
+                    <Button onClick={onDiscoverByTopic} variant="outline" className="font-mono">
+                      <Telescope className="w-4 h-4 mr-2" />
+                      discover_by_topic
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          )
         ) : viewMode === 'table' ? (
           <PublicationTable
             publications={filteredPublications}

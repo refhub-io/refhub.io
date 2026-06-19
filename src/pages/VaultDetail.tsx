@@ -1355,10 +1355,12 @@ export default function VaultDetail() {
   };
 
   const handleSaveVault = async (data: Partial<Vault>) => {
-    if (!user || !vaultId || !isOwner) return; // Only allow saving if user is the owner
+    if (!user) return;
 
     try {
       if (editingVault) {
+        if (!vaultId || !isOwner) return; // Only allow editing the current vault if user is the owner
+
         const { data: updatedVault, error } = await supabase
           .from('vaults')
           .update(data)
@@ -1910,6 +1912,8 @@ export default function VaultDetail() {
           syncLoadingIds={syncLoadingIds}
           syncCooldowns={syncCooldowns}
           onCheckPublicationSync={canEdit ? handleCheckPublicationSync : undefined}
+          isLoadingPublications={contentLoading && publications.length === 0}
+          loadingMessage="hang_on_getting_your_papers"
         />
       </div>
 
@@ -1989,7 +1993,7 @@ export default function VaultDetail() {
           setIsVaultDialogOpen(open);
         }}
         vault={editingVault}
-        onSave={isOwner ? handleSaveVault : undefined}
+        onSave={!editingVault || isOwner ? handleSaveVault : undefined}
         onUpdate={refetchVault}
         onDelete={isOwner ? (vault) => {
           setDeleteVaultConfirmation(vault);
