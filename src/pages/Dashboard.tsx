@@ -1600,11 +1600,13 @@ export default function Dashboard() {
 
           if (error) throw error;
           
-          // Replace temporary vault with real one from database
+          // Replace temporary vault with real one from database and go straight to it.
           if (newVault) {
+            const createdVault = newVault as Vault;
             setVaults(prev => prev.map(v => 
-              v.id === tempId ? newVault as Vault : v
+              v.id === tempId ? createdVault : v
             ).sort((a, b) => a.name.localeCompare(b.name)));
+            navigate(`/vault/${createdVault.id}`);
           }
           
           toast({ title: 'vault_created ✨' });

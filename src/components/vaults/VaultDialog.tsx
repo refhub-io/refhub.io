@@ -672,15 +672,40 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
 
     setSaving(true);
     try {
-      // Use the selected autocomplete profile when available; otherwise fall back to email lookup.
+      // Use the selected autocomplete profile when available; otherwise require an exact
+      // platform-user match by email or username before inserting a share.
       let profile = selectedProfile;
+      const query = email.trim().toLowerCase();
       if (!profile) {
-        const { data: profileData } = await supabase
+        const { data: emailMatch, error: emailLookupError } = await supabase
           .from('profiles')
           .select('user_id, display_name, username, email')
-          .eq('email', email.trim().toLowerCase())
+          .eq('email', query)
           .maybeSingle();
-        profile = profileData as UserSuggestion | null;
+
+        if (emailLookupError) throw emailLookupError;
+
+        if (emailMatch) {
+          profile = emailMatch as UserSuggestion;
+        } else {
+          const { data: usernameMatch, error: usernameLookupError } = await supabase
+            .from('profiles')
+            .select('user_id, display_name, username, email')
+            .eq('username', query)
+            .maybeSingle();
+
+          if (usernameLookupError) throw usernameLookupError;
+          profile = usernameMatch as UserSuggestion | null;
+        }
+      }
+
+      if (!profile?.user_id) {
+        toast({
+          title: 'user_not_found',
+          description: 'Choose an existing RefHub user from the suggestions, or enter an exact username/email.',
+          variant: 'destructive',
+        });
+        return;
       }
 
       const shareData: {
@@ -688,20 +713,16 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
         shared_with_email: string;
         shared_by: string;
         role: 'viewer' | 'editor';
-        shared_with_user_id?: string;
+        shared_with_user_id: string;
         shared_with_name?: string | null;
       } = {
         vault_id: vault.id,
-        shared_with_email: email.trim().toLowerCase(),
+        shared_with_email: (profile.email || query).toLowerCase(),
         shared_by: user.id,
         role: sharePermission,
+        shared_with_user_id: profile.user_id,
+        shared_with_name: profile.display_name || profile.username || profile.email,
       };
-
-      // If we found a profile, add the user_id and display name
-      if (profile) {
-        shareData.shared_with_user_id = profile.user_id;
-        shareData.shared_with_name = profile.display_name || profile.username || profile.email;
-      }
 
       const { error } = await supabase.from('vault_shares').insert(shareData);
 
@@ -1124,14 +1145,14 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                     type="button"
                     variant="outline"
                     onClick={handleShareWithUser}
-                    disabled={saving || !email.trim()}
+                    disabled={saving || !email.trim() || loadingSuggestions}
                     className="font-mono"
                   >
                     add
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground font-mono">
-                  // {sharePermission === 'viewer' ? 'can_view_publications' : 'can_view_and_edit_publications'}
+                  // choose an existing RefHub user; {sharePermission === 'viewer' ? 'can_view_publications' : 'can_view_and_edit_publications'}
                 </p>
               </div>
 

@@ -202,7 +202,11 @@ export default function ProfileEdit() {
   };
 
   const handleBack = () => {
-    navigate(resolvePostAuthRedirect(profile, { fallbackPath: '/dashboard' }));
+    const target = resolvePostAuthRedirect(
+      profile ? { ...profile, is_setup: true } : profile,
+      { fallbackPath: '/dashboard' }
+    );
+    navigate(target);
   };
 
   const handleTabChange = (value: string) => {
@@ -218,7 +222,7 @@ export default function ProfileEdit() {
       <div className="mx-auto max-w-6xl p-4 sm:p-8">
         {/* Header */}
         <div className="mb-8 flex flex-wrap items-start gap-3 sm:items-center sm:gap-4">
-          <Button variant="ghost" size="icon" onClick={handleBack} className="shrink-0">
+          <Button variant="ghost" size="icon" onClick={handleBack} className="shrink-0" aria-label="Back to app">
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div className="min-w-0 flex-1">
