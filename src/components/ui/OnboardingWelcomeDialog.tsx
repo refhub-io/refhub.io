@@ -55,12 +55,11 @@ export function OnboardingWelcomeDialog({ open, onOpenChange, onOpenGuide }: Onb
     onOpenGuide();
   };
 
-  const handleNext = () => {
-    if (isLastStep) {
-      handleOpenGuide();
-      return;
-    }
+  const handleOpenApp = () => {
+    onOpenChange(false);
+  };
 
+  const handleNext = () => {
     setStepIndex((current) => Math.min(current + 1, ONBOARDING_STEPS.length - 1));
   };
 
@@ -144,12 +143,15 @@ export function OnboardingWelcomeDialog({ open, onOpenChange, onOpenGuide }: Onb
               <ChevronLeft className="mr-1 h-4 w-4" />
               back
             </Button>
-            <Button variant="glow" className="font-mono" onClick={handleNext}>
+            {isLastStep && (
+              <Button variant="outline" className="font-mono" onClick={handleOpenGuide}>
+                <BookOpen className="mr-2 h-4 w-4" />
+                open_guide
+              </Button>
+            )}
+            <Button variant="glow" className="font-mono" onClick={isLastStep ? handleOpenApp : handleNext}>
               {isLastStep ? (
-                <>
-                  <BookOpen className="mr-2 h-4 w-4" />
-                  open_guide
-                </>
+                'open_app'
               ) : (
                 <>
                   next
