@@ -1,4 +1,4 @@
-import { BookOpen, CheckCircle2, ChevronLeft, ChevronRight, FolderOpen, Search, Share2, Sparkles } from 'lucide-react';
+import { BookOpen, CheckCircle2, ChevronLeft, ChevronRight, FolderOpen, Search, Share2, Sparkles, Scroll, Users } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -23,24 +23,45 @@ const ONBOARDING_STEPS = [
     eyebrow: 'step_01',
     title: 'create vaults',
     description: 'group papers by project, survey, topic, lab, or reading list. vaults keep curation separate from paper metadata.',
-    targetLabel: 'vaults live in the sidebar. start with new_vault.',
-    targetSelectors: ['[data-onboarding-target="new-vault"]', '[data-onboarding-target="vault-list"]'],
+    targetHeading: '// new_vault',
+    targetLabel: 'start here to create a focused research space.',
+    targetSelectors: ['[data-onboarding-target="new-vault"]', '[data-onboarding-target="vaults-section"]', '[data-onboarding-target="vault-list"]'],
   },
   {
     icon: Search,
     eyebrow: 'step_02',
     title: 'import and discover',
     description: 'add papers by doi, bibtex, url, existing library item, pdf, or semantic scholar discovery.',
+    targetHeading: '// add_paper',
     targetLabel: 'add papers from the main toolbar or empty state.',
     targetSelectors: ['[data-onboarding-target="add-paper"]', '[data-onboarding-target="publication-content"]'],
   },
   {
-    icon: Share2,
+    icon: Users,
     eyebrow: 'step_03',
+    title: 'researchers overview',
+    description: 'browse public profiles, find people by topic, and see what vaults researchers choose to share.',
+    targetHeading: '// researchers',
+    targetLabel: 'open the researchers directory from the sidebar.',
+    targetSelectors: ['[data-onboarding-target="researchers-link"]'],
+  },
+  {
+    icon: Scroll,
+    eyebrow: 'step_04',
+    title: 'the codex',
+    description: 'discover public vaults, inspect curated reading lists, and reuse context from the wider refhub network.',
+    targetHeading: '// the_codex',
+    targetLabel: 'the codex collects public vaults for discovery.',
+    targetSelectors: ['[data-onboarding-target="codex-link"]'],
+  },
+  {
+    icon: Share2,
+    eyebrow: 'step_05',
     title: 'share when ready',
-    description: 'keep vaults private, invite collaborators, or publish curated collections to the codex.',
-    targetLabel: 'use help, profile, vault settings, or the codex when ready.',
-    targetSelectors: ['[data-onboarding-target="help-center"]', '[data-onboarding-target="codex-link"]', '[data-onboarding-target="vault-settings"]'],
+    description: 'keep vaults private, invite collaborators, or publish curated collections when the context is ready.',
+    targetHeading: '// share_controls',
+    targetLabel: 'use vault settings when you are ready to invite or publish.',
+    targetSelectors: ['[data-onboarding-target="vault-settings"]', '[data-onboarding-target="help-center"]'],
   },
 ] as const;
 
@@ -71,9 +92,10 @@ export function OnboardingWelcomeDialog({ open, onOpenChange, onOpenGuide }: Onb
         enabled={open}
         selectors={activeStep.targetSelectors}
         label={activeStep.targetLabel}
+        heading={activeStep.targetHeading}
       />
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="w-[95vw] max-w-lg overflow-hidden border-primary/20 bg-card/95 p-0 shadow-2xl shadow-primary/10 backdrop-blur-xl sm:rounded-2xl md:left-auto md:right-6 md:top-1/2 md:translate-x-0">
+        <DialogContent className="w-[95vw] max-w-lg overflow-hidden border-primary/20 bg-card/95 p-0 shadow-2xl shadow-primary/10 backdrop-blur-xl sm:rounded-2xl">
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-border/60">
           <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <Sparkles className="h-5 w-5" />

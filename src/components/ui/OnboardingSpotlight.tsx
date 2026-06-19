@@ -12,6 +12,7 @@ interface SpotlightRect {
 interface OnboardingSpotlightProps {
   selectors: readonly string[];
   label: string;
+  heading?: string;
   enabled: boolean;
 }
 
@@ -21,14 +22,19 @@ const MIN_DESKTOP_WIDTH = 768;
 function getTarget(selectors: readonly string[]): HTMLElement | null {
   if (typeof document === "undefined") return null;
 
+  let fallback: HTMLElement | null = null;
+
   for (const selector of selectors) {
     const element = document.querySelector(selector);
     if (element instanceof HTMLElement) {
-      return element;
+      fallback ??= element;
+      if (isElementVisible(element)) {
+        return element;
+      }
     }
   }
 
-  return null;
+  return fallback;
 }
 
 function isElementVisible(element: HTMLElement): boolean {
@@ -80,6 +86,7 @@ function getTooltipStyle(rect: SpotlightRect): React.CSSProperties {
 export function OnboardingSpotlight({
   selectors,
   label,
+  heading = '// highlighted_area',
   enabled,
 }: OnboardingSpotlightProps) {
   const [rect, setRect] = useState<SpotlightRect | null>(null);
@@ -178,7 +185,7 @@ export function OnboardingSpotlight({
         className="fixed rounded-xl border border-primary/40 bg-card/95 px-3 py-2 font-mono text-[11px] text-foreground shadow-2xl shadow-primary/20 backdrop-blur-xl"
         style={tooltipStyle}
       >
-        <div className="mb-1 text-primary">// current_step_target</div>
+        <div className="mb-1 text-primary">{heading}</div>
         <div>{label}</div>
       </div>
     </div>,

@@ -240,6 +240,7 @@ export function Sidebar({
           <Link
             to="/users"
             onClick={onMobileClose}
+            data-onboarding-target="researchers-link"
             className={cn(
               "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border-2",
               location.pathname === '/users'
@@ -261,6 +262,7 @@ export function Sidebar({
           <div className="pt-4">
             <button
               onClick={() => setIsVaultsExpanded(!isVaultsExpanded)}
+              data-onboarding-target="vaults-section"
               className="w-full flex items-center justify-between px-4 py-2 text-xs font-bold uppercase tracking-widest text-sidebar-foreground/40 hover:text-sidebar-foreground/60 transition-colors font-mono"
             >
               <span className="flex items-center gap-2">
