@@ -14,6 +14,7 @@ import { OnboardingWelcomeDialog } from "@/components/ui/OnboardingWelcomeDialog
 import { useKeyboardAnalytics } from "@/hooks/useKeyboardAnalytics";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { useKeyboardContext } from "@/contexts/KeyboardContext";
+import { useAuth } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
@@ -42,7 +43,8 @@ function KeyboardAnalyticsTracker() {
 }
 
 function OnboardingWelcome() {
-  const { open, onOpenChange, dismiss } = useOnboarding();
+  const { user, loading } = useAuth();
+  const { open, onOpenChange, dismiss } = useOnboarding(user, loading);
   const { openHelpOverlay } = useKeyboardContext();
 
   const handleOpenGuide = () => {
