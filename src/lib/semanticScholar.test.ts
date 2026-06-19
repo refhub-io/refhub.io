@@ -15,6 +15,7 @@ vi.mock('@/lib/apiKeys', () => ({
 import { supabase } from '@/integrations/supabase/client';
 import {
   fetchSemanticScholarMetadataByDoi,
+  formatSemanticScholarErrorMessage,
   runSemanticScholarQueue,
   searchPapersByTopic,
   type SemanticScholarQueueProgress,
@@ -60,6 +61,19 @@ describe('semanticScholar', () => {
       status: 429,
       retryAfterSeconds: 12,
     });
+  });
+
+  it('formats rate-limit errors with an actionable rerun hint', () => {
+    const error = Object.assign(new Error('Semantic Scholar rate limit exceeded'), {
+      code: 'semantic_scholar_rate_limited',
+      status: 429,
+      retryAfterSeconds: null,
+      requestId: 'request-1',
+    }) as SemanticScholarRequestError;
+
+    expect(formatSemanticScholarErrorMessage(error)).toBe(
+      'Semantic Scholar rate limit exceeded. Please wait a moment, then rerun the request.',
+    );
   });
 
   it('searches papers by topic through the backend proxy', async () => {

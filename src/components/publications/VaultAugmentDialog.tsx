@@ -113,7 +113,10 @@ function summarizeFailures(failures: TabFailure[]): string {
   const failedLabels = failures.slice(0, 3).map((failure) => failure.label).join(' • ');
 
   if (rateLimitedCount === failures.length) {
-    return `Semantic Scholar asked to slow down for ${failures.length} seed${failures.length === 1 ? '' : 's'}. ${failedLabels}`;
+    const noun = failures.every((failure) => failure.stage === 'topic')
+      ? 'topic search'
+      : `${failures.length} seed${failures.length === 1 ? '' : 's'}`;
+    return `Semantic Scholar asked to slow down for ${noun}. ${failedLabels}`;
   }
 
   return `${failures.length} seed${failures.length === 1 ? '' : 's'} failed. ${failedLabels}`;

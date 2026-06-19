@@ -203,7 +203,20 @@ function normalizeUnknownSemanticScholarError(error: unknown): SemanticScholarRe
 }
 
 export function formatSemanticScholarErrorMessage(error: unknown, fallback = 'Semantic Scholar request failed.'): string {
-  if (isSemanticScholarRequestError(error)) return error.message;
+  if (isSemanticScholarRequestError(error)) {
+    const retryHint = error.retryAfterSeconds && error.retryAfterSeconds > 0
+      ? ` Retry in about ${error.retryAfterSeconds}s or rerun once the shared limit clears.`
+      : ' Please wait a moment, then rerun the request.';
+
+    if (isSemanticScholarRateLimitError(error)) {
+      const separator = /[.!?]$/.test(error.message.trim()) ? '' : '.';
+      return error.message.includes('Retry in about')
+        ? `${error.message}${separator} You can rerun after the shared limit clears.`
+        : `${error.message}${separator}${retryHint}`;
+    }
+
+    return error.message;
+  }
   if (error instanceof Error && error.message.trim().length > 0) return error.message;
   return fallback;
 }
