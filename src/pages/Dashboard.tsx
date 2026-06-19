@@ -19,7 +19,11 @@ import { useToast } from '@/hooks/use-toast';
 import { Sparkles } from 'lucide-react';
 import { getPageCache, setPageCache, hasPageCache, clearPageCache } from '@/lib/pageCache';
 import { buildVaultPublicationCopyPayload } from '@/lib/vaultPublicationAttribution';
-import { fetchSemanticScholarMetadataByDoi, SemanticScholarMetadata } from '@/lib/semanticScholar';
+import {
+  fetchSemanticScholarMetadataByDoi,
+  formatSemanticScholarErrorMessage,
+  SemanticScholarMetadata,
+} from '@/lib/semanticScholar';
 import { createPublicationSyncPatch, extractBibliographicPatch, getPublicationSyncDiffs, PublicationSyncDiff } from '@/lib/publicationSync';
 import { filterDashboardTags, getDashboardAccessibleVaultIds } from '@/lib/dashboardTagScope';
 import { PublicationSyncDialog } from '@/components/publications/PublicationSyncDialog';
@@ -1225,7 +1229,11 @@ export default function Dashboard() {
         toast({ title: 'sync_up_to_date', description: 'Semantic Scholar details match this publication.' });
       }
     } catch (error) {
-      toast({ title: 'sync_failed', description: (error as Error).message, variant: 'destructive' });
+      toast({
+        title: 'sync_failed',
+        description: formatSemanticScholarErrorMessage(error),
+        variant: 'destructive',
+      });
     } finally {
       setSyncLoadingIds(prev => {
         const next = new Set(prev);
