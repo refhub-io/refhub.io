@@ -1393,6 +1393,13 @@ export default function VaultDetail() {
 
         if (error) throw error;
 
+        if (newVault) {
+          const createdVault = newVault as Vault;
+          setVaults(prev => [...prev.filter(v => v.id !== createdVault.id), createdVault]
+            .sort((a, b) => a.name.localeCompare(b.name)));
+          navigate(`/vault/${createdVault.id}`);
+        }
+
         // Update the vault in the hook's state (silent - toast provides feedback)
         silentRefresh();
         toast({ title: 'vault_created ✨' });

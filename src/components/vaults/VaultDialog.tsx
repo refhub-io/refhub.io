@@ -16,8 +16,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { KbdHint } from '@/components/ui/KbdHint';
 import {
   Select,
@@ -107,6 +105,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState<UserSuggestion | null>(null);
+  const [shareUserError, setShareUserError] = useState('');
   const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('viewer');
   const [publicSlug, setPublicSlug] = useState('');
   const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
@@ -334,12 +333,14 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   const handleSelectUserSuggestion = useCallback((profile: UserSuggestion) => {
     setSelectedProfile(profile);
     setEmail(profile.email || '');
+    setShareUserError('');
     setSuggestionsOpen(false);
   }, []);
 
   const handleShareEmailChange = useCallback((value: string) => {
     setEmail(value);
     setSelectedProfile(null);
+    setShareUserError('');
   }, []);
 
   useEffect(() => {
@@ -672,15 +673,36 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
 
     setSaving(true);
     try {
-      // Use the selected autocomplete profile when available; otherwise fall back to email lookup.
+      // Use the selected autocomplete profile when available; otherwise require an exact
+      // platform-user match by email or username before inserting a share.
       let profile = selectedProfile;
+      const query = email.trim().toLowerCase();
       if (!profile) {
-        const { data: profileData } = await supabase
+        const { data: emailMatch, error: emailLookupError } = await supabase
           .from('profiles')
           .select('user_id, display_name, username, email')
-          .eq('email', email.trim().toLowerCase())
+          .eq('email', query)
           .maybeSingle();
-        profile = profileData as UserSuggestion | null;
+
+        if (emailLookupError) throw emailLookupError;
+
+        if (emailMatch) {
+          profile = emailMatch as UserSuggestion;
+        } else {
+          const { data: usernameMatch, error: usernameLookupError } = await supabase
+            .from('profiles')
+            .select('user_id, display_name, username, email')
+            .eq('username', query)
+            .maybeSingle();
+
+          if (usernameLookupError) throw usernameLookupError;
+          profile = usernameMatch as UserSuggestion | null;
+        }
+      }
+
+      if (!profile?.user_id) {
+        setShareUserError('// error no user found');
+        return;
       }
 
       const shareData: {
@@ -688,20 +710,16 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
         shared_with_email: string;
         shared_by: string;
         role: 'viewer' | 'editor';
-        shared_with_user_id?: string;
+        shared_with_user_id: string;
         shared_with_name?: string | null;
       } = {
         vault_id: vault.id,
-        shared_with_email: email.trim().toLowerCase(),
+        shared_with_email: (profile.email || query).toLowerCase(),
         shared_by: user.id,
         role: sharePermission,
+        shared_with_user_id: profile.user_id,
+        shared_with_name: profile.display_name || profile.username || profile.email,
       };
-
-      // If we found a profile, add the user_id and display name
-      if (profile) {
-        shareData.shared_with_user_id = profile.user_id;
-        shareData.shared_with_name = profile.display_name || profile.username || profile.email;
-      }
 
       const { error } = await supabase.from('vault_shares').insert(shareData);
 
@@ -710,6 +728,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       toast({ title: 'user_added ✨' });
       setEmail('');
       setSelectedProfile(null);
+      setShareUserError('');
       setUserSuggestions([]);
       setSuggestionsOpen(false);
       setSharePermission('viewer');
@@ -1054,59 +1073,52 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
 
               <div className="space-y-3">
                 <div className="flex gap-2">
-                  <Popover open={suggestionsOpen} onOpenChange={setSuggestionsOpen}>
-                    <PopoverTrigger asChild>
-                      <div className="relative flex-1">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                          type="text"
-                          value={email}
-                          onChange={(e) => handleShareEmailChange(e.target.value)}
-                          onFocus={() => {
-                            if (email.trim().length >= 2) setSuggestionsOpen(true);
-                          }}
-                          placeholder="name, username, or email"
-                          className="pl-10 font-mono text-sm"
-                          autoComplete="off"
-                          autoCapitalize="none"
-                          spellCheck={false}
-                        />
+                  <div className="relative flex-1">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                    <Input
+                      type="text"
+                      value={email}
+                      onChange={(e) => handleShareEmailChange(e.target.value)}
+                      onFocus={() => {
+                        if (email.trim().length >= 2) setSuggestionsOpen(true);
+                      }}
+                      onBlur={() => window.setTimeout(() => setSuggestionsOpen(false), 120)}
+                      placeholder="name, username, or email"
+                      className="pl-10 font-mono text-sm"
+                      autoComplete="off"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                    />
+                    {suggestionsOpen && (loadingSuggestions || userSuggestions.length > 0) && (
+                      <div className="absolute left-0 right-0 top-[calc(100%+0.25rem)] z-50 rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md">
+                        {loadingSuggestions ? (
+                          <div className="px-3 py-2 text-sm text-muted-foreground font-mono">loading_users…</div>
+                        ) : (
+                          <div className="space-y-1">
+                            <div className="px-2 py-1 text-xs uppercase tracking-wide text-muted-foreground font-mono">matching_users</div>
+                            {userSuggestions.map((profile) => (
+                              <button
+                                key={profile.user_id}
+                                type="button"
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => handleSelectUserSuggestion(profile)}
+                                className="flex w-full flex-col rounded-sm px-2 py-2 text-left font-mono text-sm hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none"
+                              >
+                                <span className="truncate">
+                                  {profile.display_name || profile.username || profile.email}
+                                </span>
+                                {profile.email && (
+                                  <span className="text-xs text-muted-foreground truncate">
+                                    {profile.email}
+                                  </span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-                      <Command shouldFilter={false}>
-                        <CommandList>
-                          {loadingSuggestions ? (
-                            <CommandEmpty>loading_users…</CommandEmpty>
-                          ) : userSuggestions.length === 0 ? (
-                            <CommandEmpty>no_matching_users</CommandEmpty>
-                          ) : (
-                            <CommandGroup heading="matching_users">
-                              {userSuggestions.map((profile) => (
-                                <CommandItem
-                                  key={profile.user_id}
-                                  value={`${profile.email || ''} ${profile.display_name || ''} ${profile.username || ''}`}
-                                  onSelect={() => handleSelectUserSuggestion(profile)}
-                                  className="font-mono text-sm"
-                                >
-                                  <div className="flex flex-col min-w-0">
-                                    <span className="truncate">
-                                      {profile.display_name || profile.username || profile.email}
-                                    </span>
-                                    {profile.email && (
-                                      <span className="text-xs text-muted-foreground truncate">
-                                        {profile.email}
-                                      </span>
-                                    )}
-                                  </div>
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          )}
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
+                    )}
+                  </div>
                   <Select value={sharePermission} onValueChange={(value: 'viewer' | 'editor') => setSharePermission(value)}>
                     <SelectTrigger className="w-[130px] font-mono text-sm">
                       <SelectValue />
@@ -1124,15 +1136,19 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                     type="button"
                     variant="outline"
                     onClick={handleShareWithUser}
-                    disabled={saving || !email.trim()}
+                    disabled={saving || !email.trim() || loadingSuggestions}
                     className="font-mono"
                   >
                     add
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground font-mono">
-                  // {sharePermission === 'viewer' ? 'can_view_publications' : 'can_view_and_edit_publications'}
-                </p>
+                {shareUserError ? (
+                  <p className="text-xs text-destructive font-mono">{shareUserError}</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground font-mono">
+                    // choose an existing RefHub user; {sharePermission === 'viewer' ? 'can_view_publications' : 'can_view_and_edit_publications'}
+                  </p>
+                )}
               </div>
 
               {shares.length > 0 && (

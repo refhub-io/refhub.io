@@ -7,7 +7,7 @@ import { useHotkeys } from '@/hooks/useKeyboardNavigation';
 import { useKeyboardContext } from '@/contexts/KeyboardContext';
 import { KbdHint } from '@/components/ui/KbdHint';
 import { formatTimeAgo } from '@/lib/utils';
-import { Maximize, Minimize, Save, X, Plus, Loader2, Upload, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Maximize, Minimize, Save, X, Plus, Loader2, Upload, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -33,6 +33,19 @@ import { usePublicationRelations } from '@/hooks/usePublicationRelations';
 import { useAuth } from '@/hooks/useAuth';
 import { uploadPublicationDrivePdf, uploadVaultPublicationDrivePdf } from '@/lib/pdfUpload';
 import { fetchGoogleDriveStatus, GoogleDriveStatus } from '@/lib/googleDrive';
+
+
+function getValidHttpUrl(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
 
 interface PublicationDialogProps {
   open: boolean;
@@ -137,6 +150,28 @@ export function PublicationDialog({
   const [driveUploadError, setDriveUploadError] = useState('');
   const [driveStatus, setDriveStatus] = useState<GoogleDriveStatus | null>(null);
   const [driveStatusLoading, setDriveStatusLoading] = useState(false);
+
+  const renderOpenLinkButton = useCallback((value: string, label: string) => {
+    const href = getValidHttpUrl(value);
+
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        disabled={!href}
+        aria-label={`Open ${label} in a new tab`}
+        title={href ? `Open ${label}` : `Enter a valid http(s) URL to open ${label}`}
+        onClick={() => {
+          if (!href) return;
+          window.open(href, '_blank', 'noopener,noreferrer');
+        }}
+        className="shrink-0"
+      >
+        <ExternalLink className="w-3.5 h-3.5" />
+      </Button>
+    );
+  }, []);
   const [driveStatusError, setDriveStatusError] = useState('');
   const drivePdfFileInputRef = useRef<HTMLInputElement | null>(null);
   const driveUploadResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1077,32 +1112,38 @@ export function PublicationDialog({
               </div>
               <div className="space-y-1 sm:space-y-2 w-full overflow-hidden">
                 <Label htmlFor="url" className="font-semibold font-mono text-sm block">url</Label>
-                <Input
-                  id="url"
-                  value={formData.url}
-                  onChange={(e) => {
-                    setFormData({ ...formData, url: e.target.value });
-                    trackFieldModification('url');
-                  }}
-                  placeholder="https://..."
-                  className="font-mono text-xs sm:text-sm w-full break-all h-9 sm:h-10 box-border"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="url"
+                    value={formData.url}
+                    onChange={(e) => {
+                      setFormData({ ...formData, url: e.target.value });
+                      trackFieldModification('url');
+                    }}
+                    placeholder="https://..."
+                    className="font-mono text-xs sm:text-sm w-full break-all h-9 sm:h-10 box-border"
+                  />
+                  {renderOpenLinkButton(formData.url, 'publication URL')}
+                </div>
               </div>
             </div>
 
             {/* PDF URL */}
             <div className="space-y-1 sm:space-y-2 w-full box-border overflow-hidden">
               <Label htmlFor="pdf_url" className="font-semibold font-mono text-sm block">publisher_pdf</Label>
-              <Input
-                id="pdf_url"
-                value={formData.pdf_url}
-                onChange={(e) => {
-                  setFormData({ ...formData, pdf_url: e.target.value });
-                  trackFieldModification('pdf_url');
-                }}
-                placeholder="link_to_pdf"
-                className="font-mono text-xs sm:text-sm w-full break-all h-9 sm:h-10 box-border"
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="pdf_url"
+                  value={formData.pdf_url}
+                  onChange={(e) => {
+                    setFormData({ ...formData, pdf_url: e.target.value });
+                    trackFieldModification('pdf_url');
+                  }}
+                  placeholder="link_to_pdf"
+                  className="font-mono text-xs sm:text-sm w-full break-all h-9 sm:h-10 box-border"
+                />
+                {renderOpenLinkButton(formData.pdf_url, 'publisher PDF')}
+              </div>
             </div>
 
             {/* Drive PDF */}
@@ -1126,6 +1167,7 @@ export function PublicationDialog({
                   className="hidden"
                   onChange={(e) => void handleDrivePdfFileSelected(e.target.files?.[0] ?? null)}
                 />
+                {renderOpenLinkButton(drivePdfInput, 'Google Drive PDF')}
                 <Button
                   type="button"
                   variant="outline"
