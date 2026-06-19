@@ -95,7 +95,10 @@ export function OnboardingWelcomeDialog({ open, onOpenChange, onOpenGuide }: Onb
         heading={activeStep.targetHeading}
       />
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="w-[95vw] max-w-lg overflow-hidden border-primary/20 bg-card/95 p-0 shadow-2xl shadow-primary/10 backdrop-blur-xl sm:rounded-2xl">
+        <DialogContent
+          overlayClassName="bg-transparent"
+          className="z-[70] w-[95vw] max-w-lg overflow-hidden border-primary/20 bg-card/95 p-0 shadow-2xl shadow-primary/10 backdrop-blur-xl sm:rounded-2xl"
+        >
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-border/60">
           <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <Sparkles className="h-5 w-5" />

@@ -171,7 +171,7 @@ export function OnboardingSpotlight({
       <div
         className={cn(
           "fixed rounded-2xl border-2 border-primary bg-primary/5",
-          "shadow-[0_0_0_9999px_rgba(0,0,0,0.38),0_0_28px_hsl(var(--primary)/0.45)]",
+          "shadow-[0_0_0_9999px_rgba(0,0,0,0.28),0_0_28px_hsl(var(--primary)/0.45)]",
           "transition-all duration-200 ease-out",
         )}
         style={{
