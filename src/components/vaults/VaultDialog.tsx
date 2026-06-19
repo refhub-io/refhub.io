@@ -105,6 +105,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState<UserSuggestion | null>(null);
+  const [shareUserError, setShareUserError] = useState('');
   const [sharePermission, setSharePermission] = useState<'viewer' | 'editor'>('viewer');
   const [publicSlug, setPublicSlug] = useState('');
   const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
@@ -332,12 +333,14 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   const handleSelectUserSuggestion = useCallback((profile: UserSuggestion) => {
     setSelectedProfile(profile);
     setEmail(profile.email || '');
+    setShareUserError('');
     setSuggestionsOpen(false);
   }, []);
 
   const handleShareEmailChange = useCallback((value: string) => {
     setEmail(value);
     setSelectedProfile(null);
+    setShareUserError('');
   }, []);
 
   useEffect(() => {
@@ -698,11 +701,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       }
 
       if (!profile?.user_id) {
-        toast({
-          title: 'user_not_found',
-          description: 'Choose an existing RefHub user from the suggestions, or enter an exact username/email.',
-          variant: 'destructive',
-        });
+        setShareUserError('// error no user found');
         return;
       }
 
@@ -729,6 +728,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       toast({ title: 'user_added ✨' });
       setEmail('');
       setSelectedProfile(null);
+      setShareUserError('');
       setUserSuggestions([]);
       setSuggestionsOpen(false);
       setSharePermission('viewer');
@@ -1142,9 +1142,13 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                     add
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground font-mono">
-                  // choose an existing RefHub user; {sharePermission === 'viewer' ? 'can_view_publications' : 'can_view_and_edit_publications'}
-                </p>
+                {shareUserError ? (
+                  <p className="text-xs text-destructive font-mono">{shareUserError}</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground font-mono">
+                    // choose an existing RefHub user; {sharePermission === 'viewer' ? 'can_view_publications' : 'can_view_and_edit_publications'}
+                  </p>
+                )}
               </div>
 
               {shares.length > 0 && (
