@@ -3,6 +3,7 @@ import { useKeyboardContext } from '@/contexts/KeyboardContext';
 import { useHotkeys } from '@/hooks/useKeyboardNavigation';
 import { SHORTCUT_HELP, formatCombo } from '@/lib/keyboard';
 import { cn } from '@/lib/utils';
+import helpGuide from '@/content/help-guide.md?raw';
 import {
   Dialog,
   DialogContent,
@@ -13,7 +14,9 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Copy, Check, Keyboard, Terminal } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
+import { BookOpen, Copy, Check, Keyboard } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 /**
@@ -22,17 +25,24 @@ import { useToast } from '@/hooks/use-toast';
  * JetBrains Mono / refhub code aesthetic.
  */
 export function KeyboardHelpOverlay() {
-  const { helpOverlayOpen, setHelpOverlayOpen, enabled, setEnabled } = useKeyboardContext();
+  const {
+    helpOverlayOpen,
+    setHelpOverlayOpen,
+    helpOverlayTab,
+    setHelpOverlayTab,
+    enabled,
+    setEnabled,
+  } = useKeyboardContext();
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
 
-  // Register the ? shortcut globally to toggle the overlay
+  // Register the ? shortcut globally to toggle the help center.
   useHotkeys(
     'global',
     [
       {
         combo: '?',
-        description: 'Toggle keyboard help overlay',
+        description: 'toggle help center',
         handler: () => {
           setHelpOverlayOpen(!helpOverlayOpen);
           return true;
@@ -54,23 +64,26 @@ export function KeyboardHelpOverlay() {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
-      toast({ title: 'Shortcuts copied to clipboard' });
+      toast({ title: 'shortcuts copied to clipboard' });
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast({ title: 'Failed to copy', variant: 'destructive' });
+      toast({ title: 'failed to copy', variant: 'destructive' });
     }
   }, [toast]);
 
   return (
     <Dialog open={helpOverlayOpen} onOpenChange={setHelpOverlayOpen}>
-      <DialogContent className="dialog-mobile max-w-[100vw] flex flex-col p-0 gap-0 border-primary/20 shadow-2xl shadow-primary/10 sm:rounded-2xl sm:max-w-3xl sm:h-auto sm:max-h-[85vh]">
+      <DialogContent className="dialog-mobile max-w-[100vw] flex flex-col overflow-hidden p-0 gap-0 border-primary/20 shadow-2xl shadow-primary/10 sm:rounded-2xl sm:max-w-3xl sm:h-[85vh] sm:max-h-[85vh]">
         {/* ── Header ────────────────────────────────────────────── */}
         <DialogHeader className="shrink-0 px-6 pt-6 pb-4 border-b border-border/60">
-          <div className="flex items-center justify-between">
-            <DialogTitle className="font-mono flex items-center gap-2.5 text-xl sm:text-2xl font-bold">
-              <span>// <span className="text-gradient">keyboard</span><span className="text-muted-foreground">_shortcuts()</span></span>
-            </DialogTitle>
-            <div className="flex items-center gap-2">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <DialogTitle className="font-mono flex items-center gap-2.5 text-xl sm:text-2xl font-bold">
+                <span>// <span className="text-gradient">help</span><span className="text-muted-foreground">_center()</span></span>
+              </DialogTitle>
+              <p className="mt-1 text-xs text-muted-foreground font-mono">keyboard shortcuts + product guide</p>
+            </div>
+            {helpOverlayTab === 'keyboard' && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -84,67 +97,92 @@ export function KeyboardHelpOverlay() {
                 )}
                 {copied ? 'copied!' : 'copy_all'}
               </Button>
-            </div>
+            )}
           </div>
         </DialogHeader>
 
-        {/* ── Shortcut grid ─────────────────────────────────────── */}
-        <ScrollArea className="flex-1 min-h-0">
-          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
-            {SHORTCUT_HELP.map((group) => (
-              <div
-                key={group.context}
-                className="rounded-xl border border-border/60 bg-card/60 backdrop-blur-sm overflow-hidden"
-              >
-                {/* Group header */}
-                <div className="px-4 py-2.5 border-b border-border/40 bg-muted/30">
-                  <h3 className="text-[11px] font-bold uppercase tracking-[0.15em] text-primary font-mono flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-gradient-primary shadow-sm" />
-                    {group.label}
-                  </h3>
-                </div>
-
-                {/* Shortcut rows */}
-                <div className="px-3 py-2 space-y-0.5">
-                  {group.shortcuts.map((shortcut, idx) => (
-                    <div
-                      key={`${shortcut.combo}-${idx}`}
-                      className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-muted/40 transition-colors group"
-                    >
-                      <span className="text-xs text-foreground/70 group-hover:text-foreground/90 transition-colors truncate mr-3">
-                        {shortcut.description}
-                      </span>
-                      <div className="flex items-center gap-1 shrink-0">
-                        {shortcut.combo.split(' / ').map((combo, i) => (
-                          <span key={combo} className="inline-flex items-center gap-0.5">
-                            {i > 0 && (
-                              <span className="text-muted-foreground/30 mx-0.5 text-[10px]">
-                                /
-                              </span>
-                            )}
-                            {combo.split(' ').map((part, j) => (
-                              <kbd
-                                key={`${combo}-${j}`}
-                                className={cn(
-                                  'inline-flex items-center justify-center rounded-md border font-mono select-none',
-                                  'bg-background/80 border-border/80 text-foreground/80',
-                                  'shadow-[0_1px_0_1px_rgba(0,0,0,0.15),inset_0_0.5px_0_rgba(255,255,255,0.05)]',
-                                  'min-w-[1.4rem] h-[1.4rem] px-1.5 text-[10px] leading-none',
-                                )}
-                              >
-                                {part.length <= 3 ? part : formatCombo(part)}
-                              </kbd>
-                            ))}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+        <Tabs value={helpOverlayTab} onValueChange={(value) => setHelpOverlayTab(value as 'keyboard' | 'guide')} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="shrink-0 border-b border-border/60 px-6 py-3">
+            <TabsList className="grid w-full grid-cols-2 font-mono sm:w-80">
+              <TabsTrigger value="keyboard" className="gap-2 text-xs">
+                <Keyboard className="h-3.5 w-3.5" />
+                keyboard
+              </TabsTrigger>
+              <TabsTrigger value="guide" className="gap-2 text-xs">
+                <BookOpen className="h-3.5 w-3.5" />
+                guide
+              </TabsTrigger>
+            </TabsList>
           </div>
-        </ScrollArea>
+
+          <TabsContent value="keyboard" className="m-0 min-h-0 flex-1 overflow-hidden data-[state=inactive]:hidden">
+            {/* ── Shortcut grid ─────────────────────────────────────── */}
+            <ScrollArea className="h-full max-h-full">
+              <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
+                {SHORTCUT_HELP.map((group) => (
+                  <div
+                    key={group.context}
+                    className="rounded-xl border border-border/60 bg-card/60 backdrop-blur-sm overflow-hidden"
+                  >
+                    {/* Group header */}
+                    <div className="px-4 py-2.5 border-b border-border/40 bg-muted/30">
+                      <h3 className="text-[11px] font-bold uppercase tracking-[0.15em] text-primary font-mono flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-gradient-primary shadow-sm" />
+                        {group.label}
+                      </h3>
+                    </div>
+
+                    {/* Shortcut rows */}
+                    <div className="px-3 py-2 space-y-0.5">
+                      {group.shortcuts.map((shortcut, idx) => (
+                        <div
+                          key={`${shortcut.combo}-${idx}`}
+                          className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-muted/40 transition-colors group"
+                        >
+                          <span className="text-xs text-foreground/70 group-hover:text-foreground/90 transition-colors truncate mr-3">
+                            {shortcut.description}
+                          </span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {shortcut.combo.split(' / ').map((combo, i) => (
+                              <span key={combo} className="inline-flex items-center gap-0.5">
+                                {i > 0 && (
+                                  <span className="text-muted-foreground/30 mx-0.5 text-[10px]">
+                                    /
+                                  </span>
+                                )}
+                                {combo.split(' ').map((part, j) => (
+                                  <kbd
+                                    key={`${combo}-${j}`}
+                                    className={cn(
+                                      'inline-flex items-center justify-center rounded-md border font-mono select-none',
+                                      'bg-background/80 border-border/80 text-foreground/80',
+                                      'shadow-[0_1px_0_1px_rgba(0,0,0,0.15),inset_0_0.5px_0_rgba(255,255,255,0.05)]',
+                                      'min-w-[1.4rem] h-[1.4rem] px-1.5 text-[10px] leading-none',
+                                    )}
+                                  >
+                                    {part.length <= 3 ? part : formatCombo(part)}
+                                  </kbd>
+                                ))}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="guide" className="m-0 min-h-0 flex-1 overflow-hidden data-[state=inactive]:hidden">
+            <ScrollArea className="h-full max-h-full">
+              <MarkdownRenderer compact className="px-6 py-5 prose-headings:font-mono prose-h1:mt-0 prose-h2:border-t prose-h2:border-border/60 prose-h2:pt-5">
+                {helpGuide}
+              </MarkdownRenderer>
+            </ScrollArea>
+          </TabsContent>
+        </Tabs>
 
         {/* ── Footer ────────────────────────────────────────────── */}
         <div className="shrink-0 px-6 py-4 border-t border-border/60 bg-muted/20">
@@ -175,17 +213,18 @@ export function KeyboardHelpOverlay() {
 
 /**
  * Small trigger button for the header area.
- * Opens the keyboard shortcuts overlay on click.
+ * Opens the help center on click.
  */
 export function KeyboardShortcutsButton({ className }: { className?: string }) {
-  const { setHelpOverlayOpen } = useKeyboardContext();
+  const { openHelpOverlay } = useKeyboardContext();
 
   return (
     <Button
       variant="ghost"
       size="icon"
-      onClick={() => setHelpOverlayOpen(true)}
-      title="Keyboard shortcuts (?)"
+      onClick={() => openHelpOverlay('keyboard')}
+      title="help center (?)"
+      data-onboarding-target="help-center"
       className={cn('h-9 w-9 text-muted-foreground hover:text-primary relative group', className)}
     >
       <Keyboard className="w-4 h-4" />

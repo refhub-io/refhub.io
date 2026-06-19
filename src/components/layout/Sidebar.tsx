@@ -220,6 +220,7 @@ export function Sidebar({
           <Link
             to="/codex"
             onClick={onMobileClose}
+            data-onboarding-target="codex-link"
             className={cn(
               "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border-2",
               isCodexActive
@@ -239,6 +240,7 @@ export function Sidebar({
           <Link
             to="/users"
             onClick={onMobileClose}
+            data-onboarding-target="researchers-link"
             className={cn(
               "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border-2",
               location.pathname === '/users'
@@ -260,6 +262,7 @@ export function Sidebar({
           <div className="pt-4">
             <button
               onClick={() => setIsVaultsExpanded(!isVaultsExpanded)}
+              data-onboarding-target="vaults-section"
               className="w-full flex items-center justify-between px-4 py-2 text-xs font-bold uppercase tracking-widest text-sidebar-foreground/40 hover:text-sidebar-foreground/60 transition-colors font-mono"
             >
               <span className="flex items-center gap-2">
@@ -277,7 +280,7 @@ export function Sidebar({
             </button>
 
             {isVaultsExpanded && (
-              <div className="mt-2 space-y-1" role="listbox" aria-label="My vaults">
+              <div className="mt-2 space-y-1" role="listbox" aria-label="My vaults" data-onboarding-target="vault-list">
                 {vaults.map((vault, index) => (
                   <div
                     key={vault.id}
@@ -337,6 +340,7 @@ export function Sidebar({
                     onCreateVault();
                     onMobileClose();
                   }}
+                  data-onboarding-target="new-vault"
                   className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm text-sidebar-foreground/50 hover:text-sidebar-primary hover:bg-sidebar-accent/50 transition-all duration-200 border-2 border-dashed border-sidebar-border hover:border-sidebar-primary/50"
                 >
                   <Plus className="w-4 h-4" />
@@ -450,7 +454,7 @@ export function Sidebar({
         {/* User section */}
         <div className="shrink-0 border-t-2 border-sidebar-border">
           <div className="p-4">
-            <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-sidebar-accent/50 mb-3">
+            <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-sidebar-accent/50 mb-3" data-onboarding-target="user-controls">
               <ProfileAvatar
                 name={profile?.display_name || user?.email?.split('@')[0] || 'User'}
                 avatarUrl={profile?.avatar_url}

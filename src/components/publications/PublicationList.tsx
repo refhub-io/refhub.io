@@ -518,6 +518,7 @@ export function PublicationList({
               <Button 
                 onClick={() => onEditVault(selectedVault)} 
                 variant="outline" 
+                data-onboarding-target="vault-settings"
                 className="h-9 font-mono hidden lg:flex"
               >
                 <Settings className="w-4 h-4 mr-2" />
@@ -590,7 +591,7 @@ export function PublicationList({
             )}
 
             {onAddPublication && (
-              <Button onClick={onAddPublication} variant="glow" className="h-9 w-9 sm:w-auto sm:px-3 font-mono">
+              <Button onClick={onAddPublication} variant="glow" data-onboarding-target="add-paper" className="h-9 w-9 sm:w-auto sm:px-3 font-mono">
                 <Plus className="w-4 h-4 sm:mr-2" />
                 <span className="hidden sm:inline">add_paper</span>
               </Button>
@@ -754,6 +755,7 @@ export function PublicationList({
       <div
         ref={listContainerRef}
         className="flex-1 overflow-y-auto scrollbar-thin overflow-x-hidden p-3 sm:p-4 lg:p-8 pb-[calc(1rem+env(safe-area-inset-bottom))] outline-none"
+        data-onboarding-target="publication-content"
         {...kbNav.containerProps}
       >
         {filteredPublications.length === 0 ? (
@@ -785,7 +787,7 @@ export function PublicationList({
               {!searchQuery && filters.length === 0 && (
                 <div className="flex flex-col sm:flex-row items-center gap-3">
                   {onAddPublication && (
-                    <Button onClick={onAddPublication} variant="glow" className="font-mono">
+                    <Button onClick={onAddPublication} variant="glow" data-onboarding-target="add-paper" className="font-mono">
                       <Plus className="w-4 h-4 mr-2" />
                       add_your_first_paper
                     </Button>

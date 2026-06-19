@@ -73,6 +73,8 @@ interface KeyboardState {
   rangeAnchor: number | null;
   /** Whether the help overlay is visible. */
   helpOverlayOpen: boolean;
+  /** Active tab in the help center. */
+  helpOverlayTab: 'keyboard' | 'guide';
   /** Whether keyboard nav is enabled (feature flag + user pref). */
   enabled: boolean;
 }
@@ -104,6 +106,10 @@ interface KeyboardContextValue extends KeyboardState {
   toggleHelpOverlay: () => void;
   /** Set the help overlay open state directly. */
   setHelpOverlayOpen: (open: boolean) => void;
+  /** Set the active help center tab. */
+  setHelpOverlayTab: (tab: 'keyboard' | 'guide') => void;
+  /** Open the help center to a specific tab. */
+  openHelpOverlay: (tab?: 'keyboard' | 'guide') => void;
   /** Enable or disable keyboard navigation. */
   setEnabled: (enabled: boolean) => void;
   /** Register an analytics callback. */
@@ -121,6 +127,7 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [rangeAnchor, setRangeAnchor] = useState<number | null>(null);
   const [helpOverlayOpen, setHelpOverlayOpen] = useState(false);
+  const [helpOverlayTab, setHelpOverlayTab] = useState<'keyboard' | 'guide'>('keyboard');
   const lastFocusedRef = useRef<Element | null>(null);
 
   // Context stack for push/pop
@@ -216,6 +223,11 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
     setHelpOverlayOpen((prev) => !prev);
   }, []);
 
+  const openHelpOverlay = useCallback((tab: 'keyboard' | 'guide' = 'keyboard') => {
+    setHelpOverlayTab(tab);
+    setHelpOverlayOpen(true);
+  }, []);
+
   const onAnalytics = useCallback((cb: AnalyticsCallback) => {
     analyticsCallbacksRef.current.add(cb);
     return () => {
@@ -298,6 +310,7 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
     selectedIds,
     rangeAnchor,
     helpOverlayOpen,
+    helpOverlayTab,
     enabled,
     pushContext,
     popContext,
@@ -312,6 +325,8 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
     clearSelection,
     toggleHelpOverlay,
     setHelpOverlayOpen,
+    setHelpOverlayTab,
+    openHelpOverlay,
     setEnabled,
     onAnalytics,
   };
