@@ -21,6 +21,37 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    id: 11,
+    date: '2026-06-19',
+    title: 'semantic scholar queues and onboarding',
+    features: [
+      {
+        tag: 'feature',
+        title: 'guided onboarding',
+        description:
+          'new users now get a skippable onboarding stepper with highlighted app areas for vaults, papers, researchers, the codex, and sharing.',
+      },
+      {
+        tag: 'feature',
+        title: 'help center guide',
+        description:
+          'the ? menu now includes a scrollable guide tab alongside keyboard shortcuts, with concise explanations of core refhub workflows.',
+      },
+      {
+        tag: 'improvement',
+        title: 'semantic scholar queue polish',
+        description:
+          'semantic scholar augmentation now handles queued requests, rate limits, retry states, and completion feedback more clearly.',
+      },
+      {
+        tag: 'fix',
+        title: 'minor workflow fixes',
+        description:
+          'recent fixes improved collaborator lookup, new-vault redirects, edit-paper links, profile back navigation, and small onboarding details.',
+      },
+    ],
+  },
+  {
     id: 10,
     date: '2026-05-22',
     title: 'better vault sharing',

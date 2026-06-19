@@ -1,5 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import changelog from '@/config/changelog';
+import { ONBOARDING_COMPLETED_EVENT, hasUserDismissedOnboarding } from '@/hooks/useOnboarding';
+import { useAuth } from '@/hooks/useAuth';
+import { useKeyboardContext } from '@/contexts/KeyboardContext';
 
 const STORAGE_KEY = 'refhub_whats_new_seen';
 
@@ -10,16 +13,35 @@ function getSeenId(): number {
 }
 
 export function useWhatsNew() {
+  const { user, loading } = useAuth();
+  const { helpOverlayOpen } = useKeyboardContext();
   const [open, setOpen] = useState(false);
   const [hasUnseen, setHasUnseen] = useState(false);
 
-  useEffect(() => {
+  const maybeOpenLatest = useCallback(() => {
+    if (loading || !user || helpOverlayOpen) return;
+
     const seen = getSeenId();
-    if (latest.id > seen) {
-      setHasUnseen(true);
-      setOpen(true);
-    }
-  }, []);
+    const unseen = latest.id > seen;
+    setHasUnseen(unseen);
+
+    if (!unseen) return;
+
+    // New users should see onboarding first, then whats_new after onboarding is dismissed.
+    if (!hasUserDismissedOnboarding(user.id)) return;
+
+    setOpen(true);
+  }, [helpOverlayOpen, loading, user]);
+
+  useEffect(() => {
+    maybeOpenLatest();
+  }, [maybeOpenLatest]);
+
+  useEffect(() => {
+    const handleOnboardingCompleted = () => maybeOpenLatest();
+    window.addEventListener(ONBOARDING_COMPLETED_EVENT, handleOnboardingCompleted);
+    return () => window.removeEventListener(ONBOARDING_COMPLETED_EVENT, handleOnboardingCompleted);
+  }, [maybeOpenLatest]);
 
   const handleOpenChange = (value: boolean) => {
     if (!value) {

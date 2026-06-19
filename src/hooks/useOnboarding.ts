@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 
+export const ONBOARDING_COMPLETED_EVENT = 'refhub:onboarding-completed';
 const STORAGE_KEY_PREFIX = 'refhub_onboarding_welcome_dismissed_v1';
 
-function getStorageKey(userId: string): string {
+export function getOnboardingStorageKey(userId: string): string {
   return `${STORAGE_KEY_PREFIX}:${userId}`;
 }
 
@@ -25,9 +26,18 @@ function persistDismissed(storageKey: string) {
   }
 }
 
+export function hasUserDismissedOnboarding(userId: string): boolean {
+  return hasDismissedOnboarding(getOnboardingStorageKey(userId));
+}
+
+function emitOnboardingCompleted() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(ONBOARDING_COMPLETED_EVENT));
+}
+
 export function useOnboarding(user: User | null, authLoading: boolean) {
   const [open, setOpen] = useState(false);
-  const storageKey = useMemo(() => (user ? getStorageKey(user.id) : null), [user]);
+  const storageKey = useMemo(() => (user ? getOnboardingStorageKey(user.id) : null), [user]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -45,6 +55,7 @@ export function useOnboarding(user: User | null, authLoading: boolean) {
       persistDismissed(storageKey);
     }
     setOpen(false);
+    emitOnboardingCompleted();
   }, [storageKey]);
 
   const handleOpenChange = useCallback(
