@@ -16,8 +16,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { KbdHint } from '@/components/ui/KbdHint';
 import {
   Select,
@@ -1075,59 +1073,52 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
 
               <div className="space-y-3">
                 <div className="flex gap-2">
-                  <Popover open={suggestionsOpen} onOpenChange={setSuggestionsOpen}>
-                    <PopoverTrigger asChild>
-                      <div className="relative flex-1">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                          type="text"
-                          value={email}
-                          onChange={(e) => handleShareEmailChange(e.target.value)}
-                          onFocus={() => {
-                            if (email.trim().length >= 2) setSuggestionsOpen(true);
-                          }}
-                          placeholder="name, username, or email"
-                          className="pl-10 font-mono text-sm"
-                          autoComplete="off"
-                          autoCapitalize="none"
-                          spellCheck={false}
-                        />
+                  <div className="relative flex-1">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                    <Input
+                      type="text"
+                      value={email}
+                      onChange={(e) => handleShareEmailChange(e.target.value)}
+                      onFocus={() => {
+                        if (email.trim().length >= 2) setSuggestionsOpen(true);
+                      }}
+                      onBlur={() => window.setTimeout(() => setSuggestionsOpen(false), 120)}
+                      placeholder="name, username, or email"
+                      className="pl-10 font-mono text-sm"
+                      autoComplete="off"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                    />
+                    {suggestionsOpen && (loadingSuggestions || userSuggestions.length > 0) && (
+                      <div className="absolute left-0 right-0 top-[calc(100%+0.25rem)] z-50 rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md">
+                        {loadingSuggestions ? (
+                          <div className="px-3 py-2 text-sm text-muted-foreground font-mono">loading_users…</div>
+                        ) : (
+                          <div className="space-y-1">
+                            <div className="px-2 py-1 text-xs uppercase tracking-wide text-muted-foreground font-mono">matching_users</div>
+                            {userSuggestions.map((profile) => (
+                              <button
+                                key={profile.user_id}
+                                type="button"
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => handleSelectUserSuggestion(profile)}
+                                className="flex w-full flex-col rounded-sm px-2 py-2 text-left font-mono text-sm hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none"
+                              >
+                                <span className="truncate">
+                                  {profile.display_name || profile.username || profile.email}
+                                </span>
+                                {profile.email && (
+                                  <span className="text-xs text-muted-foreground truncate">
+                                    {profile.email}
+                                  </span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-                      <Command shouldFilter={false}>
-                        <CommandList>
-                          {loadingSuggestions ? (
-                            <CommandEmpty>loading_users…</CommandEmpty>
-                          ) : userSuggestions.length === 0 ? (
-                            <CommandEmpty>no_matching_users</CommandEmpty>
-                          ) : (
-                            <CommandGroup heading="matching_users">
-                              {userSuggestions.map((profile) => (
-                                <CommandItem
-                                  key={profile.user_id}
-                                  value={`${profile.email || ''} ${profile.display_name || ''} ${profile.username || ''}`}
-                                  onSelect={() => handleSelectUserSuggestion(profile)}
-                                  className="font-mono text-sm"
-                                >
-                                  <div className="flex flex-col min-w-0">
-                                    <span className="truncate">
-                                      {profile.display_name || profile.username || profile.email}
-                                    </span>
-                                    {profile.email && (
-                                      <span className="text-xs text-muted-foreground truncate">
-                                        {profile.email}
-                                      </span>
-                                    )}
-                                  </div>
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          )}
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
+                    )}
+                  </div>
                   <Select value={sharePermission} onValueChange={(value: 'viewer' | 'editor') => setSharePermission(value)}>
                     <SelectTrigger className="w-[130px] font-mono text-sm">
                       <SelectValue />
