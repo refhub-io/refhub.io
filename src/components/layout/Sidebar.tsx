@@ -454,7 +454,7 @@ export function Sidebar({
         {/* User section */}
         <div className="shrink-0 border-t-2 border-sidebar-border">
           <div className="p-4">
-            <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-sidebar-accent/50 mb-3">
+            <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-sidebar-accent/50 mb-3" data-onboarding-target="user-controls">
               <ProfileAvatar
                 name={profile?.display_name || user?.email?.split('@')[0] || 'User'}
                 avatarUrl={profile?.avatar_url}

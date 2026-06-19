@@ -1,4 +1,4 @@
-import { BookOpen, CheckCircle2, ChevronLeft, ChevronRight, FolderOpen, Search, Share2, Sparkles, Scroll, Users } from 'lucide-react';
+import { BookOpen, CheckCircle2, ChevronLeft, ChevronRight, FolderOpen, Search, Settings, Sparkles, Scroll, Users } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,7 +22,7 @@ const ONBOARDING_STEPS = [
     icon: FolderOpen,
     eyebrow: 'step_01',
     title: 'create vaults',
-    description: 'group papers by project, survey, topic, lab, or reading list. vaults keep curation separate from paper metadata.',
+    description: 'a vault is a focused research collection for a project, survey, topic, lab, or reading list. create, manage, and share vaults from here.',
     targetHeading: '// new_vault',
     targetLabel: 'start here to create a focused research space.',
     targetSelectors: ['[data-onboarding-target="new-vault"]', '[data-onboarding-target="vaults-section"]', '[data-onboarding-target="vault-list"]'],
@@ -55,13 +55,13 @@ const ONBOARDING_STEPS = [
     targetSelectors: ['[data-onboarding-target="codex-link"]'],
   },
   {
-    icon: Share2,
+    icon: Settings,
     eyebrow: 'step_05',
-    title: 'manage and share vaults',
-    description: 'create vaults, keep them private, invite collaborators, or publish curated collections when the context is ready.',
-    targetHeading: '// vault_controls',
-    targetLabel: 'create, manage, and share vaults from this area.',
-    targetSelectors: ['[data-onboarding-target="new-vault"]', '[data-onboarding-target="vault-settings"]', '[data-onboarding-target="vault-list"]', '[data-onboarding-target="vaults-section"]'],
+    title: 'account and settings',
+    description: 'use the sidebar controls for profile settings, theme, keyboard help, what’s new, and sign out.',
+    targetHeading: '// user_controls',
+    targetLabel: 'manage profile, settings, help, and account controls here.',
+    targetSelectors: ['[data-onboarding-target="user-controls"]'],
   },
 ] as const;
 
