@@ -1,4 +1,5 @@
-import { BookOpen, CheckCircle2, FolderOpen, Search, Share2, Sparkles } from 'lucide-react';
+import { BookOpen, CheckCircle2, ChevronLeft, ChevronRight, FolderOpen, Search, Share2, Sparkles } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -7,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 
 interface OnboardingWelcomeDialogProps {
   open: boolean;
@@ -14,28 +16,48 @@ interface OnboardingWelcomeDialogProps {
   onOpenGuide: () => void;
 }
 
-const ORIENTATION_ITEMS = [
+const ONBOARDING_STEPS = [
   {
     icon: FolderOpen,
-    title: 'Create vaults',
-    description: 'Group papers by project, survey, topic, lab, or reading list.',
+    eyebrow: 'step_01',
+    title: 'create vaults',
+    description: 'group papers by project, survey, topic, lab, or reading list. vaults keep curation separate from paper metadata.',
   },
   {
     icon: Search,
-    title: 'Import and discover',
-    description: 'Add papers by DOI, BibTeX, URL, existing papers, PDFs, or Semantic Scholar discovery.',
+    eyebrow: 'step_02',
+    title: 'import and discover',
+    description: 'add papers by doi, bibtex, url, existing library item, pdf, or semantic scholar discovery.',
   },
   {
     icon: Share2,
-    title: 'Share when ready',
-    description: 'Keep vaults private, invite collaborators, or publish them to the Codex.',
+    eyebrow: 'step_03',
+    title: 'share when ready',
+    description: 'keep vaults private, invite collaborators, or publish curated collections to the codex.',
   },
 ];
 
 export function OnboardingWelcomeDialog({ open, onOpenChange, onOpenGuide }: OnboardingWelcomeDialogProps) {
+  const [stepIndex, setStepIndex] = useState(0);
+  const activeStep = ONBOARDING_STEPS[stepIndex];
+  const isFirstStep = stepIndex === 0;
+  const isLastStep = stepIndex === ONBOARDING_STEPS.length - 1;
+  const progressLabel = useMemo(() => `${stepIndex + 1}/${ONBOARDING_STEPS.length}`, [stepIndex]);
+
   const handleOpenGuide = () => {
     onOpenGuide();
   };
+
+  const handleNext = () => {
+    if (isLastStep) {
+      handleOpenGuide();
+      return;
+    }
+
+    setStepIndex((current) => Math.min(current + 1, ONBOARDING_STEPS.length - 1));
+  };
+
+  const Icon = activeStep.icon;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -48,39 +70,81 @@ export function OnboardingWelcomeDialog({ open, onOpenChange, onOpenGuide }: Onb
             welcome_to_<span className="text-gradient">refhub</span>()
           </DialogTitle>
           <DialogDescription className="text-sm leading-relaxed">
-            RefHub helps you collect papers, organize them into vaults, and share curated research context.
+            refhub helps collect papers, organize vaults, and share curated research context.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 px-6 py-5">
-          {ORIENTATION_ITEMS.map(({ icon: Icon, title, description }) => (
-            <div key={title} className="flex gap-3 rounded-xl border border-border/60 bg-muted/20 p-3">
-              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-background/70 text-primary">
-                <Icon className="h-4 w-4" />
+        <div className="px-6 py-5">
+          <div className="mb-4 flex items-center justify-between font-mono text-[10px] text-muted-foreground">
+            <span>// onboarding</span>
+            <span>{progressLabel}</span>
+          </div>
+
+          <div className="rounded-2xl border border-border/60 bg-muted/20 p-5">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background/70 text-primary">
+                <Icon className="h-5 w-5" />
               </div>
               <div className="min-w-0">
-                <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-                <p className="text-xs leading-relaxed text-muted-foreground">{description}</p>
+                <p className="font-mono text-[10px] text-primary">{activeStep.eyebrow}</p>
+                <h3 className="text-base font-semibold text-foreground">{activeStep.title}</h3>
               </div>
             </div>
-          ))}
+            <p className="text-sm leading-relaxed text-muted-foreground">{activeStep.description}</p>
+          </div>
 
-          <div className="flex items-start gap-2 rounded-xl bg-primary/10 p-3 text-xs text-primary">
+          <div className="mt-4 flex items-center justify-center gap-2" aria-label="onboarding progress">
+            {ONBOARDING_STEPS.map((step, index) => (
+              <button
+                key={step.eyebrow}
+                type="button"
+                aria-label={`go to ${step.eyebrow}`}
+                aria-current={index === stepIndex ? 'step' : undefined}
+                onClick={() => setStepIndex(index)}
+                className={cn(
+                  'h-1.5 rounded-full transition-all',
+                  index === stepIndex ? 'w-7 bg-primary' : 'w-1.5 bg-muted-foreground/30 hover:bg-muted-foreground/50',
+                )}
+              />
+            ))}
+          </div>
+
+          <div className="mt-5 flex items-start gap-2 rounded-xl bg-primary/10 p-3 text-xs text-primary">
             <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
             <p>
-              This welcome can be dismissed. You can always reopen the full guide from the <span className="font-mono">?</span> help button.
+              dismiss this anytime. reopen the full guide from the <span className="font-mono">?</span> help button.
             </p>
           </div>
         </div>
 
-        <div className="flex flex-col-reverse gap-2 border-t border-border/60 bg-muted/20 px-6 py-4 sm:flex-row sm:justify-end">
+        <div className="flex flex-col-reverse gap-2 border-t border-border/60 bg-muted/20 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           <Button variant="ghost" className="font-mono" onClick={() => onOpenChange(false)}>
             skip
           </Button>
-          <Button variant="glow" className="font-mono" onClick={handleOpenGuide}>
-            <BookOpen className="mr-2 h-4 w-4" />
-            open_guide
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="font-mono"
+              onClick={() => setStepIndex((current) => Math.max(current - 1, 0))}
+              disabled={isFirstStep}
+            >
+              <ChevronLeft className="mr-1 h-4 w-4" />
+              back
+            </Button>
+            <Button variant="glow" className="font-mono" onClick={handleNext}>
+              {isLastStep ? (
+                <>
+                  <BookOpen className="mr-2 h-4 w-4" />
+                  open_guide
+                </>
+              ) : (
+                <>
+                  next
+                  <ChevronRight className="ml-1 h-4 w-4" />
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

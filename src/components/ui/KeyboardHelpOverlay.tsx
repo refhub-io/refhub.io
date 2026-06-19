@@ -42,7 +42,7 @@ export function KeyboardHelpOverlay() {
     [
       {
         combo: '?',
-        description: 'Toggle help center',
+        description: 'toggle help center',
         handler: () => {
           setHelpOverlayOpen(!helpOverlayOpen);
           return true;
@@ -64,16 +64,16 @@ export function KeyboardHelpOverlay() {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
-      toast({ title: 'Shortcuts copied to clipboard' });
+      toast({ title: 'shortcuts copied to clipboard' });
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast({ title: 'Failed to copy', variant: 'destructive' });
+      toast({ title: 'failed to copy', variant: 'destructive' });
     }
   }, [toast]);
 
   return (
     <Dialog open={helpOverlayOpen} onOpenChange={setHelpOverlayOpen}>
-      <DialogContent className="dialog-mobile max-w-[100vw] flex flex-col p-0 gap-0 border-primary/20 shadow-2xl shadow-primary/10 sm:rounded-2xl sm:max-w-3xl sm:h-auto sm:max-h-[85vh]">
+      <DialogContent className="dialog-mobile max-w-[100vw] flex flex-col overflow-hidden p-0 gap-0 border-primary/20 shadow-2xl shadow-primary/10 sm:rounded-2xl sm:max-w-3xl sm:h-[85vh] sm:max-h-[85vh]">
         {/* ── Header ────────────────────────────────────────────── */}
         <DialogHeader className="shrink-0 px-6 pt-6 pb-4 border-b border-border/60">
           <div className="flex items-start justify-between gap-4">
@@ -101,23 +101,23 @@ export function KeyboardHelpOverlay() {
           </div>
         </DialogHeader>
 
-        <Tabs value={helpOverlayTab} onValueChange={(value) => setHelpOverlayTab(value as 'keyboard' | 'guide')} className="flex min-h-0 flex-1 flex-col">
+        <Tabs value={helpOverlayTab} onValueChange={(value) => setHelpOverlayTab(value as 'keyboard' | 'guide')} className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className="shrink-0 border-b border-border/60 px-6 py-3">
             <TabsList className="grid w-full grid-cols-2 font-mono sm:w-80">
               <TabsTrigger value="keyboard" className="gap-2 text-xs">
                 <Keyboard className="h-3.5 w-3.5" />
-                Keyboard
+                keyboard
               </TabsTrigger>
               <TabsTrigger value="guide" className="gap-2 text-xs">
                 <BookOpen className="h-3.5 w-3.5" />
-                Guide
+                guide
               </TabsTrigger>
             </TabsList>
           </div>
 
-          <TabsContent value="keyboard" className="m-0 min-h-0 flex-1 data-[state=inactive]:hidden">
+          <TabsContent value="keyboard" className="m-0 min-h-0 flex-1 overflow-hidden data-[state=inactive]:hidden">
             {/* ── Shortcut grid ─────────────────────────────────────── */}
-            <ScrollArea className="h-full">
+            <ScrollArea className="h-full max-h-full">
               <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
                 {SHORTCUT_HELP.map((group) => (
                   <div
@@ -175,8 +175,8 @@ export function KeyboardHelpOverlay() {
             </ScrollArea>
           </TabsContent>
 
-          <TabsContent value="guide" className="m-0 min-h-0 flex-1 data-[state=inactive]:hidden">
-            <ScrollArea className="h-full">
+          <TabsContent value="guide" className="m-0 min-h-0 flex-1 overflow-hidden data-[state=inactive]:hidden">
+            <ScrollArea className="h-full max-h-full">
               <MarkdownRenderer compact className="px-6 py-5 prose-headings:font-mono prose-h1:mt-0 prose-h2:border-t prose-h2:border-border/60 prose-h2:pt-5">
                 {helpGuide}
               </MarkdownRenderer>
@@ -223,7 +223,7 @@ export function KeyboardShortcutsButton({ className }: { className?: string }) {
       variant="ghost"
       size="icon"
       onClick={() => openHelpOverlay('keyboard')}
-      title="Help center (?)"
+      title="help center (?)"
       className={cn('h-9 w-9 text-muted-foreground hover:text-primary relative group', className)}
     >
       <Keyboard className="w-4 h-4" />
