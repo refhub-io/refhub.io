@@ -35,19 +35,59 @@ function emitOnboardingCompleted() {
   window.dispatchEvent(new Event(ONBOARDING_COMPLETED_EVENT));
 }
 
+function hasVisibleOnboardingTarget(): boolean {
+  if (typeof document === 'undefined') return false;
+
+  const target = document.querySelector('[data-onboarding-target="new-vault"]');
+  if (!(target instanceof HTMLElement)) return false;
+
+  const rect = target.getBoundingClientRect();
+  const style = window.getComputedStyle(target);
+
+  return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+}
+
 export function useOnboarding(user: User | null, authLoading: boolean) {
   const [open, setOpen] = useState(false);
   const storageKey = useMemo(() => (user ? getOnboardingStorageKey(user.id) : null), [user]);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading) return undefined;
 
     if (!storageKey) {
       setOpen(false);
-      return;
+      return undefined;
     }
 
-    setOpen(!hasDismissedOnboarding(storageKey));
+    if (hasDismissedOnboarding(storageKey)) {
+      setOpen(false);
+      return undefined;
+    }
+
+    let timeoutId = 0;
+    let cancelled = false;
+    let attempts = 0;
+
+    const waitForAppShell = () => {
+      if (cancelled) return;
+
+      if (hasVisibleOnboardingTarget()) {
+        setOpen(true);
+        return;
+      }
+
+      attempts += 1;
+      if (attempts < 80) {
+        timeoutId = window.setTimeout(waitForAppShell, 125);
+      }
+    };
+
+    waitForAppShell();
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
   }, [authLoading, storageKey]);
 
   const dismiss = useCallback(() => {
