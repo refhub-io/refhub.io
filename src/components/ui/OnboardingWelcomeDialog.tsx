@@ -57,11 +57,11 @@ const ONBOARDING_STEPS = [
   {
     icon: Share2,
     eyebrow: 'step_05',
-    title: 'share when ready',
-    description: 'keep vaults private, invite collaborators, or publish curated collections when the context is ready.',
-    targetHeading: '// share_controls',
-    targetLabel: 'use vault settings when you are ready to invite or publish.',
-    targetSelectors: ['[data-onboarding-target="vault-settings"]', '[data-onboarding-target="vault-list"]', '[data-onboarding-target="vaults-section"]'],
+    title: 'manage and share vaults',
+    description: 'create vaults, keep them private, invite collaborators, or publish curated collections when the context is ready.',
+    targetHeading: '// vault_controls',
+    targetLabel: 'create, manage, and share vaults from this area.',
+    targetSelectors: ['[data-onboarding-target="new-vault"]', '[data-onboarding-target="vault-settings"]', '[data-onboarding-target="vault-list"]', '[data-onboarding-target="vaults-section"]'],
   },
 ] as const;
 
