@@ -61,7 +61,7 @@ const ONBOARDING_STEPS = [
     description: 'keep vaults private, invite collaborators, or publish curated collections when the context is ready.',
     targetHeading: '// share_controls',
     targetLabel: 'use vault settings when you are ready to invite or publish.',
-    targetSelectors: ['[data-onboarding-target="vault-settings"]', '[data-onboarding-target="help-center"]'],
+    targetSelectors: ['[data-onboarding-target="vault-settings"]', '[data-onboarding-target="vault-list"]', '[data-onboarding-target="vaults-section"]'],
   },
 ] as const;
 
