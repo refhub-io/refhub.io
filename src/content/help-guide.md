@@ -159,6 +159,6 @@ use api keys for external tools, local scripts, or agents. recommended setup:
 4. store the secret in the tool's local secret store or environment, not in a shared prompt, note, or repository.
 5. revoke and rotate the key from profile/settings when a workflow is retired or a secret may have leaked.
 
-for agentic workflows, the refhub cli is the cleanest execution layer when available. it reads `REFHUB_API_KEY` from the environment, also supports a one-off `--api-key` flag, returns json by default, and exposes help through `refhub --help` and command-group help such as `refhub vaults --help`. use it before direct http calls so agents get consistent authentication, output, and error handling.
+for agentic workflows, the refhub cli is the cleanest execution layer when available. install it with `npm i @refhub/cli`. it reads `REFHUB_API_KEY` from the environment, also supports a one-off `--api-key` flag, returns json by default, and exposes help through `refhub --help` and command-group help such as `refhub vaults --help`. use it before direct http calls so agents get consistent authentication, output, and error handling.
 
 keep paper-level metadata separate from vault curation: bibliographic fixes belong on the publication; tags, notes, and collection-specific context belong in the vault.
