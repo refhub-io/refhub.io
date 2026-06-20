@@ -2,9 +2,11 @@
 
 refhub is a vault-based workspace for collecting papers, curating context, and sharing research collections.
 
+jump to the [faq](#faq) for setup, sharing, markdown, api keys, github links, and agent workflow notes.
+
 ## vaults
 
-A **vault** is a research collection. use vaults for a project, reading list, class, survey, lab theme, or public bibliography. a paper can appear in multiple vaults without losing the vault-specific notes, tags, and sharing context around it.
+a **vault** is a research collection. use vaults for a project, reading list, class, survey, lab theme, or public bibliography. a paper can appear in multiple vaults without losing the vault-specific notes, tags, and sharing context around it.
 
 ## adding and importing papers
 
@@ -51,7 +53,7 @@ vaults can stay private, be shared with collaborators, or become public entries 
 - **protected vaults** require approved access.
 - **public vaults** can be viewed through their public slug.
 - **collaborators** can be invited or approved as viewers or editors.
-- **viewers** can read. **editors** can help curate where permissions allow.
+- **viewers** can read. **editors** can help curate where permissions allow it.
 - public viewers can request collaborator access when the vault allows it.
 
 ## export
@@ -76,3 +78,87 @@ open profile/settings from the sidebar user menu.
 api keys are created from profile settings. give each key a clear label, choose scopes such as read/write/export, and optionally restrict access to selected vaults. copy the secret when it is created; only the prefix remains visible later.
 
 refhub also supports browser-extension and integration workflows where enabled, so papers found elsewhere can be sent into your library or vaults without manual re-entry.
+
+## faq
+
+### how do i share a vault?
+
+open the vault, then open vault settings from the gear button or press `o` while the vault is active. choose a visibility:
+
+- **private** keeps the vault visible only to you.
+- **protected** lets people request access and requires approval before they can view the contents.
+- **public** publishes the vault through its public slug so it can appear in the codex.
+
+for protected or public vaults, use the sharing section in vault settings to invite collaborators, approve access requests, and assign viewer or editor roles. viewers can read; editors can help curate where the vault permissions allow it.
+
+### how do tags work?
+
+tags are managed where the papers live.
+
+- in `all_papers`, tags are personal tags attached to your library items.
+- inside a vault, tags are vault-local curation. they can differ from the same paper's tags in another vault.
+- tags can be hierarchical: create a parent tag, then create child tags under it.
+- use `manage_tags` in the paper list/vault toolbar to rename or delete tags. deleting a tag removes that label from papers; it does not delete the papers.
+
+when editing a paper, use the tag selector to assign or remove tags. in shared vaults, tag editing follows the same edit permissions as the rest of the vault.
+
+### what markdown is supported in notes and help content?
+
+refhub renders markdown through `react-markdown` with github-flavored markdown and extended plugins enabled: `remark-gfm`, `remark-breaks`, `remark-footnotes`, `rehype-slug`, `rehype-autolink-headings`, `rehype-highlight`, sanitized raw html, and heading anchors.
+
+common and extended syntax works:
+
+- headings, paragraphs, links, images, lists, blockquotes, and horizontal rules.
+- task lists such as `- [ ] screen papers` and `- [x] export bibtex`.
+- tables, for example `| tag | meaning |` followed by a normal markdown table body.
+- footnotes such as `paper note[^1]` with `[^1]: longer context` later in the note.
+- inline code and fenced code blocks with syntax highlighting, for example <code>```json</code>.
+- soft line breaks are preserved.
+
+raw html is sanitized before rendering, so prefer markdown syntax for portable notes instead of relying on embedded html.
+
+### where do i get an api key?
+
+open profile/settings from the sidebar user menu, then go to **api keys**. create a key with:
+
+- a clear label and optional description.
+- scopes such as `vaults:read`, `vaults:write`, `vaults:export`, or `vaults:admin`.
+- an optional expiration.
+- optional vault restrictions if the key should only reach selected vaults.
+
+copy the secret when it is created. refhub only shows the key prefix later, so a lost secret should be revoked and replaced.
+
+### how do i connect google drive?
+
+open profile/settings, then **storage**. connect google drive and complete the google oauth flow. refhub requests the `drive.file` scope, keeps google credentials on the backend, and writes pdfs into a managed refhub folder.
+
+after connecting, make sure the refhub drive folder is ready in the storage panel. once linked, publication and vault paper dialogs can store uploaded pdfs or drive pdf links against the paper.
+
+### how do i set up the browser extension?
+
+use the browser extension card in refhub to install the extension for your browser. chrome and edge use the [Chrome Web Store listing](https://chromewebstore.google.com/detail/refhub/ggoophlbadcgkmcpnbnfjacknccpkmgc?authuser=0&hl=en); firefox uses the [Firefox Add-ons listing](https://addons.mozilla.org/en-US/firefox/addon/refhub/). you can also open the [refhub extensions repository](https://github.com/refhub-io/refhub-extensions) from the same card. the extension is designed to send papers from the page you are already reading into refhub.
+
+if the extension asks for refhub access, use an api key from profile/settings. prefer the narrowest scopes and vault restrictions that fit the workflow.
+
+### where can i find the refhub repositories?
+
+start with the [refhub github organization](https://github.com/refhub-io). useful entry points include:
+
+- [refhub.io](https://github.com/refhub-io/refhub.io) for the frontend product and help center.
+- [.netlify](https://github.com/refhub-io/.netlify) for the backend api layer.
+- [refhub-skill](https://github.com/refhub-io/refhub-skill) for agent and integration workflows.
+- [refhub-extensions](https://github.com/refhub-io/refhub-extensions) for the browser extensions.
+
+### how do i integrate agent or script workflows?
+
+use api keys for external tools, local scripts, or agents. recommended setup:
+
+1. create a dedicated key per workflow, for example `literature_watch_bot` or `vault_export_script`.
+2. choose only the scopes needed: read for retrieval, write for adding/updating papers/tags/relations, export for export workflows, admin only for vault management.
+3. restrict the key to selected vaults when possible.
+4. store the secret in the tool's local secret store or environment, not in a shared prompt, note, or repository.
+5. revoke and rotate the key from profile/settings when a workflow is retired or a secret may have leaked.
+
+for agentic workflows, the refhub cli is the cleanest execution layer when available. install it with `npm i @refhub/cli`. it reads `REFHUB_API_KEY` from the environment, also supports a one-off `--api-key` flag, returns json by default, and exposes help through `refhub --help` and command-group help such as `refhub vaults --help`. use it before direct http calls so agents get consistent authentication, output, and error handling.
+
+keep paper-level metadata separate from vault curation: bibliographic fixes belong on the publication; tags, notes, and collection-specific context belong in the vault.
