@@ -136,7 +136,7 @@ after connecting, make sure the refhub drive folder is ready in the storage pane
 
 ### how do i set up the browser extension?
 
-use the browser extension card in refhub to install the extension for chrome/edge or firefox, or open the [refhub extensions repository](https://github.com/refhub-io/refhub-extensions) from the same card. the extension is designed to send papers from the page you are already reading into refhub.
+use the browser extension card in refhub to install the extension for your browser. chrome and edge use the [Chrome Web Store listing](https://chromewebstore.google.com/detail/refhub/ggoophlbadcgkmcpnbnfjacknccpkmgc?authuser=0&hl=en); firefox uses the [Firefox Add-ons listing](https://addons.mozilla.org/en-US/firefox/addon/refhub/). you can also open the [refhub extensions repository](https://github.com/refhub-io/refhub-extensions) from the same card. the extension is designed to send papers from the page you are already reading into refhub.
 
 if the extension asks for refhub access, use an api key from profile/settings. prefer the narrowest scopes and vault restrictions that fit the workflow.
 
