@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Publication, Vault } from '@/types/database';
 import {
   Dialog,
@@ -47,6 +47,9 @@ export function ImportDialog({
   onAddToVaults,
 }: ImportDialogProps) {
   const { toast } = useToast();
+  const doiLookupRef = useRef<HTMLButtonElement>(null);
+  const bibtexParseRef = useRef<HTMLButtonElement>(null);
+  const importButtonRef = useRef<HTMLButtonElement>(null);
   const [activeTab, setActiveTab] = useState('library');
   
   // DOI state
@@ -121,20 +124,22 @@ export function ImportDialog({
       if (isDuplicate) {
         setDuplicateIndices(new Set([...duplicateIndices, newIndex]));
         toast({ 
-          title: '⚠️ possible_duplicate', 
-          description: `"${metadata.title}" may already exist in your library`,
-          variant: 'destructive', feedbackSeverity: 'error'
+          title: 'Possible duplicate found', 
+          description: `"${metadata.title}" looks like a paper already in your library. Review the highlighted preview item before importing.`,
+          feedbackSeverity: 'warning',
+          source: doiLookupRef
         });
       } else {
-        toast({ title: 'doi_resolved ✨', description: metadata.title });
+        toast({ title: 'DOI resolved ✨', description: metadata.title, source: doiLookupRef });
       }
       
       setDoiInput('');
     } catch (error) {
       toast({
-        title: 'doi_lookup_failed',
-        description: (error as Error).message || 'Could not resolve DOI',
+        title: 'DOI lookup failed',
+        description: (error as Error).message || 'RefHub could not resolve that DOI. Check the DOI string or paste a doi.org URL and try again.',
         variant: 'destructive', feedbackSeverity: 'error',
+        source: doiLookupRef,
       });
     } finally {
       setDoiLoading(false);
@@ -149,9 +154,10 @@ export function ImportDialog({
       
       if (parsed.length === 0) {
         toast({
-          title: 'no_entries_found',
-          description: 'Could not parse any BibTeX entries',
+          title: 'No BibTeX entries found',
+          description: 'RefHub could not find any complete BibTeX records in the pasted text. Check the format and try again.',
           variant: 'destructive', feedbackSeverity: 'error',
+          source: bibtexParseRef,
         });
         return;
       }
@@ -181,17 +187,20 @@ export function ImportDialog({
       
       if (duplicateCount > 0) {
         toast({ 
-          title: `parsed_${parsed.length}_entries (${duplicateCount} duplicates)`,
-          description: 'Duplicates are marked in preview',
+          title: `Parsed ${parsed.length} entries`,
+          description: `${duplicateCount} possible duplicate${duplicateCount === 1 ? '' : 's'} marked in the preview. Review them before importing.`,
+          feedbackSeverity: 'warning',
+          source: bibtexParseRef,
         });
       } else {
-        toast({ title: `parsed_${parsed.length}_entries ✨` });
+        toast({ title: `Parsed ${parsed.length} entries ✨`, source: bibtexParseRef });
       }
     } catch (error) {
       toast({
-        title: 'parse_error',
-        description: (error as Error).message || 'Could not parse BibTeX',
+        title: 'BibTeX parse failed',
+        description: (error as Error).message || 'RefHub could not parse the BibTeX content. Check for missing braces, commas, or entry types.',
         variant: 'destructive', feedbackSeverity: 'error',
+        source: bibtexParseRef,
       });
     }
   };
@@ -249,9 +258,10 @@ export function ImportDialog({
 
     if (toImport.length === 0) {
       toast({
-        title: 'no_papers_selected',
-        description: 'Select at least one paper to import',
+        title: 'No papers selected',
+        description: 'Select at least one parsed paper from the preview before importing.',
         variant: 'destructive', feedbackSeverity: 'error',
+        source: importButtonRef,
       });
       return;
     }
@@ -265,11 +275,12 @@ export function ImportDialog({
       if (targetVaultId && insertedIds.length > 0) {
         const targetVault = vaults.find(v => v.id === targetVaultId);
         toast({ 
-          title: `imported_${insertedIds.length}_papers ✨`,
-          description: targetVault ? `Added to ${targetVault.name}` : undefined
+          title: `Imported ${insertedIds.length} paper${insertedIds.length === 1 ? '' : 's'} ✨`,
+          description: targetVault ? `Added to ${targetVault.name}` : undefined,
+          source: importButtonRef
         });
       } else {
-        toast({ title: `imported_${toImport.length}_papers ✨` });
+        toast({ title: `Imported ${toImport.length} paper${toImport.length === 1 ? '' : 's'} ✨`, source: importButtonRef });
       }
 
       // Reset state
@@ -280,9 +291,10 @@ export function ImportDialog({
       onOpenChange(false);
     } catch (error) {
       toast({
-        title: 'import_failed',
-        description: (error as Error).message,
+        title: 'Import failed',
+        description: (error as Error).message || 'RefHub could not import the selected papers. Nothing was removed from the preview.',
         variant: 'destructive', feedbackSeverity: 'error',
+        source: importButtonRef,
       });
     } finally {
       setImporting(false);
@@ -360,6 +372,7 @@ export function ImportDialog({
                     }}
                   />
                   <Button 
+                    ref={doiLookupRef}
                     onClick={handleDOILookup} 
                     disabled={doiLoading || !doiInput.trim()}
                     variant="glow"
@@ -412,6 +425,7 @@ export function ImportDialog({
                   className="font-mono text-sm w-full min-w-0"
                 />
                 <Button 
+                  ref={bibtexParseRef}
                   onClick={handleBibtexParse} 
                   disabled={!bibtexInput.trim()}
                   variant="glow"
@@ -529,6 +543,7 @@ export function ImportDialog({
                   cancel
                 </Button>
                 <Button 
+                  ref={importButtonRef}
                   variant="glow" 
                   onClick={handleImport}
                   disabled={importing || selectedIndices.size === 0}

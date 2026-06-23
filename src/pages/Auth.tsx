@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useRef, useState, useMemo } from 'react';
 import { logger } from '@/lib/logger';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -42,12 +42,14 @@ function OAuthButton({
   disabled,
   loading,
   isLastUsed,
+  buttonRef,
 }: {
   provider: SupportedOAuthProvider;
   onClick: () => void;
   disabled: boolean;
   loading: boolean;
   isLastUsed: boolean;
+  buttonRef?: React.RefObject<HTMLButtonElement | null>;
 }) {
   const Icon = provider === 'google' ? GoogleIcon : GitHubIcon;
 
@@ -57,6 +59,7 @@ function OAuthButton({
         <AuthProviderBadge provider={provider} className="absolute -top-3 right-4 z-10" />
       )}
       <Button
+        ref={buttonRef}
         type="button"
         variant="outline"
         className={cn(
@@ -146,6 +149,10 @@ export default function Auth() {
   const { signIn, signUp, signInWithGoogle, signInWithGitHub } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const authFormRef = useRef<HTMLFormElement>(null);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
+  const googleButtonRef = useRef<HTMLButtonElement>(null);
+  const githubButtonRef = useRef<HTMLButtonElement>(null);
   const passwordStrength = useMemo(() => calculatePasswordStrength(password), [password]);
   const lastLoginProvider = useMemo<SupportedAuthProvider | null>(() => getPersistedLastLoginProvider(), []);
   const isBusy = credentialLoading || oauthProviderLoading !== null;
@@ -157,17 +164,19 @@ export default function Auth() {
     if (isSignUp) {
       if (password.length < 8) {
         toast({
-          title: 'weak_password',
-          description: 'Password must be at least 8 characters long.',
+          title: 'Password is too short',
+          description: 'Use at least 8 characters before creating your RefHub account.',
           variant: 'destructive', feedbackSeverity: 'error',
+          source: passwordInputRef,
         });
         return;
       }
       if (passwordStrength.score < 3) {
         toast({
-          title: 'weak_password',
-          description: 'Please create a stronger password with a mix of uppercase, lowercase, numbers, and special characters.',
+          title: 'Password is not strong enough',
+          description: 'Use a stronger mix of uppercase letters, lowercase letters, numbers, and special characters.',
           variant: 'destructive', feedbackSeverity: 'error',
+          source: passwordInputRef,
         });
         return;
       }
@@ -181,17 +190,19 @@ export default function Auth() {
         if (error) {
           if (error.message.includes('already registered')) {
             toast({
-              title: 'account_exists',
-              description: 'This email is already registered. Please sign in instead.',
+              title: 'Account already exists',
+              description: 'This email is already registered. Switch to sign in, or reset your password if you cannot access it.',
               variant: 'destructive', feedbackSeverity: 'error',
+              source: authFormRef,
             });
           } else {
             throw error;
           }
         } else {
           toast({
-            title: 'welcome_to_refhub.io!',
+            title: 'Welcome to RefHub ✨',
             description: 'Your account has been created successfully.',
+            source: authFormRef,
           });
           const {
             data: { user, session },
@@ -212,9 +223,10 @@ export default function Auth() {
         const { error } = await signIn(email, password);
         if (error) {
           toast({
-            title: 'sign_in_failed',
-            description: 'Invalid email or password. Please try again.',
+            title: 'Sign in failed',
+            description: 'The email and password did not match a RefHub account. Check both fields and try again.',
             variant: 'destructive', feedbackSeverity: 'error',
+            source: authFormRef,
           });
         } else {
           // Get current user from Supabase Auth
@@ -238,9 +250,10 @@ export default function Auth() {
       }
     } catch (error) {
       toast({
-        title: 'error',
-        description: (error as Error).message || 'An unexpected error occurred.',
+        title: 'Authentication error',
+        description: (error as Error).message || 'RefHub could not complete authentication. Please try again.',
         variant: 'destructive', feedbackSeverity: 'error',
+        source: authFormRef,
       });
     } finally {
       setCredentialLoading(false);
@@ -256,17 +269,19 @@ export default function Auth() {
 
       if (error) {
         toast({
-          title: `${provider}_sign_in_failed`,
+          title: `${getAuthProviderLabel(provider)} sign in failed`,
           description: error.message || `Unable to connect ${getAuthProviderLabel(provider)} right now.`,
           variant: 'destructive', feedbackSeverity: 'error',
+          source: provider === 'google' ? googleButtonRef : githubButtonRef,
         });
         setOauthProviderLoading(null);
       }
     } catch (error) {
       toast({
-        title: `${provider}_sign_in_failed`,
-        description: (error as Error).message || 'An unexpected error occurred.',
+        title: `${getAuthProviderLabel(provider)} sign in failed`,
+        description: (error as Error).message || `Unable to connect ${getAuthProviderLabel(provider)} right now.`,
         variant: 'destructive', feedbackSeverity: 'error',
+        source: provider === 'google' ? googleButtonRef : githubButtonRef,
       });
       setOauthProviderLoading(null);
     }
@@ -309,7 +324,7 @@ export default function Auth() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form ref={authFormRef} onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-3 rounded-2xl border border-white/10 bg-white/60 p-3 shadow-sm backdrop-blur-sm dark:border-white/8 dark:bg-[#121018]/85">
                 <div className="flex items-center justify-between px-1">
                   <span className="text-[10px] font-mono lowercase tracking-[0.18em] text-muted-foreground">
@@ -327,6 +342,7 @@ export default function Auth() {
                 </div>
                 <OAuthButton
                   provider="google"
+                  buttonRef={googleButtonRef}
                   onClick={() => handleOAuthSignIn('google')}
                   disabled={isBusy}
                   loading={oauthProviderLoading === 'google'}
@@ -334,6 +350,7 @@ export default function Auth() {
                 />
                 <OAuthButton
                   provider="github"
+                  buttonRef={githubButtonRef}
                   onClick={() => handleOAuthSignIn('github')}
                   disabled={isBusy}
                   loading={oauthProviderLoading === 'github'}
@@ -400,6 +417,7 @@ export default function Auth() {
                     id="password"
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
+                    ref={passwordInputRef}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required

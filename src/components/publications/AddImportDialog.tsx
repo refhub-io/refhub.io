@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Publication, Vault, PUBLICATION_TYPES } from '@/types/database';
 import { cn } from '@/lib/utils';
 import {
@@ -61,6 +61,10 @@ export function AddImportDialog({
   updatePdfAsset,
 }: AddImportDialogProps) {
   const { toast } = useToast();
+  const doiLookupRef = useRef<HTMLButtonElement>(null);
+  const bibtexParseRef = useRef<HTMLButtonElement>(null);
+  const importButtonRef = useRef<HTMLButtonElement>(null);
+  const manualCreateRef = useRef<HTMLButtonElement>(null);
   const [activeTab, setActiveTab] = useState<FlowTab>('library');
 
   // DOI state
@@ -159,13 +163,13 @@ export function AddImportDialog({
       setSelectedIndices(prev => new Set([...prev, newIndex]));
       if (isDuplicate) {
         setDuplicateIndices(prev => new Set([...prev, newIndex]));
-        toast({ title: 'possible_duplicate', description: `"${metadata.title}" may already exist. Review the preview before importing.`, feedbackSeverity: 'warning' });
+        toast({ title: 'Possible duplicate found', description: `"${metadata.title}" looks like a paper already in your library. Review the highlighted preview item before importing.`, feedbackSeverity: 'warning', source: doiLookupRef });
       } else {
-        toast({ title: 'doi_resolved ✨', description: metadata.title });
+        toast({ title: 'DOI resolved ✨', description: metadata.title, source: doiLookupRef });
       }
       setDoiInput('');
     } catch (error) {
-      toast({ title: 'doi_lookup_failed', description: (error as Error).message || 'Could not resolve DOI', variant: 'destructive', feedbackSeverity: 'error' });
+      toast({ title: 'DOI lookup failed', description: (error as Error).message || 'RefHub could not resolve that DOI. Check the DOI string or paste a doi.org URL and try again.', variant: 'destructive', feedbackSeverity: 'error', source: doiLookupRef });
     } finally {
       setDoiLoading(false);
     }
@@ -178,7 +182,7 @@ export function AddImportDialog({
     try {
       const parsed = parseBibtex(bibtexInput);
       if (parsed.length === 0) {
-        toast({ title: 'no_entries_found', description: 'Could not parse any BibTeX entries', variant: 'destructive', feedbackSeverity: 'error' });
+        toast({ title: 'No BibTeX entries found', description: 'RefHub could not find any complete BibTeX records in the pasted text. Check the format and try again.', variant: 'destructive', feedbackSeverity: 'error', source: bibtexParseRef });
         return;
       }
       const startIdx = parsedPublications.length;
@@ -195,12 +199,12 @@ export function AddImportDialog({
       setDuplicateIndices(newDuplicates);
       setBibtexInput('');
       if (duplicateCount > 0) {
-        toast({ title: `parsed_${parsed.length}_entries (${duplicateCount} duplicates)`, description: 'Duplicates are marked in preview' });
+        toast({ title: `Parsed ${parsed.length} entries`, description: `${duplicateCount} possible duplicate${duplicateCount === 1 ? '' : 's'} marked in the preview. Review them before importing.`, feedbackSeverity: 'warning', source: bibtexParseRef });
       } else {
-        toast({ title: `parsed_${parsed.length}_entries ✨` });
+        toast({ title: `Parsed ${parsed.length} entries ✨`, source: bibtexParseRef });
       }
     } catch (error) {
-      toast({ title: 'parse_error', description: (error as Error).message || 'Could not parse BibTeX', variant: 'destructive', feedbackSeverity: 'error' });
+      toast({ title: 'BibTeX parse failed', description: (error as Error).message || 'RefHub could not parse the BibTeX content. Check for missing braces, commas, or entry types.', variant: 'destructive', feedbackSeverity: 'error', source: bibtexParseRef });
     }
   };
 
@@ -238,18 +242,18 @@ export function AddImportDialog({
       .filter((_, i) => selectedIndices.has(i))
       .map(pub => { const { vault_id: _vaultId, ...clean } = pub as Partial<Publication> & { vault_id?: string }; return clean; });
     if (toImport.length === 0) {
-      toast({ title: 'no_papers_selected', description: 'Select at least one paper', variant: 'destructive', feedbackSeverity: 'error' });
+      toast({ title: 'No papers selected', description: 'Select at least one parsed paper from the preview before importing.', variant: 'destructive', feedbackSeverity: 'error', source: importButtonRef });
       return;
     }
     setImporting(true);
     try {
       if (!onImport) {
-        toast({ title: 'import_unavailable', description: 'Import is not available in this context', variant: 'destructive', feedbackSeverity: 'error' });
+        toast({ title: 'Import is unavailable here', description: 'This dialog was opened without an import handler. Close it and try importing from a vault or the dashboard.', variant: 'destructive', feedbackSeverity: 'error', source: importButtonRef });
         return;
       }
       const insertedIds = await onImport(toImport, targetVaultId);
       const targetVault = vaults.find(v => v.id === targetVaultId);
-      toast({ title: `imported_${insertedIds.length}_papers ✨`, description: targetVault ? `Added to ${targetVault.name}` : undefined });
+      toast({ title: `Imported ${insertedIds.length} paper${insertedIds.length === 1 ? '' : 's'} ✨`, description: targetVault ? `Added to ${targetVault.name}` : undefined, source: importButtonRef });
       // Reset
       setParsedPublications([]);
       setSelectedIndices(new Set());
@@ -257,7 +261,7 @@ export function AddImportDialog({
       setBibtexInput('');
       onOpenChange(false);
     } catch (error) {
-      toast({ title: 'import_failed', description: (error as Error).message, variant: 'destructive', feedbackSeverity: 'error' });
+      toast({ title: 'Import failed', description: (error as Error).message || 'RefHub could not import the selected papers. Nothing was removed from the preview.', variant: 'destructive', feedbackSeverity: 'error', source: importButtonRef });
     } finally {
       setImporting(false);
     }
@@ -275,7 +279,7 @@ export function AddImportDialog({
 
   const handleManualCreate = async () => {
     if (!manualForm.title?.trim()) {
-      toast({ title: 'title_required', description: 'Please provide a paper title', variant: 'destructive', feedbackSeverity: 'error' });
+      toast({ title: 'Paper title required', description: 'Add a title before creating a manual paper entry.', variant: 'destructive', feedbackSeverity: 'error', source: manualCreateRef });
       return;
     }
     setImporting(true);
@@ -296,7 +300,7 @@ export function AddImportDialog({
         await updatePdfAsset(newId, manualDrivePdf.trim());
       }
 
-      toast({ title: 'paper_created ✨', description: manualForm.title });
+      toast({ title: 'Paper created ✨', description: manualForm.title, source: manualCreateRef });
       setManualForm({ title: '', authors: [], year: null, journal: '', doi: '', url: '', pdf_url: '', abstract: '', publication_type: 'article', notes: '', volume: '', issue: '', pages: '', booktitle: '', chapter: '', edition: '', editor: [], howpublished: '', institution: '', number: '', organization: '', publisher: '', school: '', series: '', type: '', eid: '', isbn: '', issn: '', keywords: [] });
       setManualAuthorsInput('');
       setManualEditorInput('');
@@ -304,7 +308,7 @@ export function AddImportDialog({
       setManualDrivePdf('');
       onOpenChange(false);
     } catch (error) {
-      toast({ title: 'create_failed', description: (error as Error).message, variant: 'destructive', feedbackSeverity: 'error' });
+      toast({ title: 'Could not create paper', description: (error as Error).message || 'RefHub could not save the manual paper entry. Your form values are still here.', variant: 'destructive', feedbackSeverity: 'error', source: manualCreateRef });
     } finally {
       setImporting(false);
     }
@@ -383,7 +387,7 @@ export function AddImportDialog({
                     className="font-mono flex-1 text-sm w-full min-w-0"
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleDOILookup(); } }}
                   />
-                  <Button onClick={handleDOILookup} disabled={doiLoading || !doiInput.trim()} variant="glow" className="w-full sm:w-auto font-mono">
+                  <Button ref={doiLookupRef} onClick={handleDOILookup} disabled={doiLoading || !doiInput.trim()} variant="glow" className="w-full sm:w-auto font-mono">
                     {doiLoading ? <LoadingSpinner size="xs" /> : 'lookup'}
                   </Button>
                 </div>
@@ -406,7 +410,7 @@ export function AddImportDialog({
                 <Textarea value={bibtexInput} onChange={(e) => setBibtexInput(e.target.value)}
                   placeholder={`@article{key,\n  title = {Paper Title},\n  author = {Author Name},\n  year = {2024},\n  ...\n}`}
                   rows={6} className="font-mono text-sm w-full min-w-0" />
-                <Button onClick={handleBibtexParse} disabled={!bibtexInput.trim()} variant="glow" className="w-full font-mono">
+                <Button ref={bibtexParseRef} onClick={handleBibtexParse} disabled={!bibtexInput.trim()} variant="glow" className="w-full font-mono">
                   parse_bibtex
                 </Button>
               </div>
@@ -670,7 +674,7 @@ export function AddImportDialog({
 
               <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4 border-t border-border">
                 <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto font-mono">cancel</Button>
-                <Button variant="glow" onClick={handleManualCreate} disabled={importing || !manualForm.title?.trim()} className="w-full sm:w-auto font-mono">
+                <Button ref={manualCreateRef} variant="glow" onClick={handleManualCreate} disabled={importing || !manualForm.title?.trim()} className="w-full sm:w-auto font-mono">
                   {importing ? <><LoadingSpinner size="xs" className="mr-2" />creating...</> : 'create_paper'}
                 </Button>
               </div>
@@ -758,7 +762,7 @@ export function AddImportDialog({
               {/* Import button */}
               <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t-2 border-border">
                 <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto font-mono">cancel</Button>
-                <Button variant="glow" onClick={handleImport} disabled={importing || selectedIndices.size === 0} className="w-full sm:w-auto font-mono">
+                <Button ref={importButtonRef} variant="glow" onClick={handleImport} disabled={importing || selectedIndices.size === 0} className="w-full sm:w-auto font-mono">
                   {importing ? <><LoadingSpinner size="xs" className="mr-2" />importing...</> : `import_${selectedIndices.size}_paper${selectedIndices.size !== 1 ? 's' : ''}`}
                 </Button>
               </div>

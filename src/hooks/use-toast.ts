@@ -171,10 +171,28 @@ function inferFeedbackSeverity(props: Toast): FeedbackSeverity {
   return "success";
 }
 
+function humanizeFeedbackTitle(title: React.ReactNode): React.ReactNode {
+  if (typeof title !== "string") return title;
+  const withoutEmoji = title
+    .replace(/✨/gu, "")
+    .replace(/🍴/gu, "")
+    .replace(/🗑️/gu, "")
+    .trim();
+  if (!/^[a-z0-9]+(?:_[a-z0-9]+)+!?$/i.test(withoutEmoji)) return title;
+
+  const suffix = title.slice(withoutEmoji.length);
+  const words = withoutEmoji.replace(/_/g, " ");
+  const humanized = words.charAt(0).toUpperCase() + words.slice(1);
+  return `${humanized}${suffix}`;
+}
+
 function toast({ source, ...props }: ToastInput) {
   const id = genId();
+  // Explicit `source` refs keep feedback local. `document.activeElement` remains a
+  // compatibility fallback for older call sites that cannot easily pass a trigger.
   const sourceRect = props.sourceRect ?? getSourceRect(source);
   const feedbackSeverity = inferFeedbackSeverity(props);
+  const normalizedProps = { ...props, title: props.title ? humanizeFeedbackTitle(props.title) : props.title };
 
   const update = (props: ToasterToast) =>
     dispatch({
@@ -186,7 +204,7 @@ function toast({ source, ...props }: ToastInput) {
   dispatch({
     type: "ADD_TOAST",
     toast: {
-      ...props,
+      ...normalizedProps,
       sourceRect,
       feedbackSeverity,
       id,

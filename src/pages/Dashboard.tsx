@@ -143,6 +143,10 @@ export default function Dashboard() {
   const { profile, loading: profileLoading, refetch: refetchProfile } = useProfile();
   const navigate = useNavigate();
   const { toast } = useToast();
+  // Dashboard mutations are triggered from nested cards/dialogs where the specific
+  // button often unmounts or lives several layers down; using the page shell keeps
+  // fallback feedback local to the dashboard instead of the viewport corner.
+  const dashboardFeedbackRef = useRef<HTMLDivElement>(null);
   
   // Check if we have cached data to determine if this is a "return visit"
   const hasCachedData = useRef(user ? hasPageCache('dashboard') : false);
@@ -624,9 +628,10 @@ export default function Dashboard() {
       
     } catch (error) {
       toast({
-        title: 'error_loading_data',
-        description: 'Please try refreshing the page.',
+        title: 'Could not load dashboard data',
+        description: 'RefHub could not load your library, vaults, or tags. Please refresh the page.',
         variant: 'destructive', feedbackSeverity: 'error',
+        source: dashboardFeedbackRef,
       });
     } finally {
       setLoading(false);
@@ -983,16 +988,17 @@ export default function Dashboard() {
         setEditingPublication({ ...editingPublication, ...updatedPub } as Publication);
 
         if (!isAutoSave) {
-          toast({ title: 'paper_updated ✨' });
+          toast({ title: 'Paper updated ✨', source: dashboardFeedbackRef });
         }
       } else {
         // Check for duplicates before adding
         const duplicate = checkForDuplicate(data, publications);
         if (duplicate) {
           toast({
-            title: 'duplicate_detected',
-            description: `Paper already exists: "${duplicate.title.substring(0, 50)}..."`,
+            title: 'Duplicate paper detected',
+            description: `This looks like an existing paper: "${duplicate.title.substring(0, 50)}...". Open the existing record or change the DOI/title before saving.`,
             variant: 'destructive', feedbackSeverity: 'error',
+            source: dashboardFeedbackRef,
           });
           return;
         }
@@ -1030,7 +1036,7 @@ export default function Dashboard() {
           ]);
         }
 
-        toast({ title: 'paper_added ✨' });
+        toast({ title: 'Paper added ✨', source: dashboardFeedbackRef });
       }
 
       // Keep the current publication selected after manual save so the dialog can
@@ -1038,9 +1044,10 @@ export default function Dashboard() {
       // create mode. The dialog close handler clears editingPublication.
     } catch (error) {
       toast({
-        title: 'error_saving_paper',
-        description: (error as Error).message,
+        title: 'Could not save paper',
+        description: (error as Error).message || 'RefHub could not save this paper. Your edits are still in the dialog.',
         variant: 'destructive', feedbackSeverity: 'error',
+        source: dashboardFeedbackRef,
       });
     }
   };
@@ -1056,9 +1063,10 @@ export default function Dashboard() {
 
     if (pubsToInsert.length === 0) {
       toast({
-        title: 'no_papers_to_import',
-        description: 'All papers were duplicates',
+        title: 'No papers to import',
+        description: 'Every selected paper appears to already exist in your library, so nothing was imported.',
         variant: 'destructive', feedbackSeverity: 'error',
+        source: dashboardFeedbackRef,
       });
       return [];
     }
@@ -1093,9 +1101,10 @@ export default function Dashboard() {
       return insertedIds;
     } catch (error) {
       toast({
-        title: 'error_importing_papers',
-        description: (error as Error).message,
+        title: 'Could not import papers',
+        description: (error as Error).message || 'RefHub could not import the selected papers. Review the preview and try again.',
         variant: 'destructive', feedbackSeverity: 'error',
+        source: dashboardFeedbackRef,
       });
       return [];
     }
@@ -1164,7 +1173,7 @@ export default function Dashboard() {
         }
       }
 
-      toast({ title: `added_to_${vaultIds.length}_vault${vaultIds.length > 1 ? 's' : ''} ✨` });
+      toast({ title: `Added to ${vaultIds.length} vault${vaultIds.length > 1 ? 's' : ''} ✨`, source: dashboardFeedbackRef });
 
       // Refresh the data to reflect the changes
       await fetchData();
@@ -1202,7 +1211,7 @@ export default function Dashboard() {
 
   const handleCheckPublicationSync = useCallback(async (publication: Publication) => {
     if (!publication.doi) {
-      toast({ title: 'sync_needs_doi', description: 'Semantic Scholar detail sync currently needs a DOI.', variant: 'destructive', feedbackSeverity: 'error' });
+      toast({ title: 'DOI required for sync', description: 'Semantic Scholar detail sync needs a DOI on this paper before it can look up metadata.', variant: 'destructive', feedbackSeverity: 'error', source: dashboardFeedbackRef });
       return;
     }
     if ((syncCooldowns[publication.id] || 0) > 0 || syncLoadingIds.has(publication.id)) {
@@ -1214,7 +1223,7 @@ export default function Dashboard() {
       const metadata = await fetchSemanticScholarMetadataByDoi(publication.doi);
       if (!metadata) {
         setSyncDiffsByPublication(prev => ({ ...prev, [publication.id]: [] }));
-        toast({ title: 'sync_no_semantic_scholar_match', description: 'No Semantic Scholar metadata found for this DOI.' });
+        toast({ title: 'No Semantic Scholar match', description: 'Semantic Scholar did not return metadata for this DOI.', feedbackSeverity: 'warning', source: dashboardFeedbackRef });
         return;
       }
       const diffs = getPublicationSyncDiffs(publication, metadata);
@@ -1222,15 +1231,16 @@ export default function Dashboard() {
       setSyncDiffsByPublication(prev => ({ ...prev, [publication.id]: diffs }));
       if (diffs.length > 0) {
         setSyncPreviewPublication(publication);
-        toast({ title: `sync_found_${diffs.length}_field${diffs.length === 1 ? '' : 's'}`, description: 'Review incoming Semantic Scholar details before applying.' });
+        toast({ title: `Found ${diffs.length} metadata update${diffs.length === 1 ? '' : 's'}`, description: 'Review incoming Semantic Scholar details before applying them to this paper.', feedbackSeverity: 'info', source: dashboardFeedbackRef });
       } else {
-        toast({ title: 'sync_up_to_date', description: 'Semantic Scholar details match this publication.' });
+        toast({ title: 'Metadata is up to date', description: 'Semantic Scholar details already match this publication.', source: dashboardFeedbackRef });
       }
     } catch (error) {
       toast({
-        title: 'sync_failed',
+        title: 'Semantic Scholar sync failed',
         description: formatSemanticScholarErrorMessage(error),
         variant: 'destructive', feedbackSeverity: 'error',
+        source: dashboardFeedbackRef,
       });
     } finally {
       setSyncLoadingIds(prev => {
@@ -1251,7 +1261,7 @@ export default function Dashboard() {
       .eq('id', syncPreviewPublication.id);
 
     if (error) {
-      toast({ title: 'sync_apply_failed', description: error.message, variant: 'destructive', feedbackSeverity: 'error' });
+      toast({ title: 'Could not apply metadata', description: error.message || 'RefHub could not apply the selected Semantic Scholar fields.', variant: 'destructive', feedbackSeverity: 'error', source: dashboardFeedbackRef });
       return;
     }
 
@@ -1327,14 +1337,15 @@ export default function Dashboard() {
       setPublicationTags(prev => prev.filter(pt => pt.publication_id !== deletedId));
       clearPageCache('dashboard');
 
-      toast({ title: 'paper_deleted' });
+      toast({ title: 'Paper deleted', source: dashboardFeedbackRef });
     } catch (error) {
       // Revert on error
       fetchData();
       toast({
-        title: 'error_deleting_paper',
-        description: (error as Error).message,
+        title: 'Could not delete paper',
+        description: (error as Error).message || 'RefHub could not delete this paper. Refresh and try again.',
         variant: 'destructive', feedbackSeverity: 'error',
+        source: dashboardFeedbackRef,
       });
     } finally {
       setDeleteConfirmation(null);
@@ -1381,9 +1392,10 @@ export default function Dashboard() {
     } catch (error) {
       fetchData();
       toast({
-        title: 'error_deleting_papers',
-        description: (error as Error).message,
+        title: 'Could not delete papers',
+        description: (error as Error).message || 'RefHub could not delete the selected papers. Refresh and try again.',
         variant: 'destructive', feedbackSeverity: 'error',
+        source: dashboardFeedbackRef,
       });
     } finally {
       setBulkDeleteConfirmation([]);
@@ -1404,9 +1416,10 @@ export default function Dashboard() {
 
       if (forks && forks.length > 0) {
         toast({
-          title: 'cannot_delete_vault',
+          title: 'Cannot delete vault',
           description: `This vault has ${forks.length} fork${forks.length > 1 ? 's' : ''}. Public vaults with forks cannot be deleted.`,
           variant: 'destructive', feedbackSeverity: 'error',
+          source: dashboardFeedbackRef,
         });
         setDeleteVaultConfirmation(null);
         return;
@@ -1441,15 +1454,16 @@ export default function Dashboard() {
 
       if (error) throw error;
 
-      toast({ title: 'vault_deleted' });
+      toast({ title: 'Vault deleted', source: dashboardFeedbackRef });
       setIsVaultDialogOpen(false);
     } catch (error) {
       // Revert on error
       fetchData();
       toast({
-        title: 'error_deleting_vault',
-        description: (error as Error).message,
+        title: 'Could not delete vault',
+        description: (error as Error).message || 'RefHub could not delete this vault. Refresh and try again.',
         variant: 'destructive', feedbackSeverity: 'error',
+        source: dashboardFeedbackRef,
       });
     } finally {
       setDeleteVaultConfirmation(null);
@@ -1516,9 +1530,10 @@ export default function Dashboard() {
       }
 
       toast({
-        title: 'error_creating_tag',
-        description: (error as Error).message,
+        title: 'Could not create tag',
+        description: (error as Error).message || 'RefHub could not create this tag. Check the name and try again.',
         variant: 'destructive', feedbackSeverity: 'error',
+        source: dashboardFeedbackRef,
       });
       return null;
     }
@@ -1541,9 +1556,10 @@ export default function Dashboard() {
       return data as Tag;
     } catch (error) {
       toast({
-        title: 'error_updating_tag',
-        description: (error as Error).message,
+        title: 'Could not update tag',
+        description: (error as Error).message || 'RefHub could not save this tag change. Refresh and try again.',
         variant: 'destructive', feedbackSeverity: 'error',
+        source: dashboardFeedbackRef,
       });
       return null;
     }
@@ -1569,7 +1585,7 @@ export default function Dashboard() {
         ));
         setEditingVault(updatedVault as Vault);
         
-        toast({ title: 'vault_updated ✨' });
+        toast({ title: 'Vault updated ✨', source: dashboardFeedbackRef });
         return updatedVault as Vault;
       } else {
         // Create optimistic vault with temporary ID
@@ -1607,7 +1623,7 @@ export default function Dashboard() {
             navigate(`/vault/${createdVault.id}`);
           }
           
-          toast({ title: 'vault_created ✨' });
+          toast({ title: 'Vault created ✨', source: dashboardFeedbackRef });
           setEditingVault(null);
           return newVault as Vault;
         } catch (error) {
@@ -1618,9 +1634,10 @@ export default function Dashboard() {
       }
     } catch (error) {
       toast({
-        title: 'error_adding_to_vaults',
-        description: (error as Error).message,
+        title: 'Could not add to vaults',
+        description: (error as Error).message || 'RefHub could not add this paper to the selected vaults. Refresh and try again.',
         variant: 'destructive', feedbackSeverity: 'error',
+        source: dashboardFeedbackRef,
       });
     }
   };
@@ -1645,7 +1662,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <div ref={dashboardFeedbackRef} className="min-h-screen bg-background flex">
       <Sidebar
         vaults={vaults}
         sharedVaults={sharedVaults}

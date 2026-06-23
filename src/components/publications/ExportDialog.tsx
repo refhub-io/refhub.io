@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useRef, useState, useMemo, useEffect } from 'react';
 import { Publication, Tag, PublicationTag } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -54,6 +54,7 @@ export function ExportDialog({
   publicationTags,
 }: ExportDialogProps) {
   const { toast } = useToast();
+  const copyButtonRef = useRef<HTMLButtonElement>(null);
   const [selectedFields, setSelectedFields] = useState<BibtexField[]>(DEFAULT_SELECTED);
   const [format, setFormat] = useState<ExportFormat>('bibtex');
   const [includeHierarchicalTags, setIncludeHierarchicalTags] = useState(false);
@@ -147,13 +148,14 @@ export function ExportDialog({
     try {
       await navigator.clipboard.writeText(content);
       setCopied(true);
-      toast({ title: 'Copied to clipboard' });
+      toast({ title: 'Copied to clipboard', source: copyButtonRef });
       setTimeout(() => setCopied(false), 2000);
     } catch {
       toast({
-        title: 'Failed to copy',
-        description: 'Please try again or download the file instead.',
+        title: 'Copy failed',
+        description: 'RefHub could not copy the export to your clipboard. Download the file instead, or allow clipboard access and try again.',
         variant: 'destructive', feedbackSeverity: 'error',
+        source: copyButtonRef,
       });
     }
   };
@@ -278,6 +280,7 @@ export function ExportDialog({
             cancel
           </Button>
           <Button
+            ref={copyButtonRef}
             variant="outline"
             onClick={handleCopyToClipboard}
             disabled={(format === 'bibtex' && selectedFields.length === 0) || publications.length === 0}

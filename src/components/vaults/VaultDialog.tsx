@@ -85,6 +85,8 @@ interface VaultDialogProps {
 export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSave, onUpdate, onDelete }: VaultDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const shareFormRef = useRef<HTMLFormElement>(null);
+  const publicLinkButtonRef = useRef<HTMLButtonElement>(null);
   const kbCtx = useKeyboardContext();
 
   const [name, setName] = useState('');
@@ -665,8 +667,9 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     if (user.email?.toLowerCase() === email.trim().toLowerCase()) {
       toast({
         title: 'Cannot share with yourself',
-        description: 'You already own this vault',
+        description: 'You already own this vault. Enter another RefHub user email or username to share access.',
         variant: 'destructive', feedbackSeverity: 'error',
+        source: shareFormRef,
       });
       return;
     }
@@ -725,7 +728,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
 
       if (error) throw error;
 
-      toast({ title: 'user_added ✨' });
+      toast({ title: 'User added ✨', source: shareFormRef });
       setEmail('');
       setSelectedProfile(null);
       setShareUserError('');
@@ -736,9 +739,10 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       onUpdate?.();
     } catch (error) {
       toast({
-        title: 'error_sharing_vault',
-        description: (error as Error).message,
+        title: 'Could not share vault',
+        description: (error as Error).message || 'RefHub could not add that user to the vault. Check the user and permission, then try again.',
         variant: 'destructive', feedbackSeverity: 'error',
+        source: shareFormRef,
       });
     } finally {
       setSaving(false);
@@ -754,14 +758,15 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
 
       if (error) throw error;
 
-      toast({ title: 'user_removed' });
+      toast({ title: 'User removed', source: shareFormRef });
       if (vault) fetchShares(vault.id);
       onUpdate?.();
     } catch (error) {
       toast({
-        title: 'error_removing_user',
-        description: (error as Error).message,
+        title: 'Could not remove user',
+        description: (error as Error).message || 'RefHub could not remove this user from the vault. Refresh and try again.',
         variant: 'destructive', feedbackSeverity: 'error',
+        source: shareFormRef,
       });
     }
   };
@@ -775,14 +780,15 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
 
       if (error) throw error;
 
-      toast({ title: 'permission_updated' });
+      toast({ title: 'Permission updated', source: shareFormRef });
       if (vault) fetchShares(vault.id);
       onUpdate?.();
     } catch (error) {
       toast({
-        title: 'error_updating_permission',
-        description: (error as Error).message,
+        title: 'Could not update permission',
+        description: (error as Error).message || 'RefHub could not change this vault permission. Refresh and try again.',
         variant: 'destructive', feedbackSeverity: 'error',
+        source: shareFormRef,
       });
     }
   };
@@ -824,12 +830,12 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       const { error: updateError } = await supabase.from('vault_access_requests').update({ status: 'approved' }).eq('id', req.id);
       if (updateError) throw updateError;
 
-      toast({ title: 'Request approved' });
+      toast({ title: 'Request approved', source: shareFormRef });
       fetchAccessRequests();
       if (vault) fetchShares(vault.id);
       onUpdate?.();
     } catch (error) {
-      toast({ title: 'Error', description: (error as Error).message, variant: 'destructive', feedbackSeverity: 'error' });
+      toast({ title: 'Could not update access request', description: (error as Error).message || 'RefHub could not update this access request. Refresh and try again.', variant: 'destructive', feedbackSeverity: 'error', source: shareFormRef });
     }
   };
 
@@ -838,10 +844,10 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     try {
       const { error } = await supabase.from('vault_access_requests').update({ status: 'rejected' }).eq('id', req.id);
       if (error) throw error;
-      toast({ title: 'Request rejected' });
+      toast({ title: 'Request rejected', source: shareFormRef });
       fetchAccessRequests();
     } catch (error) {
-      toast({ title: 'Error', description: (error as Error).message, variant: 'destructive', feedbackSeverity: 'error' });
+      toast({ title: 'Could not update access request', description: (error as Error).message || 'RefHub could not update this access request. Refresh and try again.', variant: 'destructive', feedbackSeverity: 'error', source: shareFormRef });
     }
   };
 
@@ -851,7 +857,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     navigator.clipboard.writeText(publicUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-    toast({ title: 'link_copied' });
+    toast({ title: 'Link copied', source: publicLinkButtonRef });
   };
 
   const visibilityOptions = [
@@ -896,7 +902,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
           </div>
         </DialogHeader>
 
-        <form onSubmit={handleFormSubmit} className="flex-1 overflow-y-auto space-y-5 px-6 pb-6">
+        <form ref={shareFormRef} onSubmit={handleFormSubmit} className="flex-1 overflow-y-auto space-y-5 px-6 pb-6">
           <div className="space-y-2">
             <Label htmlFor="name" className="font-semibold font-mono">name</Label>
             <Input
@@ -1047,6 +1053,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                   {publicUrl}
                 </code>
                 <Button
+                  ref={publicLinkButtonRef}
                   type="button"
                   variant="ghost"
                   size="icon"
