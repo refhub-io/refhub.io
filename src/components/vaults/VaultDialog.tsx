@@ -666,7 +666,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       toast({
         title: 'Cannot share with yourself',
         description: 'You already own this vault',
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
       return;
     }
@@ -738,7 +738,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       toast({
         title: 'error_sharing_vault',
         description: (error as Error).message,
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
     } finally {
       setSaving(false);
@@ -761,7 +761,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       toast({
         title: 'error_removing_user',
         description: (error as Error).message,
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
     }
   };
@@ -782,7 +782,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       toast({
         title: 'error_updating_permission',
         description: (error as Error).message,
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
     }
   };
@@ -829,7 +829,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       if (vault) fetchShares(vault.id);
       onUpdate?.();
     } catch (error) {
-      toast({ title: 'Error', description: (error as Error).message, variant: 'destructive' });
+      toast({ title: 'Error', description: (error as Error).message, variant: 'destructive', feedbackSeverity: 'error' });
     }
   };
 
@@ -841,7 +841,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       toast({ title: 'Request rejected' });
       fetchAccessRequests();
     } catch (error) {
-      toast({ title: 'Error', description: (error as Error).message, variant: 'destructive' });
+      toast({ title: 'Error', description: (error as Error).message, variant: 'destructive', feedbackSeverity: 'error' });
     }
   };
 

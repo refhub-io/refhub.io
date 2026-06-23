@@ -67,7 +67,7 @@ export function KeyboardHelpOverlay() {
       toast({ title: 'shortcuts copied to clipboard' });
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast({ title: 'failed to copy', variant: 'destructive' });
+      toast({ title: 'failed to copy', variant: 'destructive', feedbackSeverity: 'error' });
     }
   }, [toast]);
 

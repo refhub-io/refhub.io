@@ -123,7 +123,7 @@ export function ImportDialog({
         toast({ 
           title: '⚠️ possible_duplicate', 
           description: `"${metadata.title}" may already exist in your library`,
-          variant: 'destructive'
+          variant: 'destructive', feedbackSeverity: 'error'
         });
       } else {
         toast({ title: 'doi_resolved ✨', description: metadata.title });
@@ -134,7 +134,7 @@ export function ImportDialog({
       toast({
         title: 'doi_lookup_failed',
         description: (error as Error).message || 'Could not resolve DOI',
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
     } finally {
       setDoiLoading(false);
@@ -151,7 +151,7 @@ export function ImportDialog({
         toast({
           title: 'no_entries_found',
           description: 'Could not parse any BibTeX entries',
-          variant: 'destructive',
+          variant: 'destructive', feedbackSeverity: 'error',
         });
         return;
       }
@@ -191,7 +191,7 @@ export function ImportDialog({
       toast({
         title: 'parse_error',
         description: (error as Error).message || 'Could not parse BibTeX',
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
     }
   };
@@ -251,7 +251,7 @@ export function ImportDialog({
       toast({
         title: 'no_papers_selected',
         description: 'Select at least one paper to import',
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
       return;
     }
@@ -282,7 +282,7 @@ export function ImportDialog({
       toast({
         title: 'import_failed',
         description: (error as Error).message,
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
     } finally {
       setImporting(false);

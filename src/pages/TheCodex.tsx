@@ -298,7 +298,7 @@ export default function TheCodex() {
       toast({
         title: 'sign_in_required',
         description: 'Please sign in to favorite this vault.',
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
       return;
     }
@@ -319,7 +319,7 @@ export default function TheCodex() {
       toast({
         title: 'sign_in_required',
         description: 'Please sign in to fork this vault.',
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
       return;
     }

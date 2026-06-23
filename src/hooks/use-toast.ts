@@ -1,6 +1,14 @@
 import * as React from "react";
 
-import type { ToastActionElement, ToastProps } from "@/components/ui/toast";
+export type FeedbackSeverity = "success" | "warning" | "error" | "info";
+export type ToastActionElement = React.ReactElement;
+export type ToastProps = {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  className?: string;
+  variant?: "default" | "destructive";
+  duration?: number;
+};
 
 const TOAST_LIMIT = 1;
 const TOAST_REMOVE_DELAY = 1000000;
@@ -10,6 +18,8 @@ type ToasterToast = ToastProps & {
   title?: React.ReactNode;
   description?: React.ReactNode;
   action?: ToastActionElement;
+  sourceRect?: DOMRect | null;
+  feedbackSeverity?: FeedbackSeverity;
 };
 
 const actionTypes = {
@@ -134,8 +144,37 @@ function dispatch(action: Action) {
 
 type Toast = Omit<ToasterToast, "id">;
 
-function toast({ ...props }: Toast) {
+type ToastInput = Toast & {
+  source?: EventTarget | Element | React.RefObject<Element | null> | null;
+};
+
+function getSourceRect(source?: ToastInput["source"]): DOMRect | null {
+  const candidate = source ?? document.activeElement;
+  if (!candidate) return null;
+  if (candidate instanceof Element) return candidate.getBoundingClientRect();
+  if ("current" in candidate && candidate.current instanceof Element) {
+    return candidate.current.getBoundingClientRect();
+  }
+  if (candidate instanceof EventTarget && candidate instanceof Element) return candidate.getBoundingClientRect();
+  return null;
+}
+
+function inferFeedbackSeverity(props: Toast): FeedbackSeverity {
+  if (props.feedbackSeverity) return props.feedbackSeverity;
+  if (props.variant === "destructive") return "error";
+
+  const text = `${String(props.title ?? "")} ${String(props.description ?? "")}`.toLowerCase();
+  if (text.includes("duplicate") || text.includes("warning") || text.includes("already") || text.includes("no semantic scholar")) {
+    return "warning";
+  }
+
+  return "success";
+}
+
+function toast({ source, ...props }: ToastInput) {
   const id = genId();
+  const sourceRect = props.sourceRect ?? getSourceRect(source);
+  const feedbackSeverity = inferFeedbackSeverity(props);
 
   const update = (props: ToasterToast) =>
     dispatch({
@@ -148,6 +187,8 @@ function toast({ ...props }: Toast) {
     type: "ADD_TOAST",
     toast: {
       ...props,
+      sourceRect,
+      feedbackSeverity,
       id,
       open: true,
       onOpenChange: (open) => {

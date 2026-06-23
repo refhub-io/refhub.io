@@ -170,7 +170,7 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
       toast({
         title: 'error_upgrading_vault',
         description: (error as Error).message,
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
     } finally {
       setUpgrading(false);
@@ -226,7 +226,7 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
         toast({
           title: 'error_downloading_qr_code',
           description: (error as Error).message,
-          variant: 'destructive',
+          variant: 'destructive', feedbackSeverity: 'error',
         });
       }
       return;

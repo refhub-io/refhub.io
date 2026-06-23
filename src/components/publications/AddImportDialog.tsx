@@ -159,13 +159,13 @@ export function AddImportDialog({
       setSelectedIndices(prev => new Set([...prev, newIndex]));
       if (isDuplicate) {
         setDuplicateIndices(prev => new Set([...prev, newIndex]));
-        toast({ title: '⚠️ possible_duplicate', description: `"${metadata.title}" may already exist`, variant: 'destructive' });
+        toast({ title: 'possible_duplicate', description: `"${metadata.title}" may already exist. Review the preview before importing.`, feedbackSeverity: 'warning' });
       } else {
         toast({ title: 'doi_resolved ✨', description: metadata.title });
       }
       setDoiInput('');
     } catch (error) {
-      toast({ title: 'doi_lookup_failed', description: (error as Error).message || 'Could not resolve DOI', variant: 'destructive' });
+      toast({ title: 'doi_lookup_failed', description: (error as Error).message || 'Could not resolve DOI', variant: 'destructive', feedbackSeverity: 'error' });
     } finally {
       setDoiLoading(false);
     }
@@ -178,7 +178,7 @@ export function AddImportDialog({
     try {
       const parsed = parseBibtex(bibtexInput);
       if (parsed.length === 0) {
-        toast({ title: 'no_entries_found', description: 'Could not parse any BibTeX entries', variant: 'destructive' });
+        toast({ title: 'no_entries_found', description: 'Could not parse any BibTeX entries', variant: 'destructive', feedbackSeverity: 'error' });
         return;
       }
       const startIdx = parsedPublications.length;
@@ -200,7 +200,7 @@ export function AddImportDialog({
         toast({ title: `parsed_${parsed.length}_entries ✨` });
       }
     } catch (error) {
-      toast({ title: 'parse_error', description: (error as Error).message || 'Could not parse BibTeX', variant: 'destructive' });
+      toast({ title: 'parse_error', description: (error as Error).message || 'Could not parse BibTeX', variant: 'destructive', feedbackSeverity: 'error' });
     }
   };
 
@@ -238,13 +238,13 @@ export function AddImportDialog({
       .filter((_, i) => selectedIndices.has(i))
       .map(pub => { const { vault_id: _vaultId, ...clean } = pub as Partial<Publication> & { vault_id?: string }; return clean; });
     if (toImport.length === 0) {
-      toast({ title: 'no_papers_selected', description: 'Select at least one paper', variant: 'destructive' });
+      toast({ title: 'no_papers_selected', description: 'Select at least one paper', variant: 'destructive', feedbackSeverity: 'error' });
       return;
     }
     setImporting(true);
     try {
       if (!onImport) {
-        toast({ title: 'import_unavailable', description: 'Import is not available in this context', variant: 'destructive' });
+        toast({ title: 'import_unavailable', description: 'Import is not available in this context', variant: 'destructive', feedbackSeverity: 'error' });
         return;
       }
       const insertedIds = await onImport(toImport, targetVaultId);
@@ -257,7 +257,7 @@ export function AddImportDialog({
       setBibtexInput('');
       onOpenChange(false);
     } catch (error) {
-      toast({ title: 'import_failed', description: (error as Error).message, variant: 'destructive' });
+      toast({ title: 'import_failed', description: (error as Error).message, variant: 'destructive', feedbackSeverity: 'error' });
     } finally {
       setImporting(false);
     }
@@ -275,7 +275,7 @@ export function AddImportDialog({
 
   const handleManualCreate = async () => {
     if (!manualForm.title?.trim()) {
-      toast({ title: 'title_required', description: 'Please provide a paper title', variant: 'destructive' });
+      toast({ title: 'title_required', description: 'Please provide a paper title', variant: 'destructive', feedbackSeverity: 'error' });
       return;
     }
     setImporting(true);
@@ -304,7 +304,7 @@ export function AddImportDialog({
       setManualDrivePdf('');
       onOpenChange(false);
     } catch (error) {
-      toast({ title: 'create_failed', description: (error as Error).message, variant: 'destructive' });
+      toast({ title: 'create_failed', description: (error as Error).message, variant: 'destructive', feedbackSeverity: 'error' });
     } finally {
       setImporting(false);
     }

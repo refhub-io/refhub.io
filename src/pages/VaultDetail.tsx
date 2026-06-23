@@ -642,7 +642,7 @@ export default function VaultDetail() {
           toast({
             title: 'duplicate_detected',
             description: `Paper already exists: "${duplicate.title.substring(0, 50)}..."`,
-            variant: 'destructive',
+            variant: 'destructive', feedbackSeverity: 'error',
           });
           return;
         }
@@ -693,7 +693,7 @@ export default function VaultDetail() {
       toast({
         title: 'error_saving_paper',
         description: (error as Error).message,
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
     }
   };
@@ -778,7 +778,7 @@ export default function VaultDetail() {
       toast({
         title: 'no_papers_to_import',
         description: 'All papers were duplicates',
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
       return [];
     }
@@ -819,7 +819,7 @@ export default function VaultDetail() {
       toast({
         title: 'error_importing_papers',
         description: (error as Error).message,
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
       return [];
     }
@@ -854,7 +854,7 @@ export default function VaultDetail() {
 
   const handleCheckPublicationSync = useCallback(async (publication: Publication) => {
     if (!publication.doi) {
-      toast({ title: 'sync_needs_doi', description: 'Semantic Scholar detail sync currently needs a DOI.', variant: 'destructive' });
+      toast({ title: 'sync_needs_doi', description: 'Semantic Scholar detail sync currently needs a DOI.', variant: 'destructive', feedbackSeverity: 'error' });
       return;
     }
     if ((syncCooldowns[publication.id] || 0) > 0 || syncLoadingIds.has(publication.id)) {
@@ -883,7 +883,7 @@ export default function VaultDetail() {
       toast({
         title: 'sync_failed',
         description: formatSemanticScholarErrorMessage(error),
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
     } finally {
       setSyncLoadingIds(prev => {
@@ -903,7 +903,7 @@ export default function VaultDetail() {
       patch,
     );
     if (!result.success) {
-      toast({ title: 'sync_apply_failed', description: result.error?.message || 'Could not apply Semantic Scholar details.', variant: 'destructive' });
+      toast({ title: 'sync_apply_failed', description: result.error?.message || 'Could not apply Semantic Scholar details.', variant: 'destructive', feedbackSeverity: 'error' });
       return;
     }
 
@@ -987,7 +987,7 @@ export default function VaultDetail() {
       toast({
         title: 'Error adding paper',
         description: (error as Error).message,
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
       throw error;
     }
@@ -1065,7 +1065,7 @@ export default function VaultDetail() {
           toast({
             title: 'permission_denied',
             description: 'You do not have permission to delete this paper.',
-            variant: 'destructive',
+            variant: 'destructive', feedbackSeverity: 'error',
           });
           return;
         }
@@ -1077,7 +1077,7 @@ export default function VaultDetail() {
         toast({
           title: 'Could not delete paper',
           description: 'The paper could not be deleted. You may not have permission.',
-          variant: 'destructive',
+          variant: 'destructive', feedbackSeverity: 'error',
         });
         return;
       }
@@ -1097,7 +1097,7 @@ export default function VaultDetail() {
       toast({
         title: 'error_deleting_paper',
         description: (error as Error).message,
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
     } finally {
       setDeleteConfirmation(null);
@@ -1150,7 +1150,7 @@ export default function VaultDetail() {
       toast({
         title: 'error_removing_papers',
         description: (error as Error).message,
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
     } finally {
       setBulkDeleteConfirmation([]);
@@ -1173,7 +1173,7 @@ export default function VaultDetail() {
         toast({
           title: 'cannot_delete_vault',
           description: `This vault has ${forks.length} fork${forks.length > 1 ? 's' : ''}. Public vaults with forks cannot be deleted.`,
-          variant: 'destructive',
+          variant: 'destructive', feedbackSeverity: 'error',
         });
         setDeleteVaultConfirmation(null);
         return;
@@ -1216,7 +1216,7 @@ export default function VaultDetail() {
       toast({
         title: 'error_deleting_vault',
         description: (error as Error).message,
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
     } finally {
       setDeleteVaultConfirmation(null);
@@ -1233,7 +1233,7 @@ export default function VaultDetail() {
         toast({
           title: 'Tag already exists',
           description: `A tag with the name "${name}" already exists in this vault.`,
-          variant: 'destructive',
+          variant: 'destructive', feedbackSeverity: 'error',
         });
         return existingLocal;
       }
@@ -1270,7 +1270,7 @@ export default function VaultDetail() {
         toast({
           title: 'Tag already exists',
           description: `A tag with the name "${name}" already exists in this vault.`,
-          variant: 'destructive',
+          variant: 'destructive', feedbackSeverity: 'error',
         });
         return null;
       }
@@ -1278,7 +1278,7 @@ export default function VaultDetail() {
       toast({
         title: 'error_creating_tag',
         description: (error as Error).message,
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
       return null;
     }
@@ -1332,7 +1332,7 @@ export default function VaultDetail() {
       toast({
         title: 'sign_in_required',
         description: 'Please sign in to fork this vault.',
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
       return;
     }
@@ -1411,7 +1411,7 @@ export default function VaultDetail() {
       toast({
         title: 'error_adding_to_vaults',
         description: (error as Error).message,
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
     }
   };
@@ -1634,7 +1634,7 @@ export default function VaultDetail() {
                     toast({
                       title: "Error",
                       description: (error as Error).message,
-                      variant: "destructive",
+                      variant: "destructive", feedbackSeverity: "error",
                     });
                   }
                 }}
@@ -1852,7 +1852,7 @@ export default function VaultDetail() {
                             toast({
                               title: 'Error',
                               description: (error as Error).message,
-                              variant: 'destructive',
+                              variant: 'destructive', feedbackSeverity: 'error',
                             });
                           }
                         }}

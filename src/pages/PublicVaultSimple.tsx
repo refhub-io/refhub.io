@@ -400,7 +400,7 @@ export default function PublicVault() {
       toast({
         title: 'sign_in_required',
         description: 'Please sign in to favorite this vault.',
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
       return;
     }
@@ -422,7 +422,7 @@ export default function PublicVault() {
       toast({
         title: 'sign_in_required',
         description: 'Please sign in to fork this vault.',
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
       return;
     }
@@ -663,7 +663,7 @@ export default function PublicVault() {
                               toast({
                                 title: 'Error',
                                 description: (error as Error).message,
-                                variant: 'destructive',
+                                variant: 'destructive', feedbackSeverity: 'error',
                               });
                             }
                           }}

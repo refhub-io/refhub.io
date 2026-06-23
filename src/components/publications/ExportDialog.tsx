@@ -153,7 +153,7 @@ export function ExportDialog({
       toast({
         title: 'Failed to copy',
         description: 'Please try again or download the file instead.',
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
     }
   };

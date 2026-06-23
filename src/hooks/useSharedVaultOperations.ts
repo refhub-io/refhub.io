@@ -157,7 +157,7 @@ export function useSharedVaultOperations({
         toast({
           title: 'error_saving_paper',
           description: (error as Error).message,
-          variant: 'destructive',
+          variant: 'destructive', feedbackSeverity: 'error',
         });
       }
 
@@ -262,13 +262,13 @@ export function useSharedVaultOperations({
         toast({
           title: 'Tag already exists',
           description: `A tag with the name "${name}" already exists in this vault.`,
-          variant: 'destructive',
+          variant: 'destructive', feedbackSeverity: 'error',
         });
       } else {
         toast({
           title: 'error_creating_tag',
           description: (error as Error).message,
-          variant: 'destructive',
+          variant: 'destructive', feedbackSeverity: 'error',
         });
       }
 
@@ -334,7 +334,7 @@ export function useSharedVaultOperations({
       toast({
         title: 'error_updating_tag',
         description: (error as Error).message,
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
 
       return { success: false, error: error as Error };
@@ -398,7 +398,7 @@ export function useSharedVaultOperations({
       toast({
         title: 'error_deleting_tag',
         description: (error as Error).message,
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
 
       return { success: false, error: error as Error };
@@ -531,7 +531,7 @@ export function useSharedVaultOperations({
         toast({
           title: 'error_updating_tags',
           description: (error as Error).message,
-          variant: 'destructive',
+          variant: 'destructive', feedbackSeverity: 'error',
         });
       }
 
@@ -715,7 +715,7 @@ export function useSharedVaultOperations({
       toast({
         title: 'error_creating_paper',
         description: (error as Error).message,
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
 
       return { success: false, error: error as Error };
@@ -775,7 +775,7 @@ export function useSharedVaultOperations({
       toast({
         title: 'error_deleting_paper',
         description: (error as Error).message,
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
 
       return { success: false, error: error as Error };

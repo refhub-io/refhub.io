@@ -159,7 +159,7 @@ export default function Auth() {
         toast({
           title: 'weak_password',
           description: 'Password must be at least 8 characters long.',
-          variant: 'destructive',
+          variant: 'destructive', feedbackSeverity: 'error',
         });
         return;
       }
@@ -167,7 +167,7 @@ export default function Auth() {
         toast({
           title: 'weak_password',
           description: 'Please create a stronger password with a mix of uppercase, lowercase, numbers, and special characters.',
-          variant: 'destructive',
+          variant: 'destructive', feedbackSeverity: 'error',
         });
         return;
       }
@@ -183,7 +183,7 @@ export default function Auth() {
             toast({
               title: 'account_exists',
               description: 'This email is already registered. Please sign in instead.',
-              variant: 'destructive',
+              variant: 'destructive', feedbackSeverity: 'error',
             });
           } else {
             throw error;
@@ -214,7 +214,7 @@ export default function Auth() {
           toast({
             title: 'sign_in_failed',
             description: 'Invalid email or password. Please try again.',
-            variant: 'destructive',
+            variant: 'destructive', feedbackSeverity: 'error',
           });
         } else {
           // Get current user from Supabase Auth
@@ -240,7 +240,7 @@ export default function Auth() {
       toast({
         title: 'error',
         description: (error as Error).message || 'An unexpected error occurred.',
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
     } finally {
       setCredentialLoading(false);
@@ -258,7 +258,7 @@ export default function Auth() {
         toast({
           title: `${provider}_sign_in_failed`,
           description: error.message || `Unable to connect ${getAuthProviderLabel(provider)} right now.`,
-          variant: 'destructive',
+          variant: 'destructive', feedbackSeverity: 'error',
         });
         setOauthProviderLoading(null);
       }
@@ -266,7 +266,7 @@ export default function Auth() {
       toast({
         title: `${provider}_sign_in_failed`,
         description: (error as Error).message || 'An unexpected error occurred.',
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
       setOauthProviderLoading(null);
     }

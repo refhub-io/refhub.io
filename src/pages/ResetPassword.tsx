@@ -43,7 +43,7 @@ export default function ResetPassword() {
             toast({
               title: 'session_error',
               description: 'Invalid or expired recovery link. Please request a new one.',
-              variant: 'destructive',
+              variant: 'destructive', feedbackSeverity: 'error',
             });
             setIsRecovery(false);
           } else if (data.session) {
@@ -100,7 +100,7 @@ export default function ResetPassword() {
       toast({
         title: 'reset_failed',
         description: error.message,
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
     } else {
       setSent(true);
@@ -113,7 +113,7 @@ export default function ResetPassword() {
       toast({
         title: 'weak_password',
         description: 'Password must be at least 8 characters long.',
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
       return;
     }
@@ -121,7 +121,7 @@ export default function ResetPassword() {
       toast({
         title: 'password_mismatch',
         description: 'Passwords do not match.',
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
       return;
     }
@@ -132,7 +132,7 @@ export default function ResetPassword() {
       toast({
         title: 'reset_failed',
         description: error.message,
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
     } else {
       setResetSuccess(true);

@@ -15,7 +15,7 @@ export function useVaultFork() {
       toast({
         title: 'sign_in_required',
         description: 'Please sign in to fork this vault.',
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
       return null;
     }
@@ -28,7 +28,7 @@ export function useVaultFork() {
       toast({
         title: 'fork_failed',
         description: (error as Error).message,
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
       return null;
     }
