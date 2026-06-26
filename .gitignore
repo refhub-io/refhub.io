@@ -9,10 +9,13 @@ lerna-debug.log*
 
 node_modules
 dist
+playwright-report
+test-results
 dist-ssr
 *.local
 
 # Environment variables
+.auth
 .env
 .env.local
 .env.*.local

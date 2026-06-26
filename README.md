@@ -74,6 +74,49 @@ output in `dist/` — deploy to any static host.
 
 ---
 
+## // browser testing + screenshots
+
+Playwright is configured for local browser checks and screenshot capture.
+
+First-time setup:
+
+```sh
+npm install
+npx playwright install chromium
+# Linux only, if browser system dependencies are missing:
+# npx playwright install --with-deps chromium
+```
+
+Run the e2e smoke test:
+
+```sh
+npm run test:e2e
+```
+
+Useful variants:
+
+```sh
+npm run test:e2e:headed       # run with a visible Chromium window
+npm run test:e2e:ui           # open Playwright's interactive UI
+npm run test:e2e:screenshots  # concise screenshot-focused run
+```
+
+By default Playwright starts Vite on `http://127.0.0.1:8081` with safe local Supabase placeholders, which is enough for unauthenticated shell screenshots. Override with:
+
+```sh
+PLAYWRIGHT_PORT=5173 npm run test:e2e
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:5173 npm run test:e2e
+```
+
+Artifacts:
+- HTML report: `playwright-report/`
+- test output, screenshots, traces, and videos: `test-results/e2e/`
+- the smoke test writes `auth-shell.png` under its per-test output directory.
+
+For authenticated visual checks, create a Playwright storage state locally and pass it via env (for example `PLAYWRIGHT_AUTH_STORAGE=.auth/user.json`). Do not commit auth state or Supabase secrets. The Quoterm edit-paper Save/Sync feedback anchoring test is scaffolded in `tests/e2e/app-smoke.spec.ts` and should be completed with stable test vault/item fixture IDs.
+
+---
+
 ## // structure
 
 ```

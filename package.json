@@ -14,7 +14,11 @@
     "preview": "vite preview",
     "deploy": "bun run build && gh-pages -d dist",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:screenshots": "playwright test --project=chromium --reporter=list"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -86,6 +90,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/typography": "^0.5.19",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
