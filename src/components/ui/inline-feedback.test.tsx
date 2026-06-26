@@ -34,10 +34,10 @@ describe('InlineFeedbackHost', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
-  it('uses the quoterm package inline source-element banner instead of stale centered positioning', async () => {
+  it('uses the quoterm package inline source-element banner with scaled width', async () => {
     const source = document.createElement('button');
     document.body.appendChild(source);
-    const rect = new DOMRect(20, 30, 240, 40);
+    const rect = new DOMRect(20, 30, 96, 40);
     vi.spyOn(source, 'getBoundingClientRect').mockReturnValue(rect);
     render(<InlineFeedbackHost commandName="refhub feedback" />);
 
@@ -48,8 +48,8 @@ describe('InlineFeedbackHost', () => {
     const inlineSlot = await waitFor(() => document.querySelector('[data-quoterm="inline-slot"]'));
     expect(inlineSlot).toBeInTheDocument();
     expect(inlineSlot).toHaveAttribute('data-quoterm-placement', 'before');
-    expect(inlineSlot).toHaveStyle({ position: 'fixed', left: '20px', width: '240px' });
-    expect(screen.getByRole('status')).toHaveStyle({ maxWidth: '240px' });
+    expect(inlineSlot).toHaveStyle({ position: 'fixed', left: '16px', width: '280px' });
+    expect(screen.getByRole('status')).toHaveStyle({ maxWidth: '280px' });
 
     source.remove();
   });
