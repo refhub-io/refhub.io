@@ -6,6 +6,7 @@ import { useVaultAccess } from '@/hooks/useVaultAccess';
 import { handleError } from '@/lib/toast';
 import { debug, warn, error as logError } from '@/lib/logger';
 import { getPageCache, setPageCache } from '@/lib/pageCache';
+import { replacePublicationPdfAsset } from '@/lib/pdfAssets';
 
 // Info about the last activity in the vault
 export type ActivityType = 'publication_added' | 'publication_updated' | 'publication_removed' | 'tag_added' | 'tag_updated' | 'tag_removed';
@@ -328,17 +329,10 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
     }
 
     if (publicationId) {
-      const { error: publicationError } = await supabase
-        .from('publication_pdf_assets')
-        .upsert(
-          {
-            ...record,
-            vault_publication_id: null,
-          },
-          { onConflict: 'publication_id,storage_provider' },
-        );
-
-      if (publicationError) throw publicationError;
+      await replacePublicationPdfAsset(supabase, {
+        ...record,
+        vault_publication_id: null,
+      });
     }
   }, [publications, user]);
 

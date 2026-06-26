@@ -26,6 +26,7 @@ import {
 } from '@/lib/semanticScholar';
 import { createPublicationSyncPatch, extractBibliographicPatch, getPublicationSyncDiffs, PublicationSyncDiff } from '@/lib/publicationSync';
 import { filterDashboardTags, getDashboardAccessibleVaultIds } from '@/lib/dashboardTagScope';
+import { replacePublicationPdfAsset } from '@/lib/pdfAssets';
 import { PublicationSyncDialog } from '@/components/publications/PublicationSyncDialog';
 import {
   AlertDialog,
@@ -801,9 +802,8 @@ export default function Dashboard() {
               .upsert(assetRecord, { onConflict: 'vault_publication_id,storage_provider' })
               .then(({ error: e }) => { if (e) console.warn('[drive] pdf asset upsert:', e.message); });
             if (vaultPub.original_publication_id) {
-              supabase.from('publication_pdf_assets')
-                .upsert({ ...assetRecord, vault_publication_id: null }, { onConflict: 'publication_id,storage_provider' })
-                .then(({ error: e }) => { if (e) console.warn('[drive] canonical pdf asset upsert:', e.message); });
+              replacePublicationPdfAsset(supabase, { ...assetRecord, vault_publication_id: null })
+                .catch((e) => { console.warn('[drive] canonical pdf asset replace:', e.message); });
             }
             setPdfAssetsMap(prev => ({ ...prev, [editingPublication.id]: driveUrl }));
           }
@@ -837,18 +837,16 @@ export default function Dashboard() {
 
           // Persist Drive PDF asset for canonical publication
           if (!updateError && driveUrl) {
-            supabase.from('publication_pdf_assets')
-              .upsert({
-                user_id: user.id,
-                publication_id: editingPublication.id,
-                vault_publication_id: null,
-                storage_provider: 'google_drive' as const,
-                stored_pdf_url: driveUrl,
-                stored_file_id: null as string | null,
-                status: 'stored',
-                error_message: null as string | null,
-              }, { onConflict: 'publication_id,storage_provider' })
-              .then(({ error: e }) => { if (e) console.warn('[drive] pdf asset upsert:', e.message); });
+            replacePublicationPdfAsset(supabase, {
+              user_id: user.id,
+              publication_id: editingPublication.id,
+              vault_publication_id: null,
+              storage_provider: 'google_drive' as const,
+              stored_pdf_url: driveUrl,
+              stored_file_id: null as string | null,
+              status: 'stored',
+              error_message: null as string | null,
+            }).catch((e) => { console.warn('[drive] pdf asset replace:', e.message); });
             setPdfAssetsMap(prev => ({ ...prev, [editingPublication.id]: driveUrl }));
           }
         }
