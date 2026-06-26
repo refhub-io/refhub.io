@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, type RefObject } from 'react';
 import { logger } from '@/lib/logger';
 import { Publication, Vault, Tag, PUBLICATION_TYPES } from '@/types/database';
 import { UnsavedChangesDialog } from '@/components/ui/unsaved-changes-dialog';
@@ -59,10 +59,10 @@ interface PublicationDialogProps {
   publicationVaults?: string[]; // IDs of vaults this publication is already in
   currentVaultId?: string; // Current vault ID to pre-select when adding new paper
   driveUploadContext?: 'publication' | 'vault';
-  onSave: (data: Partial<Publication>, tagIds: string[], vaultIds?: string[], isAutoSave?: boolean, driveUrl?: string | null) => Promise<void>;
+  onSave: (data: Partial<Publication>, tagIds: string[], vaultIds?: string[], isAutoSave?: boolean, driveUrl?: string | null, feedbackSource?: Element | RefObject<Element | null> | null) => Promise<void>;
   onCreateTag: (name: string, parentId?: string) => Promise<Tag | null>;
   onAddToVaults?: (publicationId: string, vaultIds: string[]) => Promise<void>;
-  onCheckSync?: (publication: Publication) => void;
+  onCheckSync?: (publication: Publication, feedbackSource?: Element | RefObject<Element | null> | null) => void;
   syncLoading?: boolean;
   syncCooldownSeconds?: number;
   /** When false, dialog stays open after save (default: true). */
@@ -92,6 +92,8 @@ export function PublicationDialog({
   driveUrl,
 }: PublicationDialogProps) {
   const { user, session } = useAuth();
+  const saveButtonRef = useRef<HTMLButtonElement | null>(null);
+  const syncButtonRef = useRef<HTMLButtonElement | null>(null);
   const {
     relations,
     loading: relationsLoading,
@@ -231,6 +233,8 @@ export function PublicationDialog({
                 selectedTagsRef.current,
                 publication ? undefined : selectedVaultIds,
                 true, // isAutoSave
+                undefined,
+                saveButtonRef,
               );
               setModifiedFields(new Set());
               setLastSavedAt(new Date());
@@ -364,6 +368,8 @@ export function PublicationDialog({
         selectedTagsRef.current,
         publication ? undefined : selectedVaultIds,
         true,
+        undefined,
+        saveButtonRef,
       );
       setModifiedFields(new Set());
       setLastSavedAt(new Date());
@@ -678,7 +684,7 @@ export function PublicationDialog({
 
     try {
       // Pass vaultIds only for new publications (when publication is null)
-      await onSave({ ...formData, authors, editor, keywords }, selectedTags, publication ? undefined : selectedVaultIds, undefined, drivePdfInput || null);
+      await onSave({ ...formData, authors, editor, keywords }, selectedTags, publication ? undefined : selectedVaultIds, undefined, drivePdfInput || null, saveButtonRef);
       setModifiedFields(new Set()); // Clear dirty state
       setLastSavedAt(new Date());
       if (closeOnSave) {
@@ -753,7 +759,7 @@ export function PublicationDialog({
         .map((k) => k.trim())
         .filter((k) => k.length > 0);
 
-      await onSave({ ...formData, authors, editor, keywords }, selectedTags, publication ? undefined : selectedVaultIds, undefined, drivePdfInput || null);
+      await onSave({ ...formData, authors, editor, keywords }, selectedTags, publication ? undefined : selectedVaultIds, undefined, drivePdfInput || null, saveButtonRef);
       setModifiedFields(new Set()); // Clear dirty state
       setShowUnsavedDialog(false);
       setLastSavedAt(new Date());
@@ -821,6 +827,8 @@ export function PublicationDialog({
                     type="button"
                     variant="glow"
                     size="sm"
+                    ref={saveButtonRef}
+                    data-quoterm-anchor="publication-save"
                     onClick={handleFullscreenSave}
                     disabled={saving}
                     className="h-9 px-3 font-mono shrink-0"
@@ -935,7 +943,9 @@ export function PublicationDialog({
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => onCheckSync(publication)}
+                ref={syncButtonRef}
+                data-quoterm-anchor="publication-sync"
+                onClick={() => onCheckSync(publication, syncButtonRef)}
                 disabled={syncLoading || syncCooldownSeconds > 0 || !publication.doi}
                 className="font-mono text-xs h-7 px-2.5"
                 title={publication.doi ? (syncCooldownSeconds > 0 ? `Semantic Scholar sync cooldown: ${syncCooldownSeconds}s` : 'Sync metadata from Semantic Scholar') : 'DOI required for sync'}
@@ -1683,7 +1693,7 @@ export function PublicationDialog({
                 <X className="w-3 h-3 mr-1.5" />
                 close
               </Button>
-              <Button type="submit" variant="glow" disabled={saving} className="font-mono w-full sm:w-auto text-xs sm:text-sm h-10">
+              <Button ref={saveButtonRef} data-quoterm-anchor="publication-save" type="submit" variant="glow" disabled={saving} className="font-mono w-full sm:w-auto text-xs sm:text-sm h-10">
                 {saving ? (
                   'saving...'
                 ) : publication ? (

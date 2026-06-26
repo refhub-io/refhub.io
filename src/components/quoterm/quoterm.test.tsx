@@ -22,10 +22,27 @@ describe('QuotermHost', () => {
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Imported 2 papers'));
     expect(screen.getByRole('status')).toHaveTextContent('Added to Reading list');
     expect(screen.getByText('$ refhub feedback --success')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveClass('bg-background/95');
+    expect(screen.getByRole('status')).not.toHaveClass('bg-emerald-950/90');
 
     await user.click(screen.getByRole('button', { name: /dismiss feedback/i }));
 
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('uses the configured viewport fallback when no source anchor exists', async () => {
+    const { rerender } = render(<QuotermHost defaultDuration={0} fallback="bottom-right" />);
+
+    await act(async () => {
+      quoterm({ title: 'Fallback only', sourceRect: null });
+    });
+    rerender(<QuotermHost defaultDuration={0} fallback="bottom-right" />);
+
+    const feedback = await screen.findByRole('status');
+    expect(feedback).toHaveTextContent('Fallback only');
+    expect(feedback).toHaveStyle({ transform: 'none' });
+    expect(Number.parseFloat(feedback.style.top)).toBeGreaterThanOrEqual(0);
+    expect(Number.parseFloat(feedback.style.left)).toBeGreaterThanOrEqual(0);
   });
 
   it('auto-dismisses messages after the configured duration', async () => {

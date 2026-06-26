@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, type RefObject } from 'react';
 import { logger } from '@/lib/logger';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -739,7 +739,7 @@ export default function Dashboard() {
     return duplicate;
   };
 
-  const handleSavePublication = async (data: Partial<Publication>, tagIds: string[], _vaultIds?: string[], isAutoSave = false, driveUrl?: string | null) => {
+  const handleSavePublication = async (data: Partial<Publication>, tagIds: string[], _vaultIds?: string[], isAutoSave = false, driveUrl?: string | null, feedbackSource?: Element | RefObject<Element | null> | null) => {
     if (!user) return;
 
     try {
@@ -988,7 +988,7 @@ export default function Dashboard() {
         setEditingPublication({ ...editingPublication, ...updatedPub } as Publication);
 
         if (!isAutoSave) {
-          toast({ title: 'Paper updated ✨', source: dashboardFeedbackRef });
+          toast({ title: 'Paper updated ✨', source: feedbackSource ?? dashboardFeedbackRef });
         }
       } else {
         // Check for duplicates before adding
@@ -998,7 +998,7 @@ export default function Dashboard() {
             title: 'Duplicate paper detected',
             description: `This looks like an existing paper: "${duplicate.title.substring(0, 50)}...". Open the existing record or change the DOI/title before saving.`,
             variant: 'destructive', feedbackSeverity: 'error',
-            source: dashboardFeedbackRef,
+            source: feedbackSource ?? dashboardFeedbackRef,
           });
           return;
         }
@@ -1036,7 +1036,7 @@ export default function Dashboard() {
           ]);
         }
 
-        toast({ title: 'Paper added ✨', source: dashboardFeedbackRef });
+        toast({ title: 'Paper added ✨', source: feedbackSource ?? dashboardFeedbackRef });
       }
 
       // Keep the current publication selected after manual save so the dialog can
@@ -1047,7 +1047,7 @@ export default function Dashboard() {
         title: 'Could not save paper',
         description: (error as Error).message || 'RefHub could not save this paper. Your edits are still in the dialog.',
         variant: 'destructive', feedbackSeverity: 'error',
-        source: dashboardFeedbackRef,
+        source: feedbackSource ?? dashboardFeedbackRef,
       });
     }
   };
@@ -1209,9 +1209,11 @@ export default function Dashboard() {
     return () => window.clearTimeout(timer);
   }, [syncCooldowns]);
 
-  const handleCheckPublicationSync = useCallback(async (publication: Publication) => {
+  const handleCheckPublicationSync = useCallback(async (publication: Publication, feedbackSource?: Element | RefObject<Element | null> | null) => {
+    const publicationSyncSource = feedbackSource ?? dashboardFeedbackRef;
+
     if (!publication.doi) {
-      toast({ title: 'DOI required for sync', description: 'Semantic Scholar detail sync needs a DOI on this paper before it can look up metadata.', variant: 'destructive', feedbackSeverity: 'error', source: dashboardFeedbackRef });
+      toast({ title: 'DOI required for sync', description: 'Semantic Scholar detail sync needs a DOI on this paper before it can look up metadata.', variant: 'destructive', feedbackSeverity: 'error', source: publicationSyncSource });
       return;
     }
     if ((syncCooldowns[publication.id] || 0) > 0 || syncLoadingIds.has(publication.id)) {
@@ -1223,7 +1225,7 @@ export default function Dashboard() {
       const metadata = await fetchSemanticScholarMetadataByDoi(publication.doi);
       if (!metadata) {
         setSyncDiffsByPublication(prev => ({ ...prev, [publication.id]: [] }));
-        toast({ title: 'No Semantic Scholar match', description: 'Semantic Scholar did not return metadata for this DOI.', feedbackSeverity: 'warning', source: dashboardFeedbackRef });
+        toast({ title: 'No Semantic Scholar match', description: 'Semantic Scholar did not return metadata for this DOI.', feedbackSeverity: 'warning', source: publicationSyncSource });
         return;
       }
       const diffs = getPublicationSyncDiffs(publication, metadata);
@@ -1231,16 +1233,16 @@ export default function Dashboard() {
       setSyncDiffsByPublication(prev => ({ ...prev, [publication.id]: diffs }));
       if (diffs.length > 0) {
         setSyncPreviewPublication(publication);
-        toast({ title: `Found ${diffs.length} metadata update${diffs.length === 1 ? '' : 's'}`, description: 'Review incoming Semantic Scholar details before applying them to this paper.', feedbackSeverity: 'info', source: dashboardFeedbackRef });
+        toast({ title: `Found ${diffs.length} metadata update${diffs.length === 1 ? '' : 's'}`, description: 'Review incoming Semantic Scholar details before applying them to this paper.', feedbackSeverity: 'info', source: publicationSyncSource });
       } else {
-        toast({ title: 'Metadata is up to date', description: 'Semantic Scholar details already match this publication.', source: dashboardFeedbackRef });
+        toast({ title: 'Metadata is up to date', description: 'Semantic Scholar details already match this publication.', source: publicationSyncSource });
       }
     } catch (error) {
       toast({
         title: 'Semantic Scholar sync failed',
         description: formatSemanticScholarErrorMessage(error),
         variant: 'destructive', feedbackSeverity: 'error',
-        source: dashboardFeedbackRef,
+        source: publicationSyncSource,
       });
     } finally {
       setSyncLoadingIds(prev => {
@@ -1282,7 +1284,7 @@ export default function Dashboard() {
     setSyncDiffsByPublication(prev => ({ ...prev, [syncPreviewPublication.id]: [] }));
     setSyncPreviewPublication(null);
     await fetchData();
-  }, [syncDiffsByPublication, syncPreviewPublication, toast, fetchData, user?.id, editingPublication]);
+  }, [syncPreviewPublication, toast, fetchData, user?.id, editingPublication]);
 
   const handleDeletePublication = async () => {
     if (!deleteConfirmation) return;

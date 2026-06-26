@@ -65,4 +65,38 @@ describe('quoterm feedback store', () => {
 
     expect(getQuotermSourceRect(button)).toBe(rect);
   });
+  it('uses activeElement as the fallback source before viewport fallback', () => {
+    const button = document.createElement('button');
+    document.body.appendChild(button);
+    button.focus();
+    const rect = new DOMRect(11, 12, 13, 14);
+    vi.spyOn(button, 'getBoundingClientRect').mockReturnValue(rect);
+
+    expect(getQuotermSourceRect()).toBe(rect);
+
+    button.remove();
+  });
+
+  it('captures explicit Save and Sync control refs as Quoterm sources', async () => {
+    const { result } = renderHook(() => useQuoterm());
+    const saveButton = document.createElement('button');
+    saveButton.dataset.quotermAnchor = 'publication-save';
+    const syncButton = document.createElement('button');
+    syncButton.dataset.quotermAnchor = 'publication-sync';
+    const saveRect = new DOMRect(100, 200, 80, 32);
+    const syncRect = new DOMRect(24, 48, 120, 28);
+    vi.spyOn(saveButton, 'getBoundingClientRect').mockReturnValue(saveRect);
+    vi.spyOn(syncButton, 'getBoundingClientRect').mockReturnValue(syncRect);
+
+    toast({ title: 'Paper updated ✨', source: { current: saveButton } });
+    await waitFor(() => expect(result.current.messages[0].sourceRect).toBe(saveRect));
+
+    toast({ title: 'Semantic Scholar sync failed', variant: 'destructive', feedbackSeverity: 'error', source: { current: syncButton } });
+    await waitFor(() => expect(result.current.messages[0]).toMatchObject({
+      title: 'Semantic Scholar sync failed',
+      variant: 'error',
+      role: 'alert',
+    }));
+    expect(result.current.messages[0].sourceRect).toBe(syncRect);
+  });
 });

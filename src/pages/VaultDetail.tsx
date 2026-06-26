@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, type RefObject } from 'react';
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
@@ -577,7 +577,7 @@ export default function VaultDetail() {
     return duplicate;
   };
 
-  const handleSavePublication = async (data: Partial<Publication>, tagIds: string[], vaultIds?: string[], isAutoSave = false, driveUrl?: string | null) => {
+  const handleSavePublication = async (data: Partial<Publication>, tagIds: string[], vaultIds?: string[], isAutoSave = false, driveUrl?: string | null, feedbackSource?: Element | RefObject<Element | null> | null) => {
     if (!user || !vaultId || !canEdit) return; // Only allow editing if user has edit permission
 
     try {
@@ -592,7 +592,7 @@ export default function VaultDetail() {
         const pubResult = await sharedVaultOps.updateVaultPublication(
           editingPublication.id,
           dataToSave,
-          { silent: isAutoSave }
+          { silent: true }
         );
 
         if (!pubResult.success) {
@@ -630,6 +630,7 @@ export default function VaultDetail() {
         setEditingPublication({ ...editingPublication, ...data } as Publication);
 
         if (!isAutoSave) {
+          toast({ title: 'Paper updated ✨', source: feedbackSource ?? publicationListFeedbackRef });
           // Update last activity for the updated publication
           updateLastActivity('publication_updated', user.id);
         }
@@ -699,7 +700,7 @@ export default function VaultDetail() {
         title: 'Could not save paper',
         description: (error as Error).message || 'RefHub could not save this paper. Check the required fields and try again.',
         variant: 'destructive', feedbackSeverity: 'error',
-        source: publicationListFeedbackRef,
+        source: feedbackSource ?? publicationListFeedbackRef,
       });
     }
   };
@@ -860,8 +861,8 @@ export default function VaultDetail() {
     return () => window.clearTimeout(timer);
   }, [syncCooldowns]);
 
-  const handleCheckPublicationSync = useCallback(async (publication: Publication) => {
-    const publicationSyncSource = publicationSyncDialogRef.current ?? publicationListFeedbackRef.current ?? vaultPageRef.current;
+  const handleCheckPublicationSync = useCallback(async (publication: Publication, feedbackSource?: Element | RefObject<Element | null> | null) => {
+    const publicationSyncSource = feedbackSource ?? publicationSyncDialogRef.current ?? publicationListFeedbackRef.current ?? vaultPageRef.current;
 
     if (!publication.doi) {
       toast({
@@ -951,7 +952,7 @@ export default function VaultDetail() {
     setSyncDiffsByPublication(prev => ({ ...prev, [syncPreviewPublication.id]: [] }));
     setSyncPreviewPublication(null);
     updateLastActivity('publication_updated', user?.id || null);
-  }, [canEdit, editingPublication, sharedVaultOps, syncDiffsByPublication, syncPreviewPublication, toast, updateLastActivity, user?.id]);
+  }, [canEdit, editingPublication, sharedVaultOps, syncPreviewPublication, toast, updateLastActivity, user?.id]);
 
   const handleAddToVaults = async (publicationId: string, vaultIds: string[]) => {
     if (!user || !canEdit) return; // Only allow adding if user has edit permission

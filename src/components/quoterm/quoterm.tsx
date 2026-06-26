@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { AlertTriangle, CheckCircle2, Info, X, XCircle } from "lucide-react";
+import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useQuoterm } from "./quoterm-store";
@@ -15,32 +15,36 @@ const DEFAULT_DURATION = 6500;
 
 const variantConfig = {
   success: {
-    icon: CheckCircle2,
     label: "success",
+    glyph: "✓",
     className:
-      "border-emerald-500/50 bg-emerald-950/90 text-emerald-50 shadow-emerald-950/30 dark:bg-emerald-950/95",
-    promptClassName: "text-emerald-300",
+      "border-emerald-400/45 bg-background/95 text-foreground shadow-[0_0_0_1px_rgba(16,185,129,0.12),0_18px_40px_rgba(0,0,0,0.42)] dark:bg-zinc-950/95",
+    promptClassName: "text-emerald-400",
+    markerClassName: "border-emerald-400/50 bg-emerald-400/10 text-emerald-300",
   },
   warning: {
-    icon: AlertTriangle,
     label: "warning",
+    glyph: "!",
     className:
-      "border-orange-500/60 bg-orange-950/90 text-orange-50 shadow-orange-950/30 dark:bg-orange-950/95",
+      "border-orange-400/50 bg-background/95 text-foreground shadow-[0_0_0_1px_rgba(251,146,60,0.12),0_18px_40px_rgba(0,0,0,0.42)] dark:bg-zinc-950/95",
     promptClassName: "text-orange-300",
+    markerClassName: "border-orange-400/55 bg-orange-400/10 text-orange-200",
   },
   error: {
-    icon: XCircle,
     label: "error",
+    glyph: "×",
     className:
-      "border-red-500/60 bg-red-950/90 text-red-50 shadow-red-950/30 dark:bg-red-950/95",
+      "border-red-400/55 bg-background/95 text-foreground shadow-[0_0_0_1px_rgba(248,113,113,0.14),0_18px_40px_rgba(0,0,0,0.42)] dark:bg-zinc-950/95",
     promptClassName: "text-red-300",
+    markerClassName: "border-red-400/60 bg-red-400/10 text-red-200",
   },
   info: {
-    icon: Info,
     label: "info",
+    glyph: "i",
     className:
-      "border-sky-500/50 bg-sky-950/90 text-sky-50 shadow-sky-950/30 dark:bg-sky-950/95",
+      "border-sky-400/45 bg-background/95 text-foreground shadow-[0_0_0_1px_rgba(56,189,248,0.12),0_18px_40px_rgba(0,0,0,0.42)] dark:bg-zinc-950/95",
     promptClassName: "text-sky-300",
+    markerClassName: "border-sky-400/50 bg-sky-400/10 text-sky-200",
   },
 } as const;
 
@@ -103,7 +107,6 @@ export function QuotermHost({
     <div className="pointer-events-none fixed inset-0 z-[100]" aria-live="polite" aria-atomic="false" data-quoterm-tick={tick}>
       {messages.map((message) => {
         const config = variantConfig[message.variant];
-        const Icon = config.icon;
         const position = getPosition(message.sourceRect, fallback);
 
         return (
@@ -111,23 +114,25 @@ export function QuotermHost({
             key={message.id}
             role={message.role}
             className={cn(
-              "pointer-events-auto fixed w-[min(360px,calc(100vw-2rem))] rounded-md border px-3 py-2 font-mono text-xs shadow-2xl backdrop-blur-md",
+              "pointer-events-auto fixed w-[min(360px,calc(100vw-2rem))] rounded-lg border px-3 py-2.5 font-mono text-xs backdrop-blur-md",
               "before:absolute before:-top-1 before:left-6 before:h-2 before:w-2 before:rotate-45 before:border-l before:border-t before:bg-inherit",
               config.className,
               message.className,
             )}
             style={{ top: position.top, left: position.left, transform: position.transform }}
           >
-            <div className="flex items-start gap-2">
-              <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <div className="flex items-start gap-2.5">
+              <span className={cn("mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full border text-[10px] leading-none", config.markerClassName)} aria-hidden="true">
+                {config.glyph}
+              </span>
               <div className="min-w-0 flex-1">
-                <div className={cn("text-[10px] uppercase tracking-[0.24em]", config.promptClassName)}>
+                <div className={cn("text-[10px] uppercase tracking-[0.28em]", config.promptClassName)}>
                   <span aria-hidden="true">$ {commandName} --{config.label}</span>
                   <span className="sr-only">{config.label}: </span>
                 </div>
-                {message.title && <div className="mt-1 break-words font-semibold leading-snug">{message.title}</div>}
+                {message.title && <div className="mt-1 break-words font-semibold leading-snug text-foreground">{message.title}</div>}
                 {message.description && (
-                  <div className="mt-1 break-words leading-relaxed opacity-90">{message.description}</div>
+                  <div className="mt-1 break-words leading-relaxed text-muted-foreground">{message.description}</div>
                 )}
               </div>
               <button
