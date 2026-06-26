@@ -185,6 +185,6 @@ export function uploadVaultPublicationDrivePdf(vaultId: string, vaultPublication
     return uploadDrivePdf(rawUploadPath, file);
   }
 
-  const resumableUploadPath = `/vaults/${encodeURIComponent(vaultId)}/items/${encodeURIComponent(vaultPublicationId)}/pdf`;
+  const resumableUploadPath = `/google-drive/vaults/${encodeURIComponent(vaultId)}/items/${encodeURIComponent(vaultPublicationId)}/pdf`;
   return uploadVaultDrivePdfResumable(resumableUploadPath, file);
 }

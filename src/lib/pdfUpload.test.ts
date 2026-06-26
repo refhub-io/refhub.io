@@ -68,7 +68,7 @@ describe('uploadVaultPublicationDrivePdf', () => {
     expect(result.pdfUrl).toBe('https://drive.example/file');
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      'https://api.example.test/api/v1/vaults/vault%20id/items/item%20id/pdf/session',
+      'https://api.example.test/api/v1/google-drive/vaults/vault%20id/items/item%20id/pdf/session',
       expect.objectContaining({ method: 'POST' }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
@@ -78,7 +78,7 @@ describe('uploadVaultPublicationDrivePdf', () => {
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       3,
-      'https://api.example.test/api/v1/vaults/vault%20id/items/item%20id/pdf/complete',
+      'https://api.example.test/api/v1/google-drive/vaults/vault%20id/items/item%20id/pdf/complete',
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({ file_id: 'drive-file', web_view_link: 'https://drive.example/file' }),
