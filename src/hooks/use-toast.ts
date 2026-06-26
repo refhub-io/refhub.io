@@ -1,6 +1,12 @@
 import * as React from "react";
 
-import { quoterm, useQuoterm, type QuotermInput, type QuotermVariant } from "@/components/quoterm/quoterm-store";
+import {
+  dismissQuoterm,
+  quoterm,
+  useQuoterm,
+  type QuotermInput,
+  type QuotermVariant,
+} from "quoterm";
 
 export type FeedbackSeverity = QuotermVariant;
 export type ToastActionElement = React.ReactElement;
@@ -69,6 +75,7 @@ function toast({ source, feedbackSeverity, variant, action, ...props }: ToastInp
     ...normalizedProps,
     source,
     variant: severity,
+    role: severity === "error" || severity === "warning" ? "alert" : "status",
   });
 
   return {
@@ -87,16 +94,16 @@ function toast({ source, feedbackSeverity, variant, action, ...props }: ToastInp
 }
 
 function useToast() {
-  const { messages, dismiss } = useQuoterm();
+  const { items } = useQuoterm();
 
   return {
-    toasts: messages.map((message) => ({
-      ...message,
-      feedbackSeverity: message.variant,
-      variant: message.variant === "error" ? "destructive" : "default",
+    toasts: items.map((item) => ({
+      ...item,
+      feedbackSeverity: item.variant,
+      variant: item.variant === "error" ? "destructive" : "default",
     })),
     toast,
-    dismiss,
+    dismiss: dismissQuoterm,
   };
 }
 
