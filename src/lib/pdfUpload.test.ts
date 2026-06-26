@@ -74,7 +74,11 @@ describe('uploadVaultPublicationDrivePdf', () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       'https://drive-upload.example/session',
-      expect.objectContaining({ method: 'PUT', body: largeFile }),
+      expect.objectContaining({
+        method: 'PUT',
+        body: largeFile,
+        headers: { 'Content-Type': 'application/pdf' },
+      }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       3,
