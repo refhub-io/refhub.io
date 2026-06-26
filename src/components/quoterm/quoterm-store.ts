@@ -11,13 +11,14 @@ export interface QuotermMessage {
   duration?: number;
   sourceRect?: DOMRect | null;
   className?: string;
-  open?: boolean;
-  role?: "status" | "alert";
+  open: boolean;
+  role: "status" | "alert";
   onOpenChange?: (open: boolean) => void;
 }
 
-export type QuotermInput = Omit<QuotermMessage, "id" | "variant" | "sourceRect" | "open"> & {
+export type QuotermInput = Omit<QuotermMessage, "id" | "variant" | "sourceRect" | "open" | "role"> & {
   variant?: QuotermVariant;
+  role?: QuotermMessage["role"];
   source?: QuotermSource;
   sourceRect?: DOMRect | null;
 };
@@ -26,12 +27,11 @@ interface QuotermState {
   messages: QuotermMessage[];
 }
 
-const REMOVE_DELAY = 1000000;
+const MESSAGE_LIMIT = 1;
 
 let count = 0;
 let memoryState: QuotermState = { messages: [] };
-const listeners: Array<(state: QuotermState) => void> = [];
-const removeTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
+const listeners = new Set<() => void>();
 
 function genId() {
   count = (count + 1) % Number.MAX_SAFE_INTEGER;
@@ -40,40 +40,40 @@ function genId() {
 
 function emit(nextState: QuotermState) {
   memoryState = nextState;
-  listeners.forEach((listener) => listener(memoryState));
+  listeners.forEach((listener) => listener());
 }
 
-function queueRemoval(messageId: string) {
-  if (removeTimeouts.has(messageId)) return;
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
 
-  const timeout = setTimeout(() => {
-    removeTimeouts.delete(messageId);
-    emit({ messages: memoryState.messages.filter((message) => message.id !== messageId) });
-  }, REMOVE_DELAY);
+function getSnapshot() {
+  return memoryState;
+}
 
-  removeTimeouts.set(messageId, timeout);
+function removeMessage(messageId?: string) {
+  emit({
+    messages: messageId
+      ? memoryState.messages.filter((message) => message.id !== messageId)
+      : [],
+  });
 }
 
 function addMessage(message: QuotermMessage) {
-  emit({ messages: [message, ...memoryState.messages].slice(0, 1) });
+  emit({ messages: [message, ...memoryState.messages].slice(0, MESSAGE_LIMIT) });
 }
 
-function updateMessage(messageId: string, patch: Partial<QuotermMessage>) {
+function updateMessage(messageId: string, patch: Partial<Omit<QuotermMessage, "id">>) {
   emit({ messages: memoryState.messages.map((message) => (message.id === messageId ? { ...message, ...patch } : message)) });
 }
 
 function dismissMessage(messageId?: string) {
-  if (messageId) {
-    queueRemoval(messageId);
-  } else {
-    memoryState.messages.forEach((message) => queueRemoval(message.id));
-  }
+  memoryState.messages
+    .filter((message) => messageId === undefined || message.id === messageId)
+    .forEach((message) => message.onOpenChange?.(false));
 
-  emit({
-    messages: memoryState.messages.map((message) =>
-      message.id === messageId || messageId === undefined ? { ...message, open: false } : message,
-    ),
-  });
+  removeMessage(messageId);
 }
 
 export function getQuotermSourceRect(source?: QuotermSource): DOMRect | null {
@@ -95,34 +95,29 @@ export function quoterm({ source, variant = "success", ...props }: QuotermInput)
   const dismiss = () => dismissMessage(id);
   const update = (patch: Partial<Omit<QuotermMessage, "id">>) => updateMessage(id, patch);
 
-  addMessage(
-    {
-      ...props,
-      id,
-      sourceRect,
-      variant,
-      role,
-      open: true,
-      onOpenChange: (open) => {
-        props.onOpenChange?.(open);
-        if (!open) dismiss();
-      },
+  addMessage({
+    ...props,
+    id,
+    sourceRect,
+    variant,
+    role,
+    open: true,
+    onOpenChange: (open) => {
+      props.onOpenChange?.(open);
+      if (!open) removeMessage(id);
     },
-  );
+  });
 
   return { id, dismiss, update };
 }
 
-export function useQuoterm() {
-  const [state, setState] = React.useState<QuotermState>(memoryState);
+export function __resetQuotermForTests() {
+  memoryState = { messages: [] };
+  listeners.forEach((listener) => listener());
+}
 
-  React.useEffect(() => {
-    listeners.push(setState);
-    return () => {
-      const index = listeners.indexOf(setState);
-      if (index > -1) listeners.splice(index, 1);
-    };
-  }, []);
+export function useQuoterm() {
+  const state = React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
   return {
     ...state,
