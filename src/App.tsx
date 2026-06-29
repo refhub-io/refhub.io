@@ -84,7 +84,11 @@ const App = () => {
           <KeyboardProvider>
             <KeyboardAnalyticsTracker />
             <TooltipProvider>
-              <InlineFeedbackHost commandName="refhub feedback" />
+              <InlineFeedbackHost
+                commandName="refhub feedback"
+                renderMode="inline"
+                showCommandChrome={false}
+              />
               <ScrollToTopButton />
               <BugReportButton />
               <CluckEasterEgg />
