@@ -86,7 +86,7 @@ const App = () => {
             <TooltipProvider>
               <InlineFeedbackHost
                 commandName="refhub feedback"
-                renderMode="overlay"
+                renderMode="inline"
                 showCommandChrome={false}
               />
               <ScrollToTopButton />
