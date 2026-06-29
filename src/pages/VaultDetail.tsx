@@ -861,7 +861,7 @@ export default function VaultDetail() {
     return () => window.clearTimeout(timer);
   }, [syncCooldowns]);
 
-  const handleCheckPublicationSync = useCallback(async (publication: Publication, feedbackSource?: Element | RefObject<Element | null> | null, feedbackPlacement?: 'after' | 'before') => {
+  const handleCheckPublicationSync = useCallback(async (publication: Publication, feedbackSource?: Element | RefObject<Element | null> | null) => {
     const publicationSyncSource = feedbackSource ?? publicationSyncDialogRef.current ?? publicationListFeedbackRef.current ?? vaultPageRef.current;
 
     if (!publication.doi) {
@@ -870,7 +870,6 @@ export default function VaultDetail() {
         description: 'Semantic Scholar sync uses the paper DOI to find the matching record. Edit this paper, add a DOI, then try again.',
         variant: 'destructive', feedbackSeverity: 'error',
         source: publicationSyncSource,
-        placement: feedbackPlacement,
       });
       return;
     }
@@ -888,7 +887,6 @@ export default function VaultDetail() {
           description: 'Semantic Scholar did not return metadata for this DOI. Check the DOI for typos or update the paper manually.',
           feedbackSeverity: 'warning',
           source: publicationSyncSource,
-          placement: feedbackPlacement,
         });
         return;
       }
@@ -902,14 +900,12 @@ export default function VaultDetail() {
           title: `${diffs.length} Semantic Scholar update${diffs.length === 1 ? '' : 's'} found`,
           description: 'Review the incoming fields before applying them to this paper.',
           source: publicationSyncSource,
-          placement: feedbackPlacement,
         });
       } else {
         toast({
           title: 'Paper is already up to date',
           description: 'Semantic Scholar details match this publication.',
           source: publicationSyncSource,
-          placement: feedbackPlacement,
         });
       }
     } catch (error) {
@@ -918,7 +914,6 @@ export default function VaultDetail() {
         description: formatSemanticScholarErrorMessage(error),
         variant: 'destructive', feedbackSeverity: 'error',
         source: publicationSyncSource,
-        placement: feedbackPlacement,
       });
     } finally {
       setSyncLoadingIds(prev => {
