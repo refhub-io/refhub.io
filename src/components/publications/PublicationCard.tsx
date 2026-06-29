@@ -76,6 +76,11 @@ export function PublicationCard({
   onCheckSync,
 }: PublicationCardProps) {
   const [notesExpanded, setNotesExpanded] = useState(false);
+  const syncLabel = syncLoading
+    ? 'Syncing...'
+    : syncCooldownSeconds > 0
+      ? `Retry in ${syncCooldownSeconds}s`
+      : 'Sync details';
   
   const formatAuthors = (authors: string[]) => {
     if (authors.length === 0) return 'Unknown author';
@@ -212,7 +217,7 @@ export function PublicationCard({
                     {onCheckSync && (
                       <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onCheckSync(); }} disabled={syncLoading || syncCooldownSeconds > 0 || !publication.doi}>
                         <Loader2 className={`w-4 h-4 mr-2 ${syncLoading ? 'animate-spin' : ''}`} />
-                        {syncCooldownSeconds > 0 ? `sync cooldown ${syncCooldownSeconds}s` : 'sync details'}
+                        {syncLabel}
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onExportBibtex(); }}>

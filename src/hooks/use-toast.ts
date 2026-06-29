@@ -30,6 +30,7 @@ type ToasterToast = ToastProps & {
 type Toast = Omit<ToasterToast, "id">;
 
 type ToastInput = Toast & {
+  placement?: QuotermInput["placement"];
   source?: QuotermInput["source"];
 };
 

@@ -420,7 +420,7 @@ export function PublicationTable({
                       {onCheckSync && (
                         <DropdownMenuItem onClick={() => onCheckSync(pub)} disabled={syncLoadingIds.has(pub.id) || (syncCooldowns[pub.id] || 0) > 0 || !pub.doi}>
                           <Loader2 className={`w-4 h-4 mr-2 ${syncLoadingIds.has(pub.id) ? 'animate-spin' : ''}`} />
-                          {(syncCooldowns[pub.id] || 0) > 0 ? `sync cooldown ${syncCooldowns[pub.id]}s` : 'sync details'}
+                          {syncLoadingIds.has(pub.id) ? 'Syncing...' : (syncCooldowns[pub.id] || 0) > 0 ? `Retry in ${syncCooldowns[pub.id]}s` : 'Sync details'}
                         </DropdownMenuItem>
                       )}
                       <DropdownMenuItem onClick={() => onExportBibtex(pub)}>

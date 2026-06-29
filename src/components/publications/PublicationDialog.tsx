@@ -62,7 +62,7 @@ interface PublicationDialogProps {
   onSave: (data: Partial<Publication>, tagIds: string[], vaultIds?: string[], isAutoSave?: boolean, driveUrl?: string | null, feedbackSource?: Element | RefObject<Element | null> | null) => Promise<void>;
   onCreateTag: (name: string, parentId?: string) => Promise<Tag | null>;
   onAddToVaults?: (publicationId: string, vaultIds: string[]) => Promise<void>;
-  onCheckSync?: (publication: Publication, feedbackSource?: Element | RefObject<Element | null> | null) => void;
+  onCheckSync?: (publication: Publication, feedbackSource?: Element | RefObject<Element | null> | null, feedbackPlacement?: 'after' | 'before') => void;
   syncLoading?: boolean;
   syncCooldownSeconds?: number;
   /** When false, dialog stays open after save (default: true). */
@@ -94,6 +94,11 @@ export function PublicationDialog({
   const { user, session } = useAuth();
   const saveButtonRef = useRef<HTMLButtonElement | null>(null);
   const syncButtonRef = useRef<HTMLButtonElement | null>(null);
+  const syncButtonLabel = syncLoading
+    ? 'Syncing...'
+    : syncCooldownSeconds > 0
+      ? `Retry in ${syncCooldownSeconds}s`
+      : 'Sync details';
   const {
     relations,
     loading: relationsLoading,
@@ -945,13 +950,13 @@ export function PublicationDialog({
                 size="sm"
                 ref={syncButtonRef}
                 data-quoterm-anchor="publication-sync"
-                onClick={() => onCheckSync(publication, syncButtonRef)}
+                onClick={() => onCheckSync(publication, syncButtonRef, 'after')}
                 disabled={syncLoading || syncCooldownSeconds > 0 || !publication.doi}
                 className="font-mono text-xs h-7 px-2.5"
-                title={publication.doi ? (syncCooldownSeconds > 0 ? `Semantic Scholar sync cooldown: ${syncCooldownSeconds}s` : 'Sync metadata from Semantic Scholar') : 'DOI required for sync'}
+                title={publication.doi ? (syncCooldownSeconds > 0 ? `Retry Semantic Scholar sync in ${syncCooldownSeconds}s` : 'Sync metadata from Semantic Scholar') : 'DOI required for sync'}
               >
                 <Loader2 className={`w-3 h-3 mr-1.5 ${syncLoading ? 'animate-spin' : ''}`} />
-                {syncCooldownSeconds > 0 ? `sync_cooldown_${syncCooldownSeconds}s` : 'sync_details'}
+                {syncButtonLabel}
               </Button>
               {!publication.doi && (
                 <span className="text-[10px] font-mono text-muted-foreground">doi required</span>
