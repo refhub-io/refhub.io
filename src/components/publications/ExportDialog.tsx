@@ -54,7 +54,7 @@ export function ExportDialog({
   publicationTags,
 }: ExportDialogProps) {
   const { toast } = useToast();
-  const copyButtonRef = useRef<HTMLButtonElement>(null);
+  const copyButtonRef = useRef<HTMLDivElement>(null);
   const [selectedFields, setSelectedFields] = useState<BibtexField[]>(DEFAULT_SELECTED);
   const [format, setFormat] = useState<ExportFormat>('bibtex');
   const [includeHierarchicalTags, setIncludeHierarchicalTags] = useState(false);
@@ -279,16 +279,17 @@ export function ExportDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} className="font-mono w-full sm:w-auto">
             cancel
           </Button>
-          <Button
-            ref={copyButtonRef}
-            variant="outline"
-            onClick={handleCopyToClipboard}
-            disabled={(format === 'bibtex' && selectedFields.length === 0) || publications.length === 0}
-            className="gap-2 font-mono w-full sm:w-auto"
-          >
-            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-            {copied ? 'copied!' : 'copy'}
-          </Button>
+          <div ref={copyButtonRef} className="flex w-full flex-col gap-2 sm:w-auto">
+            <Button
+              variant="outline"
+              onClick={handleCopyToClipboard}
+              disabled={(format === 'bibtex' && selectedFields.length === 0) || publications.length === 0}
+              className="gap-2 font-mono w-full sm:w-auto"
+            >
+              {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              {copied ? 'copied!' : 'copy'}
+            </Button>
+          </div>
           <Button
             variant="glow"
             onClick={format === 'bibtex' ? handleBibtexExport : handleAPAExport}

@@ -86,7 +86,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   const { user } = useAuth();
   const { toast } = useToast();
   const shareFormRef = useRef<HTMLFormElement>(null);
-  const publicLinkButtonRef = useRef<HTMLButtonElement>(null);
+  const publicLinkButtonRef = useRef<HTMLDivElement>(null);
   const kbCtx = useKeyboardContext();
 
   const [name, setName] = useState('');
@@ -1052,20 +1052,21 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                 <code className="text-xs text-muted-foreground truncate flex-1">
                   {publicUrl}
                 </code>
-                <Button
-                  ref={publicLinkButtonRef}
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0"
-                  onClick={copyPublicUrl}
-                >
-                  {copied ? (
-                    <Check className="w-3.5 h-3.5 text-neon" />
-                  ) : (
-                    <Copy className="w-3.5 h-3.5" />
-                  )}
-                </Button>
+                <div ref={publicLinkButtonRef} className="flex shrink-0 flex-col gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0"
+                    onClick={copyPublicUrl}
+                  >
+                    {copied ? (
+                      <Check className="w-3.5 h-3.5 text-neon" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
           )}

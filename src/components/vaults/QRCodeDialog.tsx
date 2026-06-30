@@ -47,9 +47,9 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
   const [customQrError, setCustomQrError] = useState<string | null>(null);
   const qrRef = useRef<HTMLDivElement>(null);
   const qrTriggerRef = useRef<HTMLButtonElement>(null);
-  const copyButtonRef = useRef<HTMLButtonElement>(null);
-  const downloadButtonRef = useRef<HTMLButtonElement>(null);
-  const upgradeButtonRef = useRef<HTMLButtonElement>(null);
+  const copyButtonRef = useRef<HTMLDivElement>(null);
+  const downloadButtonRef = useRef<HTMLDivElement>(null);
+  const upgradeButtonRef = useRef<HTMLDivElement>(null);
   const fallbackQrSize = typeof window !== 'undefined' && window.innerWidth < 640 ? 220 : 360;
   const { toast } = useToast();
 
@@ -345,26 +345,28 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
               </div>
               
               <div className="flex gap-2 sm:gap-3 w-full">
-                <Button
-                  ref={copyButtonRef}
-                  variant="outline"
-                  onClick={copyShareUrl}
-                  className="flex-1 gap-1.5 sm:gap-2 font-mono text-xs sm:text-sm"
-                >
-                  {copied ? <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-                  <span className="hidden xs:inline">copy_link</span>
-                  <span className="xs:hidden">copy</span>
-                </Button>
-                <Button
-                  ref={downloadButtonRef}
-                  variant="glow"
-                  onClick={downloadQR}
-                  className="flex-1 gap-1.5 sm:gap-2 font-mono text-xs sm:text-sm"
-                >
-                  <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  <span className="hidden xs:inline">download</span>
-                  <span className="xs:hidden">save</span>
-                </Button>
+                <div ref={copyButtonRef} className="flex min-w-0 flex-1 flex-col gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={copyShareUrl}
+                    className="w-full gap-1.5 sm:gap-2 font-mono text-xs sm:text-sm"
+                  >
+                    {copied ? <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+                    <span className="hidden xs:inline">copy_link</span>
+                    <span className="xs:hidden">copy</span>
+                  </Button>
+                </div>
+                <div ref={downloadButtonRef} className="flex min-w-0 flex-1 flex-col gap-2">
+                  <Button
+                    variant="glow"
+                    onClick={downloadQR}
+                    className="w-full gap-1.5 sm:gap-2 font-mono text-xs sm:text-sm"
+                  >
+                    <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="hidden xs:inline">download</span>
+                    <span className="xs:hidden">save</span>
+                  </Button>
+                </div>
               </div>
             </div>
           </DialogContent>
@@ -415,17 +417,18 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
             <AlertDialogCancel disabled={upgrading} className="font-mono">
               cancel
             </AlertDialogCancel>
-            <AlertDialogAction
-              ref={upgradeButtonRef}
-              onClick={handleUpgradeToProtected}
-              disabled={upgrading}
-              className="font-mono bg-gradient-primary hover:opacity-90 gap-2"
-            >
-              {upgrading && (
-                <LoadingSpinner size="xs" variant="inverted" />
-              )}
-              upgrade_to_protected
-            </AlertDialogAction>
+            <div ref={upgradeButtonRef} className="flex w-full flex-col gap-2 sm:w-auto">
+              <AlertDialogAction
+                onClick={handleUpgradeToProtected}
+                disabled={upgrading}
+                className="font-mono bg-gradient-primary hover:opacity-90 gap-2"
+              >
+                {upgrading && (
+                  <LoadingSpinner size="xs" variant="inverted" />
+                )}
+                upgrade_to_protected
+              </AlertDialogAction>
+            </div>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

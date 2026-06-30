@@ -47,9 +47,9 @@ export function ImportDialog({
   onAddToVaults,
 }: ImportDialogProps) {
   const { toast } = useToast();
-  const doiLookupRef = useRef<HTMLButtonElement>(null);
-  const bibtexParseRef = useRef<HTMLButtonElement>(null);
-  const importButtonRef = useRef<HTMLButtonElement>(null);
+  const doiLookupRef = useRef<HTMLDivElement>(null);
+  const bibtexParseRef = useRef<HTMLDivElement>(null);
+  const importButtonRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState('library');
   
   // DOI state
@@ -371,19 +371,20 @@ export function ImportDialog({
                       }
                     }}
                   />
-                  <Button 
-                    ref={doiLookupRef}
-                    onClick={handleDOILookup} 
-                    disabled={doiLoading || !doiInput.trim()}
-                    variant="glow"
-                    className="w-full sm:w-auto font-mono"
-                  >
-                    {doiLoading ? (
-                      <LoadingSpinner size="xs" />
-                    ) : (
-                      'lookup'
-                    )}
-                  </Button>
+                  <div ref={doiLookupRef} className="flex w-full flex-col gap-2 sm:w-auto">
+                    <Button
+                      onClick={handleDOILookup}
+                      disabled={doiLoading || !doiInput.trim()}
+                      variant="glow"
+                      className="w-full sm:w-auto font-mono"
+                    >
+                      {doiLoading ? (
+                        <LoadingSpinner size="xs" />
+                      ) : (
+                        'lookup'
+                      )}
+                    </Button>
+                  </div>
                 </div>
                 <p className="text-xs text-muted-foreground font-mono">
                   // supports doi.org URLs, DOI strings, or doi: prefix
@@ -424,15 +425,16 @@ export function ImportDialog({
                   rows={6}
                   className="font-mono text-sm w-full min-w-0"
                 />
-                <Button 
-                  ref={bibtexParseRef}
-                  onClick={handleBibtexParse} 
-                  disabled={!bibtexInput.trim()}
-                  variant="glow"
-                  className="w-full font-mono"
-                >
-                  parse_bibtex
-                </Button>
+                <div ref={bibtexParseRef} className="flex w-full flex-col gap-2">
+                  <Button
+                    onClick={handleBibtexParse}
+                    disabled={!bibtexInput.trim()}
+                    variant="glow"
+                    className="w-full font-mono"
+                  >
+                    parse_bibtex
+                  </Button>
+                </div>
               </div>
             </TabsContent>
           </Tabs>
@@ -542,22 +544,23 @@ export function ImportDialog({
                 <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto font-mono">
                   cancel
                 </Button>
-                <Button 
-                  ref={importButtonRef}
-                  variant="glow" 
-                  onClick={handleImport}
-                  disabled={importing || selectedIndices.size === 0}
-                  className="w-full sm:w-auto font-mono"
-                >
-                  {importing ? (
-                    <>
-                      <LoadingSpinner size="xs" className="mr-2" />
-                      importing...
-                    </>
-                  ) : (
-                    `import_${selectedIndices.size}_paper${selectedIndices.size !== 1 ? 's' : ''}`
-                  )}
-                </Button>
+                <div ref={importButtonRef} className="flex w-full flex-col gap-2 sm:w-auto">
+                  <Button
+                    variant="glow"
+                    onClick={handleImport}
+                    disabled={importing || selectedIndices.size === 0}
+                    className="w-full sm:w-auto font-mono"
+                  >
+                    {importing ? (
+                      <>
+                        <LoadingSpinner size="xs" className="mr-2" />
+                        importing...
+                      </>
+                    ) : (
+                      `import_${selectedIndices.size}_paper${selectedIndices.size !== 1 ? 's' : ''}`
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
           )}

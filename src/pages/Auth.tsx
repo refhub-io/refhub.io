@@ -150,7 +150,7 @@ export default function Auth() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const authFormRef = useRef<HTMLFormElement>(null);
-  const passwordInputRef = useRef<HTMLInputElement>(null);
+  const passwordFeedbackRef = useRef<HTMLDivElement>(null);
   const googleButtonRef = useRef<HTMLButtonElement>(null);
   const githubButtonRef = useRef<HTMLButtonElement>(null);
   const passwordStrength = useMemo(() => calculatePasswordStrength(password), [password]);
@@ -167,7 +167,7 @@ export default function Auth() {
           title: 'Password is too short',
           description: 'Use at least 8 characters before creating your RefHub account.',
           variant: 'destructive', feedbackSeverity: 'error',
-          source: passwordInputRef,
+          source: passwordFeedbackRef,
         });
         return;
       }
@@ -176,7 +176,7 @@ export default function Auth() {
           title: 'Password is not strong enough',
           description: 'Use a stronger mix of uppercase letters, lowercase letters, numbers, and special characters.',
           variant: 'destructive', feedbackSeverity: 'error',
-          source: passwordInputRef,
+          source: passwordFeedbackRef,
         });
         return;
       }
@@ -411,13 +411,13 @@ export default function Auth() {
 
               <div className="space-y-2">
                 <Label htmlFor="password" className="text-sm font-semibold font-mono">password</Label>
-                <div className="relative">
+                <div ref={passwordFeedbackRef} className="flex flex-col gap-2">
+                  <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
-                    ref={passwordInputRef}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -437,6 +437,7 @@ export default function Auth() {
                       <Eye className="w-5 h-5" />
                     )}
                   </button>
+                  </div>
                 </div>
                 
                 {/* Password strength indicator for sign up */}

@@ -18,8 +18,8 @@ export default function ResetPassword() {
   const [checkingSession, setCheckingSession] = useState(true);
   const { toast } = useToast();
   const resetFormRef = useRef<HTMLFormElement>(null);
-  const newPasswordRef = useRef<HTMLInputElement>(null);
-  const confirmPasswordRef = useRef<HTMLInputElement>(null);
+  const newPasswordRef = useRef<HTMLDivElement>(null);
+  const confirmPasswordRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   // Detect if user is in a password recovery session
@@ -180,11 +180,10 @@ export default function ResetPassword() {
               <p className="text-muted-foreground mb-6 font-mono text-sm">
                 // enter your new password below
               </p>
-              <div>
+              <div ref={newPasswordRef} className="flex flex-col gap-2">
                 <Label htmlFor="newPassword" className="text-sm font-semibold font-mono">new_password</Label>
                 <Input
                   id="newPassword"
-                  ref={newPasswordRef}
                   type="password"
                   value={newPassword}
                   onChange={e => setNewPassword(e.target.value)}
@@ -193,11 +192,10 @@ export default function ResetPassword() {
                   className="mt-1 font-mono"
                 />
               </div>
-              <div>
+              <div ref={confirmPasswordRef} className="flex flex-col gap-2">
                 <Label htmlFor="confirmPassword" className="text-sm font-semibold font-mono">confirm_password</Label>
                 <Input
                   id="confirmPassword"
-                  ref={confirmPasswordRef}
                   type="password"
                   value={confirmPassword}
                   onChange={e => setConfirmPassword(e.target.value)}

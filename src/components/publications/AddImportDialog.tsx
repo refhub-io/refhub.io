@@ -61,10 +61,10 @@ export function AddImportDialog({
   updatePdfAsset,
 }: AddImportDialogProps) {
   const { toast } = useToast();
-  const doiLookupRef = useRef<HTMLButtonElement>(null);
-  const bibtexParseRef = useRef<HTMLButtonElement>(null);
-  const importButtonRef = useRef<HTMLButtonElement>(null);
-  const manualCreateRef = useRef<HTMLButtonElement>(null);
+  const doiLookupRef = useRef<HTMLDivElement>(null);
+  const bibtexParseRef = useRef<HTMLDivElement>(null);
+  const importButtonRef = useRef<HTMLDivElement>(null);
+  const manualCreateRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<FlowTab>('library');
 
   // DOI state
@@ -387,9 +387,11 @@ export function AddImportDialog({
                     className="font-mono flex-1 text-sm w-full min-w-0"
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleDOILookup(); } }}
                   />
-                  <Button ref={doiLookupRef} onClick={handleDOILookup} disabled={doiLoading || !doiInput.trim()} variant="glow" className="w-full sm:w-auto font-mono">
-                    {doiLoading ? <LoadingSpinner size="xs" /> : 'lookup'}
-                  </Button>
+                  <div ref={doiLookupRef} className="flex w-full flex-col gap-2 sm:w-auto">
+                    <Button onClick={handleDOILookup} disabled={doiLoading || !doiInput.trim()} variant="glow" className="w-full sm:w-auto font-mono">
+                      {doiLoading ? <LoadingSpinner size="xs" /> : 'lookup'}
+                    </Button>
+                  </div>
                 </div>
                 <p className="text-xs text-muted-foreground font-mono">// supports doi.org URLs, DOI strings, or doi: prefix</p>
               </div>
@@ -410,9 +412,11 @@ export function AddImportDialog({
                 <Textarea value={bibtexInput} onChange={(e) => setBibtexInput(e.target.value)}
                   placeholder={`@article{key,\n  title = {Paper Title},\n  author = {Author Name},\n  year = {2024},\n  ...\n}`}
                   rows={6} className="font-mono text-sm w-full min-w-0" />
-                <Button ref={bibtexParseRef} onClick={handleBibtexParse} disabled={!bibtexInput.trim()} variant="glow" className="w-full font-mono">
-                  parse_bibtex
-                </Button>
+                <div ref={bibtexParseRef} className="flex w-full flex-col gap-2">
+                  <Button onClick={handleBibtexParse} disabled={!bibtexInput.trim()} variant="glow" className="w-full font-mono">
+                    parse_bibtex
+                  </Button>
+                </div>
               </div>
             </TabsContent>
 
@@ -674,9 +678,11 @@ export function AddImportDialog({
 
               <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4 border-t border-border">
                 <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto font-mono">cancel</Button>
-                <Button ref={manualCreateRef} variant="glow" onClick={handleManualCreate} disabled={importing || !manualForm.title?.trim()} className="w-full sm:w-auto font-mono">
-                  {importing ? <><LoadingSpinner size="xs" className="mr-2" />creating...</> : 'create_paper'}
-                </Button>
+                <div ref={manualCreateRef} className="flex w-full flex-col gap-2 sm:w-auto">
+                  <Button variant="glow" onClick={handleManualCreate} disabled={importing || !manualForm.title?.trim()} className="w-full sm:w-auto font-mono">
+                    {importing ? <><LoadingSpinner size="xs" className="mr-2" />creating...</> : 'create_paper'}
+                  </Button>
+                </div>
               </div>
             </TabsContent>
           </Tabs>
@@ -762,9 +768,11 @@ export function AddImportDialog({
               {/* Import button */}
               <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t-2 border-border">
                 <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto font-mono">cancel</Button>
-                <Button ref={importButtonRef} variant="glow" onClick={handleImport} disabled={importing || selectedIndices.size === 0} className="w-full sm:w-auto font-mono">
-                  {importing ? <><LoadingSpinner size="xs" className="mr-2" />importing...</> : `import_${selectedIndices.size}_paper${selectedIndices.size !== 1 ? 's' : ''}`}
-                </Button>
+                <div ref={importButtonRef} className="flex w-full flex-col gap-2 sm:w-auto">
+                  <Button variant="glow" onClick={handleImport} disabled={importing || selectedIndices.size === 0} className="w-full sm:w-auto font-mono">
+                    {importing ? <><LoadingSpinner size="xs" className="mr-2" />importing...</> : `import_${selectedIndices.size}_paper${selectedIndices.size !== 1 ? 's' : ''}`}
+                  </Button>
+                </div>
               </div>
             </div>
           )}
