@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Publication, Vault } from '@/types/database';
 import {
   Dialog,
@@ -47,6 +47,9 @@ export function ImportDialog({
   onAddToVaults,
 }: ImportDialogProps) {
   const { toast } = useToast();
+  const doiLookupRef = useRef<HTMLDivElement>(null);
+  const bibtexParseRef = useRef<HTMLDivElement>(null);
+  const importActionGroupRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState('library');
   
   // DOI state
@@ -121,20 +124,22 @@ export function ImportDialog({
       if (isDuplicate) {
         setDuplicateIndices(new Set([...duplicateIndices, newIndex]));
         toast({ 
-          title: '⚠️ possible_duplicate', 
-          description: `"${metadata.title}" may already exist in your library`,
-          variant: 'destructive'
+          title: 'Possible duplicate found', 
+          description: `"${metadata.title}" looks like a paper already in your library. Review the highlighted preview item before importing.`,
+          feedbackSeverity: 'warning',
+          source: doiLookupRef
         });
       } else {
-        toast({ title: 'doi_resolved ✨', description: metadata.title });
+        toast({ title: 'DOI resolved ✨', description: metadata.title, source: doiLookupRef });
       }
       
       setDoiInput('');
     } catch (error) {
       toast({
-        title: 'doi_lookup_failed',
-        description: (error as Error).message || 'Could not resolve DOI',
-        variant: 'destructive',
+        title: 'DOI lookup failed',
+        description: (error as Error).message || 'RefHub could not resolve that DOI. Check the DOI string or paste a doi.org URL and try again.',
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: doiLookupRef,
       });
     } finally {
       setDoiLoading(false);
@@ -149,9 +154,10 @@ export function ImportDialog({
       
       if (parsed.length === 0) {
         toast({
-          title: 'no_entries_found',
-          description: 'Could not parse any BibTeX entries',
-          variant: 'destructive',
+          title: 'No BibTeX entries found',
+          description: 'RefHub could not find any complete BibTeX records in the pasted text. Check the format and try again.',
+          variant: 'destructive', feedbackSeverity: 'error',
+          source: bibtexParseRef,
         });
         return;
       }
@@ -181,17 +187,20 @@ export function ImportDialog({
       
       if (duplicateCount > 0) {
         toast({ 
-          title: `parsed_${parsed.length}_entries (${duplicateCount} duplicates)`,
-          description: 'Duplicates are marked in preview',
+          title: `Parsed ${parsed.length} entries`,
+          description: `${duplicateCount} possible duplicate${duplicateCount === 1 ? '' : 's'} marked in the preview. Review them before importing.`,
+          feedbackSeverity: 'warning',
+          source: bibtexParseRef,
         });
       } else {
-        toast({ title: `parsed_${parsed.length}_entries ✨` });
+        toast({ title: `Parsed ${parsed.length} entries ✨`, source: bibtexParseRef });
       }
     } catch (error) {
       toast({
-        title: 'parse_error',
-        description: (error as Error).message || 'Could not parse BibTeX',
-        variant: 'destructive',
+        title: 'BibTeX parse failed',
+        description: (error as Error).message || 'RefHub could not parse the BibTeX content. Check for missing braces, commas, or entry types.',
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: bibtexParseRef,
       });
     }
   };
@@ -249,9 +258,10 @@ export function ImportDialog({
 
     if (toImport.length === 0) {
       toast({
-        title: 'no_papers_selected',
-        description: 'Select at least one paper to import',
-        variant: 'destructive',
+        title: 'No papers selected',
+        description: 'Select at least one parsed paper from the preview before importing.',
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: importActionGroupRef,
       });
       return;
     }
@@ -265,11 +275,12 @@ export function ImportDialog({
       if (targetVaultId && insertedIds.length > 0) {
         const targetVault = vaults.find(v => v.id === targetVaultId);
         toast({ 
-          title: `imported_${insertedIds.length}_papers ✨`,
-          description: targetVault ? `Added to ${targetVault.name}` : undefined
+          title: `Imported ${insertedIds.length} paper${insertedIds.length === 1 ? '' : 's'} ✨`,
+          description: targetVault ? `Added to ${targetVault.name}` : undefined,
+          source: importActionGroupRef
         });
       } else {
-        toast({ title: `imported_${toImport.length}_papers ✨` });
+        toast({ title: `Imported ${toImport.length} paper${toImport.length === 1 ? '' : 's'} ✨`, source: importActionGroupRef });
       }
 
       // Reset state
@@ -280,9 +291,10 @@ export function ImportDialog({
       onOpenChange(false);
     } catch (error) {
       toast({
-        title: 'import_failed',
-        description: (error as Error).message,
-        variant: 'destructive',
+        title: 'Import failed',
+        description: (error as Error).message || 'RefHub could not import the selected papers. Nothing was removed from the preview.',
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: importActionGroupRef,
       });
     } finally {
       setImporting(false);
@@ -346,31 +358,33 @@ export function ImportDialog({
             <TabsContent value="doi" className="space-y-4 min-w-0">
               <div className="space-y-2 min-w-0">
                 <Label className="font-semibold font-mono">enter_doi</Label>
-                <div className="flex flex-col sm:flex-row gap-2 min-w-0">
-                  <Input
-                    value={doiInput}
-                    onChange={(e) => setDoiInput(e.target.value)}
-                    placeholder="10.1000/xyz123 or https://doi.org/..."
-                    className="font-mono flex-1 text-sm w-full min-w-0"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleDOILookup();
-                      }
-                    }}
-                  />
-                  <Button 
-                    onClick={handleDOILookup} 
-                    disabled={doiLoading || !doiInput.trim()}
-                    variant="glow"
-                    className="w-full sm:w-auto font-mono"
-                  >
-                    {doiLoading ? (
-                      <LoadingSpinner size="xs" />
-                    ) : (
-                      'lookup'
-                    )}
-                  </Button>
+                <div ref={doiLookupRef} className="flex w-full flex-col gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2 min-w-0">
+                    <Input
+                      value={doiInput}
+                      onChange={(e) => setDoiInput(e.target.value)}
+                      placeholder="10.1000/xyz123 or https://doi.org/..."
+                      className="font-mono flex-1 text-sm w-full min-w-0"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleDOILookup();
+                        }
+                      }}
+                    />
+                    <Button
+                      onClick={handleDOILookup}
+                      disabled={doiLoading || !doiInput.trim()}
+                      variant="glow"
+                      className="w-full sm:w-auto font-mono"
+                    >
+                      {doiLoading ? (
+                        <LoadingSpinner size="xs" />
+                      ) : (
+                        'lookup'
+                      )}
+                    </Button>
+                  </div>
                 </div>
                 <p className="text-xs text-muted-foreground font-mono">
                   // supports doi.org URLs, DOI strings, or doi: prefix
@@ -411,14 +425,16 @@ export function ImportDialog({
                   rows={6}
                   className="font-mono text-sm w-full min-w-0"
                 />
-                <Button 
-                  onClick={handleBibtexParse} 
-                  disabled={!bibtexInput.trim()}
-                  variant="glow"
-                  className="w-full font-mono"
-                >
-                  parse_bibtex
-                </Button>
+                <div ref={bibtexParseRef} className="flex w-full flex-col gap-2">
+                  <Button
+                    onClick={handleBibtexParse}
+                    disabled={!bibtexInput.trim()}
+                    variant="glow"
+                    className="w-full font-mono"
+                  >
+                    parse_bibtex
+                  </Button>
+                </div>
               </div>
             </TabsContent>
           </Tabs>
@@ -524,25 +540,27 @@ export function ImportDialog({
               </div>
 
               {/* Import Button */}
-              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t-2 border-border">
+              <div ref={importActionGroupRef} className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t-2 border-border">
                 <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto font-mono">
                   cancel
                 </Button>
-                <Button 
-                  variant="glow" 
-                  onClick={handleImport}
-                  disabled={importing || selectedIndices.size === 0}
-                  className="w-full sm:w-auto font-mono"
-                >
-                  {importing ? (
-                    <>
-                      <LoadingSpinner size="xs" className="mr-2" />
-                      importing...
-                    </>
-                  ) : (
-                    `import_${selectedIndices.size}_paper${selectedIndices.size !== 1 ? 's' : ''}`
-                  )}
-                </Button>
+                <div className="flex w-full flex-col gap-2 sm:w-auto">
+                  <Button
+                    variant="glow"
+                    onClick={handleImport}
+                    disabled={importing || selectedIndices.size === 0}
+                    className="w-full sm:w-auto font-mono"
+                  >
+                    {importing ? (
+                      <>
+                        <LoadingSpinner size="xs" className="mr-2" />
+                        importing...
+                      </>
+                    ) : (
+                      `import_${selectedIndices.size}_paper${selectedIndices.size !== 1 ? 's' : ''}`
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
           )}

@@ -67,7 +67,7 @@ export function useProfile() {
       toast({
         title: 'Error updating profile',
         description: (error as Error).message,
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
       return { error };
     }

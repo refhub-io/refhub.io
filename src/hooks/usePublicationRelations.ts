@@ -119,7 +119,7 @@ export function usePublicationRelations(publicationId: string | null, userId: st
         toast({
           title: 'Cannot link paper to itself',
           description: 'Please select a different paper to link.',
-          variant: 'destructive',
+          variant: 'destructive', feedbackSeverity: 'error',
         });
         return false;
       }
@@ -153,7 +153,7 @@ export function usePublicationRelations(publicationId: string | null, userId: st
           toast({
             title: 'Relation already exists',
             description: 'These papers are already linked.',
-            variant: 'destructive',
+            variant: 'destructive', feedbackSeverity: 'error',
           });
           return false;
         }
@@ -163,7 +163,7 @@ export function usePublicationRelations(publicationId: string | null, userId: st
           toast({
             title: 'Permission denied',
             description: "Can't link: you don't have permission to link papers in this vault. Contact the vault owner.",
-            variant: 'destructive',
+            variant: 'destructive', feedbackSeverity: 'error',
           });
           return false;
         }
@@ -179,7 +179,7 @@ export function usePublicationRelations(publicationId: string | null, userId: st
       toast({
         title: 'Error linking papers',
         description: (error as Error).message,
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
       return false;
     }
@@ -201,7 +201,7 @@ export function usePublicationRelations(publicationId: string | null, userId: st
       toast({
         title: 'Error removing link',
         description: (error as Error).message,
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
       return false;
     }

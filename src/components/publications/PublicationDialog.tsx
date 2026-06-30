@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, type RefObject } from 'react';
 import { logger } from '@/lib/logger';
 import { Publication, Vault, Tag, PUBLICATION_TYPES } from '@/types/database';
 import { UnsavedChangesDialog } from '@/components/ui/unsaved-changes-dialog';
@@ -59,10 +59,10 @@ interface PublicationDialogProps {
   publicationVaults?: string[]; // IDs of vaults this publication is already in
   currentVaultId?: string; // Current vault ID to pre-select when adding new paper
   driveUploadContext?: 'publication' | 'vault';
-  onSave: (data: Partial<Publication>, tagIds: string[], vaultIds?: string[], isAutoSave?: boolean, driveUrl?: string | null) => Promise<void>;
+  onSave: (data: Partial<Publication>, tagIds: string[], vaultIds?: string[], isAutoSave?: boolean, driveUrl?: string | null, feedbackSource?: Element | RefObject<Element | null> | null) => Promise<void>;
   onCreateTag: (name: string, parentId?: string) => Promise<Tag | null>;
   onAddToVaults?: (publicationId: string, vaultIds: string[]) => Promise<void>;
-  onCheckSync?: (publication: Publication) => void;
+  onCheckSync?: (publication: Publication, feedbackSource?: Element | RefObject<Element | null> | null) => void;
   syncLoading?: boolean;
   syncCooldownSeconds?: number;
   /** When false, dialog stays open after save (default: true). */
@@ -92,6 +92,10 @@ export function PublicationDialog({
   driveUrl,
 }: PublicationDialogProps) {
   const { user, session } = useAuth();
+  const saveButtonRef = useRef<HTMLButtonElement | null>(null);
+  const fullscreenSaveFeedbackRef = useRef<HTMLDivElement | null>(null);
+  const footerSaveFeedbackRef = useRef<HTMLDivElement | null>(null);
+  const syncButtonRef = useRef<HTMLButtonElement | null>(null);
   const {
     relations,
     loading: relationsLoading,
@@ -231,6 +235,8 @@ export function PublicationDialog({
                 selectedTagsRef.current,
                 publication ? undefined : selectedVaultIds,
                 true, // isAutoSave
+                undefined,
+                notesFullscreen ? fullscreenSaveFeedbackRef : footerSaveFeedbackRef,
               );
               setModifiedFields(new Set());
               setLastSavedAt(new Date());
@@ -244,7 +250,7 @@ export function PublicationDialog({
         allowInInput: true,
       },
     ],
-    [open, publication, selectedVaultIds, onSave],
+    [open, publication, selectedVaultIds, onSave, notesFullscreen],
   );
 
   // Keep refs in sync for the hotkey handler
@@ -364,6 +370,8 @@ export function PublicationDialog({
         selectedTagsRef.current,
         publication ? undefined : selectedVaultIds,
         true,
+        undefined,
+        fullscreenSaveFeedbackRef,
       );
       setModifiedFields(new Set());
       setLastSavedAt(new Date());
@@ -678,7 +686,7 @@ export function PublicationDialog({
 
     try {
       // Pass vaultIds only for new publications (when publication is null)
-      await onSave({ ...formData, authors, editor, keywords }, selectedTags, publication ? undefined : selectedVaultIds, undefined, drivePdfInput || null);
+      await onSave({ ...formData, authors, editor, keywords }, selectedTags, publication ? undefined : selectedVaultIds, undefined, drivePdfInput || null, footerSaveFeedbackRef);
       setModifiedFields(new Set()); // Clear dirty state
       setLastSavedAt(new Date());
       if (closeOnSave) {
@@ -753,7 +761,7 @@ export function PublicationDialog({
         .map((k) => k.trim())
         .filter((k) => k.length > 0);
 
-      await onSave({ ...formData, authors, editor, keywords }, selectedTags, publication ? undefined : selectedVaultIds, undefined, drivePdfInput || null);
+      await onSave({ ...formData, authors, editor, keywords }, selectedTags, publication ? undefined : selectedVaultIds, undefined, drivePdfInput || null, notesFullscreen ? fullscreenSaveFeedbackRef : footerSaveFeedbackRef);
       setModifiedFields(new Set()); // Clear dirty state
       setShowUnsavedDialog(false);
       setLastSavedAt(new Date());
@@ -771,7 +779,7 @@ export function PublicationDialog({
     } finally {
       setSaving(false);
     }
-  }, [authorsInput, editorInput, keywordsInput, formData, selectedTags, selectedVaultIds, publication, onSave, onOpenChange, pendingExitFullscreen, drivePdfInput]);
+  }, [authorsInput, editorInput, keywordsInput, formData, selectedTags, selectedVaultIds, publication, onSave, onOpenChange, pendingExitFullscreen, drivePdfInput, notesFullscreen]);
 
   const toggleTag = (tagId: string) => {
     setSelectedTags(
@@ -808,7 +816,7 @@ export function PublicationDialog({
                   <h2 className="text-base sm:text-lg font-bold font-mono truncate">notes_editor</h2>
                   <span className="text-xs text-muted-foreground font-mono hidden sm:inline">(markdown_supported)</span>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
                   {/* Last-saved indicator */}
                   <span
                     className="text-xs text-muted-foreground font-mono hidden sm:inline"
@@ -817,18 +825,21 @@ export function PublicationDialog({
                     {lastSavedAt ? formatTimeAgo(lastSavedAt) : 'not saved yet'}
                   </span>
                   {/* Save button */}
-                  <Button
-                    type="button"
-                    variant="glow"
-                    size="sm"
-                    onClick={handleFullscreenSave}
-                    disabled={saving}
-                    className="h-9 px-3 font-mono shrink-0"
-                  >
-                    <Save className="w-4 h-4 sm:mr-2" />
-                    <span className="hidden sm:inline">{saving ? 'saving...' : 'save'}</span>
-                    <KbdHint shortcut="Ctrl+S" className="ml-1.5 hidden sm:inline-flex [&_kbd]:bg-white/20 [&_kbd]:border-white/30 [&_kbd]:text-primary-foreground [&_kbd]:shadow-none" size="sm" />
-                  </Button>
+                  <div ref={fullscreenSaveFeedbackRef} data-quoterm-anchor="publication-save" className="flex min-w-0 flex-col items-end gap-1">
+                    <Button
+                      type="button"
+                      variant="glow"
+                      size="sm"
+                      ref={saveButtonRef}
+                      onClick={handleFullscreenSave}
+                      disabled={saving}
+                      className="h-9 px-3 font-mono shrink-0"
+                    >
+                      <Save className="w-4 h-4 sm:mr-2" />
+                      <span className="hidden sm:inline">{saving ? 'saving...' : 'save'}</span>
+                      <KbdHint shortcut="Ctrl+S" className="ml-1.5 hidden sm:inline-flex [&_kbd]:bg-white/20 [&_kbd]:border-white/30 [&_kbd]:text-primary-foreground [&_kbd]:shadow-none" size="sm" />
+                    </Button>
+                  </div>
                   {/* Exit fullscreen */}
                   <Button
                     type="button"
@@ -930,19 +941,23 @@ export function PublicationDialog({
             )}
           </DialogTitle>
           {publication && onCheckSync && (
-            <div className="flex items-center gap-2 pt-1.5">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => onCheckSync(publication)}
-                disabled={syncLoading || syncCooldownSeconds > 0 || !publication.doi}
-                className="font-mono text-xs h-7 px-2.5"
-                title={publication.doi ? (syncCooldownSeconds > 0 ? `Semantic Scholar sync cooldown: ${syncCooldownSeconds}s` : 'Sync metadata from Semantic Scholar') : 'DOI required for sync'}
-              >
-                <Loader2 className={`w-3 h-3 mr-1.5 ${syncLoading ? 'animate-spin' : ''}`} />
-                {syncCooldownSeconds > 0 ? `sync_cooldown_${syncCooldownSeconds}s` : 'sync_details'}
-              </Button>
+            <div className="flex flex-wrap items-center gap-2 pt-1.5">
+              <div className="flex min-w-0 flex-col items-start gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  ref={syncButtonRef}
+                  data-quoterm-anchor="publication-sync"
+                  onClick={() => onCheckSync(publication, syncButtonRef)}
+                  disabled={syncLoading || syncCooldownSeconds > 0 || !publication.doi}
+                  className="font-mono text-xs h-7 px-2.5"
+                  title={publication.doi ? (syncCooldownSeconds > 0 ? `Semantic Scholar sync cooldown: ${syncCooldownSeconds}s` : 'Sync metadata from Semantic Scholar') : 'DOI required for sync'}
+                >
+                  <Loader2 className={`w-3 h-3 mr-1.5 ${syncLoading ? 'animate-spin' : ''}`} />
+                  {syncCooldownSeconds > 0 ? `sync_cooldown_${syncCooldownSeconds}s` : 'sync_details'}
+                </Button>
+              </div>
               {!publication.doi && (
                 <span className="text-[10px] font-mono text-muted-foreground">doi required</span>
               )}
@@ -1678,21 +1693,25 @@ export function PublicationDialog({
             )}
 
             {/* Actions */}
-            <div className="sticky bottom-0 z-20 -mx-2 flex flex-col-reverse gap-2 border-t border-border bg-card/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur sm:static sm:z-auto sm:mx-0 sm:flex-row sm:justify-end sm:gap-3 sm:bg-transparent sm:px-0 sm:pb-0 sm:pt-4 sm:backdrop-blur-none w-auto sm:w-full box-border">
-              <Button type="button" variant="outline" onClick={() => handleDialogClose(false)} className="font-mono w-full sm:w-auto text-xs sm:text-sm h-10">
-                <X className="w-3 h-3 mr-1.5" />
-                close
-              </Button>
-              <Button type="submit" variant="glow" disabled={saving} className="font-mono w-full sm:w-auto text-xs sm:text-sm h-10">
-                {saving ? (
-                  'saving...'
-                ) : publication ? (
-                  <><Save className="w-3 h-3 mr-1.5" />save</>
-                ) : (
-                  <><Plus className="w-3 h-3 mr-1.5" />add_paper</>
-                )}
-                <KbdHint shortcut="Ctrl+S" className="ml-1.5 hidden sm:inline-flex [&_kbd]:bg-white/20 [&_kbd]:border-white/30 [&_kbd]:text-primary-foreground [&_kbd]:shadow-none" size="sm" />
-              </Button>
+            <div className="sticky bottom-0 z-20 -mx-2 flex flex-col-reverse gap-2 border-t border-border bg-card/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur sm:static sm:z-auto sm:mx-0 sm:flex-col sm:items-end sm:justify-end sm:gap-2 sm:bg-transparent sm:px-0 sm:pb-0 sm:pt-4 sm:backdrop-blur-none w-auto sm:w-full box-border">
+              <div ref={footerSaveFeedbackRef} data-quoterm-anchor="publication-save" className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+                <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:justify-end sm:gap-3">
+                  <Button type="button" variant="outline" onClick={() => handleDialogClose(false)} className="font-mono w-full sm:w-auto text-xs sm:text-sm h-10">
+                    <X className="w-3 h-3 mr-1.5" />
+                    close
+                  </Button>
+                  <Button ref={saveButtonRef} type="submit" variant="glow" disabled={saving} className="font-mono w-full sm:w-auto text-xs sm:text-sm h-10">
+                  {saving ? (
+                    'saving...'
+                  ) : publication ? (
+                    <><Save className="w-3 h-3 mr-1.5" />save</>
+                  ) : (
+                    <><Plus className="w-3 h-3 mr-1.5" />add_paper</>
+                  )}
+                  <KbdHint shortcut="Ctrl+S" className="ml-1.5 hidden sm:inline-flex [&_kbd]:bg-white/20 [&_kbd]:border-white/30 [&_kbd]:text-primary-foreground [&_kbd]:shadow-none" size="sm" />
+                  </Button>
+                </div>
+              </div>
             </div>
           </form>
         </ScrollArea>

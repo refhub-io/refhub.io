@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useRef, useState, useMemo, useEffect } from 'react';
 import { Publication, Tag, PublicationTag } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -9,7 +9,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Download, FileText, Copy, Check, BookOpen } from 'lucide-react';
@@ -54,6 +53,7 @@ export function ExportDialog({
   publicationTags,
 }: ExportDialogProps) {
   const { toast } = useToast();
+  const footerActionGroupRef = useRef<HTMLDivElement>(null);
   const [selectedFields, setSelectedFields] = useState<BibtexField[]>(DEFAULT_SELECTED);
   const [format, setFormat] = useState<ExportFormat>('bibtex');
   const [includeHierarchicalTags, setIncludeHierarchicalTags] = useState(false);
@@ -147,13 +147,14 @@ export function ExportDialog({
     try {
       await navigator.clipboard.writeText(content);
       setCopied(true);
-      toast({ title: 'Copied to clipboard' });
+      toast({ title: 'Copied to clipboard', source: footerActionGroupRef });
       setTimeout(() => setCopied(false), 2000);
     } catch {
       toast({
-        title: 'Failed to copy',
-        description: 'Please try again or download the file instead.',
-        variant: 'destructive',
+        title: 'Copy failed',
+        description: 'RefHub could not copy the export to your clipboard. Download the file instead, or allow clipboard access and try again.',
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: footerActionGroupRef,
       });
     }
   };
@@ -273,19 +274,21 @@ export function ExportDialog({
           </Tabs>
         </div>
 
-        <DialogFooter className="px-4 sm:px-6 pb-4 sm:pb-6 pt-4 border-t flex-col-reverse sm:flex-row gap-3">
+        <div ref={footerActionGroupRef} className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 dialog-mobile-safe-footer px-4 sm:px-6 pb-4 sm:pb-6 pt-4 border-t gap-3">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="font-mono w-full sm:w-auto">
             cancel
           </Button>
-          <Button
-            variant="outline"
-            onClick={handleCopyToClipboard}
-            disabled={(format === 'bibtex' && selectedFields.length === 0) || publications.length === 0}
-            className="gap-2 font-mono w-full sm:w-auto"
-          >
-            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-            {copied ? 'copied!' : 'copy'}
-          </Button>
+          <div className="flex w-full flex-col gap-2 sm:w-auto">
+            <Button
+              variant="outline"
+              onClick={handleCopyToClipboard}
+              disabled={(format === 'bibtex' && selectedFields.length === 0) || publications.length === 0}
+              className="gap-2 font-mono w-full sm:w-auto"
+            >
+              {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              {copied ? 'copied!' : 'copy'}
+            </Button>
+          </div>
           <Button
             variant="glow"
             onClick={format === 'bibtex' ? handleBibtexExport : handleAPAExport}
@@ -295,7 +298,7 @@ export function ExportDialog({
             <Download className="w-4 h-4" />
             {format === 'bibtex' ? `export_.bib` : `export_.txt`}
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

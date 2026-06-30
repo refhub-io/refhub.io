@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, type RefObject } from 'react';
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
@@ -161,6 +161,10 @@ export default function VaultDetail() {
   const [syncLoadingIds, setSyncLoadingIds] = useState<Set<string>>(new Set());
   const [syncPreviewPublication, setSyncPreviewPublication] = useState<Publication | null>(null);
   const [syncCooldowns, setSyncCooldowns] = useState<Record<string, number>>({});
+  const vaultPageRef = useRef<HTMLDivElement | null>(null);
+  const publicationSyncDialogRef = useRef<HTMLDivElement | null>(null);
+  const publicationListFeedbackRef = useRef<HTMLDivElement | null>(null);
+  const vaultDialogFeedbackRef = useRef<HTMLDivElement | null>(null);
 
   const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
   const [editingVault, setEditingVault] = useState<Vault | null>(null);
@@ -573,7 +577,7 @@ export default function VaultDetail() {
     return duplicate;
   };
 
-  const handleSavePublication = async (data: Partial<Publication>, tagIds: string[], vaultIds?: string[], isAutoSave = false, driveUrl?: string | null) => {
+  const handleSavePublication = async (data: Partial<Publication>, tagIds: string[], vaultIds?: string[], isAutoSave = false, driveUrl?: string | null, feedbackSource?: Element | RefObject<Element | null> | null) => {
     if (!user || !vaultId || !canEdit) return; // Only allow editing if user has edit permission
 
     try {
@@ -588,7 +592,7 @@ export default function VaultDetail() {
         const pubResult = await sharedVaultOps.updateVaultPublication(
           editingPublication.id,
           dataToSave,
-          { silent: isAutoSave }
+          { silent: true }
         );
 
         if (!pubResult.success) {
@@ -626,6 +630,7 @@ export default function VaultDetail() {
         setEditingPublication({ ...editingPublication, ...data } as Publication);
 
         if (!isAutoSave) {
+          toast({ title: 'Paper updated ✨', source: feedbackSource ?? publicationListFeedbackRef });
           // Update last activity for the updated publication
           updateLastActivity('publication_updated', user.id);
         }
@@ -640,9 +645,10 @@ export default function VaultDetail() {
         const duplicate = checkForDuplicate(data, publications);
         if (duplicate) {
           toast({
-            title: 'duplicate_detected',
-            description: `Paper already exists: "${duplicate.title.substring(0, 50)}..."`,
-            variant: 'destructive',
+            title: 'Duplicate paper detected',
+            description: `“${duplicate.title.substring(0, 50)}...” already exists in this vault. Open the existing entry or change the new paper details before saving.`,
+            variant: 'destructive', feedbackSeverity: 'error',
+            source: publicationListFeedbackRef,
           });
           return;
         }
@@ -691,9 +697,10 @@ export default function VaultDetail() {
       // create mode. The dialog close handler clears editingPublication.
     } catch (error) {
       toast({
-        title: 'error_saving_paper',
-        description: (error as Error).message,
-        variant: 'destructive',
+        title: 'Could not save paper',
+        description: (error as Error).message || 'RefHub could not save this paper. Check the required fields and try again.',
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: feedbackSource ?? publicationListFeedbackRef,
       });
     }
   };
@@ -776,9 +783,10 @@ export default function VaultDetail() {
 
     if (pubsToInsert.length === 0) {
       toast({
-        title: 'no_papers_to_import',
-        description: 'All papers were duplicates',
-        variant: 'destructive',
+        title: 'No new papers to import',
+        description: 'Every selected paper appears to already exist in this vault. Review the duplicate matches or choose different entries.',
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: publicationListFeedbackRef,
       });
       return [];
     }
@@ -817,9 +825,10 @@ export default function VaultDetail() {
       return insertedIds;
     } catch (error) {
       toast({
-        title: 'error_importing_papers',
-        description: (error as Error).message,
-        variant: 'destructive',
+        title: 'Could not import papers',
+        description: (error as Error).message || 'RefHub could not import the selected papers. Nothing was removed from your import preview.',
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: publicationListFeedbackRef,
       });
       return [];
     }
@@ -852,9 +861,16 @@ export default function VaultDetail() {
     return () => window.clearTimeout(timer);
   }, [syncCooldowns]);
 
-  const handleCheckPublicationSync = useCallback(async (publication: Publication) => {
+  const handleCheckPublicationSync = useCallback(async (publication: Publication, feedbackSource?: Element | RefObject<Element | null> | null) => {
+    const publicationSyncSource = feedbackSource ?? publicationSyncDialogRef.current ?? publicationListFeedbackRef.current ?? vaultPageRef.current;
+
     if (!publication.doi) {
-      toast({ title: 'sync_needs_doi', description: 'Semantic Scholar detail sync currently needs a DOI.', variant: 'destructive' });
+      toast({
+        title: 'Add a DOI before syncing',
+        description: 'Semantic Scholar sync uses the paper DOI to find the matching record. Edit this paper, add a DOI, then try again.',
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: publicationSyncSource,
+      });
       return;
     }
     if ((syncCooldowns[publication.id] || 0) > 0 || syncLoadingIds.has(publication.id)) {
@@ -866,7 +882,12 @@ export default function VaultDetail() {
       const metadata = await fetchSemanticScholarMetadataByDoi(publication.doi);
       if (!metadata) {
         setSyncDiffsByPublication(prev => ({ ...prev, [publication.id]: [] }));
-        toast({ title: 'sync_no_semantic_scholar_match', description: 'No Semantic Scholar metadata found for this DOI.' });
+        toast({
+          title: 'No Semantic Scholar match found',
+          description: 'Semantic Scholar did not return metadata for this DOI. Check the DOI for typos or update the paper manually.',
+          feedbackSeverity: 'warning',
+          source: publicationSyncSource,
+        });
         return;
       }
 
@@ -875,15 +896,24 @@ export default function VaultDetail() {
       setSyncDiffsByPublication(prev => ({ ...prev, [publication.id]: diffs }));
       if (diffs.length > 0) {
         setSyncPreviewPublication(publication);
-        toast({ title: `sync_found_${diffs.length}_field${diffs.length === 1 ? '' : 's'}`, description: 'Review incoming Semantic Scholar details before applying.' });
+        toast({
+          title: `${diffs.length} Semantic Scholar update${diffs.length === 1 ? '' : 's'} found`,
+          description: 'Review the incoming fields before applying them to this paper.',
+          source: publicationSyncSource,
+        });
       } else {
-        toast({ title: 'sync_up_to_date', description: 'Semantic Scholar details match this publication.' });
+        toast({
+          title: 'Paper is already up to date',
+          description: 'Semantic Scholar details match this publication.',
+          source: publicationSyncSource,
+        });
       }
     } catch (error) {
       toast({
-        title: 'sync_failed',
+        title: 'Semantic Scholar sync failed',
         description: formatSemanticScholarErrorMessage(error),
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: publicationSyncSource,
       });
     } finally {
       setSyncLoadingIds(prev => {
@@ -902,8 +932,15 @@ export default function VaultDetail() {
       syncPreviewPublication.id,
       patch,
     );
+    const publicationSyncSource = publicationSyncDialogRef.current ?? publicationListFeedbackRef.current ?? vaultPageRef.current;
+
     if (!result.success) {
-      toast({ title: 'sync_apply_failed', description: result.error?.message || 'Could not apply Semantic Scholar details.', variant: 'destructive' });
+      toast({
+        title: 'Could not apply Semantic Scholar updates',
+        description: result.error?.message || 'RefHub could not save the selected fields. Keep the sync dialog open, refresh the paper if needed, and try again.',
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: publicationSyncSource,
+      });
       return;
     }
 
@@ -915,7 +952,7 @@ export default function VaultDetail() {
     setSyncDiffsByPublication(prev => ({ ...prev, [syncPreviewPublication.id]: [] }));
     setSyncPreviewPublication(null);
     updateLastActivity('publication_updated', user?.id || null);
-  }, [canEdit, editingPublication, sharedVaultOps, syncDiffsByPublication, syncPreviewPublication, toast, updateLastActivity, user?.id]);
+  }, [canEdit, editingPublication, sharedVaultOps, syncPreviewPublication, toast, updateLastActivity, user?.id]);
 
   const handleAddToVaults = async (publicationId: string, vaultIds: string[]) => {
     if (!user || !canEdit) return; // Only allow adding if user has edit permission
@@ -979,7 +1016,10 @@ export default function VaultDetail() {
         }
       }
 
-      toast({ title: `added_to_${vaultIds.length}_vault${vaultIds.length > 1 ? 's' : ''} ✨` });
+      toast({
+        title: `Added to ${vaultIds.length} vault${vaultIds.length > 1 ? 's' : ''} ✨`,
+        source: publicationListFeedbackRef,
+      });
 
       // Refresh the data in background (toast provides feedback)
       silentRefresh();
@@ -987,7 +1027,7 @@ export default function VaultDetail() {
       toast({
         title: 'Error adding paper',
         description: (error as Error).message,
-        variant: 'destructive',
+        variant: 'destructive', feedbackSeverity: 'error',
       });
       throw error;
     }
@@ -1063,9 +1103,10 @@ export default function VaultDetail() {
         // Check if it's a permission error
         if (deleteError.code === '42501' || deleteError.message?.includes('permission')) {
           toast({
-            title: 'permission_denied',
-            description: 'You do not have permission to delete this paper.',
-            variant: 'destructive',
+            title: 'Permission denied',
+            description: 'You do not have permission to delete this paper from the vault. Ask the vault owner for editor access.',
+            variant: 'destructive', feedbackSeverity: 'error',
+            source: publicationListFeedbackRef,
           });
           return;
         }
@@ -1077,7 +1118,7 @@ export default function VaultDetail() {
         toast({
           title: 'Could not delete paper',
           description: 'The paper could not be deleted. You may not have permission.',
-          variant: 'destructive',
+          variant: 'destructive', feedbackSeverity: 'error',
         });
         return;
       }
@@ -1090,14 +1131,19 @@ export default function VaultDetail() {
       // Update last activity for the deleted publication
       updateLastActivity('publication_removed', user?.id || null);
 
-      toast({ title: 'paper_deleted' });
+      toast({
+        title: 'Paper removed from vault',
+        description: deleteConfirmation.title ? `Removed “${deleteConfirmation.title}” from this vault.` : 'The selected paper was removed from this vault.',
+        source: null,
+      });
     } catch (error) {
       // Revert on error
       refetchVault();
       toast({
-        title: 'error_deleting_paper',
-        description: (error as Error).message,
-        variant: 'destructive',
+        title: 'Could not delete paper',
+        description: (error as Error).message || 'RefHub could not remove this paper. Refresh the vault and try again.',
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: publicationListFeedbackRef,
       });
     } finally {
       setDeleteConfirmation(null);
@@ -1144,13 +1190,17 @@ export default function VaultDetail() {
 
       updateLastActivity('publication_removed', user?.id || null);
 
-      toast({ title: `${ids.length} paper${ids.length !== 1 ? 's' : ''} removed from vault` });
+      toast({
+        title: `${ids.length} paper${ids.length !== 1 ? 's' : ''} removed from vault`,
+        source: null,
+      });
     } catch (error) {
       refetchVault();
       toast({
-        title: 'error_removing_papers',
-        description: (error as Error).message,
-        variant: 'destructive',
+        title: 'Could not remove papers',
+        description: (error as Error).message || 'RefHub could not remove the selected papers. Refresh the vault and try again.',
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: publicationListFeedbackRef,
       });
     } finally {
       setBulkDeleteConfirmation([]);
@@ -1171,9 +1221,10 @@ export default function VaultDetail() {
 
       if (forks && forks.length > 0) {
         toast({
-          title: 'cannot_delete_vault',
-          description: `This vault has ${forks.length} fork${forks.length > 1 ? 's' : ''}. Public vaults with forks cannot be deleted.`,
-          variant: 'destructive',
+          title: 'Vault cannot be deleted',
+          description: `This vault has ${forks.length} fork${forks.length > 1 ? 's' : ''}. Public vaults with forks cannot be deleted; make it private or resolve the forks first.`,
+          variant: 'destructive', feedbackSeverity: 'error',
+          source: vaultDialogFeedbackRef,
         });
         setDeleteVaultConfirmation(null);
         return;
@@ -1208,15 +1259,20 @@ export default function VaultDetail() {
 
       if (error) throw error;
 
-      toast({ title: 'vault_deleted' });
+      toast({
+        title: 'Vault deleted',
+        description: deleteVaultConfirmation.name ? `“${deleteVaultConfirmation.name}” was deleted and you were returned to the dashboard.` : 'The vault was deleted and you were returned to the dashboard.',
+        source: vaultDialogFeedbackRef,
+      });
       setIsVaultDialogOpen(false);
     } catch (error) {
       // Revert on error
       refetchVault();
       toast({
-        title: 'error_deleting_vault',
-        description: (error as Error).message,
-        variant: 'destructive',
+        title: 'Could not delete vault',
+        description: (error as Error).message || 'RefHub could not delete this vault. Refresh the page and try again.',
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: vaultDialogFeedbackRef,
       });
     } finally {
       setDeleteVaultConfirmation(null);
@@ -1233,7 +1289,7 @@ export default function VaultDetail() {
         toast({
           title: 'Tag already exists',
           description: `A tag with the name "${name}" already exists in this vault.`,
-          variant: 'destructive',
+          variant: 'destructive', feedbackSeverity: 'error',
         });
         return existingLocal;
       }
@@ -1270,15 +1326,16 @@ export default function VaultDetail() {
         toast({
           title: 'Tag already exists',
           description: `A tag with the name "${name}" already exists in this vault.`,
-          variant: 'destructive',
+          variant: 'destructive', feedbackSeverity: 'error',
         });
         return null;
       }
 
       toast({
-        title: 'error_creating_tag',
-        description: (error as Error).message,
-        variant: 'destructive',
+        title: 'Could not create tag',
+        description: (error as Error).message || 'RefHub could not create this tag. Check the tag name and try again.',
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: publicationListFeedbackRef,
       });
       return null;
     }
@@ -1290,7 +1347,7 @@ export default function VaultDetail() {
     const result = await sharedVaultOps.updateTag(tagId, updates);
     if (result.success && result.tag) {
       toast({
-        title: 'tag_updated ✨',
+        title: 'Tag updated ✨',
         description: `Tag renamed to "${result.tag.name}"`,
       });
       return result.tag;
@@ -1306,7 +1363,7 @@ export default function VaultDetail() {
     const result = await sharedVaultOps.deleteTag(tagId);
     if (result.success) {
       toast({
-        title: 'tag_deleted 🗑️',
+        title: 'Tag deleted 🗑️',
         description: 'Tag removed from vault',
       });
     }
@@ -1322,7 +1379,7 @@ export default function VaultDetail() {
       // Update count immediately
       setFavoritesCount(prev => wasFavorited ? Math.max(0, prev - 1) : prev + 1);
       toast({
-        title: wasFavorited ? 'removed_from_favorites' : 'added_to_favorites ❤️',
+        title: wasFavorited ? 'Removed from favorites' : 'Added to favorites ❤️',
       });
     }
   };
@@ -1330,9 +1387,10 @@ export default function VaultDetail() {
   const handleFork = async () => {
     if (!user || !currentVault) {
       toast({
-        title: 'sign_in_required',
-        description: 'Please sign in to fork this vault.',
-        variant: 'destructive',
+        title: 'Sign in required',
+        description: 'Sign in before forking this vault. Your current view is read-only.',
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: vaultPageRef,
       });
       return;
     }
@@ -1344,8 +1402,9 @@ export default function VaultDetail() {
       const newVaultId = await forkVault(currentVault);
       if (newVaultId) {
         toast({
-          title: 'vault_forked 🍴',
-          description: 'Successfully forked vault as a public vault.',
+          title: 'Vault forked 🍴',
+          description: 'Created a public fork of this vault and opened it.',
+          source: vaultPageRef,
         });
         navigate(`/vault/${newVaultId}`);
       }
@@ -1382,7 +1441,11 @@ export default function VaultDetail() {
         
         // Update the vault in the hook's state (silent - toast provides feedback)
         silentRefresh();
-        toast({ title: 'vault_updated ✨' });
+        toast({
+          title: 'Vault updated ✨',
+          description: updatedVault.name ? `Saved changes to “${updatedVault.name}”.` : 'Your vault changes were saved.',
+          source: vaultDialogFeedbackRef,
+        });
         return updatedVault as Vault;
       } else {
         const { data: newVault, error } = await supabase
@@ -1402,16 +1465,21 @@ export default function VaultDetail() {
 
         // Update the vault in the hook's state (silent - toast provides feedback)
         silentRefresh();
-        toast({ title: 'vault_created ✨' });
+        toast({
+          title: 'Vault created ✨',
+          description: (newVault as Vault)?.name ? `Created “${(newVault as Vault).name}”.` : 'Your new vault is ready.',
+          source: vaultDialogFeedbackRef,
+        });
         return newVault as Vault;
       }
 
       // Note: Don't set editingVault to null here, let the dialog stay open with updated data
     } catch (error) {
       toast({
-        title: 'error_adding_to_vaults',
-        description: (error as Error).message,
-        variant: 'destructive',
+        title: 'Could not save vault',
+        description: (error as Error).message || 'RefHub could not save this vault. Keep the dialog open, check the fields, and try again.',
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: vaultDialogFeedbackRef,
       });
     }
   };
@@ -1634,7 +1702,7 @@ export default function VaultDetail() {
                     toast({
                       title: "Error",
                       description: (error as Error).message,
-                      variant: "destructive",
+                      variant: "destructive", feedbackSeverity: "error",
                     });
                   }
                 }}
@@ -1709,6 +1777,9 @@ export default function VaultDetail() {
       />
 
       <div className="flex-1 lg:pl-72 min-w-0 flex flex-col min-h-screen">
+        <div className="px-3 pt-3 sm:px-4 sm:pt-4">
+          <div ref={vaultPageRef} />
+        </div>
         {/* Vault Header */}
         <div className="border-b border-border bg-card/50 backdrop-blur-xl sm:sticky sm:top-0 sm:z-30 shrink-0">
           <div className="px-3 sm:px-4 py-3">
@@ -1852,7 +1923,7 @@ export default function VaultDetail() {
                             toast({
                               title: 'Error',
                               description: (error as Error).message,
-                              variant: 'destructive',
+                              variant: 'destructive', feedbackSeverity: 'error',
                             });
                           }
                         }}
@@ -1871,6 +1942,9 @@ export default function VaultDetail() {
           </div>
         </div>
 
+        <div className="px-3 pt-3 sm:px-4 sm:pt-4">
+          <div ref={publicationListFeedbackRef} />
+        </div>
         <PublicationList
           publications={publications}
           tags={tags}
@@ -1965,13 +2039,15 @@ export default function VaultDetail() {
         driveLoading={pdfAssetsLoading}
       />
 
-      <PublicationSyncDialog
-        open={!!syncPreviewPublication}
-        onOpenChange={(open) => !open && setSyncPreviewPublication(null)}
-        diffs={syncPreviewPublication ? syncDiffsByPublication[syncPreviewPublication.id] || [] : []}
-        onApply={handleApplyPublicationSync}
-        disabled={!canEdit}
-      />
+      <div ref={publicationSyncDialogRef}>
+        <PublicationSyncDialog
+          open={!!syncPreviewPublication}
+          onOpenChange={(open) => !open && setSyncPreviewPublication(null)}
+          diffs={syncPreviewPublication ? syncDiffsByPublication[syncPreviewPublication.id] || [] : []}
+          onApply={handleApplyPublicationSync}
+          disabled={!canEdit}
+        />
+      </div>
 
       <VaultAugmentDialog
         open={isAugmentDialogOpen}
@@ -1993,19 +2069,22 @@ export default function VaultDetail() {
         updatePdfAsset={canEdit ? updatePdfAsset : undefined}
       />
 
+      <div className="px-3 pt-3 sm:px-4 sm:pt-4">
+        <div ref={vaultDialogFeedbackRef} />
+      </div>
       <VaultDialog
-        key={editingVault ? `${editingVault.id}-${editingVault.updated_at}` : 'new-vault'}
-        open={isVaultDialogOpen}
-        onOpenChange={(open) => {
-          setIsVaultDialogOpen(open);
-        }}
-        vault={editingVault}
-        onSave={!editingVault || isOwner ? handleSaveVault : undefined}
-        onUpdate={refetchVault}
-        onDelete={isOwner ? (vault) => {
-          setDeleteVaultConfirmation(vault);
-          setIsVaultDialogOpen(false);
-        } : undefined}
+          key={editingVault ? `${editingVault.id}-${editingVault.updated_at}` : 'new-vault'}
+          open={isVaultDialogOpen}
+          onOpenChange={(open) => {
+            setIsVaultDialogOpen(open);
+          }}
+          vault={editingVault}
+          onSave={!editingVault || isOwner ? handleSaveVault : undefined}
+          onUpdate={refetchVault}
+          onDelete={isOwner ? (vault) => {
+            setDeleteVaultConfirmation(vault);
+            setIsVaultDialogOpen(false);
+          } : undefined}
       />
 
       <ProfileDialog

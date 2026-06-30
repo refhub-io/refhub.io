@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { logger } from '@/lib/logger';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,6 +17,9 @@ export default function ResetPassword() {
   const [resetSuccess, setResetSuccess] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const { toast } = useToast();
+  const resetFormRef = useRef<HTMLFormElement>(null);
+  const newPasswordRef = useRef<HTMLDivElement>(null);
+  const confirmPasswordRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   // Detect if user is in a password recovery session
@@ -41,9 +44,10 @@ export default function ResetPassword() {
           
           if (error) {
             toast({
-              title: 'session_error',
-              description: 'Invalid or expired recovery link. Please request a new one.',
-              variant: 'destructive',
+              title: 'Recovery link is invalid',
+              description: 'This password recovery link is invalid or has expired. Request a new reset email and try again.',
+              variant: 'destructive', feedbackSeverity: 'error',
+              source: resetFormRef,
             });
             setIsRecovery(false);
           } else if (data.session) {
@@ -98,9 +102,10 @@ export default function ResetPassword() {
     setLoading(false);
     if (error) {
       toast({
-        title: 'reset_failed',
-        description: error.message,
-        variant: 'destructive',
+        title: 'Reset email failed',
+        description: error.message || 'RefHub could not send the password reset email. Check the address and try again.',
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: resetFormRef,
       });
     } else {
       setSent(true);
@@ -111,17 +116,19 @@ export default function ResetPassword() {
     e.preventDefault();
     if (newPassword.length < 8) {
       toast({
-        title: 'weak_password',
-        description: 'Password must be at least 8 characters long.',
-        variant: 'destructive',
+        title: 'Password is too short',
+        description: 'Use at least 8 characters for the new password.',
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: newPasswordRef,
       });
       return;
     }
     if (newPassword !== confirmPassword) {
       toast({
-        title: 'password_mismatch',
-        description: 'Passwords do not match.',
-        variant: 'destructive',
+        title: 'Passwords do not match',
+        description: 'The confirmation password is different. Re-enter it and try again.',
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: confirmPasswordRef,
       });
       return;
     }
@@ -130,9 +137,10 @@ export default function ResetPassword() {
     setLoading(false);
     if (error) {
       toast({
-        title: 'reset_failed',
-        description: error.message,
-        variant: 'destructive',
+        title: 'Password reset failed',
+        description: error.message || 'RefHub could not update your password. Request a new reset link if this keeps happening.',
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: resetFormRef,
       });
     } else {
       setResetSuccess(true);
@@ -168,11 +176,11 @@ export default function ResetPassword() {
               </Button>
             </div>
           ) : (
-            <form onSubmit={handleSetNewPassword} className="space-y-4">
+            <form ref={resetFormRef} onSubmit={handleSetNewPassword} className="space-y-4">
               <p className="text-muted-foreground mb-6 font-mono text-sm">
                 // enter your new password below
               </p>
-              <div>
+              <div ref={newPasswordRef} className="flex flex-col gap-2">
                 <Label htmlFor="newPassword" className="text-sm font-semibold font-mono">new_password</Label>
                 <Input
                   id="newPassword"
@@ -184,7 +192,7 @@ export default function ResetPassword() {
                   className="mt-1 font-mono"
                 />
               </div>
-              <div>
+              <div ref={confirmPasswordRef} className="flex flex-col gap-2">
                 <Label htmlFor="confirmPassword" className="text-sm font-semibold font-mono">confirm_password</Label>
                 <Input
                   id="confirmPassword"
@@ -216,7 +224,7 @@ export default function ResetPassword() {
             <p className="text-muted-foreground mb-6 font-mono text-sm">
               // enter your email and we'll send you a reset link
             </p>
-            <form onSubmit={handleReset} className="space-y-4">
+            <form ref={resetFormRef} onSubmit={handleReset} className="space-y-4">
               <div>
                 <Label htmlFor="email" className="text-sm font-semibold font-mono">email</Label>
                 <Input

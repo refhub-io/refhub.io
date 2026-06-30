@@ -7,28 +7,27 @@ interface ShowToastOptions {
   description?: string;
   severity?: ToastSeverity;
   duration?: number;
+  source?: EventTarget | Element | { current: Element | null } | null;
 }
 
 /**
- * Centralized toast helper for consistent user-facing feedback
- * Replaces console.error/warn with visible toast notifications
+ * Centralized inline feedback helper for local, CLI-style user-facing feedback.
+ * The existing toast API now renders near the triggering source instead of as a global toaster.
  */
 export function showToast({
   title,
   description,
   severity = "success",
   duration,
+  source,
 }: ShowToastOptions) {
-  const variant = severity === "error" ? "destructive" : "default";
-  
-  // Add emoji prefix based on severity for quick visual recognition
-  const prefix = severity === "success" ? "✓" : severity === "error" ? "✗" : "⚠";
-  
   toast({
-    title: `${prefix} ${title}`,
+    title,
     description,
-    variant,
+    variant: severity === "error" ? "destructive" : "default",
+    feedbackSeverity: severity,
     duration,
+    source,
   });
 }
 

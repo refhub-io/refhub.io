@@ -214,6 +214,13 @@
   }
 }
 
+@layer components {
+  .quoterm-fallback-root {
+    top: calc(env(safe-area-inset-top, 0px) + 1.5rem) !important;
+    left: calc(env(safe-area-inset-left, 0px) + 1.5rem) !important;
+  }
+}
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
