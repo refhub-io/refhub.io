@@ -1756,7 +1756,7 @@ export default function VaultDetail() {
   })();
 
   return (
-    <div ref={vaultPageRef} className="min-h-screen bg-background flex">
+    <div className="min-h-screen bg-background flex">
       <Sidebar
         vaults={vaults}
         sharedVaults={sharedVaults}
@@ -1777,6 +1777,9 @@ export default function VaultDetail() {
       />
 
       <div className="flex-1 lg:pl-72 min-w-0 flex flex-col min-h-screen">
+        <div className="px-3 pt-3 sm:px-4 sm:pt-4">
+          <div ref={vaultPageRef} />
+        </div>
         {/* Vault Header */}
         <div className="border-b border-border bg-card/50 backdrop-blur-xl sm:sticky sm:top-0 sm:z-30 shrink-0">
           <div className="px-3 sm:px-4 py-3">
@@ -1939,8 +1942,10 @@ export default function VaultDetail() {
           </div>
         </div>
 
-        <div ref={publicationListFeedbackRef}>
-          <PublicationList
+        <div className="px-3 pt-3 sm:px-4 sm:pt-4">
+          <div ref={publicationListFeedbackRef} />
+        </div>
+        <PublicationList
           publications={publications}
           tags={tags}
           vaults={vaults.concat(sharedVaults)}
@@ -1990,8 +1995,7 @@ export default function VaultDetail() {
           onCheckPublicationSync={canEdit ? handleCheckPublicationSync : undefined}
           isLoadingPublications={contentLoading && publications.length === 0}
           loadingMessage="hang_on_getting_your_papers"
-          />
-        </div>
+        />
       </div>
 
       <PublicationDialog
@@ -2065,8 +2069,10 @@ export default function VaultDetail() {
         updatePdfAsset={canEdit ? updatePdfAsset : undefined}
       />
 
-      <div ref={vaultDialogFeedbackRef}>
-        <VaultDialog
+      <div className="px-3 pt-3 sm:px-4 sm:pt-4">
+        <div ref={vaultDialogFeedbackRef} />
+      </div>
+      <VaultDialog
           key={editingVault ? `${editingVault.id}-${editingVault.updated_at}` : 'new-vault'}
           open={isVaultDialogOpen}
           onOpenChange={(open) => {
@@ -2079,8 +2085,7 @@ export default function VaultDetail() {
             setDeleteVaultConfirmation(vault);
             setIsVaultDialogOpen(false);
           } : undefined}
-        />
-      </div>
+      />
 
       <ProfileDialog
         open={isProfileDialogOpen}

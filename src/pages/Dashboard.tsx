@@ -1664,7 +1664,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div ref={dashboardFeedbackRef} className="min-h-screen bg-background flex">
+    <div className="min-h-screen bg-background flex">
       <Sidebar
         vaults={vaults}
         sharedVaults={sharedVaults}
@@ -1685,6 +1685,9 @@ export default function Dashboard() {
       />
 
       <div className="flex-1 lg:pl-72 min-w-0 flex flex-col min-h-screen">
+        <div className="px-3 pt-3 sm:px-4 sm:pt-4">
+          <div ref={dashboardFeedbackRef} />
+        </div>
         <PublicationList
         publications={publications}
         tags={tags}
