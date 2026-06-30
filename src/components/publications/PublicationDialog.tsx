@@ -823,20 +823,22 @@ export function PublicationDialog({
                     {lastSavedAt ? formatTimeAgo(lastSavedAt) : 'not saved yet'}
                   </span>
                   {/* Save button */}
-                  <Button
-                    type="button"
-                    variant="glow"
-                    size="sm"
-                    ref={saveButtonRef}
-                    data-quoterm-anchor="publication-save"
-                    onClick={handleFullscreenSave}
-                    disabled={saving}
-                    className="h-9 px-3 font-mono shrink-0"
-                  >
-                    <Save className="w-4 h-4 sm:mr-2" />
-                    <span className="hidden sm:inline">{saving ? 'saving...' : 'save'}</span>
-                    <KbdHint shortcut="Ctrl+S" className="ml-1.5 hidden sm:inline-flex [&_kbd]:bg-white/20 [&_kbd]:border-white/30 [&_kbd]:text-primary-foreground [&_kbd]:shadow-none" size="sm" />
-                  </Button>
+                  <div className="flex min-w-0 flex-col items-end gap-1">
+                    <Button
+                      type="button"
+                      variant="glow"
+                      size="sm"
+                      ref={saveButtonRef}
+                      data-quoterm-anchor="publication-save"
+                      onClick={handleFullscreenSave}
+                      disabled={saving}
+                      className="h-9 px-3 font-mono shrink-0"
+                    >
+                      <Save className="w-4 h-4 sm:mr-2" />
+                      <span className="hidden sm:inline">{saving ? 'saving...' : 'save'}</span>
+                      <KbdHint shortcut="Ctrl+S" className="ml-1.5 hidden sm:inline-flex [&_kbd]:bg-white/20 [&_kbd]:border-white/30 [&_kbd]:text-primary-foreground [&_kbd]:shadow-none" size="sm" />
+                    </Button>
+                  </div>
                   {/* Exit fullscreen */}
                   <Button
                     type="button"
@@ -939,20 +941,22 @@ export function PublicationDialog({
           </DialogTitle>
           {publication && onCheckSync && (
             <div className="flex flex-wrap items-center gap-2 pt-1.5">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                ref={syncButtonRef}
-                data-quoterm-anchor="publication-sync"
-                onClick={() => onCheckSync(publication, syncButtonRef)}
-                disabled={syncLoading || syncCooldownSeconds > 0 || !publication.doi}
-                className="font-mono text-xs h-7 px-2.5"
-                title={publication.doi ? (syncCooldownSeconds > 0 ? `Semantic Scholar sync cooldown: ${syncCooldownSeconds}s` : 'Sync metadata from Semantic Scholar') : 'DOI required for sync'}
-              >
-                <Loader2 className={`w-3 h-3 mr-1.5 ${syncLoading ? 'animate-spin' : ''}`} />
-                {syncCooldownSeconds > 0 ? `sync_cooldown_${syncCooldownSeconds}s` : 'sync_details'}
-              </Button>
+              <div className="flex min-w-0 flex-col items-start gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  ref={syncButtonRef}
+                  data-quoterm-anchor="publication-sync"
+                  onClick={() => onCheckSync(publication, syncButtonRef)}
+                  disabled={syncLoading || syncCooldownSeconds > 0 || !publication.doi}
+                  className="font-mono text-xs h-7 px-2.5"
+                  title={publication.doi ? (syncCooldownSeconds > 0 ? `Semantic Scholar sync cooldown: ${syncCooldownSeconds}s` : 'Sync metadata from Semantic Scholar') : 'DOI required for sync'}
+                >
+                  <Loader2 className={`w-3 h-3 mr-1.5 ${syncLoading ? 'animate-spin' : ''}`} />
+                  {syncCooldownSeconds > 0 ? `sync_cooldown_${syncCooldownSeconds}s` : 'sync_details'}
+                </Button>
+              </div>
               {!publication.doi && (
                 <span className="text-[10px] font-mono text-muted-foreground">doi required</span>
               )}
@@ -1693,16 +1697,18 @@ export function PublicationDialog({
                 <X className="w-3 h-3 mr-1.5" />
                 close
               </Button>
-              <Button ref={saveButtonRef} data-quoterm-anchor="publication-save" type="submit" variant="glow" disabled={saving} className="font-mono w-full sm:w-auto text-xs sm:text-sm h-10">
-                {saving ? (
-                  'saving...'
-                ) : publication ? (
-                  <><Save className="w-3 h-3 mr-1.5" />save</>
-                ) : (
-                  <><Plus className="w-3 h-3 mr-1.5" />add_paper</>
-                )}
-                <KbdHint shortcut="Ctrl+S" className="ml-1.5 hidden sm:inline-flex [&_kbd]:bg-white/20 [&_kbd]:border-white/30 [&_kbd]:text-primary-foreground [&_kbd]:shadow-none" size="sm" />
-              </Button>
+              <div className="flex min-w-0 flex-col items-end gap-1 sm:w-auto">
+                <Button ref={saveButtonRef} data-quoterm-anchor="publication-save" type="submit" variant="glow" disabled={saving} className="font-mono w-full sm:w-auto text-xs sm:text-sm h-10">
+                  {saving ? (
+                    'saving...'
+                  ) : publication ? (
+                    <><Save className="w-3 h-3 mr-1.5" />save</>
+                  ) : (
+                    <><Plus className="w-3 h-3 mr-1.5" />add_paper</>
+                  )}
+                  <KbdHint shortcut="Ctrl+S" className="ml-1.5 hidden sm:inline-flex [&_kbd]:bg-white/20 [&_kbd]:border-white/30 [&_kbd]:text-primary-foreground [&_kbd]:shadow-none" size="sm" />
+                </Button>
+              </div>
             </div>
           </form>
         </ScrollArea>
