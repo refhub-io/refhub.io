@@ -814,7 +814,7 @@ export function PublicationDialog({
                   <h2 className="text-base sm:text-lg font-bold font-mono truncate">notes_editor</h2>
                   <span className="text-xs text-muted-foreground font-mono hidden sm:inline">(markdown_supported)</span>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
                   {/* Last-saved indicator */}
                   <span
                     className="text-xs text-muted-foreground font-mono hidden sm:inline"
@@ -938,7 +938,7 @@ export function PublicationDialog({
             )}
           </DialogTitle>
           {publication && onCheckSync && (
-            <div className="flex items-center gap-2 pt-1.5">
+            <div className="flex flex-wrap items-center gap-2 pt-1.5">
               <Button
                 type="button"
                 variant="outline"
@@ -1688,7 +1688,7 @@ export function PublicationDialog({
             )}
 
             {/* Actions */}
-            <div className="sticky bottom-0 z-20 -mx-2 flex flex-col-reverse gap-2 border-t border-border bg-card/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur sm:static sm:z-auto sm:mx-0 sm:flex-row sm:justify-end sm:gap-3 sm:bg-transparent sm:px-0 sm:pb-0 sm:pt-4 sm:backdrop-blur-none w-auto sm:w-full box-border">
+            <div className="sticky bottom-0 z-20 -mx-2 flex flex-col-reverse gap-2 border-t border-border bg-card/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur sm:static sm:z-auto sm:mx-0 sm:flex-row sm:flex-wrap sm:justify-end sm:gap-3 sm:bg-transparent sm:px-0 sm:pb-0 sm:pt-4 sm:backdrop-blur-none w-auto sm:w-full box-border">
               <Button type="button" variant="outline" onClick={() => handleDialogClose(false)} className="font-mono w-full sm:w-auto text-xs sm:text-sm h-10">
                 <X className="w-3 h-3 mr-1.5" />
                 close
