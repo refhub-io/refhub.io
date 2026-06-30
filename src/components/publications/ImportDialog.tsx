@@ -49,7 +49,7 @@ export function ImportDialog({
   const { toast } = useToast();
   const doiLookupRef = useRef<HTMLDivElement>(null);
   const bibtexParseRef = useRef<HTMLDivElement>(null);
-  const importButtonRef = useRef<HTMLDivElement>(null);
+  const importActionGroupRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState('library');
   
   // DOI state
@@ -261,7 +261,7 @@ export function ImportDialog({
         title: 'No papers selected',
         description: 'Select at least one parsed paper from the preview before importing.',
         variant: 'destructive', feedbackSeverity: 'error',
-        source: importButtonRef,
+        source: importActionGroupRef,
       });
       return;
     }
@@ -277,10 +277,10 @@ export function ImportDialog({
         toast({ 
           title: `Imported ${insertedIds.length} paper${insertedIds.length === 1 ? '' : 's'} ✨`,
           description: targetVault ? `Added to ${targetVault.name}` : undefined,
-          source: importButtonRef
+          source: importActionGroupRef
         });
       } else {
-        toast({ title: `Imported ${toImport.length} paper${toImport.length === 1 ? '' : 's'} ✨`, source: importButtonRef });
+        toast({ title: `Imported ${toImport.length} paper${toImport.length === 1 ? '' : 's'} ✨`, source: importActionGroupRef });
       }
 
       // Reset state
@@ -294,7 +294,7 @@ export function ImportDialog({
         title: 'Import failed',
         description: (error as Error).message || 'RefHub could not import the selected papers. Nothing was removed from the preview.',
         variant: 'destructive', feedbackSeverity: 'error',
-        source: importButtonRef,
+        source: importActionGroupRef,
       });
     } finally {
       setImporting(false);
@@ -540,11 +540,11 @@ export function ImportDialog({
               </div>
 
               {/* Import Button */}
-              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t-2 border-border">
+              <div ref={importActionGroupRef} className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t-2 border-border">
                 <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto font-mono">
                   cancel
                 </Button>
-                <div ref={importButtonRef} className="flex w-full flex-col gap-2 sm:w-auto">
+                <div className="flex w-full flex-col gap-2 sm:w-auto">
                   <Button
                     variant="glow"
                     onClick={handleImport}

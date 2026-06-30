@@ -9,7 +9,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Download, FileText, Copy, Check, BookOpen } from 'lucide-react';
@@ -54,7 +53,7 @@ export function ExportDialog({
   publicationTags,
 }: ExportDialogProps) {
   const { toast } = useToast();
-  const copyButtonRef = useRef<HTMLDivElement>(null);
+  const footerActionGroupRef = useRef<HTMLDivElement>(null);
   const [selectedFields, setSelectedFields] = useState<BibtexField[]>(DEFAULT_SELECTED);
   const [format, setFormat] = useState<ExportFormat>('bibtex');
   const [includeHierarchicalTags, setIncludeHierarchicalTags] = useState(false);
@@ -148,14 +147,14 @@ export function ExportDialog({
     try {
       await navigator.clipboard.writeText(content);
       setCopied(true);
-      toast({ title: 'Copied to clipboard', source: copyButtonRef });
+      toast({ title: 'Copied to clipboard', source: footerActionGroupRef });
       setTimeout(() => setCopied(false), 2000);
     } catch {
       toast({
         title: 'Copy failed',
         description: 'RefHub could not copy the export to your clipboard. Download the file instead, or allow clipboard access and try again.',
         variant: 'destructive', feedbackSeverity: 'error',
-        source: copyButtonRef,
+        source: footerActionGroupRef,
       });
     }
   };
@@ -275,11 +274,11 @@ export function ExportDialog({
           </Tabs>
         </div>
 
-        <DialogFooter className="px-4 sm:px-6 pb-4 sm:pb-6 pt-4 border-t flex-col-reverse sm:flex-row gap-3">
+        <div ref={footerActionGroupRef} className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 dialog-mobile-safe-footer px-4 sm:px-6 pb-4 sm:pb-6 pt-4 border-t gap-3">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="font-mono w-full sm:w-auto">
             cancel
           </Button>
-          <div ref={copyButtonRef} className="flex w-full flex-col gap-2 sm:w-auto">
+          <div className="flex w-full flex-col gap-2 sm:w-auto">
             <Button
               variant="outline"
               onClick={handleCopyToClipboard}
@@ -299,7 +298,7 @@ export function ExportDialog({
             <Download className="w-4 h-4" />
             {format === 'bibtex' ? `export_.bib` : `export_.txt`}
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

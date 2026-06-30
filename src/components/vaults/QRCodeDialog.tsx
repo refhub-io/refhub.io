@@ -14,7 +14,6 @@ import {
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
-  AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
@@ -47,9 +46,8 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
   const [customQrError, setCustomQrError] = useState<string | null>(null);
   const qrRef = useRef<HTMLDivElement>(null);
   const qrTriggerRef = useRef<HTMLButtonElement>(null);
-  const copyButtonRef = useRef<HTMLDivElement>(null);
-  const downloadButtonRef = useRef<HTMLDivElement>(null);
-  const upgradeButtonRef = useRef<HTMLDivElement>(null);
+  const shareActionGroupRef = useRef<HTMLDivElement>(null);
+  const upgradeActionGroupRef = useRef<HTMLDivElement>(null);
   const fallbackQrSize = typeof window !== 'undefined' && window.innerWidth < 640 ? 220 : 360;
   const { toast } = useToast();
 
@@ -140,7 +138,7 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
     navigator.clipboard.writeText(shareUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-    toast({ title: 'Link copied', source: copyButtonRef });
+    toast({ title: 'Link copied', source: shareActionGroupRef });
   };
 
   const handleOpenChange = (newOpen: boolean) => {
@@ -166,7 +164,7 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
 
       if (error) throw error;
 
-      toast({ title: 'Vault upgraded to protected ✨', source: upgradeButtonRef });
+      toast({ title: 'Vault upgraded to protected ✨', source: upgradeActionGroupRef });
       setShowUpgradeDialog(false);
       setOpen(true);
       onVaultUpdate?.();
@@ -175,7 +173,7 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
         title: 'Could not upgrade vault',
         description: (error as Error).message || 'RefHub could not switch this vault to protected sharing. Refresh and try again.',
         variant: 'destructive', feedbackSeverity: 'error',
-        source: upgradeButtonRef,
+        source: upgradeActionGroupRef,
       });
     } finally {
       setUpgrading(false);
@@ -226,13 +224,13 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
     if (customQrSvg) {
       try {
         await downloadPngFromSvg(customQrSvg);
-        toast({ title: 'QR code downloaded', source: downloadButtonRef });
+        toast({ title: 'QR code downloaded', source: shareActionGroupRef });
       } catch (error) {
         toast({
           title: 'Could not download QR code',
           description: (error as Error).message || 'RefHub could not render this QR code for download. Try the standard QR or refresh the page.',
           variant: 'destructive', feedbackSeverity: 'error',
-          source: downloadButtonRef,
+          source: shareActionGroupRef,
         });
       }
       return;
@@ -245,7 +243,7 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
     link.download = `${vault.name || 'vault'}-qr.png`;
     link.href = canvas.toDataURL('image/png');
     link.click();
-    toast({ title: 'QR code downloaded', source: downloadButtonRef });
+    toast({ title: 'QR code downloaded', source: shareActionGroupRef });
   };
 
   return (
@@ -344,8 +342,8 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
                 </div>
               </div>
               
-              <div className="flex gap-2 sm:gap-3 w-full">
-                <div ref={copyButtonRef} className="flex min-w-0 flex-1 flex-col gap-2">
+              <div ref={shareActionGroupRef} className="flex gap-2 sm:gap-3 w-full">
+                <div className="flex min-w-0 flex-1 flex-col gap-2">
                   <Button
                     variant="outline"
                     onClick={copyShareUrl}
@@ -356,7 +354,7 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
                     <span className="xs:hidden">copy</span>
                   </Button>
                 </div>
-                <div ref={downloadButtonRef} className="flex min-w-0 flex-1 flex-col gap-2">
+                <div className="flex min-w-0 flex-1 flex-col gap-2">
                   <Button
                     variant="glow"
                     onClick={downloadQR}
@@ -413,11 +411,11 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
               </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+          <div ref={upgradeActionGroupRef} className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-0 sm:space-x-2 dialog-mobile-safe-footer shrink-0">
             <AlertDialogCancel disabled={upgrading} className="font-mono">
               cancel
             </AlertDialogCancel>
-            <div ref={upgradeButtonRef} className="flex w-full flex-col gap-2 sm:w-auto">
+            <div className="flex w-full flex-col gap-2 sm:w-auto">
               <AlertDialogAction
                 onClick={handleUpgradeToProtected}
                 disabled={upgrading}
@@ -429,7 +427,7 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
                 upgrade_to_protected
               </AlertDialogAction>
             </div>
-          </AlertDialogFooter>
+          </div>
         </AlertDialogContent>
       </AlertDialog>
     </>

@@ -63,8 +63,8 @@ export function AddImportDialog({
   const { toast } = useToast();
   const doiLookupRef = useRef<HTMLDivElement>(null);
   const bibtexParseRef = useRef<HTMLDivElement>(null);
-  const importButtonRef = useRef<HTMLDivElement>(null);
-  const manualCreateRef = useRef<HTMLDivElement>(null);
+  const importActionGroupRef = useRef<HTMLDivElement>(null);
+  const manualActionGroupRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<FlowTab>('library');
 
   // DOI state
@@ -242,18 +242,18 @@ export function AddImportDialog({
       .filter((_, i) => selectedIndices.has(i))
       .map(pub => { const { vault_id: _vaultId, ...clean } = pub as Partial<Publication> & { vault_id?: string }; return clean; });
     if (toImport.length === 0) {
-      toast({ title: 'No papers selected', description: 'Select at least one parsed paper from the preview before importing.', variant: 'destructive', feedbackSeverity: 'error', source: importButtonRef });
+      toast({ title: 'No papers selected', description: 'Select at least one parsed paper from the preview before importing.', variant: 'destructive', feedbackSeverity: 'error', source: importActionGroupRef });
       return;
     }
     setImporting(true);
     try {
       if (!onImport) {
-        toast({ title: 'Import is unavailable here', description: 'This dialog was opened without an import handler. Close it and try importing from a vault or the dashboard.', variant: 'destructive', feedbackSeverity: 'error', source: importButtonRef });
+        toast({ title: 'Import is unavailable here', description: 'This dialog was opened without an import handler. Close it and try importing from a vault or the dashboard.', variant: 'destructive', feedbackSeverity: 'error', source: importActionGroupRef });
         return;
       }
       const insertedIds = await onImport(toImport, targetVaultId);
       const targetVault = vaults.find(v => v.id === targetVaultId);
-      toast({ title: `Imported ${insertedIds.length} paper${insertedIds.length === 1 ? '' : 's'} ✨`, description: targetVault ? `Added to ${targetVault.name}` : undefined, source: importButtonRef });
+      toast({ title: `Imported ${insertedIds.length} paper${insertedIds.length === 1 ? '' : 's'} ✨`, description: targetVault ? `Added to ${targetVault.name}` : undefined, source: importActionGroupRef });
       // Reset
       setParsedPublications([]);
       setSelectedIndices(new Set());
@@ -261,7 +261,7 @@ export function AddImportDialog({
       setBibtexInput('');
       onOpenChange(false);
     } catch (error) {
-      toast({ title: 'Import failed', description: (error as Error).message || 'RefHub could not import the selected papers. Nothing was removed from the preview.', variant: 'destructive', feedbackSeverity: 'error', source: importButtonRef });
+      toast({ title: 'Import failed', description: (error as Error).message || 'RefHub could not import the selected papers. Nothing was removed from the preview.', variant: 'destructive', feedbackSeverity: 'error', source: importActionGroupRef });
     } finally {
       setImporting(false);
     }
@@ -279,7 +279,7 @@ export function AddImportDialog({
 
   const handleManualCreate = async () => {
     if (!manualForm.title?.trim()) {
-      toast({ title: 'Paper title required', description: 'Add a title before creating a manual paper entry.', variant: 'destructive', feedbackSeverity: 'error', source: manualCreateRef });
+      toast({ title: 'Paper title required', description: 'Add a title before creating a manual paper entry.', variant: 'destructive', feedbackSeverity: 'error', source: manualActionGroupRef });
       return;
     }
     setImporting(true);
@@ -300,7 +300,7 @@ export function AddImportDialog({
         await updatePdfAsset(newId, manualDrivePdf.trim());
       }
 
-      toast({ title: 'Paper created ✨', description: manualForm.title, source: manualCreateRef });
+      toast({ title: 'Paper created ✨', description: manualForm.title, source: manualActionGroupRef });
       setManualForm({ title: '', authors: [], year: null, journal: '', doi: '', url: '', pdf_url: '', abstract: '', publication_type: 'article', notes: '', volume: '', issue: '', pages: '', booktitle: '', chapter: '', edition: '', editor: [], howpublished: '', institution: '', number: '', organization: '', publisher: '', school: '', series: '', type: '', eid: '', isbn: '', issn: '', keywords: [] });
       setManualAuthorsInput('');
       setManualEditorInput('');
@@ -308,7 +308,7 @@ export function AddImportDialog({
       setManualDrivePdf('');
       onOpenChange(false);
     } catch (error) {
-      toast({ title: 'Could not create paper', description: (error as Error).message || 'RefHub could not save the manual paper entry. Your form values are still here.', variant: 'destructive', feedbackSeverity: 'error', source: manualCreateRef });
+      toast({ title: 'Could not create paper', description: (error as Error).message || 'RefHub could not save the manual paper entry. Your form values are still here.', variant: 'destructive', feedbackSeverity: 'error', source: manualActionGroupRef });
     } finally {
       setImporting(false);
     }
@@ -676,9 +676,9 @@ export function AddImportDialog({
                 </Select>
               </div>
 
-              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4 border-t border-border">
+              <div ref={manualActionGroupRef} className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4 border-t border-border">
                 <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto font-mono">cancel</Button>
-                <div ref={manualCreateRef} className="flex w-full flex-col gap-2 sm:w-auto">
+                <div className="flex w-full flex-col gap-2 sm:w-auto">
                   <Button variant="glow" onClick={handleManualCreate} disabled={importing || !manualForm.title?.trim()} className="w-full sm:w-auto font-mono">
                     {importing ? <><LoadingSpinner size="xs" className="mr-2" />creating...</> : 'create_paper'}
                   </Button>
@@ -766,9 +766,9 @@ export function AddImportDialog({
               </div>
 
               {/* Import button */}
-              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t-2 border-border">
+              <div ref={importActionGroupRef} className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t-2 border-border">
                 <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto font-mono">cancel</Button>
-                <div ref={importButtonRef} className="flex w-full flex-col gap-2 sm:w-auto">
+                <div className="flex w-full flex-col gap-2 sm:w-auto">
                   <Button variant="glow" onClick={handleImport} disabled={importing || selectedIndices.size === 0} className="w-full sm:w-auto font-mono">
                     {importing ? <><LoadingSpinner size="xs" className="mr-2" />importing...</> : `import_${selectedIndices.size}_paper${selectedIndices.size !== 1 ? 's' : ''}`}
                   </Button>
