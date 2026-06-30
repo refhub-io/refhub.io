@@ -88,6 +88,8 @@ const App = () => {
                 commandName="refhub feedback"
                 renderMode="inline"
                 showCommandChrome={false}
+                maxWidth={640}
+                inlineWidth={{ min: 280, max: 640, sourceScale: 1 }}
               />
               <ScrollToTopButton />
               <BugReportButton />

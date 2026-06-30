@@ -379,15 +379,15 @@ export function AddImportDialog({
             <TabsContent value="doi" className="space-y-4 min-w-0">
               <div className="space-y-2 min-w-0">
                 <Label className="font-semibold font-mono">enter_doi</Label>
-                <div className="flex flex-col sm:flex-row gap-2 min-w-0">
-                  <Input
-                    value={doiInput}
-                    onChange={(e) => setDoiInput(e.target.value)}
-                    placeholder="10.1000/xyz123 or https://doi.org/..."
-                    className="font-mono flex-1 text-sm w-full min-w-0"
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleDOILookup(); } }}
-                  />
-                  <div ref={doiLookupRef} className="flex w-full flex-col gap-2 sm:w-auto">
+                <div ref={doiLookupRef} className="flex w-full flex-col gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2 min-w-0">
+                    <Input
+                      value={doiInput}
+                      onChange={(e) => setDoiInput(e.target.value)}
+                      placeholder="10.1000/xyz123 or https://doi.org/..."
+                      className="font-mono flex-1 text-sm w-full min-w-0"
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleDOILookup(); } }}
+                    />
                     <Button onClick={handleDOILookup} disabled={doiLoading || !doiInput.trim()} variant="glow" className="w-full sm:w-auto font-mono">
                       {doiLoading ? <LoadingSpinner size="xs" /> : 'lookup'}
                     </Button>
