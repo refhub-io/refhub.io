@@ -1134,7 +1134,7 @@ export default function VaultDetail() {
       toast({
         title: 'Paper removed from vault',
         description: deleteConfirmation.title ? `Removed “${deleteConfirmation.title}” from this vault.` : 'The selected paper was removed from this vault.',
-        source: publicationListFeedbackRef,
+        source: null,
       });
     } catch (error) {
       // Revert on error
@@ -1192,7 +1192,7 @@ export default function VaultDetail() {
 
       toast({
         title: `${ids.length} paper${ids.length !== 1 ? 's' : ''} removed from vault`,
-        source: publicationListFeedbackRef,
+        source: null,
       });
     } catch (error) {
       refetchVault();

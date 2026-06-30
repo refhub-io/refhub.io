@@ -1339,7 +1339,7 @@ export default function Dashboard() {
       setPublicationTags(prev => prev.filter(pt => pt.publication_id !== deletedId));
       clearPageCache('dashboard');
 
-      toast({ title: 'Paper deleted', source: dashboardFeedbackRef });
+      toast({ title: 'Paper deleted', source: null });
     } catch (error) {
       // Revert on error
       fetchData();
@@ -1390,7 +1390,7 @@ export default function Dashboard() {
       setPublicationTags(prev => prev.filter(pt => !ids.includes(pt.publication_id)));
       clearPageCache('dashboard');
 
-      toast({ title: `${ids.length} paper${ids.length !== 1 ? 's' : ''} deleted` });
+      toast({ title: `${ids.length} paper${ids.length !== 1 ? 's' : ''} deleted`, source: null });
     } catch (error) {
       fetchData();
       toast({
