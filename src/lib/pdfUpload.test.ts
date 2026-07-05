@@ -21,7 +21,7 @@ describe('uploadVaultPublicationDrivePdf', () => {
 
   it('keeps small vault PDFs on the raw backend upload route', async () => {
     const fetchMock = vi.fn(async () =>
-      new Response(JSON.stringify({ data: { fileId: 'drive-file', pdfUrl: 'https://drive.example/file', provider: 'google_drive', stored: true } }), {
+      new Response(JSON.stringify({ data: { fileId: 'drive-file', driveUrl: 'https://drive.example/file', provider: 'google_drive', stored: true } }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       }),
@@ -56,7 +56,7 @@ describe('uploadVaultPublicationDrivePdf', () => {
         }),
       )
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ data: { fileId: 'drive-file', pdfUrl: 'https://drive.example/file', provider: 'google_drive', stored: true } }), {
+        new Response(JSON.stringify({ data: { fileId: 'drive-file', driveUrl: 'https://drive.example/file', provider: 'google_drive', stored: true } }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         }),
@@ -65,7 +65,7 @@ describe('uploadVaultPublicationDrivePdf', () => {
 
     const result = await uploadVaultPublicationDrivePdf('vault id', 'item id', largeFile);
 
-    expect(result.pdfUrl).toBe('https://drive.example/file');
+    expect(result.driveUrl).toBe('https://drive.example/file');
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       'https://api.example.test/api/v1/google-drive/vaults/vault%20id/items/item%20id/pdf/session',

@@ -6,7 +6,8 @@ export const API_SAFE_RAW_PDF_UPLOAD_BYTES = 5.5 * 1024 * 1024;
 
 export interface DrivePdfUploadResult {
   fileId?: string;
-  pdfUrl: string | null;
+  /** URL of the stored copy in Google Drive — distinct from Publication.pdf_url (the publisher-hosted PDF link). */
+  driveUrl: string | null;
   sourceUrl?: string | null;
   provider: string;
   stored: boolean;

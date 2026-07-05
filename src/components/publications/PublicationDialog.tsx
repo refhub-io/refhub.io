@@ -318,7 +318,7 @@ export function PublicationDialog({
       const result = driveUploadContext === 'vault' && currentVaultId
         ? await uploadVaultPublicationDrivePdf(currentVaultId, publication.id, file)
         : await uploadPublicationDrivePdf(publication.id, file);
-      setDrivePdfInput(result.pdfUrl || '');
+      setDrivePdfInput(result.driveUrl || '');
       setDriveUploadStatus('success');
       driveUploadResetRef.current = setTimeout(() => setDriveUploadStatus('idle'), 2500);
     } catch (err) {
