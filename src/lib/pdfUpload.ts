@@ -1,9 +1,6 @@
 import { getBackendApiBaseUrl } from '@/lib/apiKeys';
 import { supabase } from '@/integrations/supabase/client';
 
-// Keep raw uploads comfortably below Netlify's 6 MiB synchronous Function body ceiling.
-export const API_SAFE_RAW_PDF_UPLOAD_BYTES = 5.5 * 1024 * 1024;
-
 export interface DrivePdfUploadResult {
   fileId?: string;
   /** URL of the stored copy in Google Drive — distinct from Publication.pdf_url (the publisher-hosted PDF link). */
@@ -60,33 +57,6 @@ function assertPdfFile(file: File) {
   if (file.type && file.type !== 'application/pdf') {
     throw new Error('Please choose a PDF file.');
   }
-}
-
-async function uploadDrivePdf(path: string, file: File): Promise<DrivePdfUploadResult> {
-  assertPdfFile(file);
-
-  const accessToken = await getAccessToken();
-  const response = await fetch(`${getBackendApiBaseUrl()}${path}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/pdf',
-    },
-    body: file,
-  });
-
-  const payload = await parseJsonResponse(response);
-
-  if (!response.ok) {
-    throw new Error(getErrorMessage(payload, response.status));
-  }
-
-  const data = (payload as { data?: DrivePdfUploadResult } | null)?.data;
-  if (!data) {
-    throw new Error('PDF upload response did not include Drive metadata.');
-  }
-
-  return data;
 }
 
 async function createDrivePdfSession(basePath: string, accessToken: string): Promise<DriveResumableSession> {
@@ -165,7 +135,13 @@ async function completeDrivePdfUpload(
   return data;
 }
 
-async function uploadVaultDrivePdfResumable(basePath: string, file: File): Promise<DrivePdfUploadResult> {
+/**
+ * The only PDF upload mechanism: create a resumable session, PUT the bytes
+ * directly to Google Drive, then record completion. Works identically for
+ * vault-item and publication-level uploads — basePath is the only thing
+ * that varies between them.
+ */
+async function uploadDrivePdfResumable(basePath: string, file: File): Promise<DrivePdfUploadResult> {
   assertPdfFile(file);
 
   const accessToken = await getAccessToken();
@@ -176,16 +152,10 @@ async function uploadVaultDrivePdfResumable(basePath: string, file: File): Promi
 }
 
 export function uploadPublicationDrivePdf(publicationId: string, file: File) {
-  return uploadDrivePdf(`/publications/${encodeURIComponent(publicationId)}/pdf`, file);
+  return uploadDrivePdfResumable(`/publications/${encodeURIComponent(publicationId)}/pdf`, file);
 }
 
 export function uploadVaultPublicationDrivePdf(vaultId: string, vaultPublicationId: string, file: File) {
-  const rawUploadPath = `/google-drive/vaults/${encodeURIComponent(vaultId)}/items/${encodeURIComponent(vaultPublicationId)}/pdf`;
-
-  if (file.size <= API_SAFE_RAW_PDF_UPLOAD_BYTES) {
-    return uploadDrivePdf(rawUploadPath, file);
-  }
-
-  const resumableUploadPath = `/google-drive/vaults/${encodeURIComponent(vaultId)}/items/${encodeURIComponent(vaultPublicationId)}/pdf`;
-  return uploadVaultDrivePdfResumable(resumableUploadPath, file);
+  const basePath = `/google-drive/vaults/${encodeURIComponent(vaultId)}/items/${encodeURIComponent(vaultPublicationId)}/pdf`;
+  return uploadDrivePdfResumable(basePath, file);
 }
