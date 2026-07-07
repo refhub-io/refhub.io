@@ -83,7 +83,7 @@ describe('replacePublicationPdfAsset', () => {
   });
 });
 
-function makeSyncClient(siblings: { id: string }[] = []) {
+function makeSyncClient(siblings: { id: string }[] = [], ownedVaults: { id: string }[] = [{ id: 'vault-owned' }]) {
   const calls: string[] = [];
   const pdfAssetsQuery = (result = { error: null }) => ({
     eq(column: string, value: unknown) {
@@ -99,14 +99,35 @@ function makeSyncClient(siblings: { id: string }[] = []) {
     },
   });
 
+  const vaultsQuery = () => {
+    const query: Record<string, unknown> = {
+      select: vi.fn((cols: string) => {
+        calls.push(`vaults.select:${cols}`);
+        return query;
+      }),
+      eq: vi.fn((column: string, value: unknown) => {
+        calls.push(`vaults.eq:${column}:${String(value)}`);
+        return query;
+      }),
+      then(resolve: (value: { data: typeof ownedVaults; error: null }) => void) {
+        resolve({ data: ownedVaults, error: null });
+      },
+    };
+    return query;
+  };
+
   const vaultPublicationsQuery = () => {
     const query: Record<string, unknown> = {
       select: vi.fn((cols: string) => {
-        calls.push(`select:${cols}`);
+        calls.push(`vp.select:${cols}`);
         return query;
       }),
       eq: vi.fn((column: string, value: unknown) => {
         calls.push(`vp.eq:${column}:${String(value)}`);
+        return query;
+      }),
+      in: vi.fn((column: string, values: unknown[]) => {
+        calls.push(`vp.in:${column}:${values.join(',')}`);
         return query;
       }),
       neq: vi.fn((column: string, value: unknown) => {
@@ -123,6 +144,7 @@ function makeSyncClient(siblings: { id: string }[] = []) {
   const client = {
     from: vi.fn((table: string) => {
       if (table === 'vault_publications') return vaultPublicationsQuery();
+      if (table === 'vaults') return vaultsQuery();
 
       expect(table).toBe('publication_pdf_assets');
       return {
@@ -163,9 +185,10 @@ describe('syncDrivePdfAsset', () => {
     expect(calls).toContain('delete');
     expect(calls).toContain('insert:pub-1:null:https://drive.example/pdf');
 
-    expect(calls).toContain('select:id, vaults!inner(user_id)');
+    expect(calls).toContain('vaults.select:id');
+    expect(calls).toContain('vaults.eq:user_id:user-1');
     expect(calls).toContain('vp.eq:original_publication_id:pub-1');
-    expect(calls).toContain('vp.eq:vaults.user_id:user-1');
+    expect(calls).toContain('vp.in:vault_id:vault-owned');
     expect(calls).toContain('vp.neq:id:vault-pub-origin');
 
     const siblingUpsert = calls.find((c) => c.startsWith('upsert:') && c.includes('vault-pub-sibling'));
@@ -224,6 +247,43 @@ describe('syncDrivePdfAsset', () => {
     });
 
     expect(calls).toEqual([expect.stringContaining('upsert:')]);
-    expect(calls.some((c) => c.startsWith('select:'))).toBe(false);
+    expect(calls.some((c) => c.startsWith('vaults.select') || c.startsWith('vp.select'))).toBe(false);
+  });
+
+  it('looks up sibling vaults with a plain owned-vaults query, not an embedded-resource join filter', async () => {
+    // Regression test: an earlier version used .select('id, vaults!inner(user_id)')
+    // + .eq('vaults.user_id', ...) on vault_publications, which this codebase has
+    // no other precedent for and silently resolved to zero rows instead of
+    // throwing -- fanning out to siblings looked like a no-op with no visible
+    // error. This must stay a plain from('vaults').select('id').eq('user_id', ...)
+    // followed by vault_publications.in('vault_id', ownedVaultIds).
+    const { client, calls } = makeSyncClient([{ id: 'vault-pub-sibling' }], [{ id: 'vault-a' }, { id: 'vault-b' }]);
+
+    await syncDrivePdfAsset(client, {
+      userId: 'user-1',
+      publicationId: 'pub-1',
+      storedPdfUrl: 'https://drive.example/pdf',
+      originVaultPublicationId: 'vault-pub-origin',
+    });
+
+    expect(calls).toContain('vaults.select:id');
+    expect(calls).toContain('vaults.eq:user_id:user-1');
+    expect(calls).toContain('vp.in:vault_id:vault-a,vault-b');
+    expect(calls.some((c) => c.includes('vaults!inner'))).toBe(false);
+
+    const siblingUpsert = calls.find((c) => c.startsWith('upsert:') && c.includes('vault-pub-sibling'));
+    expect(siblingUpsert).toBeDefined();
+  });
+
+  it('returns early without querying vault_publications when the user owns no vaults', async () => {
+    const { client, calls } = makeSyncClient([], []);
+
+    await syncDrivePdfAsset(client, {
+      userId: 'user-1',
+      publicationId: 'pub-1',
+      storedPdfUrl: 'https://drive.example/pdf',
+    });
+
+    expect(calls.some((c) => c.startsWith('vp.'))).toBe(false);
   });
 });

@@ -97,11 +97,25 @@ export async function syncDrivePdfAsset(
 
   await replacePublicationPdfAsset(client, { ...baseRecord, publication_id: publicationId, vault_publication_id: null });
 
+  // Two plain queries instead of an embedded-resource join filter
+  // (`vaults!inner(user_id)` + `.eq('vaults.user_id', ...)`), which this
+  // codebase has no other precedent for and turned out to silently return
+  // no rows here rather than throw -- the fan-out looked like a no-op with
+  // no visible error.
+  const { data: ownedVaults, error: ownedVaultsError } = await client
+    .from('vaults')
+    .select('id')
+    .eq('user_id', userId);
+  if (ownedVaultsError) throw ownedVaultsError;
+  if (!ownedVaults || ownedVaults.length === 0) return;
+
+  const ownedVaultIds = (ownedVaults as { id: string }[]).map((vault) => vault.id);
+
   let siblingsQuery = client
     .from('vault_publications')
-    .select('id, vaults!inner(user_id)')
+    .select('id')
     .eq('original_publication_id', publicationId)
-    .eq('vaults.user_id', userId);
+    .in('vault_id', ownedVaultIds);
 
   if (originVaultPublicationId) {
     siblingsQuery = siblingsQuery.neq('id', originVaultPublicationId);
