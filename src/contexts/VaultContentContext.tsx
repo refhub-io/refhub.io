@@ -78,7 +78,15 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
   const [pdfAssetsLoading, setPdfAssetsLoading] = useState(false);
 
   const [currentVaultId, setCurrentVaultIdState] = useState<string | null>(null);
-  
+  // Bumped on every setCurrentVaultId call, including revisits to the same
+  // vault. currentVaultId alone doesn't change value on a revisit (React
+  // bails out of the state update when the new value === the old one), so
+  // without this the fetch-triggering effect below would never re-run and
+  // the vault would keep showing whatever was last fetched this session --
+  // stale relative to edits made elsewhere (e.g. from the All Papers view)
+  // while the vault page wasn't mounted.
+  const [visitNonce, setVisitNonce] = useState(0);
+
   // Track pending optimistic updates to avoid overwriting them with realtime data
   const pendingUpdatesRef = useRef<Set<string>>(new Set());
 
@@ -491,20 +499,21 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
     await fetchVaultContent();
   }, [fetchVaultContent]);
 
-  // Fetch vault content when vaultId changes
+  // Fetch vault content when vaultId changes, or on every revisit of the
+  // same vault (visitNonce) -- see the comment on visitNonce above.
   useEffect(() => {
     debug('VaultContentContext', 'Effect triggered', { currentVaultId, user: !!user, canView });
     if (!currentVaultId || !user || !canView) {
       return;
     }
     fetchVaultContent();
-  }, [currentVaultId, user, canView, fetchVaultContent]);
+  }, [currentVaultId, visitNonce, user, canView, fetchVaultContent]);
 
   const setCurrentVaultId = useCallback((vaultId: string) => {
     // Check cache first for instant restore
     const cacheKey = `vault-content-${vaultId}` as const;
     const cached = getPageCache<VaultContentCache>(cacheKey);
-    
+
     if (cached) {
       debug('VaultContentContext', 'Restoring vault content from cache:', vaultId);
       hasCachedContentRef.current = true;
@@ -525,8 +534,11 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       setPublicationRelations([]);
       setVaultShares([]);
     }
-    
+
     setCurrentVaultIdState(vaultId);
+    // Force the fetch effect to re-run even if vaultId is unchanged from
+    // last time (revisiting the same vault after editing it elsewhere).
+    setVisitNonce(n => n + 1);
   }, []);
 
   // Set up a single real-time subscription for all vault-related changes
