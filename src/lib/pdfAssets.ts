@@ -55,12 +55,17 @@ export async function replacePublicationPdfAsset(
 /**
  * Sets or clears a Drive PDF asset and fans it out like a bibliographic field:
  * to the canonical publication row and every sibling vault_publications copy
- * of the same paper, in every vault the *acting user* owns. Scoped to
- * owned vaults only (not vaults merely shared with the user) because
- * publication_pdf_assets.user_id records who uploaded the file and is
- * RLS-enforced per row — attributing a fan-out write to another owner's
- * vault copy under the acting user's id would misattribute or hide it
- * from that owner's own RLS-scoped reads.
+ * of the same paper, in every vault -- unrestricted by ownership, matching
+ * how updateVaultPublication's bibliographic fan-out already propagates to
+ * every vault_publications row sharing original_publication_id with no
+ * ownership filter. An earlier version scoped this to vaults the acting
+ * user owns, to avoid attributing publication_pdf_assets.user_id (RLS
+ * per-row) to the wrong owner -- but that filter turned out to exclude the
+ * user's own vaults too, since it required deriving vault_id ownership via
+ * a query this app's RLS/setup didn't reliably support, silently dropping
+ * the fan-out. Attribute each sibling row's user_id to its own vault's
+ * actual owner (falling back to the acting user only if that lookup comes
+ * back empty) instead of restricting which vaults get the write.
  */
 export async function syncDrivePdfAsset(
   client: PdfAssetClient,
@@ -75,7 +80,6 @@ export async function syncDrivePdfAsset(
   const { userId, publicationId, storedPdfUrl, originVaultPublicationId = null } = params;
 
   const baseRecord = {
-    user_id: userId,
     storage_provider: 'google_drive' as const,
     stored_pdf_url: storedPdfUrl,
     stored_file_id: null as string | null,
@@ -87,7 +91,7 @@ export async function syncDrivePdfAsset(
     const { error } = await client
       .from('publication_pdf_assets')
       .upsert(
-        { ...baseRecord, publication_id: publicationId, vault_publication_id: originVaultPublicationId },
+        { ...baseRecord, user_id: userId, publication_id: publicationId, vault_publication_id: originVaultPublicationId },
         { onConflict: 'vault_publication_id,storage_provider' },
       );
     if (error) throw error;
@@ -95,27 +99,12 @@ export async function syncDrivePdfAsset(
 
   if (!publicationId) return;
 
-  await replacePublicationPdfAsset(client, { ...baseRecord, publication_id: publicationId, vault_publication_id: null });
-
-  // Two plain queries instead of an embedded-resource join filter
-  // (`vaults!inner(user_id)` + `.eq('vaults.user_id', ...)`), which this
-  // codebase has no other precedent for and turned out to silently return
-  // no rows here rather than throw -- the fan-out looked like a no-op with
-  // no visible error.
-  const { data: ownedVaults, error: ownedVaultsError } = await client
-    .from('vaults')
-    .select('id')
-    .eq('user_id', userId);
-  if (ownedVaultsError) throw ownedVaultsError;
-  if (!ownedVaults || ownedVaults.length === 0) return;
-
-  const ownedVaultIds = (ownedVaults as { id: string }[]).map((vault) => vault.id);
+  await replacePublicationPdfAsset(client, { ...baseRecord, user_id: userId, publication_id: publicationId, vault_publication_id: null });
 
   let siblingsQuery = client
     .from('vault_publications')
-    .select('id')
-    .eq('original_publication_id', publicationId)
-    .in('vault_id', ownedVaultIds);
+    .select('id, vault_id')
+    .eq('original_publication_id', publicationId);
 
   if (originVaultPublicationId) {
     siblingsQuery = siblingsQuery.neq('id', originVaultPublicationId);
@@ -125,9 +114,23 @@ export async function syncDrivePdfAsset(
   if (siblingsError) throw siblingsError;
   if (!siblings || siblings.length === 0) return;
 
+  const siblingRows = siblings as { id: string; vault_id: string }[];
+  const vaultIds = [...new Set(siblingRows.map((sibling) => sibling.vault_id))];
+
+  const { data: vaultOwners, error: vaultOwnersError } = await client
+    .from('vaults')
+    .select('id, user_id')
+    .in('id', vaultIds);
+  if (vaultOwnersError) throw vaultOwnersError;
+
+  const ownerByVaultId = new Map(
+    (vaultOwners as { id: string; user_id: string }[] | null ?? []).map((vault) => [vault.id, vault.user_id]),
+  );
+
   const { error: fanOutError } = await client.from('publication_pdf_assets').upsert(
-    (siblings as { id: string }[]).map((sibling) => ({
+    siblingRows.map((sibling) => ({
       ...baseRecord,
+      user_id: ownerByVaultId.get(sibling.vault_id) ?? userId,
       publication_id: publicationId,
       vault_publication_id: sibling.id,
     })),
