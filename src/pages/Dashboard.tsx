@@ -26,7 +26,7 @@ import {
 } from '@/lib/semanticScholar';
 import { createPublicationSyncPatch, extractBibliographicPatch, getPublicationSyncDiffs, PublicationSyncDiff } from '@/lib/publicationSync';
 import { filterDashboardTags, getDashboardAccessibleVaultIds } from '@/lib/dashboardTagScope';
-import { replacePublicationPdfAsset } from '@/lib/pdfAssets';
+import { syncDrivePdfAsset } from '@/lib/pdfAssets';
 import { PublicationSyncDialog } from '@/components/publications/PublicationSyncDialog';
 import {
   AlertDialog,
@@ -40,6 +40,12 @@ import {
 } from '@/components/ui/alert-dialog';
 
 // Cache structure for Dashboard data
+interface VaultPublicationLink {
+  id: string;
+  vault_id: string;
+  original_publication_id: string | null;
+}
+
 interface DashboardCache {
   publications: Publication[];
   vaults: Vault[];
@@ -47,9 +53,7 @@ interface DashboardCache {
   tags: Tag[];
   publicationTags: PublicationTag[];
   publicationRelations: PublicationRelation[];
-  publicationVaultsMap: Record<string, string[]>;
-  publicationTagsMap: Record<string, string[]>;
-  relationsCountMap: Record<string, number>;
+  vaultPublicationLinks: VaultPublicationLink[];
 }
 
 type PublicationDisplayField = keyof Pick<
@@ -157,9 +161,7 @@ export default function Dashboard() {
   const [tags, setTags] = useState<Tag[]>([]);
   const [publicationTags, setPublicationTags] = useState<PublicationTag[]>([]);
   const [publicationRelations, setPublicationRelations] = useState<PublicationRelation[]>([]);
-  const [publicationVaultsMap, setPublicationVaultsMap] = useState<Record<string, string[]>>({});
-  const [publicationTagsMap, setPublicationTagsMap] = useState<Record<string, string[]>>({});
-  const [relationsCountMap, setRelationsCountMap] = useState<Record<string, number>>({});
+  const [vaultPublicationLinks, setVaultPublicationLinks] = useState<VaultPublicationLink[]>([]);
   const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
   const [loading, setLoading] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -225,6 +227,66 @@ export default function Dashboard() {
     () => Object.fromEntries(Object.entries(syncDiffsByPublication).map(([id, diffs]) => [id, diffs.length])),
     [syncDiffsByPublication],
   );
+
+  // Derived from the raw arrays (not cached maps) so a save anywhere -- tags,
+  // relations, notes -- is reflected in the list immediately, without needing
+  // a full refetch. Mirrors the pattern already used by VaultDetail.tsx.
+  const publicationVaultsMap = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    publications.forEach(pub => { map[pub.id] = []; });
+    vaultPublicationLinks.forEach(link => {
+      if (link.original_publication_id) {
+        if (!map[link.original_publication_id]) map[link.original_publication_id] = [];
+        if (!map[link.original_publication_id].includes(link.vault_id)) {
+          map[link.original_publication_id].push(link.vault_id);
+        }
+      }
+      if (!map[link.id]) map[link.id] = [];
+      if (!map[link.id].includes(link.vault_id)) map[link.id].push(link.vault_id);
+    });
+    return map;
+  }, [publications, vaultPublicationLinks]);
+
+  const publicationTagsMap = useMemo(() => {
+    const pubTagsMap: Record<string, string[]> = {};
+    const originalPubTagsMap: Record<string, string[]> = {};
+
+    publicationTags.forEach((pt) => {
+      if (pt.publication_id) {
+        (pubTagsMap[pt.publication_id] ??= []).push(pt.tag_id);
+        (originalPubTagsMap[pt.publication_id] ??= []).push(pt.tag_id);
+      }
+      if (pt.vault_publication_id) {
+        const link = vaultPublicationLinks.find(l => l.id === pt.vault_publication_id);
+        const originalId = link?.original_publication_id;
+        if (originalId) {
+          (originalPubTagsMap[originalId] ??= []).push(pt.tag_id);
+        }
+      }
+    });
+
+    const map: Record<string, string[]> = {};
+    publications.forEach(pub => {
+      const originalId = pub.original_publication_id || pub.id;
+      map[pub.id] = [...new Set(originalPubTagsMap[originalId] || [])];
+    });
+    return map;
+  }, [publications, publicationTags, vaultPublicationLinks]);
+
+  const relationsCountMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    publicationRelations.forEach((rel) => {
+      const pub1 = publications.find(p => p.original_publication_id === rel.publication_id || p.id === rel.publication_id);
+      const pub2 = publications.find(p => p.original_publication_id === rel.related_publication_id || p.id === rel.related_publication_id);
+
+      const vaultPubId1 = pub1?.id || rel.publication_id;
+      const vaultPubId2 = pub2?.id || rel.related_publication_id;
+
+      map[vaultPubId1] = (map[vaultPubId1] || 0) + 1;
+      map[vaultPubId2] = (map[vaultPubId2] || 0) + 1;
+    });
+    return map;
+  }, [publications, publicationRelations]);
 
   // Track auth loading phase
   useEffect(() => {
@@ -481,101 +543,17 @@ export default function Dashboard() {
       if (pubTagsRes.data) setPublicationTags(pubTagsRes.data as PublicationTag[]);
       if (relationsRes.data) setPublicationRelations(relationsRes.data as PublicationRelation[]);
 
-      // Create publicationVaultsMap to track which vaults each publication belongs to
-      const newPublicationVaultsMap: Record<string, string[]> = {};
-
-      // Initialize original publications with empty arrays
-      originalPublications.forEach(pub => {
-        newPublicationVaultsMap[pub.id] = [];
-      });
-
-      // Map vault-specific copies to track which vaults each original publication belongs to
-      vaultPublications.forEach(vp => {
-        // Map the original publication to the vault it's in
-        if (vp.original_publication_id) {
-          if (!newPublicationVaultsMap[vp.original_publication_id]) {
-            newPublicationVaultsMap[vp.original_publication_id] = [];
-          }
-          if (!newPublicationVaultsMap[vp.original_publication_id].includes(vp.vault_id)) {
-            newPublicationVaultsMap[vp.original_publication_id].push(vp.vault_id);
-          }
-        }
-
-        // Also track vault-specific copies (for when viewing individual vaults)
-        if (!newPublicationVaultsMap[vp.id]) {
-          newPublicationVaultsMap[vp.id] = [];
-        }
-        newPublicationVaultsMap[vp.id].push(vp.vault_id);
-      });
-
-      setPublicationVaultsMap(newPublicationVaultsMap);
-
-      // Create publication tags map considering both original and vault-specific publications
-      const publicationTagsMap: Record<string, string[]> = {};
-
-      // Create a mapping from both publication_id and vault_publication_id to tags
-      const pubTagsMap: Record<string, string[]> = {};
-      const vaultPubTagsMap: Record<string, string[]> = {};
-
-      publicationTags.forEach((pt) => {
-        // Map by publication_id (for original publications)
-        if (pt.publication_id) {
-          if (!pubTagsMap[pt.publication_id]) pubTagsMap[pt.publication_id] = [];
-          pubTagsMap[pt.publication_id].push(pt.tag_id);
-        }
-
-        // Map by vault_publication_id (for vault-specific copies)
-        if (pt.vault_publication_id) {
-          if (!vaultPubTagsMap[pt.vault_publication_id]) vaultPubTagsMap[pt.vault_publication_id] = [];
-          vaultPubTagsMap[pt.vault_publication_id].push(pt.tag_id);
-        }
-      });
-
-      // Create a mapping of original publication IDs to all their tags across all vaults
-      const originalPubTagsMap: Record<string, string[]> = {};
-
-      // Initialize the map with original publication tags
-      Object.entries(pubTagsMap).forEach(([pubId, tags]) => {
-        originalPubTagsMap[pubId] = [...tags];
-      });
-
-      // Add tags from vault-specific copies to the original publication
-      publicationTags.forEach(pt => {
-        if (pt.vault_publication_id) {
-          // Find the vault publication to get its original publication ID
-          const vaultPub = vaultPublications.find(vp => vp.id === pt.vault_publication_id);
-          if (vaultPub && vaultPub.original_publication_id) {
-            // Add this tag to the original publication's tag list
-            if (!originalPubTagsMap[vaultPub.original_publication_id]) {
-              originalPubTagsMap[vaultPub.original_publication_id] = [];
-            }
-            originalPubTagsMap[vaultPub.original_publication_id].push(pt.tag_id);
-          }
-        }
-      });
-
-      // Now assign the aggregated tags to each publication in the deduplicated list
-      allPublications.forEach(pub => {
-        const originalId = pub.original_publication_id || pub.id;
-        // Use Set to remove duplicates
-        publicationTagsMap[pub.id] = [...new Set(originalPubTagsMap[originalId] || [])];
-      });
-
-      // Build relations count map (bidirectional)
-      // In the copy-based model, we need to map relations to vault publication IDs
-      const relationsCountMap: Record<string, number> = {};
-      publicationRelations.forEach((rel) => {
-        // Map original publication IDs to vault publication IDs
-        // First try to find by original_publication_id, then by id
-        const pub1 = allPublications.find(p => p.original_publication_id === rel.publication_id || p.id === rel.publication_id);
-        const pub2 = allPublications.find(p => p.original_publication_id === rel.related_publication_id || p.id === rel.related_publication_id);
-
-        const vaultPubId1 = pub1?.id || rel.publication_id;
-        const vaultPubId2 = pub2?.id || rel.related_publication_id;
-
-        relationsCountMap[vaultPubId1] = (relationsCountMap[vaultPubId1] || 0) + 1;
-        relationsCountMap[vaultPubId2] = (relationsCountMap[vaultPubId2] || 0) + 1;
-      });
+      // publicationVaultsMap, publicationTagsMap, and relationsCountMap are
+      // derived reactively (useMemo) from publications/publicationTags/
+      // publicationRelations/vaultPublicationLinks, so they stay fresh after
+      // any save without a full refetch. Just persist the raw links here.
+      setVaultPublicationLinks(
+        vaultPublications.map(vp => ({
+          id: vp.id,
+          vault_id: vp.vault_id,
+          original_publication_id: vp.original_publication_id,
+        })),
+      );
 
       // Complete publications phase after all processing
       updatePhase('publications', 'complete');
@@ -591,10 +569,6 @@ export default function Dashboard() {
 
       // Complete relations phase
       updatePhase('relations', 'complete');
-
-      // Set the computed maps
-      setPublicationTagsMap(publicationTagsMap);
-      setRelationsCountMap(relationsCountMap);
 
       // Fetch shared vault details
       let processedSharedVaults: Vault[] = [];
@@ -621,9 +595,11 @@ export default function Dashboard() {
         tags: dedupedTags,
         publicationTags: pubTagsRes.data as PublicationTag[] || [],
         publicationRelations: relationsRes.data as PublicationRelation[] || [],
-        publicationVaultsMap: newPublicationVaultsMap,
-        publicationTagsMap,
-        relationsCountMap,
+        vaultPublicationLinks: vaultPublications.map(vp => ({
+          id: vp.id,
+          vault_id: vp.vault_id,
+          original_publication_id: vp.original_publication_id,
+        })),
       }, user?.id);
       
     } catch (error) {
@@ -652,9 +628,7 @@ export default function Dashboard() {
         setTags(cached.tags);
         setPublicationTags(cached.publicationTags);
         setPublicationRelations(cached.publicationRelations);
-        setPublicationVaultsMap(cached.publicationVaultsMap);
-        setPublicationTagsMap(cached.publicationTagsMap);
-        setRelationsCountMap(cached.relationsCountMap);
+        setVaultPublicationLinks(cached.vaultPublicationLinks);
         setLoading(false);
         setIsInitialLoad(false);
         // Skip loader animation for cached data
@@ -791,25 +765,16 @@ export default function Dashboard() {
             }
           }
 
-          // Persist Drive PDF asset if a new URL was uploaded
-          if (!updateError && driveUrl) {
-            const assetRecord = {
-              user_id: user.id,
-              publication_id: vaultPub.original_publication_id,
-              vault_publication_id: editingPublication.id,
-              storage_provider: 'google_drive' as const,
-              stored_pdf_url: driveUrl,
-              stored_file_id: null as string | null,
-              status: 'stored',
-              error_message: null as string | null,
-            };
-            supabase.from('publication_pdf_assets')
-              .upsert(assetRecord, { onConflict: 'vault_publication_id,storage_provider' })
-              .then(({ error: e }) => { if (e) console.warn('[drive] pdf asset upsert:', e.message); });
-            if (vaultPub.original_publication_id) {
-              replacePublicationPdfAsset(supabase, { ...assetRecord, vault_publication_id: null })
-                .catch((e) => { console.warn('[drive] canonical pdf asset replace:', e.message); });
-            }
+          // Persist Drive PDF asset — runs for both a new upload and an explicit
+          // removal (driveUrl === null), and fans out to the canonical row and
+          // every sibling vault copy of the same paper, like bibliographic fields.
+          if (!updateError && driveUrl !== undefined) {
+            syncDrivePdfAsset(supabase, {
+              userId: user.id,
+              publicationId: vaultPub.original_publication_id,
+              storedPdfUrl: driveUrl,
+              originVaultPublicationId: editingPublication.id,
+            }).catch((e) => { console.warn('[drive] pdf asset sync:', e.message); });
             setPdfAssetsMap(prev => ({ ...prev, [editingPublication.id]: driveUrl }));
           }
         } else {
@@ -840,18 +805,15 @@ export default function Dashboard() {
             }
           }
 
-          // Persist Drive PDF asset for canonical publication
-          if (!updateError && driveUrl) {
-            replacePublicationPdfAsset(supabase, {
-              user_id: user.id,
-              publication_id: editingPublication.id,
-              vault_publication_id: null,
-              storage_provider: 'google_drive' as const,
-              stored_pdf_url: driveUrl,
-              stored_file_id: null as string | null,
-              status: 'stored',
-              error_message: null as string | null,
-            }).catch((e) => { console.warn('[drive] pdf asset replace:', e.message); });
+          // Persist Drive PDF asset for the canonical publication — runs for
+          // both a new upload and an explicit removal, and fans out to every
+          // vault copy of this publication, like bibliographic fields.
+          if (!updateError && driveUrl !== undefined) {
+            syncDrivePdfAsset(supabase, {
+              userId: user.id,
+              publicationId: editingPublication.id,
+              storedPdfUrl: driveUrl,
+            }).catch((e) => { console.warn('[drive] pdf asset sync:', e.message); });
             setPdfAssetsMap(prev => ({ ...prev, [editingPublication.id]: driveUrl }));
           }
         }

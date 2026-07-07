@@ -6,7 +6,7 @@ import { useVaultAccess } from '@/hooks/useVaultAccess';
 import { handleError } from '@/lib/toast';
 import { debug, warn, error as logError } from '@/lib/logger';
 import { getPageCache, setPageCache } from '@/lib/pageCache';
-import { replacePublicationPdfAsset } from '@/lib/pdfAssets';
+import { syncDrivePdfAsset } from '@/lib/pdfAssets';
 
 // Info about the last activity in the vault
 export type ActivityType = 'publication_added' | 'publication_updated' | 'publication_removed' | 'tag_added' | 'tag_updated' | 'tag_removed';
@@ -299,42 +299,28 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
     if (!user) return;
 
     // Optimistic update
+    const previousUrl = pdfAssetsMap[vaultPublicationId];
     setPdfAssetsMap(prev => ({ ...prev, [vaultPublicationId]: url || null }));
 
     const publication = publications.find(p => p.id === vaultPublicationId);
     const publicationId = publication?.original_publication_id ?? null;
-    const record = {
-      user_id: user.id,
-      publication_id: publicationId,
-      vault_publication_id: vaultPublicationId,
-      storage_provider: 'google_drive' as const,
-      stored_pdf_url: url || null,
-      stored_file_id: null as string | null,
-      status: url ? 'stored' : 'removed',
-      error_message: null as string | null,
-    };
 
-    const { error } = await supabase
-      .from('publication_pdf_assets')
-      .upsert(record, { onConflict: 'vault_publication_id,storage_provider' });
-
-    if (error) {
-      // Roll back optimistic update
-      setPdfAssetsMap(prev => {
-        const next = { ...prev };
-        delete next[vaultPublicationId];
-        return next;
+    try {
+      // Also fans out to the canonical publication and every sibling vault
+      // copy of the same paper in the user's other vaults, matching how
+      // bibliographic fields already propagate.
+      await syncDrivePdfAsset(supabase, {
+        userId: user.id,
+        publicationId,
+        storedPdfUrl: url || null,
+        originVaultPublicationId: vaultPublicationId,
       });
+    } catch (error) {
+      // Roll back optimistic update
+      setPdfAssetsMap(prev => ({ ...prev, [vaultPublicationId]: previousUrl ?? null }));
       throw error;
     }
-
-    if (publicationId) {
-      await replacePublicationPdfAsset(supabase, {
-        ...record,
-        vault_publication_id: null,
-      });
-    }
-  }, [publications, user]);
+  }, [pdfAssetsMap, publications, user]);
 
   // Fetch vault content - extracted as a reusable function
   const fetchVaultContent = useCallback(async () => {
