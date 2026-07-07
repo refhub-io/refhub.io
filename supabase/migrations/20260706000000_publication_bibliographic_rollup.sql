@@ -34,7 +34,13 @@ BEGIN
 
     UPDATE vault_publications SET
         title = CASE WHEN p_patch ? 'title' THEN p_patch->>'title' ELSE title END,
-        authors = CASE WHEN p_patch ? 'authors' THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'authors')) ELSE authors END,
+        authors = CASE
+            WHEN p_patch ? 'authors' AND jsonb_typeof(p_patch->'authors') = 'array'
+                THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'authors'))
+            WHEN p_patch ? 'authors' AND jsonb_typeof(p_patch->'authors') = 'null'
+                THEN NULL
+            ELSE authors
+        END,
         year = CASE WHEN p_patch ? 'year' THEN (p_patch->>'year')::integer ELSE year END,
         journal = CASE WHEN p_patch ? 'journal' THEN p_patch->>'journal' ELSE journal END,
         volume = CASE WHEN p_patch ? 'volume' THEN p_patch->>'volume' ELSE volume END,
@@ -50,7 +56,13 @@ BEGIN
         booktitle = CASE WHEN p_patch ? 'booktitle' THEN p_patch->>'booktitle' ELSE booktitle END,
         chapter = CASE WHEN p_patch ? 'chapter' THEN p_patch->>'chapter' ELSE chapter END,
         edition = CASE WHEN p_patch ? 'edition' THEN p_patch->>'edition' ELSE edition END,
-        editor = CASE WHEN p_patch ? 'editor' THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'editor')) ELSE editor END,
+        editor = CASE
+            WHEN p_patch ? 'editor' AND jsonb_typeof(p_patch->'editor') = 'array'
+                THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'editor'))
+            WHEN p_patch ? 'editor' AND jsonb_typeof(p_patch->'editor') = 'null'
+                THEN NULL
+            ELSE editor
+        END,
         howpublished = CASE WHEN p_patch ? 'howpublished' THEN p_patch->>'howpublished' ELSE howpublished END,
         institution = CASE WHEN p_patch ? 'institution' THEN p_patch->>'institution' ELSE institution END,
         number = CASE WHEN p_patch ? 'number' THEN p_patch->>'number' ELSE number END,
@@ -62,7 +74,13 @@ BEGIN
         eid = CASE WHEN p_patch ? 'eid' THEN p_patch->>'eid' ELSE eid END,
         isbn = CASE WHEN p_patch ? 'isbn' THEN p_patch->>'isbn' ELSE isbn END,
         issn = CASE WHEN p_patch ? 'issn' THEN p_patch->>'issn' ELSE issn END,
-        keywords = CASE WHEN p_patch ? 'keywords' THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'keywords')) ELSE keywords END,
+        keywords = CASE
+            WHEN p_patch ? 'keywords' AND jsonb_typeof(p_patch->'keywords') = 'array'
+                THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'keywords'))
+            WHEN p_patch ? 'keywords' AND jsonb_typeof(p_patch->'keywords') = 'null'
+                THEN NULL
+            ELSE keywords
+        END,
         version = version + 1,
         updated_at = now()
     WHERE id = p_vault_publication_id AND vault_id = p_vault_id
@@ -83,7 +101,13 @@ BEGIN
     IF v_original_id IS NOT NULL AND v_has_bibliographic_patch THEN
         UPDATE publications SET
             title = CASE WHEN p_patch ? 'title' THEN p_patch->>'title' ELSE title END,
-            authors = CASE WHEN p_patch ? 'authors' THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'authors')) ELSE authors END,
+            authors = CASE
+            WHEN p_patch ? 'authors' AND jsonb_typeof(p_patch->'authors') = 'array'
+                THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'authors'))
+            WHEN p_patch ? 'authors' AND jsonb_typeof(p_patch->'authors') = 'null'
+                THEN NULL
+            ELSE authors
+        END,
             year = CASE WHEN p_patch ? 'year' THEN (p_patch->>'year')::integer ELSE year END,
             journal = CASE WHEN p_patch ? 'journal' THEN p_patch->>'journal' ELSE journal END,
             volume = CASE WHEN p_patch ? 'volume' THEN p_patch->>'volume' ELSE volume END,
@@ -98,7 +122,13 @@ BEGIN
             booktitle = CASE WHEN p_patch ? 'booktitle' THEN p_patch->>'booktitle' ELSE booktitle END,
             chapter = CASE WHEN p_patch ? 'chapter' THEN p_patch->>'chapter' ELSE chapter END,
             edition = CASE WHEN p_patch ? 'edition' THEN p_patch->>'edition' ELSE edition END,
-            editor = CASE WHEN p_patch ? 'editor' THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'editor')) ELSE editor END,
+            editor = CASE
+            WHEN p_patch ? 'editor' AND jsonb_typeof(p_patch->'editor') = 'array'
+                THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'editor'))
+            WHEN p_patch ? 'editor' AND jsonb_typeof(p_patch->'editor') = 'null'
+                THEN NULL
+            ELSE editor
+        END,
             howpublished = CASE WHEN p_patch ? 'howpublished' THEN p_patch->>'howpublished' ELSE howpublished END,
             institution = CASE WHEN p_patch ? 'institution' THEN p_patch->>'institution' ELSE institution END,
             number = CASE WHEN p_patch ? 'number' THEN p_patch->>'number' ELSE number END,
@@ -110,13 +140,25 @@ BEGIN
             eid = CASE WHEN p_patch ? 'eid' THEN p_patch->>'eid' ELSE eid END,
             isbn = CASE WHEN p_patch ? 'isbn' THEN p_patch->>'isbn' ELSE isbn END,
             issn = CASE WHEN p_patch ? 'issn' THEN p_patch->>'issn' ELSE issn END,
-            keywords = CASE WHEN p_patch ? 'keywords' THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'keywords')) ELSE keywords END,
+            keywords = CASE
+            WHEN p_patch ? 'keywords' AND jsonb_typeof(p_patch->'keywords') = 'array'
+                THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'keywords'))
+            WHEN p_patch ? 'keywords' AND jsonb_typeof(p_patch->'keywords') = 'null'
+                THEN NULL
+            ELSE keywords
+        END,
             updated_at = now()
         WHERE id = v_original_id;
 
         UPDATE vault_publications SET
             title = CASE WHEN p_patch ? 'title' THEN p_patch->>'title' ELSE title END,
-            authors = CASE WHEN p_patch ? 'authors' THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'authors')) ELSE authors END,
+            authors = CASE
+            WHEN p_patch ? 'authors' AND jsonb_typeof(p_patch->'authors') = 'array'
+                THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'authors'))
+            WHEN p_patch ? 'authors' AND jsonb_typeof(p_patch->'authors') = 'null'
+                THEN NULL
+            ELSE authors
+        END,
             year = CASE WHEN p_patch ? 'year' THEN (p_patch->>'year')::integer ELSE year END,
             journal = CASE WHEN p_patch ? 'journal' THEN p_patch->>'journal' ELSE journal END,
             volume = CASE WHEN p_patch ? 'volume' THEN p_patch->>'volume' ELSE volume END,
@@ -131,7 +173,13 @@ BEGIN
             booktitle = CASE WHEN p_patch ? 'booktitle' THEN p_patch->>'booktitle' ELSE booktitle END,
             chapter = CASE WHEN p_patch ? 'chapter' THEN p_patch->>'chapter' ELSE chapter END,
             edition = CASE WHEN p_patch ? 'edition' THEN p_patch->>'edition' ELSE edition END,
-            editor = CASE WHEN p_patch ? 'editor' THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'editor')) ELSE editor END,
+            editor = CASE
+            WHEN p_patch ? 'editor' AND jsonb_typeof(p_patch->'editor') = 'array'
+                THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'editor'))
+            WHEN p_patch ? 'editor' AND jsonb_typeof(p_patch->'editor') = 'null'
+                THEN NULL
+            ELSE editor
+        END,
             howpublished = CASE WHEN p_patch ? 'howpublished' THEN p_patch->>'howpublished' ELSE howpublished END,
             institution = CASE WHEN p_patch ? 'institution' THEN p_patch->>'institution' ELSE institution END,
             number = CASE WHEN p_patch ? 'number' THEN p_patch->>'number' ELSE number END,
@@ -143,7 +191,13 @@ BEGIN
             eid = CASE WHEN p_patch ? 'eid' THEN p_patch->>'eid' ELSE eid END,
             isbn = CASE WHEN p_patch ? 'isbn' THEN p_patch->>'isbn' ELSE isbn END,
             issn = CASE WHEN p_patch ? 'issn' THEN p_patch->>'issn' ELSE issn END,
-            keywords = CASE WHEN p_patch ? 'keywords' THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'keywords')) ELSE keywords END,
+            keywords = CASE
+            WHEN p_patch ? 'keywords' AND jsonb_typeof(p_patch->'keywords') = 'array'
+                THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'keywords'))
+            WHEN p_patch ? 'keywords' AND jsonb_typeof(p_patch->'keywords') = 'null'
+                THEN NULL
+            ELSE keywords
+        END,
             updated_at = now()
         WHERE original_publication_id = v_original_id AND id <> p_vault_publication_id;
     END IF;
