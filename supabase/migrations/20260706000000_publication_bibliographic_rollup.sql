@@ -23,6 +23,15 @@ DECLARE
     v_original_id uuid;
     v_has_bibliographic_patch boolean;
 BEGIN
+    -- This function is only ever called under the service-role key (see
+    -- .netlify's handleUpdateItem), which has no JWT context of its own, so
+    -- auth.uid() would otherwise resolve to NULL for the rest of this
+    -- transaction. vault_publications' own "set updated_by from auth.uid()"
+    -- BEFORE UPDATE trigger fires on every UPDATE below regardless -- setting
+    -- this makes it record the real actor instead of overwriting every touched
+    -- row's updated_by with NULL.
+    PERFORM set_config('request.jwt.claim.sub', p_actor_user_id::text, true);
+
     UPDATE vault_publications SET
         title = CASE WHEN p_patch ? 'title' THEN p_patch->>'title' ELSE title END,
         authors = CASE WHEN p_patch ? 'authors' THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'authors')) ELSE authors END,
@@ -135,11 +144,21 @@ BEGIN
             isbn = CASE WHEN p_patch ? 'isbn' THEN p_patch->>'isbn' ELSE isbn END,
             issn = CASE WHEN p_patch ? 'issn' THEN p_patch->>'issn' ELSE issn END,
             keywords = CASE WHEN p_patch ? 'keywords' THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'keywords')) ELSE keywords END,
-            updated_at = now(),
-            updated_by = p_actor_user_id
+            updated_at = now()
         WHERE original_publication_id = v_original_id AND id <> p_vault_publication_id;
     END IF;
 END;
 $$;
 
 ALTER FUNCTION "public"."update_vault_publication_with_rollup"("p_vault_publication_id" "uuid", "p_vault_id" "uuid", "p_patch" "jsonb", "p_actor_user_id" "uuid") OWNER TO "postgres";
+
+-- Unlike copy_publication_to_vault and most other functions in this schema
+-- (granted to anon/authenticated/service_role alike, since they're meant to
+-- be called by regular users), this function trusts its caller completely:
+-- it has no independent authorization of its own, no auth/scope/vault-access
+-- checks -- those already happened in .netlify's handleUpdateItem before the
+-- RPC call. Restricting EXECUTE to service_role only means the only caller
+-- that can ever invoke it is the one that already did those checks, and RLS
+-- (which service_role bypasses) never becomes a factor either way.
+REVOKE ALL ON FUNCTION "public"."update_vault_publication_with_rollup"("p_vault_publication_id" "uuid", "p_vault_id" "uuid", "p_patch" "jsonb", "p_actor_user_id" "uuid") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."update_vault_publication_with_rollup"("p_vault_publication_id" "uuid", "p_vault_id" "uuid", "p_patch" "jsonb", "p_actor_user_id" "uuid") TO "service_role";
