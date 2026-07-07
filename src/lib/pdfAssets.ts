@@ -63,17 +63,28 @@ export async function replacePublicationPdfAsset(
  * A sibling vault_publications row with no asset row of its own doesn't
  * need one created: the read side (VaultContentContext's fetchPdfAssets)
  * already falls back to the canonical row's value when no vault-specific
- * override exists, so it inherits the new value automatically. This also
- * sidesteps attributing publication_pdf_assets.user_id (RLS-enforced per
- * row) to vaults the acting user doesn't own -- the bulk UPDATE only
- * touches stored_pdf_url/status/error_message on rows that already exist,
- * leaving each row's original user_id untouched.
+ * override exists, so it inherits the new value automatically.
  *
- * Earlier versions tried a per-sibling upsert with an ownership lookup
- * (first via an embedded-resource join filter, then via a separate owned-
- * vaults query) to decide which siblings' rows to write and how to
- * attribute them -- both silently produced zero rows in practice. This
- * version doesn't need that lookup at all.
+ * No ownership filter is applied here, and none is needed: RLS on
+ * publication_pdf_assets (supabase/migrations/012_gdrive_rls_policies.sql)
+ * enforces user_id = auth.uid() on every operation -- SELECT, INSERT,
+ * UPDATE, DELETE. The bulk UPDATE below can only ever actually affect rows
+ * the acting user already owns; Postgres silently excludes any sibling
+ * row belonging to a different user regardless of the .in(...) filter
+ * matching its vault_publication_id. Likewise, the canonical-row fallback
+ * on the read side can never surface another user's Drive link, since
+ * that row simply isn't visible to a different user's SELECT. This is
+ * exactly the intended behavior for shared vaults: a Drive PDF link is
+ * tied to whichever user's Google Drive it was uploaded to, so it must
+ * stay scoped to that user even when the underlying paper (and its
+ * bibliographic fields) is shared across collaborators.
+ *
+ * Earlier versions tried a per-sibling upsert with an application-level
+ * ownership lookup (first via an embedded-resource join filter, then via a
+ * separate owned-vaults query) to decide which siblings' rows to write --
+ * both silently produced zero rows in practice, because RLS already
+ * enforces the same boundary at the database level and the extra
+ * application-level check was redundant and buggy. Don't reintroduce it.
  */
 export async function syncDrivePdfAsset(
   client: PdfAssetClient,
