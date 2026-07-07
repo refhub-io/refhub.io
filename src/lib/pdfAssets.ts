@@ -51,3 +51,106 @@ export async function replacePublicationPdfAsset(
     if (error) throw error;
   }
 }
+
+/**
+ * Sets or clears a Drive PDF asset and fans it out like a bibliographic
+ * field: to the canonical publication row, and to every sibling vault copy
+ * that already has its own override row, via one bulk UPDATE -- the same
+ * shape as updateVaultPublication's bibliographic fan-out
+ * (`.update(patch).eq('original_publication_id', X).neq('id', originId)`),
+ * not a per-sibling upsert loop.
+ *
+ * A sibling vault_publications row with no asset row of its own doesn't
+ * need one created: the read side (VaultContentContext's fetchPdfAssets)
+ * already falls back to the canonical row's value when no vault-specific
+ * override exists, so it inherits the new value automatically.
+ *
+ * No ownership filter is applied here, and none is needed: RLS on
+ * publication_pdf_assets (supabase/migrations/012_gdrive_rls_policies.sql)
+ * enforces user_id = auth.uid() on every operation -- SELECT, INSERT,
+ * UPDATE, DELETE. The bulk UPDATE below can only ever actually affect rows
+ * the acting user already owns; Postgres silently excludes any sibling
+ * row belonging to a different user regardless of the .in(...) filter
+ * matching its vault_publication_id. Likewise, the canonical-row fallback
+ * on the read side can never surface another user's Drive link, since
+ * that row simply isn't visible to a different user's SELECT. This is
+ * exactly the intended behavior for shared vaults: a Drive PDF link is
+ * tied to whichever user's Google Drive it was uploaded to, so it must
+ * stay scoped to that user even when the underlying paper (and its
+ * bibliographic fields) is shared across collaborators.
+ *
+ * Earlier versions tried a per-sibling upsert with an application-level
+ * ownership lookup (first via an embedded-resource join filter, then via a
+ * separate owned-vaults query) to decide which siblings' rows to write --
+ * both silently produced zero rows in practice, because RLS already
+ * enforces the same boundary at the database level and the extra
+ * application-level check was redundant and buggy. Don't reintroduce it.
+ */
+export async function syncDrivePdfAsset(
+  client: PdfAssetClient,
+  params: {
+    userId: string;
+    publicationId: string | null;
+    storedPdfUrl: string | null;
+    /** The vault_publication_id the edit originated from, if any. */
+    originVaultPublicationId?: string | null;
+  },
+): Promise<void> {
+  const { userId, publicationId, storedPdfUrl, originVaultPublicationId = null } = params;
+
+  const status = storedPdfUrl ? 'stored' : 'removed';
+
+  if (originVaultPublicationId) {
+    const { error } = await client
+      .from('publication_pdf_assets')
+      .upsert(
+        {
+          user_id: userId,
+          publication_id: publicationId,
+          vault_publication_id: originVaultPublicationId,
+          storage_provider: 'google_drive',
+          stored_pdf_url: storedPdfUrl,
+          stored_file_id: null,
+          status,
+          error_message: null,
+        },
+        { onConflict: 'vault_publication_id,storage_provider' },
+      );
+    if (error) throw error;
+  }
+
+  if (!publicationId) return;
+
+  await replacePublicationPdfAsset(client, {
+    user_id: userId,
+    publication_id: publicationId,
+    vault_publication_id: null,
+    storage_provider: 'google_drive',
+    stored_pdf_url: storedPdfUrl,
+    stored_file_id: null,
+    status,
+    error_message: null,
+  });
+
+  let siblingIdsQuery = client
+    .from('vault_publications')
+    .select('id')
+    .eq('original_publication_id', publicationId);
+
+  if (originVaultPublicationId) {
+    siblingIdsQuery = siblingIdsQuery.neq('id', originVaultPublicationId);
+  }
+
+  const { data: siblings, error: siblingsError } = await siblingIdsQuery;
+  if (siblingsError) throw siblingsError;
+  if (!siblings || siblings.length === 0) return;
+
+  const siblingIds = (siblings as { id: string }[]).map((sibling) => sibling.id);
+
+  const { error: fanOutError } = await client
+    .from('publication_pdf_assets')
+    .update({ stored_pdf_url: storedPdfUrl, status, error_message: null })
+    .eq('storage_provider', 'google_drive')
+    .in('vault_publication_id', siblingIds);
+  if (fanOutError) throw fanOutError;
+}
