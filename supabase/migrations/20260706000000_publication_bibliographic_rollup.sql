@@ -41,7 +41,15 @@ BEGIN
                 THEN NULL
             ELSE authors
         END,
-        year = CASE WHEN p_patch ? 'year' THEN (p_patch->>'year')::integer ELSE year END,
+        year = CASE
+            WHEN p_patch ? 'year' AND jsonb_typeof(p_patch->'year') = 'null'
+                THEN NULL
+            WHEN p_patch ? 'year' AND jsonb_typeof(p_patch->'year') = 'number'
+                THEN (p_patch->>'year')::numeric::integer
+            WHEN p_patch ? 'year'
+                THEN year
+            ELSE year
+        END,
         journal = CASE WHEN p_patch ? 'journal' THEN p_patch->>'journal' ELSE journal END,
         volume = CASE WHEN p_patch ? 'volume' THEN p_patch->>'volume' ELSE volume END,
         issue = CASE WHEN p_patch ? 'issue' THEN p_patch->>'issue' ELSE issue END,
@@ -108,7 +116,15 @@ BEGIN
                 THEN NULL
             ELSE authors
         END,
-            year = CASE WHEN p_patch ? 'year' THEN (p_patch->>'year')::integer ELSE year END,
+            year = CASE
+            WHEN p_patch ? 'year' AND jsonb_typeof(p_patch->'year') = 'null'
+                THEN NULL
+            WHEN p_patch ? 'year' AND jsonb_typeof(p_patch->'year') = 'number'
+                THEN (p_patch->>'year')::numeric::integer
+            WHEN p_patch ? 'year'
+                THEN year
+            ELSE year
+        END,
             journal = CASE WHEN p_patch ? 'journal' THEN p_patch->>'journal' ELSE journal END,
             volume = CASE WHEN p_patch ? 'volume' THEN p_patch->>'volume' ELSE volume END,
             issue = CASE WHEN p_patch ? 'issue' THEN p_patch->>'issue' ELSE issue END,
@@ -159,7 +175,15 @@ BEGIN
                 THEN NULL
             ELSE authors
         END,
-            year = CASE WHEN p_patch ? 'year' THEN (p_patch->>'year')::integer ELSE year END,
+            year = CASE
+            WHEN p_patch ? 'year' AND jsonb_typeof(p_patch->'year') = 'null'
+                THEN NULL
+            WHEN p_patch ? 'year' AND jsonb_typeof(p_patch->'year') = 'number'
+                THEN (p_patch->>'year')::numeric::integer
+            WHEN p_patch ? 'year'
+                THEN year
+            ELSE year
+        END,
             journal = CASE WHEN p_patch ? 'journal' THEN p_patch->>'journal' ELSE journal END,
             volume = CASE WHEN p_patch ? 'volume' THEN p_patch->>'volume' ELSE volume END,
             issue = CASE WHEN p_patch ? 'issue' THEN p_patch->>'issue' ELSE issue END,
