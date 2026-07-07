@@ -248,17 +248,15 @@ export default function Dashboard() {
   }, [publications, vaultPublicationLinks]);
 
   const publicationTagsMap = useMemo(() => {
-    const pubTagsMap: Record<string, string[]> = {};
+    const linksById = new Map(vaultPublicationLinks.map(link => [link.id, link]));
     const originalPubTagsMap: Record<string, string[]> = {};
 
     publicationTags.forEach((pt) => {
       if (pt.publication_id) {
-        (pubTagsMap[pt.publication_id] ??= []).push(pt.tag_id);
         (originalPubTagsMap[pt.publication_id] ??= []).push(pt.tag_id);
       }
       if (pt.vault_publication_id) {
-        const link = vaultPublicationLinks.find(l => l.id === pt.vault_publication_id);
-        const originalId = link?.original_publication_id;
+        const originalId = linksById.get(pt.vault_publication_id)?.original_publication_id;
         if (originalId) {
           (originalPubTagsMap[originalId] ??= []).push(pt.tag_id);
         }
@@ -274,13 +272,16 @@ export default function Dashboard() {
   }, [publications, publicationTags, vaultPublicationLinks]);
 
   const relationsCountMap = useMemo(() => {
+    const pubById = new Map<string, Publication>();
+    publications.forEach(pub => {
+      pubById.set(pub.id, pub);
+      if (pub.original_publication_id) pubById.set(pub.original_publication_id, pub);
+    });
+
     const map: Record<string, number> = {};
     publicationRelations.forEach((rel) => {
-      const pub1 = publications.find(p => p.original_publication_id === rel.publication_id || p.id === rel.publication_id);
-      const pub2 = publications.find(p => p.original_publication_id === rel.related_publication_id || p.id === rel.related_publication_id);
-
-      const vaultPubId1 = pub1?.id || rel.publication_id;
-      const vaultPubId2 = pub2?.id || rel.related_publication_id;
+      const vaultPubId1 = pubById.get(rel.publication_id)?.id || rel.publication_id;
+      const vaultPubId2 = pubById.get(rel.related_publication_id)?.id || rel.related_publication_id;
 
       map[vaultPubId1] = (map[vaultPubId1] || 0) + 1;
       map[vaultPubId2] = (map[vaultPubId2] || 0) + 1;
@@ -524,24 +525,6 @@ export default function Dashboard() {
       });
 
       const allPublications = Object.values(allPublicationsMap);
-
-      if (sharedVaultsRes.data) {
-        // Process shared vaults
-        if (sharedVaultsRes.data.length > 0) {
-          const { data: sharedVaultDetails } = await supabase
-            .from('vaults')
-            .select('*')
-            .in('id', sharedVaultIds);
-
-          if (sharedVaultDetails) {
-            setSharedVaults(sharedVaultDetails as Vault[]);
-          }
-        }
-      }
-      setPublications(allPublications);
-      setTags(dedupedTags);
-      if (pubTagsRes.data) setPublicationTags(pubTagsRes.data as PublicationTag[]);
-      if (relationsRes.data) setPublicationRelations(relationsRes.data as PublicationRelation[]);
 
       // publicationVaultsMap, publicationTagsMap, and relationsCountMap are
       // derived reactively (useMemo) from publications/publicationTags/
