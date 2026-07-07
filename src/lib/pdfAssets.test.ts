@@ -83,10 +83,7 @@ describe('replacePublicationPdfAsset', () => {
   });
 });
 
-function makeSyncClient(
-  siblings: { id: string; vault_id: string }[] = [],
-  vaultOwners: { id: string; user_id: string }[] = [],
-) {
+function makeSyncClient(siblingIds: string[] = []) {
   const calls: string[] = [];
   const pdfAssetsQuery = (result = { error: null }) => ({
     eq(column: string, value: unknown) {
@@ -97,27 +94,14 @@ function makeSyncClient(
       calls.push(`is:${column}:${String(value)}`);
       return this;
     },
+    in(column: string, values: unknown[]) {
+      calls.push(`in:${column}:${values.join(',')}`);
+      return this;
+    },
     then(resolve: (value: typeof result) => void) {
       resolve(result);
     },
   });
-
-  const vaultsQuery = () => {
-    const query: Record<string, unknown> = {
-      select: vi.fn((cols: string) => {
-        calls.push(`vaults.select:${cols}`);
-        return query;
-      }),
-      in: vi.fn((column: string, values: unknown[]) => {
-        calls.push(`vaults.in:${column}:${values.join(',')}`);
-        return query;
-      }),
-      then(resolve: (value: { data: typeof vaultOwners; error: null }) => void) {
-        resolve({ data: vaultOwners, error: null });
-      },
-    };
-    return query;
-  };
 
   const vaultPublicationsQuery = () => {
     const query: Record<string, unknown> = {
@@ -133,8 +117,8 @@ function makeSyncClient(
         calls.push(`vp.neq:${column}:${String(value)}`);
         return query;
       }),
-      then(resolve: (value: { data: typeof siblings; error: null }) => void) {
-        resolve({ data: siblings, error: null });
+      then(resolve: (value: { data: { id: string }[]; error: null }) => void) {
+        resolve({ data: siblingIds.map((id) => ({ id })), error: null });
       },
     };
     return query;
@@ -143,12 +127,15 @@ function makeSyncClient(
   const client = {
     from: vi.fn((table: string) => {
       if (table === 'vault_publications') return vaultPublicationsQuery();
-      if (table === 'vaults') return vaultsQuery();
 
       expect(table).toBe('publication_pdf_assets');
       return {
         upsert: vi.fn((record: unknown) => {
           calls.push(`upsert:${JSON.stringify(record)}`);
+          return pdfAssetsQuery();
+        }),
+        update: vi.fn((record: unknown) => {
+          calls.push(`update:${JSON.stringify(record)}`);
           return pdfAssetsQuery();
         }),
         delete: vi.fn(() => {
@@ -167,11 +154,8 @@ function makeSyncClient(
 }
 
 describe('syncDrivePdfAsset', () => {
-  it('upserts the origin vault copy, mirrors to canonical, and fans out to every sibling vault (no ownership restriction)', async () => {
-    const { client, calls } = makeSyncClient(
-      [{ id: 'vault-pub-sibling', vault_id: 'vault-b' }],
-      [{ id: 'vault-b', user_id: 'user-2' }],
-    );
+  it('upserts the origin vault copy, mirrors to canonical, and bulk-updates sibling override rows', async () => {
+    const { client, calls } = makeSyncClient(['vault-pub-sibling']);
 
     await syncDrivePdfAsset(client, {
       userId: 'user-1',
@@ -190,36 +174,18 @@ describe('syncDrivePdfAsset', () => {
 
     expect(calls).toContain('vp.eq:original_publication_id:pub-1');
     expect(calls).toContain('vp.neq:id:vault-pub-origin');
-    expect(calls).toContain('vaults.in:id:vault-b');
 
-    // Sibling belongs to a vault owned by a different user (user-2) --
-    // attributed to that vault's real owner, not the acting editor.
-    const siblingUpsert = calls.find((c) => c.startsWith('upsert:') && c.includes('vault-pub-sibling'));
-    expect(siblingUpsert).toContain('"stored_pdf_url":"https://drive.example/pdf"');
-    expect(siblingUpsert).toContain('"user_id":"user-2"');
+    // Siblings get one bulk UPDATE, not a per-row upsert -- no user_id
+    // touched, no vault-ownership lookup needed at all.
+    const siblingUpdate = calls.find((c) => c.startsWith('update:'));
+    expect(siblingUpdate).toContain('"stored_pdf_url":"https://drive.example/pdf"');
+    expect(siblingUpdate).not.toContain('user_id');
+    expect(calls).toContain('eq:storage_provider:google_drive');
+    expect(calls).toContain('in:vault_publication_id:vault-pub-sibling');
   });
 
-  it('falls back to the acting user for a sibling whose vault owner lookup comes back empty', async () => {
-    const { client, calls } = makeSyncClient(
-      [{ id: 'vault-pub-sibling', vault_id: 'vault-b' }],
-      [], // owner lookup returns nothing (e.g. RLS-restricted)
-    );
-
-    await syncDrivePdfAsset(client, {
-      userId: 'user-1',
-      publicationId: 'pub-1',
-      storedPdfUrl: 'https://drive.example/pdf',
-    });
-
-    const siblingUpsert = calls.find((c) => c.startsWith('upsert:') && c.includes('vault-pub-sibling'));
-    expect(siblingUpsert).toContain('"user_id":"user-1"');
-  });
-
-  it('clearing the URL upserts null/removed everywhere instead of deleting vault-scoped rows', async () => {
-    const { client, calls } = makeSyncClient(
-      [{ id: 'vault-pub-sibling', vault_id: 'vault-a' }],
-      [{ id: 'vault-a', user_id: 'user-1' }],
-    );
+  it('clearing the URL upserts the origin row null/removed and bulk-updates siblings the same way', async () => {
+    const { client, calls } = makeSyncClient(['vault-pub-sibling']);
 
     await syncDrivePdfAsset(client, {
       userId: 'user-1',
@@ -236,16 +202,13 @@ describe('syncDrivePdfAsset', () => {
     expect(calls).toContain('delete');
     expect(calls.some((c) => c.startsWith('insert:'))).toBe(false);
 
-    const siblingUpsert = calls.find((c) => c.startsWith('upsert:') && c.includes('vault-pub-sibling'));
-    expect(siblingUpsert).toContain('"stored_pdf_url":null');
-    expect(siblingUpsert).toContain('"status":"removed"');
+    const siblingUpdate = calls.find((c) => c.startsWith('update:'));
+    expect(siblingUpdate).toContain('"stored_pdf_url":null');
+    expect(siblingUpdate).toContain('"status":"removed"');
   });
 
-  it('editing from the canonical publication (no origin vault copy) fans out to every vault copy, unfiltered', async () => {
-    const { client, calls } = makeSyncClient(
-      [{ id: 'vault-pub-a', vault_id: 'vault-a' }, { id: 'vault-pub-b', vault_id: 'vault-b' }],
-      [{ id: 'vault-a', user_id: 'user-1' }, { id: 'vault-b', user_id: 'user-2' }],
-    );
+  it('editing from the canonical publication (no origin vault copy) updates every vault copy, unfiltered', async () => {
+    const { client, calls } = makeSyncClient(['vault-pub-a', 'vault-pub-b']);
 
     await syncDrivePdfAsset(client, {
       userId: 'user-1',
@@ -255,11 +218,10 @@ describe('syncDrivePdfAsset', () => {
 
     // No direct origin-row upsert without an originVaultPublicationId, and no
     // sibling exclusion filter (every vault copy should be included).
-    expect(calls.some((c) => c.startsWith('upsert:') && c.includes('"vault_publication_id":null'))).toBe(false);
+    expect(calls.some((c) => c.startsWith('upsert:'))).toBe(false);
     expect(calls.some((c) => c.startsWith('vp.neq'))).toBe(false);
 
-    expect(calls.some((c) => c.startsWith('upsert:') && c.includes('vault-pub-a'))).toBe(true);
-    expect(calls.some((c) => c.startsWith('upsert:') && c.includes('vault-pub-b'))).toBe(true);
+    expect(calls).toContain('in:vault_publication_id:vault-pub-a,vault-pub-b');
   });
 
   it('does nothing beyond the origin row when the publication has no canonical link', async () => {
@@ -273,10 +235,10 @@ describe('syncDrivePdfAsset', () => {
     });
 
     expect(calls).toEqual([expect.stringContaining('upsert:')]);
-    expect(calls.some((c) => c.startsWith('vaults.select') || c.startsWith('vp.select'))).toBe(false);
+    expect(calls.some((c) => c.startsWith('vp.select'))).toBe(false);
   });
 
-  it('does not query vault owners when there are no sibling vault copies at all', async () => {
+  it('does not issue a sibling update when there are no sibling vault copies at all', async () => {
     const { client, calls } = makeSyncClient([]);
 
     await syncDrivePdfAsset(client, {
@@ -285,6 +247,6 @@ describe('syncDrivePdfAsset', () => {
       storedPdfUrl: 'https://drive.example/pdf',
     });
 
-    expect(calls.some((c) => c.startsWith('vaults.'))).toBe(false);
+    expect(calls.some((c) => c.startsWith('update:'))).toBe(false);
   });
 });

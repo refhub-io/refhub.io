@@ -272,22 +272,31 @@ export default function Dashboard() {
   }, [publications, publicationTags, vaultPublicationLinks]);
 
   const relationsCountMap = useMemo(() => {
+    // publication_relations rows are written using whichever id the dialog
+    // was opened with: a canonical publications.id when created from All
+    // Papers, or a vault_publications.id when created from within a vault
+    // (see usePublicationRelations). Resolve either to the canonical id
+    // before counting, since that's how `publications` here is keyed.
+    const linksById = new Map(vaultPublicationLinks.map(link => [link.id, link]));
+    const resolveCanonicalId = (rawId: string): string =>
+      linksById.get(rawId)?.original_publication_id || rawId;
+
     const pubById = new Map<string, Publication>();
-    publications.forEach(pub => {
-      pubById.set(pub.id, pub);
-      if (pub.original_publication_id) pubById.set(pub.original_publication_id, pub);
-    });
+    publications.forEach(pub => { pubById.set(pub.id, pub); });
 
     const map: Record<string, number> = {};
     publicationRelations.forEach((rel) => {
-      const vaultPubId1 = pubById.get(rel.publication_id)?.id || rel.publication_id;
-      const vaultPubId2 = pubById.get(rel.related_publication_id)?.id || rel.related_publication_id;
+      const id1 = resolveCanonicalId(rel.publication_id);
+      const id2 = resolveCanonicalId(rel.related_publication_id);
+
+      const vaultPubId1 = pubById.get(id1)?.id || id1;
+      const vaultPubId2 = pubById.get(id2)?.id || id2;
 
       map[vaultPubId1] = (map[vaultPubId1] || 0) + 1;
       map[vaultPubId2] = (map[vaultPubId2] || 0) + 1;
     });
     return map;
-  }, [publications, publicationRelations]);
+  }, [publications, publicationRelations, vaultPublicationLinks]);
 
   // Track auth loading phase
   useEffect(() => {
@@ -757,7 +766,15 @@ export default function Dashboard() {
               publicationId: vaultPub.original_publication_id,
               storedPdfUrl: driveUrl,
               originVaultPublicationId: editingPublication.id,
-            }).catch((e) => { console.warn('[drive] pdf asset sync:', e.message); });
+            }).catch((e) => {
+              console.warn('[drive] pdf asset sync:', e.message);
+              toast({
+                title: 'Drive PDF may not have synced everywhere',
+                description: e.message,
+                variant: 'destructive', feedbackSeverity: 'error',
+                source: feedbackSource ?? dashboardFeedbackRef,
+              });
+            });
             setPdfAssetsMap(prev => ({ ...prev, [editingPublication.id]: driveUrl }));
           }
         } else {
@@ -796,7 +813,15 @@ export default function Dashboard() {
               userId: user.id,
               publicationId: editingPublication.id,
               storedPdfUrl: driveUrl,
-            }).catch((e) => { console.warn('[drive] pdf asset sync:', e.message); });
+            }).catch((e) => {
+              console.warn('[drive] pdf asset sync:', e.message);
+              toast({
+                title: 'Drive PDF may not have synced everywhere',
+                description: e.message,
+                variant: 'destructive', feedbackSeverity: 'error',
+                source: feedbackSource ?? dashboardFeedbackRef,
+              });
+            });
             setPdfAssetsMap(prev => ({ ...prev, [editingPublication.id]: driveUrl }));
           }
         }

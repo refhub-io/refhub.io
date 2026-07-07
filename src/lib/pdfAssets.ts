@@ -53,19 +53,27 @@ export async function replacePublicationPdfAsset(
 }
 
 /**
- * Sets or clears a Drive PDF asset and fans it out like a bibliographic field:
- * to the canonical publication row and every sibling vault_publications copy
- * of the same paper, in every vault -- unrestricted by ownership, matching
- * how updateVaultPublication's bibliographic fan-out already propagates to
- * every vault_publications row sharing original_publication_id with no
- * ownership filter. An earlier version scoped this to vaults the acting
- * user owns, to avoid attributing publication_pdf_assets.user_id (RLS
- * per-row) to the wrong owner -- but that filter turned out to exclude the
- * user's own vaults too, since it required deriving vault_id ownership via
- * a query this app's RLS/setup didn't reliably support, silently dropping
- * the fan-out. Attribute each sibling row's user_id to its own vault's
- * actual owner (falling back to the acting user only if that lookup comes
- * back empty) instead of restricting which vaults get the write.
+ * Sets or clears a Drive PDF asset and fans it out like a bibliographic
+ * field: to the canonical publication row, and to every sibling vault copy
+ * that already has its own override row, via one bulk UPDATE -- the same
+ * shape as updateVaultPublication's bibliographic fan-out
+ * (`.update(patch).eq('original_publication_id', X).neq('id', originId)`),
+ * not a per-sibling upsert loop.
+ *
+ * A sibling vault_publications row with no asset row of its own doesn't
+ * need one created: the read side (VaultContentContext's fetchPdfAssets)
+ * already falls back to the canonical row's value when no vault-specific
+ * override exists, so it inherits the new value automatically. This also
+ * sidesteps attributing publication_pdf_assets.user_id (RLS-enforced per
+ * row) to vaults the acting user doesn't own -- the bulk UPDATE only
+ * touches stored_pdf_url/status/error_message on rows that already exist,
+ * leaving each row's original user_id untouched.
+ *
+ * Earlier versions tried a per-sibling upsert with an ownership lookup
+ * (first via an embedded-resource join filter, then via a separate owned-
+ * vaults query) to decide which siblings' rows to write and how to
+ * attribute them -- both silently produced zero rows in practice. This
+ * version doesn't need that lookup at all.
  */
 export async function syncDrivePdfAsset(
   client: PdfAssetClient,
@@ -79,19 +87,22 @@ export async function syncDrivePdfAsset(
 ): Promise<void> {
   const { userId, publicationId, storedPdfUrl, originVaultPublicationId = null } = params;
 
-  const baseRecord = {
-    storage_provider: 'google_drive' as const,
-    stored_pdf_url: storedPdfUrl,
-    stored_file_id: null as string | null,
-    status: storedPdfUrl ? 'stored' : 'removed',
-    error_message: null as string | null,
-  };
+  const status = storedPdfUrl ? 'stored' : 'removed';
 
   if (originVaultPublicationId) {
     const { error } = await client
       .from('publication_pdf_assets')
       .upsert(
-        { ...baseRecord, user_id: userId, publication_id: publicationId, vault_publication_id: originVaultPublicationId },
+        {
+          user_id: userId,
+          publication_id: publicationId,
+          vault_publication_id: originVaultPublicationId,
+          storage_provider: 'google_drive',
+          stored_pdf_url: storedPdfUrl,
+          stored_file_id: null,
+          status,
+          error_message: null,
+        },
         { onConflict: 'vault_publication_id,storage_provider' },
       );
     if (error) throw error;
@@ -99,42 +110,36 @@ export async function syncDrivePdfAsset(
 
   if (!publicationId) return;
 
-  await replacePublicationPdfAsset(client, { ...baseRecord, user_id: userId, publication_id: publicationId, vault_publication_id: null });
+  await replacePublicationPdfAsset(client, {
+    user_id: userId,
+    publication_id: publicationId,
+    vault_publication_id: null,
+    storage_provider: 'google_drive',
+    stored_pdf_url: storedPdfUrl,
+    stored_file_id: null,
+    status,
+    error_message: null,
+  });
 
-  let siblingsQuery = client
+  let siblingIdsQuery = client
     .from('vault_publications')
-    .select('id, vault_id')
+    .select('id')
     .eq('original_publication_id', publicationId);
 
   if (originVaultPublicationId) {
-    siblingsQuery = siblingsQuery.neq('id', originVaultPublicationId);
+    siblingIdsQuery = siblingIdsQuery.neq('id', originVaultPublicationId);
   }
 
-  const { data: siblings, error: siblingsError } = await siblingsQuery;
+  const { data: siblings, error: siblingsError } = await siblingIdsQuery;
   if (siblingsError) throw siblingsError;
   if (!siblings || siblings.length === 0) return;
 
-  const siblingRows = siblings as { id: string; vault_id: string }[];
-  const vaultIds = [...new Set(siblingRows.map((sibling) => sibling.vault_id))];
+  const siblingIds = (siblings as { id: string }[]).map((sibling) => sibling.id);
 
-  const { data: vaultOwners, error: vaultOwnersError } = await client
-    .from('vaults')
-    .select('id, user_id')
-    .in('id', vaultIds);
-  if (vaultOwnersError) throw vaultOwnersError;
-
-  const ownerByVaultId = new Map(
-    (vaultOwners as { id: string; user_id: string }[] | null ?? []).map((vault) => [vault.id, vault.user_id]),
-  );
-
-  const { error: fanOutError } = await client.from('publication_pdf_assets').upsert(
-    siblingRows.map((sibling) => ({
-      ...baseRecord,
-      user_id: ownerByVaultId.get(sibling.vault_id) ?? userId,
-      publication_id: publicationId,
-      vault_publication_id: sibling.id,
-    })),
-    { onConflict: 'vault_publication_id,storage_provider' },
-  );
+  const { error: fanOutError } = await client
+    .from('publication_pdf_assets')
+    .update({ stored_pdf_url: storedPdfUrl, status, error_message: null })
+    .eq('storage_provider', 'google_drive')
+    .in('vault_publication_id', siblingIds);
   if (fanOutError) throw fanOutError;
 }
