@@ -256,10 +256,12 @@ export default function Dashboard() {
         (originalPubTagsMap[pt.publication_id] ??= []).push(pt.tag_id);
       }
       if (pt.vault_publication_id) {
-        const originalId = linksById.get(pt.vault_publication_id)?.original_publication_id;
-        if (originalId) {
-          (originalPubTagsMap[originalId] ??= []).push(pt.tag_id);
-        }
+        // Standalone vault publications (no original_publication_id) are
+        // keyed by their own id in `publications` (see the aggregation
+        // below) -- fall back to the same id here, or their tags would be
+        // looked up under the wrong (null) key and silently dropped.
+        const originalId = linksById.get(pt.vault_publication_id)?.original_publication_id || pt.vault_publication_id;
+        (originalPubTagsMap[originalId] ??= []).push(pt.tag_id);
       }
     });
 
