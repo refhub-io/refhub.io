@@ -400,7 +400,7 @@ async function lookupPaperIdFromBackend(input: { doi?: string; title?: string })
 }
 
 async function fetchPaperListFromBackend(
-  route: 'recommendations' | 'references' | 'citations',
+  route: 'references' | 'citations',
   paperId: string,
   limit: number,
 ): Promise<SSPaper[]> {
@@ -422,6 +422,38 @@ async function fetchPaperListFromBackend(
     : [];
 
   return records.map(normalizePaper).filter((paper): paper is SSPaper => paper !== null);
+}
+
+// The backend's recommendations route accepts a whole batch of seed paper ids
+// in one request (Semantic Scholar's own recommendations endpoint supports
+// multiple positivePaperIds natively) -- so "find related papers" for a
+// vault's worth of papers costs one upstream call instead of one per paper.
+const MAX_RECOMMENDATION_SEED_IDS_PER_REQUEST = 20;
+
+async function fetchRecommendationsFromBackend(paperIds: string[], limit: number): Promise<SSPaper[]> {
+  const accessToken = await getAccessToken();
+  const payload = await fetchWithSemanticScholarError('/recommendations', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ paper_ids: paperIds, limit }),
+  });
+
+  const records = Array.isArray((payload as { data?: unknown } | null)?.data)
+    ? ((payload as { data: BackendPaper[] }).data ?? [])
+    : [];
+
+  return records.map(normalizePaper).filter((paper): paper is SSPaper => paper !== null);
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
 }
 
 export async function searchPapersByTopic(query: string, limit = 20): Promise<SSPaper[]> {
@@ -479,7 +511,7 @@ export async function getRecommendations(paperId: string): Promise<SSPaper[]> {
   const cacheKey = `recs:${paperId}`;
   if (paperCache.has(cacheKey)) return paperCache.get(cacheKey)!;
 
-  const papers = await fetchPaperListFromBackend('recommendations', paperId, 20);
+  const papers = await fetchRecommendationsFromBackend([paperId], 20);
   paperCache.set(cacheKey, papers);
   return papers;
 }
@@ -491,9 +523,13 @@ export async function getRecommendationsForSet(paperIds: string[]): Promise<SSPa
   const cacheKey = `recs-set:${[...dedupedPaperIds].sort().join(',')}`;
   if (paperCache.has(cacheKey)) return paperCache.get(cacheKey)!;
 
+  // The backend caps a single batch at MAX_RECOMMENDATION_SEED_IDS_PER_REQUEST
+  // seed papers, so a vault larger than that still needs more than one call --
+  // but far fewer than one per paper.
+  const seedChunks = chunk(dedupedPaperIds, MAX_RECOMMENDATION_SEED_IDS_PER_REQUEST);
   const recommendationSets = await runSemanticScholarQueue(
-    dedupedPaperIds,
-    (paperId) => fetchPaperListFromBackend('recommendations', paperId, 20),
+    seedChunks,
+    (seedChunk) => fetchRecommendationsFromBackend(seedChunk, 20),
   );
 
   const firstError = recommendationSets.find((result) => !result.ok)?.error;

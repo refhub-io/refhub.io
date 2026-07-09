@@ -16,6 +16,8 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   fetchSemanticScholarMetadataByDoi,
   formatSemanticScholarErrorMessage,
+  getRecommendations,
+  getRecommendationsForSet,
   runSemanticScholarQueue,
   searchPapersByTopic,
   type SemanticScholarQueueProgress,
@@ -105,6 +107,58 @@ describe('semanticScholar', () => {
     expect(fetch).toHaveBeenCalledWith('https://refhub.test/search', expect.objectContaining({
       method: 'POST',
       body: JSON.stringify({ query: 'visual analytics', limit: 10 }),
+    }));
+  });
+
+  it('requests recommendations for a whole set of seed papers in a single call', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({ data: [{ paper_id: 'rec-1', title: 'Recommended' }] }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+
+    const papers = await getRecommendationsForSet(['p1', 'p2', 'p1', 'p3']);
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledWith('https://refhub.test/recommendations', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ paper_ids: ['p1', 'p2', 'p3'], limit: 20 }),
+    }));
+    expect(papers).toEqual([expect.objectContaining({ paperId: 'rec-1' })]);
+  });
+
+  it('chunks recommendation requests once the seed set exceeds the batch cap', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({ data: [{ paper_id: 'rec-1', title: 'Recommended' }] }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+
+    const manyIds = Array.from({ length: 25 }, (_, i) => `p${i}`);
+    await getRecommendationsForSet(manyIds);
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    const firstBody = JSON.parse(vi.mocked(fetch).mock.calls[0][1]!.body as string);
+    const secondBody = JSON.parse(vi.mocked(fetch).mock.calls[1][1]!.body as string);
+    expect(firstBody.paper_ids).toHaveLength(20);
+    expect(secondBody.paper_ids).toHaveLength(5);
+  });
+
+  it('requests recommendations for a single paper via the same batched endpoint', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({ data: [{ paper_id: 'rec-1', title: 'Recommended' }] }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+
+    await getRecommendations('p1');
+
+    expect(fetch).toHaveBeenCalledWith('https://refhub.test/recommendations', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ paper_ids: ['p1'], limit: 20 }),
     }));
   });
 

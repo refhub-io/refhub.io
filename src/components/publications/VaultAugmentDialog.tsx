@@ -5,7 +5,7 @@ import {
   SemanticScholarQueueProgress,
   SemanticScholarRequestError,
   formatSemanticScholarErrorMessage,
-  getRecommendations,
+  getRecommendationsForSet,
   isSemanticScholarRateLimitError,
   lookupPaperByDOI,
   lookupPaperByTitle,
@@ -470,44 +470,31 @@ export function VaultAugmentDialog({
       return;
     }
 
-    const recommendationResults = await runSemanticScholarQueue(
-      resolved,
-      ({ ssId }) => getRecommendations(ssId),
-      {
-        concurrency: 2,
-        minDelayMs: 500,
-        onProgress: (progress) => updateTabStatus('related', { progress, state: 'loading' }),
-      },
-    );
+    // One batched call for the whole resolved set instead of one per paper --
+    // Semantic Scholar's recommendations endpoint natively accepts multiple
+    // seed papers and returns a single deduplicated list.
+    const requestFailures = [...lookupFailures];
+    const allSourcePubIds = resolved.map((r) => r.pubId);
+    let discoveredPapers: SSPaper[] = [];
+
+    try {
+      discoveredPapers = await getRecommendationsForSet(resolved.map((r) => r.ssId));
+    } catch (error) {
+      requestFailures.push({
+        pubId: resolved[0].pubId,
+        label: resolved.length === 1 ? resolved[0].label : `${resolved.length} papers`,
+        stage: 'related',
+        error: error as SemanticScholarRequestError,
+      });
+    }
 
     const map = new Map<string, DiscoveredPaper>();
-    const requestFailures = [...lookupFailures];
-
-    for (const result of recommendationResults) {
-      if (!result.ok) {
-        requestFailures.push({
-          pubId: result.item.pubId,
-          label: result.item.label,
-          stage: 'related',
-          error: result.error!,
-        });
-        continue;
-      }
-
-      for (const paper of result.data ?? []) {
-        const existing = map.get(paper.paperId);
-        if (existing) {
-          if (!existing.sourcePublicationIds.includes(result.item.pubId)) {
-            existing.sourcePublicationIds.push(result.item.pubId);
-          }
-        } else {
-          map.set(paper.paperId, {
-            paper,
-            tab: 'related',
-            sourcePublicationIds: [result.item.pubId],
-          });
-        }
-      }
+    for (const paper of discoveredPapers) {
+      map.set(paper.paperId, {
+        paper,
+        tab: 'related',
+        sourcePublicationIds: allSourcePubIds,
+      });
     }
 
     setRelated([...map.values()]);
