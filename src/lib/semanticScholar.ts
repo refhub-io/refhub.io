@@ -427,7 +427,9 @@ async function fetchPaperListFromBackend(
 // The backend's recommendations route accepts a whole batch of seed paper ids
 // in one request (Semantic Scholar's own recommendations endpoint supports
 // multiple positivePaperIds natively) -- so "find related papers" for a
-// vault's worth of papers costs one upstream call instead of one per paper.
+// vault's worth of papers costs one upstream call per
+// MAX_RECOMMENDATION_SEED_IDS_PER_REQUEST seed papers (see
+// getRecommendationsForSet's chunking below), instead of one per paper.
 const MAX_RECOMMENDATION_SEED_IDS_PER_REQUEST = 20;
 
 async function fetchRecommendationsFromBackend(paperIds: string[], limit: number): Promise<SSPaper[]> {
@@ -530,12 +532,11 @@ export async function getRecommendationsForSet(paperIds: string[]): Promise<SSPa
   const recommendationSets = await runSemanticScholarQueue(
     seedChunks,
     (seedChunk) => fetchRecommendationsFromBackend(seedChunk, 20),
+    // Each request already batches up to 20 seeds and the backend enforces
+    // its own global rate limit, so the queue's default inter-request delay
+    // (meant for the old one-request-per-paper pattern) is unnecessary here.
+    { minDelayMs: 0 },
   );
-
-  const firstError = recommendationSets.find((result) => !result.ok)?.error;
-  if (firstError) {
-    throw firstError;
-  }
 
   const merged = new Map<string, SSPaper>();
   for (const result of recommendationSets) {
@@ -545,6 +546,16 @@ export async function getRecommendationsForSet(paperIds: string[]): Promise<SSPa
       if (!merged.has(paper.paperId)) {
         merged.set(paper.paperId, paper);
       }
+    }
+  }
+
+  // Only throw when every chunk failed (nothing to show) -- a partial
+  // failure across chunks still returns whatever succeeded instead of
+  // discarding it.
+  if (merged.size === 0) {
+    const firstError = recommendationSets.find((result) => !result.ok)?.error;
+    if (firstError) {
+      throw firstError;
     }
   }
 

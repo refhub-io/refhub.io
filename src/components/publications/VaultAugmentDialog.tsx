@@ -470,9 +470,11 @@ export function VaultAugmentDialog({
       return;
     }
 
-    // One batched call for the whole resolved set instead of one per paper --
+    // Batched call(s) for the whole resolved set instead of one per paper --
     // Semantic Scholar's recommendations endpoint natively accepts multiple
-    // seed papers and returns a single deduplicated list.
+    // seed papers and returns a single deduplicated list. getRecommendationsForSet
+    // chunks internally at 20 seeds per request, so vaults larger than that
+    // still take more than one upstream call, just far fewer than one per paper.
     const requestFailures = [...lookupFailures];
     const allSourcePubIds = resolved.map((r) => r.pubId);
     let discoveredPapers: SSPaper[] = [];

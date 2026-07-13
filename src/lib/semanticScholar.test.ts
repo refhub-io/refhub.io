@@ -146,6 +146,34 @@ describe('semanticScholar', () => {
     expect(secondBody.paper_ids).toHaveLength(5);
   });
 
+  it('returns the successful chunks instead of discarding everything when only some chunks fail', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ data: [{ paper_id: 'rec-1', title: 'Recommended' }] }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: { message: 'boom' } }), { status: 500 }),
+      );
+
+    const manyIds = Array.from({ length: 25 }, (_, i) => `partial-${i}`);
+    const papers = await getRecommendationsForSet(manyIds);
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(papers).toEqual([expect.objectContaining({ paperId: 'rec-1' })]);
+  });
+
+  it('throws only when every chunk fails', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ error: { message: 'boom' } }), { status: 500 }),
+    );
+
+    const manyIds = Array.from({ length: 25 }, (_, i) => `allfail-${i}`);
+    await expect(getRecommendationsForSet(manyIds)).rejects.toBeTruthy();
+  });
+
   it('requests recommendations for a single paper via the same batched endpoint', async () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(
