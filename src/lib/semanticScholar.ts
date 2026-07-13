@@ -549,10 +549,13 @@ export async function getRecommendationsForSet(paperIds: string[]): Promise<SSPa
     }
   }
 
-  // Only throw when every chunk failed (nothing to show) -- a partial
-  // failure across chunks still returns whatever succeeded instead of
-  // discarding it.
-  if (merged.size === 0) {
+  // Only throw when every chunk failed -- checking merged.size here instead
+  // would also throw when a chunk legitimately returned zero recommendations
+  // alongside another chunk that failed, even though that first chunk did
+  // succeed. A partial failure across chunks still returns whatever
+  // succeeded (even an empty list) instead of discarding it.
+  const anyChunkSucceeded = recommendationSets.some((result) => result.ok);
+  if (!anyChunkSucceeded) {
     const firstError = recommendationSets.find((result) => !result.ok)?.error;
     if (firstError) {
       throw firstError;

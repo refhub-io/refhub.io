@@ -165,6 +165,22 @@ describe('semanticScholar', () => {
     expect(papers).toEqual([expect.objectContaining({ paperId: 'rec-1' })]);
   });
 
+  it('does not throw when a succeeding chunk legitimately returns zero recommendations', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ data: [] }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: { message: 'boom' } }), { status: 500 }),
+      );
+
+    const manyIds = Array.from({ length: 25 }, (_, i) => `empty-success-${i}`);
+    await expect(getRecommendationsForSet(manyIds)).resolves.toEqual([]);
+  });
+
   it('throws only when every chunk fails', async () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify({ error: { message: 'boom' } }), { status: 500 }),
