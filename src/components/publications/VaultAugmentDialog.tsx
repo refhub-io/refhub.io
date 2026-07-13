@@ -480,12 +480,17 @@ export function VaultAugmentDialog({
     try {
       discoveredPapers = await getRecommendationsForSet(resolved.map((r) => r.ssId));
     } catch (error) {
-      requestFailures.push({
-        pubId: resolved[0].pubId,
-        label: resolved.length === 1 ? resolved[0].label : `${resolved.length} papers`,
-        stage: 'related',
-        error: error as SemanticScholarRequestError,
-      });
+      // Push one TabFailure per resolved seed (not one for the whole batch) so
+      // summarizeFailures' failures.length-based counting and pluralization
+      // stay accurate now that a single batched call covers every seed.
+      for (const seed of resolved) {
+        requestFailures.push({
+          pubId: seed.pubId,
+          label: seed.label,
+          stage: 'related',
+          error: error as SemanticScholarRequestError,
+        });
+      }
     }
 
     const map = new Map<string, DiscoveredPaper>();
