@@ -27,33 +27,15 @@ const changelog: ChangelogEntry[] = [
     features: [
       {
         tag: 'improvement',
-        title: 'openalex-backed discovery',
+        title: 'smarter paper discovery',
         description:
-          'related papers, references, citations, and doi lookups now try openalex first, with automatic fallback to semantic scholar -- broader coverage and fewer rate-limit slowdowns across discovery and sync.',
-      },
-      {
-        tag: 'improvement',
-        title: 'batched related-paper discovery',
-        description:
-          'selecting multiple papers for vault augmentation now fetches recommendations in fewer, larger requests instead of one call per paper, so discovery finishes faster.',
+          'related papers, references, citations, doi lookups, and topic search now try openalex first with automatic fallback to semantic scholar, and vault augmentation fetches recommendations in fewer, larger batched requests -- broader coverage, faster results, and steadier topic discovery for new vaults.',
       },
       {
         tag: 'fix',
-        title: 'coordinated semantic scholar rate limiting',
+        title: 'coordinated rate limiting',
         description:
-          'semantic scholar requests now share one coordinated rate limit across the whole app instead of a per-session allowance, cutting down on unexpected slowdowns during heavy use.',
-      },
-      {
-        tag: 'fix',
-        title: 'steadier topic discovery for new vaults',
-        description:
-          'starting a new vault from a topic search is more resilient to partial failures and retries, so results no longer get overwritten by a slower, outdated request.',
-      },
-      {
-        tag: 'improvement',
-        title: 'more reliable paper sync',
-        description:
-          'checking a paper against semantic scholar for metadata updates now benefits from the same broader coverage and fallback as discovery.',
+          'semantic scholar requests now share one rate limit across the whole app instead of a per-session allowance, so discovery and paper sync see fewer unexpected slowdowns during heavy use.',
       },
     ],
   },
