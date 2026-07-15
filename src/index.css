@@ -214,11 +214,27 @@
   }
 }
 
-@layer components {
-  .quoterm-fallback-root {
-    top: calc(env(safe-area-inset-top, 0px) + 1.5rem) !important;
-    left: calc(env(safe-area-inset-left, 0px) + 1.5rem) !important;
-  }
+/* No anchor source element to position against: center the fallback toast
+   horizontally and pick top vs. bottom by variant (success/info read as
+   ambient status, warning/error read as blocking and sit near the action).
+   Kept out of @layer components: Tailwind's content-based tree-shaking
+   silently drops sibling rules sharing this selector when layered. */
+.quoterm-fallback-root {
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%);
+}
+
+.quoterm-fallback-root:has(.quoterm--success),
+.quoterm-fallback-root:has(.quoterm--info) {
+  top: calc(env(safe-area-inset-top, 0px) + 1.5rem) !important;
+  bottom: auto !important;
+}
+
+.quoterm-fallback-root:has(.quoterm--warning),
+.quoterm-fallback-root:has(.quoterm--error) {
+  top: auto !important;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 1.5rem) !important;
 }
 
 @keyframes fadeIn {

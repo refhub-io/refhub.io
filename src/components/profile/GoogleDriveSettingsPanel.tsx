@@ -104,7 +104,7 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
 
   if (!accessToken) {
     return (
-      <Alert className="border-fuchsia-500/20 bg-[#171320] text-muted-foreground shadow-[0_0_0_1px_rgba(217,70,239,0.06)]">
+      <Alert className="border-fuchsia-500/20 bg-fuchsia-500/5 text-muted-foreground shadow-[0_0_0_1px_rgba(217,70,239,0.06)] dark:bg-[#171320]">
         <Shield className="h-4 w-4 text-fuchsia-300" />
         <AlertTitle className="font-mono">session_required</AlertTitle>
         <AlertDescription className="font-mono text-xs sm:text-sm">
@@ -116,10 +116,10 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
 
   if (loading) {
     return (
-      <Card className="border border-fuchsia-500/20 bg-[#110d18] shadow-[0_0_30px_rgba(168,85,247,0.10)]">
+      <Card className="border border-fuchsia-500/20 bg-card dark:bg-[#110d18] dark:shadow-[0_0_30px_rgba(168,85,247,0.10)]">
         <CardHeader>
           <CardTitle className="font-mono text-xl">google_drive_storage</CardTitle>
-          <CardDescription className="font-mono text-xs tracking-[0.2em] text-fuchsia-200/70">
+          <CardDescription className="font-mono text-xs tracking-[0.2em] text-fuchsia-700/70 dark:text-fuchsia-200/70">
             loading drive link status...
           </CardDescription>
         </CardHeader>
@@ -144,12 +144,12 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
 
   return (
     <div className="space-y-6">
-      <Card className="border border-fuchsia-500/20 bg-[radial-gradient(circle_at_top_left,rgba(217,70,239,0.12),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(34,211,238,0.10),transparent_30%),#110d18] shadow-[0_0_36px_rgba(168,85,247,0.12)]">
+      <Card className="border border-fuchsia-500/20 bg-card shadow-none dark:bg-[radial-gradient(circle_at_top_left,rgba(217,70,239,0.12),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(34,211,238,0.10),transparent_30%),#110d18] dark:shadow-[0_0_36px_rgba(168,85,247,0.12)]">
         <CardHeader>
           <CardTitle className="font-mono text-xl">google_drive_storage</CardTitle>
           <CardDescription className="font-mono text-sm text-muted-foreground">
             refhub keeps google credentials on the backend and writes pdfs into a managed drive folder named
-            <span className="text-fuchsia-200"> refhub</span>.
+            <span className="text-fuchsia-700 dark:text-fuchsia-200"> refhub</span>.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -162,18 +162,18 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
             </Badge>
           </div>
 
-          <Alert className="border-fuchsia-500/20 bg-[#171320] text-muted-foreground">
+          <Alert className="border-fuchsia-500/20 bg-fuchsia-500/5 text-muted-foreground dark:bg-[#171320]">
             <Shield className="h-4 w-4 text-cyan-300" />
             <AlertTitle className="font-mono">least_privilege_scope</AlertTitle>
             <AlertDescription className="font-mono text-xs sm:text-sm">
-              refhub requests <span className="text-fuchsia-200">drive.file</span> only. it can manage files it creates
+              refhub requests <span className="text-fuchsia-700 dark:text-fuchsia-200">drive.file</span> only. it can manage files it creates
               inside the linked folder, without exposing google tokens to the frontend or extension.
             </AlertDescription>
           </Alert>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-xl border border-fuchsia-500/15 bg-[#16111f] p-4">
-              <div className="mb-2 flex items-center gap-2 font-mono text-sm text-fuchsia-100">
+            <div className="rounded-xl border border-fuchsia-500/15 bg-muted/40 p-4 dark:bg-[#16111f]">
+              <div className="mb-2 flex items-center gap-2 font-mono text-sm text-fuchsia-900 dark:text-fuchsia-100">
                 <HardDrive className="h-4 w-4 text-fuchsia-300" />
                 link_status
               </div>
@@ -183,8 +183,8 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
                   : 'connect google drive to enable backend-mediated pdf storage.'}
               </p>
             </div>
-            <div className="rounded-xl border border-cyan-500/15 bg-[#141320] p-4">
-              <div className="mb-2 flex items-center gap-2 font-mono text-sm text-cyan-100">
+            <div className="rounded-xl border border-cyan-500/15 bg-muted/40 p-4 dark:bg-[#141320]">
+              <div className="mb-2 flex items-center gap-2 font-mono text-sm text-cyan-900 dark:text-cyan-100">
                 <Link2 className="h-4 w-4 text-cyan-300" />
                 target_folder
               </div>
@@ -229,7 +229,7 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
               <Button
                 type="button"
                 variant="outline"
-                className="border-fuchsia-500/30 bg-fuchsia-500/10 font-mono text-fuchsia-100 hover:bg-fuchsia-500/20 hover:text-fuchsia-50"
+                className="border-fuchsia-500/30 bg-fuchsia-500/10 font-mono text-fuchsia-900 hover:bg-fuchsia-500/20 hover:text-fuchsia-950 dark:text-fuchsia-100 dark:hover:text-fuchsia-50"
                 onClick={() => void handleEnsureFolder()}
                 disabled={!currentStatus.linked || action !== null}
               >
@@ -240,7 +240,7 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
             <Button
               type="button"
               variant="ghost"
-              className="font-mono text-cyan-100 hover:bg-cyan-500/10 hover:text-cyan-50"
+              className="font-mono text-cyan-900 hover:bg-cyan-500/10 hover:text-cyan-950 dark:text-cyan-100 dark:hover:text-cyan-50"
               onClick={() => void handleDisconnect()}
               disabled={!currentStatus.linked || action !== null}
             >
