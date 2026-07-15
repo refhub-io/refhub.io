@@ -21,6 +21,25 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    id: 12,
+    date: '2026-07-15',
+    title: 'faster, more resilient paper discovery',
+    features: [
+      {
+        tag: 'improvement',
+        title: 'smarter paper discovery',
+        description:
+          'related papers, references, citations, doi lookups, and topic search now try openalex first with automatic fallback to semantic scholar, and vault augmentation fetches recommendations in fewer, larger batched requests -- broader coverage, faster results, and steadier topic discovery for new vaults.',
+      },
+      {
+        tag: 'fix',
+        title: 'coordinated rate limiting',
+        description:
+          'semantic scholar requests now share one rate limit across the whole app instead of a per-session allowance, so discovery and paper sync see fewer unexpected slowdowns during heavy use.',
+      },
+    ],
+  },
+  {
     id: 11,
     date: '2026-06-19',
     title: 'semantic scholar queues and onboarding',
