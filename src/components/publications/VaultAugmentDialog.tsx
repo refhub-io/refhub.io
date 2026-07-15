@@ -381,6 +381,12 @@ export function VaultAugmentDialog({
 
   const fetchedTabs = useRef<Set<AugmentTab>>(new Set());
   const resolvedPaperIds = useRef<ResolvedPaper[]>([]);
+  // Guards against overlapping invocations of fetchRelated/fetchTabData/
+  // fetchTopicData for the same tab (e.g. a retry fired while the original
+  // fetch is still in flight). Each call captures its own generation number
+  // and checks it's still current before committing state, so a slower,
+  // superseded fetch can't silently overwrite a newer one's results.
+  const fetchGenerations = useRef<Record<AugmentTab, number>>({ related: 0, references: 0, citations: 0, topic: 0 });
 
   const updateTabStatus = useCallback((tab: AugmentTab, next: Partial<TabStatus>) => {
     setTabStatus((prev) => ({
@@ -456,9 +462,13 @@ export function VaultAugmentDialog({
     if (publications.length === 0) return;
     if (!force && fetchedTabs.current.has('related')) return;
 
+    const generation = ++fetchGenerations.current.related;
+    const isStale = () => fetchGenerations.current.related !== generation;
+
     updateTabStatus('related', { state: 'loading', progress: null, failures: [] });
 
     const { resolved, failures: lookupFailures } = await resolveSelectedPaperIds();
+    if (isStale()) return;
 
     if (resolved.length === 0) {
       setRelated([]);
@@ -495,6 +505,8 @@ export function VaultAugmentDialog({
       }
     }
 
+    if (isStale()) return;
+
     const map = new Map<string, DiscoveredPaper>();
     for (const paper of discoveredPapers) {
       map.set(paper.paperId, {
@@ -523,6 +535,9 @@ export function VaultAugmentDialog({
     const fetchKey = `topic:${query.toLowerCase()}`;
     if (!force && fetchedTabs.current.has(fetchKey)) return;
 
+    const generation = ++fetchGenerations.current.topic;
+    const isStale = () => fetchGenerations.current.topic !== generation;
+
     updateTabStatus('topic', { state: 'loading', progress: null, failures: [] });
     const results = await runSemanticScholarQueue(
       [query],
@@ -533,6 +548,7 @@ export function VaultAugmentDialog({
         onProgress: (progress) => updateTabStatus('topic', { progress, state: 'loading' }),
       },
     );
+    if (isStale()) return;
 
     const result = results[0];
     if (!result.ok) {
@@ -561,6 +577,9 @@ export function VaultAugmentDialog({
       return;
     }
 
+    const generation = ++fetchGenerations.current[tab];
+    const isStale = () => fetchGenerations.current[tab] !== generation;
+
     updateTabStatus(tab, { state: 'loading', progress: null, failures: [] });
 
     const results = await runSemanticScholarQueue(
@@ -572,6 +591,7 @@ export function VaultAugmentDialog({
         onProgress: (progress) => updateTabStatus(tab, { progress, state: 'loading' }),
       },
     );
+    if (isStale()) return;
 
     const map = new Map<string, DiscoveredPaper>();
     const failures: TabFailure[] = [];
