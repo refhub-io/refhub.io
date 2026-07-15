@@ -105,6 +105,14 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
   // Track if we have cached data for the current vault (to skip loading state)
   const hasCachedContentRef = useRef(false);
 
+  // Always holds the vault id most recently requested via setCurrentVaultId,
+  // updated synchronously (unlike currentVaultId state, which only takes
+  // effect on the next render). fetchVaultContent compares against this
+  // right before committing its result, so a slower, older fetch (e.g. from
+  // rapidly switching vault A -> B) can't win a race and overwrite newer
+  // state with vault A's data after vault B is already selected.
+  const latestRequestedVaultIdRef = useRef<string | null>(null);
+
   const { canView, refresh } = useVaultAccess(currentVaultId || '', { enableRealtime: false });
 
   const updateCurrentVault = useCallback((vault: Vault) => {
@@ -337,6 +345,12 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       return;
     }
 
+    // Captured once per invocation -- this is what we compare against
+    // latestRequestedVaultIdRef.current below to detect staleness, not the
+    // (potentially since-changed) currentVaultId closed-over variable.
+    const requestedVaultId = currentVaultId;
+    const isStale = () => latestRequestedVaultIdRef.current !== requestedVaultId;
+
     debug('VaultContentContext', 'Starting fetch for vault:', currentVaultId, 'hasCached:', hasCachedContentRef.current);
     // Only show loading if we don't have cached data for this vault
     if (!hasCachedContentRef.current) {
@@ -442,6 +456,15 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         }
       }
 
+      if (isStale()) {
+        // A newer switch (e.g. rapid vault-hopping via keybinds) has already
+        // moved past the vault this fetch was for. Discard the result
+        // instead of clobbering whatever the newer, still-in-flight or
+        // already-resolved fetch has shown.
+        debug('VaultContentContext', 'Discarding stale fetch result for', requestedVaultId, 'latest requested is', latestRequestedVaultIdRef.current);
+        return;
+      }
+
       // Batch state updates to reduce re-renders
       setCurrentVault(vaultData as Vault);
       setPublications(formattedVaultPublications);
@@ -481,6 +504,10 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       
       debug('VaultContentContext', 'Completed fetch, all state updated');
     } catch (err) {
+      if (isStale()) {
+        debug('VaultContentContext', 'Discarding stale fetch error for', requestedVaultId);
+        return;
+      }
       // On error, show toast but keep existing data (graceful degradation)
       const message = handleError(err, 'loading vault content', publications.length > 0);
       // Only set error state if we have no cached data
@@ -488,7 +515,13 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         setError(message);
       }
     } finally {
-      setLoading(false);
+      // Only the fetch for the currently-selected vault should control the
+      // loading flag -- otherwise a slow, abandoned fetch resolving after a
+      // newer one has already started could flip loading off mid-flight for
+      // the vault actually being shown.
+      if (!isStale()) {
+        setLoading(false);
+      }
       debug('VaultContentContext', 'Loading set to false');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -510,6 +543,11 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
   }, [currentVaultId, visitNonce, user, canView, fetchVaultContent]);
 
   const setCurrentVaultId = useCallback((vaultId: string) => {
+    // Set synchronously, before any state updates below, so an in-flight
+    // fetchVaultContent for a previous vault sees the new id immediately
+    // (via its isStale() check) rather than only after this render commits.
+    latestRequestedVaultIdRef.current = vaultId;
+
     // Check cache first for instant restore
     const cacheKey = `vault-content-${vaultId}` as const;
     const cached = getPageCache<VaultContentCache>(cacheKey);
