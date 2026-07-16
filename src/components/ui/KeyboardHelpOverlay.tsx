@@ -119,7 +119,7 @@ export function KeyboardHelpOverlay() {
           </div>
         </DialogHeader>
 
-        <Tabs value={helpOverlayTab} onValueChange={(value) => setHelpOverlayTab(value as 'keyboard' | 'guide')} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <Tabs value={helpOverlayTab} onValueChange={(value) => setHelpOverlayTab(value as 'keyboard' | 'guide' | 'resources' | 'ai-workflows')} className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className="shrink-0 border-b border-border/60 px-6 py-3">
             <TabsList className="grid w-full grid-cols-4 font-mono">
               <TabsTrigger value="keyboard" className="gap-2 text-xs">
