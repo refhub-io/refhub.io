@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 
 export const ONBOARDING_COMPLETED_EVENT = 'refhub:onboarding-completed';
+export const ONBOARDING_RESTART_EVENT = 'refhub:onboarding-restart-requested';
 const STORAGE_KEY_PREFIX = 'refhub_onboarding_welcome_dismissed_v1';
 
 export function getOnboardingStorageKey(userId: string): string {
@@ -33,6 +34,11 @@ export function hasUserDismissedOnboarding(userId: string): boolean {
 function emitOnboardingCompleted() {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new Event(ONBOARDING_COMPLETED_EVENT));
+}
+
+export function restartOnboarding() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(ONBOARDING_RESTART_EVENT));
 }
 
 function hasVisibleOnboardingTarget(): boolean {
@@ -89,6 +95,22 @@ export function useOnboarding(user: User | null, authLoading: boolean) {
       window.clearTimeout(timeoutId);
     };
   }, [authLoading, storageKey]);
+
+  useEffect(() => {
+    if (!storageKey) return undefined;
+
+    const handleRestart = () => {
+      try {
+        localStorage.removeItem(storageKey);
+      } catch {
+        // Ignore storage failures; still reopen for this session.
+      }
+      setOpen(true);
+    };
+
+    window.addEventListener(ONBOARDING_RESTART_EVENT, handleRestart);
+    return () => window.removeEventListener(ONBOARDING_RESTART_EVENT, handleRestart);
+  }, [storageKey]);
 
   const dismiss = useCallback(() => {
     if (storageKey) {
