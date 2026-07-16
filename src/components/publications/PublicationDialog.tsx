@@ -240,6 +240,9 @@ export function PublicationDialog({
               );
               setModifiedFields(new Set());
               setLastSavedAt(new Date());
+              if (notesFullscreen) {
+                fullscreenCleanNotesRef.current = formDataRef.current.notes ?? '';
+              }
             } finally {
               setSaving(false);
             }
