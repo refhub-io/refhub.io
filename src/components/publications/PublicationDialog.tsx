@@ -375,10 +375,11 @@ export function PublicationDialog({
       );
       setModifiedFields(new Set());
       setLastSavedAt(new Date());
+      fullscreenCleanNotesRef.current = formData.notes;
     } finally {
       setSaving(false);
     }
-  }, [onSave, publication, selectedVaultIds]);
+  }, [onSave, publication, selectedVaultIds, formData.notes]);
 
   // ─── Exit fullscreen helper ────────────────────────────────────────────────
   const handleExitFullscreen = useCallback(() => {

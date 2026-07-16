@@ -158,7 +158,7 @@ export function OnboardingWelcomeDialog({ open, onOpenChange, onOpenGuide }: Onb
           <Button variant="ghost" className="font-mono" onClick={() => onOpenChange(false)}>
             skip
           </Button>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <Button
               variant="outline"
               className="font-mono"
