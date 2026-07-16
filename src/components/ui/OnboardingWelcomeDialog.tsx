@@ -1,5 +1,5 @@
 import { BookOpen, CheckCircle2, ChevronLeft, ChevronRight, FolderOpen, Search, Settings, Sparkles, Scroll, Users } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -67,6 +67,13 @@ const ONBOARDING_STEPS = [
 
 export function OnboardingWelcomeDialog({ open, onOpenChange, onOpenGuide }: OnboardingWelcomeDialogProps) {
   const [stepIndex, setStepIndex] = useState(0);
+
+  useEffect(() => {
+    if (open) {
+      setStepIndex(0);
+    }
+  }, [open]);
+
   const activeStep = ONBOARDING_STEPS[stepIndex];
   const isFirstStep = stepIndex === 0;
   const isLastStep = stepIndex === ONBOARDING_STEPS.length - 1;
