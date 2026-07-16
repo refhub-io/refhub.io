@@ -161,11 +161,20 @@ export function OnboardingWelcomeDialog({ open, onOpenChange, onOpenGuide }: Onb
           </div>
         </div>
 
-          <footer className="flex flex-col gap-2 border-t border-border/60 bg-muted/20 px-6 py-4 sm:flex-row-reverse sm:items-center sm:justify-between">
-            <div className="w-full sm:w-auto">
+          <footer className="flex flex-col gap-3 border-t border-border/60 bg-muted/20 px-6 py-4">
+            <div className="flex w-full gap-2 sm:mx-auto sm:max-w-xs">
+              <Button
+                variant="outline"
+                className="flex-1 font-mono"
+                onClick={() => setStepIndex((current) => Math.max(current - 1, 0))}
+                disabled={isFirstStep}
+              >
+                <ChevronLeft className="mr-1 h-4 w-4" />
+                back
+              </Button>
               <Button
                 variant="glow"
-                className="w-full font-mono sm:w-auto"
+                className="flex-1 font-mono"
                 onClick={isLastStep ? handleOpenApp : handleNext}
               >
                 {isLastStep ? (
@@ -178,24 +187,7 @@ export function OnboardingWelcomeDialog({ open, onOpenChange, onOpenGuide }: Onb
                 )}
               </Button>
             </div>
-            <div className="flex items-center justify-center gap-2 sm:justify-start">
-              <Button
-                variant="outline"
-                className="font-mono"
-                onClick={() => setStepIndex((current) => Math.max(current - 1, 0))}
-                disabled={isFirstStep}
-              >
-                <ChevronLeft className="mr-1 h-4 w-4" />
-                back
-              </Button>
-              {isLastStep && (
-                <Button variant="outline" className="font-mono" onClick={handleOpenGuide}>
-                  <BookOpen className="mr-2 h-4 w-4" />
-                  open guide
-                </Button>
-              )}
-            </div>
-            <div className="flex justify-center sm:justify-start">
+            <div className="flex items-center justify-between">
               <Button
                 variant="ghost"
                 className="font-mono text-muted-foreground"
@@ -203,6 +195,12 @@ export function OnboardingWelcomeDialog({ open, onOpenChange, onOpenGuide }: Onb
               >
                 skip
               </Button>
+              {isLastStep && (
+                <Button variant="outline" className="font-mono" onClick={handleOpenGuide}>
+                  <BookOpen className="mr-2 h-4 w-4" />
+                  open guide
+                </Button>
+              )}
             </div>
           </footer>
         </DialogContent>

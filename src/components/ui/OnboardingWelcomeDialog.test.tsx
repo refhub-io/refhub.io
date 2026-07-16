@@ -26,8 +26,8 @@ describe('OnboardingWelcomeDialog step reset', () => {
   });
 });
 
-describe('OnboardingWelcomeDialog mobile footer layout', () => {
-  it('renders the primary action, secondary row, and skip link as three distinct rows', () => {
+describe('OnboardingWelcomeDialog footer layout', () => {
+  it('splits back/next evenly on top and puts skip alone on the bottom row on the first step', () => {
     const onOpenChange = vi.fn();
     const onOpenGuide = vi.fn();
     render(
@@ -38,17 +38,49 @@ describe('OnboardingWelcomeDialog mobile footer layout', () => {
     expect(footer).not.toBeNull();
 
     const rows = footer!.querySelectorAll(':scope > div');
-    expect(rows).toHaveLength(3);
+    expect(rows).toHaveLength(2);
 
-    // Row 1: primary action, full width on mobile
-    expect(rows[0]).toHaveClass('w-full');
-    expect(rows[0].querySelector('button')).toHaveTextContent(/next/i);
+    // Row 1: back + next, equal-width flex children
+    const topButtons = rows[0].querySelectorAll('button');
+    expect(topButtons).toHaveLength(2);
+    expect(topButtons[0]).toHaveTextContent(/back/i);
+    expect(topButtons[0]).toHaveClass('flex-1');
+    expect(topButtons[1]).toHaveTextContent(/next/i);
+    expect(topButtons[1]).toHaveClass('flex-1');
 
-    // Row 2: secondary actions (back always present; "open guide" only on last step)
+    // Row 2: skip only (no "open guide" until the last step)
     expect(rows[1].querySelectorAll('button')).toHaveLength(1);
-    expect(rows[1].querySelector('button')).toHaveTextContent(/back/i);
+    expect(rows[1].querySelector('button')).toHaveTextContent(/skip/i);
+  });
 
-    // Row 3: skip, de-emphasized text link
-    expect(rows[2]).toHaveTextContent(/skip/i);
+  it('replaces next with open app and adds open guide bottom-right on the last step', () => {
+    const onOpenChange = vi.fn();
+    const onOpenGuide = vi.fn();
+    render(
+      <OnboardingWelcomeDialog open onOpenChange={onOpenChange} onOpenGuide={onOpenGuide} />,
+    );
+
+    for (let i = 0; i < 4; i++) {
+      fireEvent.click(screen.getByRole('button', { name: /^next$/i }));
+    }
+
+    const footer = screen.getByRole('button', { name: /^open app$/i }).closest('footer');
+    expect(footer).not.toBeNull();
+
+    const rows = footer!.querySelectorAll(':scope > div');
+    expect(rows).toHaveLength(2);
+
+    // Row 1: back + open app (replacing next), still equal width
+    const topButtons = rows[0].querySelectorAll('button');
+    expect(topButtons).toHaveLength(2);
+    expect(topButtons[0]).toHaveTextContent(/back/i);
+    expect(topButtons[1]).toHaveTextContent(/^open app$/i);
+    expect(topButtons[1]).toHaveClass('flex-1');
+
+    // Row 2: skip (left) and open guide (right)
+    const bottomButtons = rows[1].querySelectorAll('button');
+    expect(bottomButtons).toHaveLength(2);
+    expect(bottomButtons[0]).toHaveTextContent(/skip/i);
+    expect(bottomButtons[1]).toHaveTextContent(/open guide/i);
   });
 });
