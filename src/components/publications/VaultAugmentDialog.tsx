@@ -32,6 +32,11 @@ import { Plus, Check, ExternalLink, BookOpen, AlertCircle, RotateCcw, CheckCircl
 
 export type AugmentTab = 'references' | 'citations' | 'related' | 'topic';
 
+// How many recommended papers to request per seed paper in the vault's
+// selection, so the "related" result count scales with the batch instead of
+// staying fixed regardless of how many papers were selected.
+const RELATED_RESULTS_PER_SEED_PAPER = 5;
+
 export interface DiscoveredPaper {
   paper: SSPaper;
   tab: AugmentTab;
@@ -485,12 +490,15 @@ export function VaultAugmentDialog({
     // seed papers and returns a single deduplicated list. getRecommendationsForSet
     // chunks internally at 20 seeds per request, so vaults larger than that
     // still take more than one upstream call, just far fewer than one per paper.
+    // The result limit scales with how many seed papers went in, so a single
+    // selected paper isn't drowned in as many recommendations as a 10-paper set.
     const requestFailures = [...lookupFailures];
     const allSourcePubIds = resolved.map((r) => r.pubId);
     let discoveredPapers: SSPaper[] = [];
 
     try {
-      discoveredPapers = await getRecommendationsForSet(resolved.map((r) => r.ssId));
+      const limit = resolved.length * RELATED_RESULTS_PER_SEED_PAPER;
+      discoveredPapers = await getRecommendationsForSet(resolved.map((r) => r.ssId), limit);
     } catch (error) {
       // Push one TabFailure per resolved seed (not one for the whole batch) so
       // summarizeFailures' failures.length-based counting and pluralization
@@ -641,6 +649,15 @@ export function VaultAugmentDialog({
     if (open && isTopicDiscovery) {
       setActiveTab('topic');
     }
+    // publications loads asynchronously, so isTopicDiscovery (and activeTab's
+    // useState initializer, which only runs once at mount) can both still say
+    // 'topic' from before real seed papers arrived. Once we know better, move
+    // off of it -- otherwise the dialog opens on a tab with no content while
+    // the related/references/citations tabs (which do have results) sit
+    // unselected.
+    if (open && !isTopicDiscovery && activeTab === 'topic') {
+      setActiveTab('related');
+    }
     if (!open) {
       fetchedTabs.current = new Set();
       resolvedPaperIds.current = [];
@@ -655,7 +672,7 @@ export function VaultAugmentDialog({
       setTabStatus(createIdleTabStatus());
       setAcknowledgedTabs(new Set());
     }
-  }, [open, fetchRelated, isTopicDiscovery]);
+  }, [open, fetchRelated, isTopicDiscovery, activeTab]);
 
   // Switch tab → lazy-load refs/citations if not yet fetched
   const handleTabChange = (tab: AugmentTab) => {
@@ -682,6 +699,7 @@ export function VaultAugmentDialog({
 
   const activePapers =
     activeTab === 'topic' ? topicResults : activeTab === 'related' ? related : activeTab === 'references' ? references : citations;
+
   const activeStatus = tabStatus[activeTab];
   const initialLoading = !isTopicDiscovery && tabStatus.related.state === 'loading' && related.length === 0;
   const acknowledgeTab = (tab: AugmentTab) => {

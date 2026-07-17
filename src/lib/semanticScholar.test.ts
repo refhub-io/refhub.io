@@ -128,6 +128,22 @@ describe('semanticScholar', () => {
     expect(papers).toEqual([expect.objectContaining({ paperId: 'rec-1' })]);
   });
 
+  it('honors a custom limit for recommendations across a seed set', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({ data: [{ paper_id: 'rec-1', title: 'Recommended' }] }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+
+    await getRecommendationsForSet(['p1', 'p2'], 10);
+
+    expect(fetch).toHaveBeenCalledWith('https://refhub.test/recommendations', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ paper_ids: ['p1', 'p2'], limit: 10 }),
+    }));
+  });
+
   it('chunks recommendation requests once the seed set exceeds the batch cap', async () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(

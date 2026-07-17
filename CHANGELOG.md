@@ -6,6 +6,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.4.5] - 2026-07-17
+
+### Fixed
+- Vault augmentation's "related" tab now requests a number of recommended
+  papers proportional to how many papers were selected (5 per seed paper)
+  instead of a fixed 20 regardless of batch size.
+- Fixed the vault-augment dialog opening on its "topic" tab (with nothing
+  to show) on the very first run of a session, even though the "related"
+  tab already had results and its count was showing correctly. The active
+  tab is initialized before the vault's papers finish loading, so it never
+  got corrected once real seed papers arrived; the dialog now switches to
+  the "related" tab as soon as it has seed papers to work with.
+
 ## [1.4.4] - 2026-07-17
 
 ### Added
