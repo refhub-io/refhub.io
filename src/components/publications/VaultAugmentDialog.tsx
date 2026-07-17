@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Publication } from '@/types/database';
 import {
   SSPaper,
@@ -649,6 +649,15 @@ export function VaultAugmentDialog({
     if (open && isTopicDiscovery) {
       setActiveTab('topic');
     }
+    // publications loads asynchronously, so isTopicDiscovery (and activeTab's
+    // useState initializer, which only runs once at mount) can both still say
+    // 'topic' from before real seed papers arrived. Once we know better, move
+    // off of it -- otherwise the dialog opens on a tab with no content while
+    // the related/references/citations tabs (which do have results) sit
+    // unselected.
+    if (open && !isTopicDiscovery && activeTab === 'topic') {
+      setActiveTab('related');
+    }
     if (!open) {
       fetchedTabs.current = new Set();
       resolvedPaperIds.current = [];
@@ -663,7 +672,7 @@ export function VaultAugmentDialog({
       setTabStatus(createIdleTabStatus());
       setAcknowledgedTabs(new Set());
     }
-  }, [open, fetchRelated, isTopicDiscovery]);
+  }, [open, fetchRelated, isTopicDiscovery, activeTab]);
 
   // Switch tab → lazy-load refs/citations if not yet fetched
   const handleTabChange = (tab: AugmentTab) => {
@@ -691,16 +700,6 @@ export function VaultAugmentDialog({
   const activePapers =
     activeTab === 'topic' ? topicResults : activeTab === 'related' ? related : activeTab === 'references' ? references : citations;
 
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  // On a cold page load, this pane's first paint can land while the main
-  // thread is still busy with startup work, and some browsers commit the DOM
-  // update without repainting this backdrop-blurred, scrollable region --
-  // switching tabs or refocusing the window "fixes" it because those force a
-  // reflow. Reading offsetHeight right after new papers land forces that same
-  // reflow synchronously instead of waiting on an unrelated user action.
-  useLayoutEffect(() => {
-    void scrollContainerRef.current?.offsetHeight;
-  }, [activePapers]);
   const activeStatus = tabStatus[activeTab];
   const initialLoading = !isTopicDiscovery && tabStatus.related.state === 'loading' && related.length === 0;
   const acknowledgeTab = (tab: AugmentTab) => {
@@ -802,7 +801,7 @@ export function VaultAugmentDialog({
               }}
             />
 
-            <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-thin px-6 pb-4 pt-2">
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-thin px-6 pb-4 pt-2">
               {activeStatus.state === 'loading' && activePapers.length === 0 ? (
                 <div className="flex items-center justify-center gap-3 text-muted-foreground py-8">
                   <SpinnerLoader className="w-4 h-4" />
