@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -12,39 +13,40 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { cn } from '@/lib/utils';
 
-// Custom rehype plugin to ensure single-line $$...$$ math gets display mode
-// Looks for .katex elements that are the only content in a block and wraps them in .katex-display
-function rehypeKatexDisplay() {
-  return (tree: Record<string, unknown>) => {
-    const visit = (node: Record<string, unknown>): void => {
-      if (node.type === 'element' && (node.tagName === 'p' || node.tagName === 'div')) {
-        // Check if this block only contains a single .katex element
-        const children = (node.children as Record<string, unknown>[] | undefined) || [];
-        if (
-          children.length === 1 &&
-          children[0].type === 'element' &&
-          children[0].tagName === 'span'
-        ) {
-          const span = children[0] as Record<string, unknown>;
-          const classes = ((span.properties as Record<string, unknown> | undefined)?.className as string[] | undefined) || [];
-          if (classes.includes('katex') && !classes.includes('katex-display')) {
-            // This is a single katex element in a block - wrap it with katex-display
-            const wrapper = {
-              type: 'element',
-              tagName: 'span',
-              properties: { className: ['katex-display'] },
-              children: [span],
-            };
-            node.children = [wrapper];
-          }
-        }
+const SINGLE_LINE_DISPLAY_MATH = /^\s*\$\$([^\n]*?)\$\$\s*$/;
+
+/** remark-math only treats $$…$$ as display math when the fences sit on
+ *  their own lines; rewrite single-line $$…$$ paragraphs into that form. */
+function normalizeMathBlocks(markdown: string): string {
+  const lines = markdown.split('\n');
+  let inFencedCode = false;
+
+  return lines
+    .map((line) => {
+      // Track fenced code blocks (``` ... ```) so we never touch math inside them.
+      if (/^\s*```/.test(line)) {
+        inFencedCode = !inFencedCode;
+        return line;
       }
-      if (node.children && Array.isArray(node.children)) {
-        (node.children as Record<string, unknown>[]).forEach(visit);
+      if (inFencedCode) {
+        return line;
       }
-    };
-    visit(tree);
-  };
+
+      const match = line.match(SINGLE_LINE_DISPLAY_MATH);
+      if (!match) {
+        return line;
+      }
+
+      const content = match[1];
+      // Non-empty content that itself contains no further `$$` (i.e. not two
+      // adjacent display-math expressions on one line).
+      if (content.trim().length === 0 || content.includes('$$')) {
+        return line;
+      }
+
+      return `$$\n${content}\n$$`;
+    })
+    .join('\n');
 }
 
 // Custom sanitize schema that allows anchors, ids, names for footnotes
@@ -76,6 +78,8 @@ interface MarkdownRendererProps {
 }
 
 export function MarkdownRenderer({ children, className, compact = false }: MarkdownRendererProps) {
+  const normalizedChildren = useMemo(() => normalizeMathBlocks(children), [children]);
+
   return (
     <div
       className={cn(
@@ -136,7 +140,6 @@ export function MarkdownRenderer({ children, className, compact = false }: Markd
           }],
           rehypeHighlight,
           [rehypeKatex, { errorColor: 'hsl(var(--destructive))', strict: false, throwOnError: false }],
-          rehypeKatexDisplay,
         ]}
         components={{
           a: ({ node, children, href, ...props }) => (
@@ -151,7 +154,7 @@ export function MarkdownRenderer({ children, className, compact = false }: Markd
           ),
         }}
       >
-        {children}
+        {normalizedChildren}
       </ReactMarkdown>
     </div>
   );

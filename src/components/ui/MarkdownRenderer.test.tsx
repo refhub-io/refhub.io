@@ -17,6 +17,24 @@ describe('MarkdownRenderer math support', () => {
     expect(container.querySelector('.katex-display')).not.toBeNull();
   });
 
+  it('does not promote a lone inline-math paragraph to display mode', () => {
+    const { container } = render(
+      <MarkdownRenderer>{'$x$'}</MarkdownRenderer>,
+    );
+    expect(container.querySelector('.katex')).not.toBeNull();
+    expect(container.querySelector('.katex-display')).toBeNull();
+  });
+
+  it('does not transform single-line $$...$$ inside a fenced code block', () => {
+    const { container } = render(
+      <MarkdownRenderer>{'```\n$$x$$\n```'}</MarkdownRenderer>,
+    );
+    const codeBlock = container.querySelector('pre code');
+    expect(codeBlock).not.toBeNull();
+    expect(codeBlock?.querySelector('.katex')).toBeNull();
+    expect(codeBlock?.textContent).toContain('$$x$$');
+  });
+
   it('renders invalid TeX as error text instead of crashing', () => {
     const { container } = render(
       <MarkdownRenderer>{'$\\unknowncommand{x}$'}</MarkdownRenderer>,
