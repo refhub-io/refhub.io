@@ -7,7 +7,45 @@ import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import rehypeSlug from 'rehype-slug';
 import rehypeAutolinkHeadings from 'rehype-autolink-headings';
 import rehypeHighlight from 'rehype-highlight';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { cn } from '@/lib/utils';
+
+// Custom rehype plugin to ensure single-line $$...$$ math gets display mode
+// Looks for .katex elements that are the only content in a block and wraps them in .katex-display
+function rehypeKatexDisplay() {
+  return (tree: Record<string, unknown>) => {
+    const visit = (node: Record<string, unknown>): void => {
+      if (node.type === 'element' && (node.tagName === 'p' || node.tagName === 'div')) {
+        // Check if this block only contains a single .katex element
+        const children = (node.children as Record<string, unknown>[] | undefined) || [];
+        if (
+          children.length === 1 &&
+          children[0].type === 'element' &&
+          children[0].tagName === 'span'
+        ) {
+          const span = children[0] as Record<string, unknown>;
+          const classes = ((span.properties as Record<string, unknown> | undefined)?.className as string[] | undefined) || [];
+          if (classes.includes('katex') && !classes.includes('katex-display')) {
+            // This is a single katex element in a block - wrap it with katex-display
+            const wrapper = {
+              type: 'element',
+              tagName: 'span',
+              properties: { className: ['katex-display'] },
+              children: [span],
+            };
+            node.children = [wrapper];
+          }
+        }
+      }
+      if (node.children && Array.isArray(node.children)) {
+        (node.children as Record<string, unknown>[]).forEach(visit);
+      }
+    };
+    visit(tree);
+  };
+}
 
 // Custom sanitize schema that allows anchors, ids, names for footnotes
 const sanitizeSchema = {
@@ -76,6 +114,7 @@ export function MarkdownRenderer({ children, className, compact = false }: Markd
           remarkGfm,
           remarkBreaks,
           [remarkFootnotes, { inlineNotes: true }],
+          remarkMath,
         ]}
         rehypePlugins={[
           rehypeRaw,
@@ -96,6 +135,8 @@ export function MarkdownRenderer({ children, className, compact = false }: Markd
             },
           }],
           rehypeHighlight,
+          [rehypeKatex, { errorColor: 'hsl(var(--destructive))', strict: false, throwOnError: false }],
+          rehypeKatexDisplay,
         ]}
         components={{
           a: ({ node, children, href, ...props }) => (
