@@ -21,6 +21,31 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    id: 13,
+    date: '2026-07-17',
+    title: 'help center: resources and restart tour',
+    features: [
+      {
+        tag: 'feature',
+        title: 'resources tab',
+        description:
+          'the help center now lists and links every refhub repository (cli, extensions, mcp server, and more) in a new resources tab.',
+      },
+      {
+        tag: 'feature',
+        title: 'restart the onboarding tour',
+        description:
+          'replay the interactive onboarding walkthrough anytime from the help center guide tab.',
+      },
+      {
+        tag: 'fix',
+        title: 'ctrl+s in fullscreen notes',
+        description:
+          'saving fullscreen notes with ctrl+s no longer triggers a false "unsaved changes" prompt when you exit right after.',
+      },
+    ],
+  },
+  {
     id: 12,
     date: '2026-07-15',
     title: 'faster, more resilient paper discovery',

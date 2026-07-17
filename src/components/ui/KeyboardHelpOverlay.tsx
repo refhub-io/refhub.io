@@ -4,6 +4,8 @@ import { useHotkeys } from '@/hooks/useKeyboardNavigation';
 import { SHORTCUT_HELP, formatCombo } from '@/lib/keyboard';
 import { cn } from '@/lib/utils';
 import helpGuide from '@/content/help-guide.md?raw';
+import { resources } from '@/config/resources';
+import { restartOnboarding } from '@/hooks/useOnboarding';
 import {
   Dialog,
   DialogContent,
@@ -16,7 +18,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
-import { BookOpen, Copy, Check, Keyboard } from 'lucide-react';
+import { BookOpen, Copy, Check, Keyboard, FolderGit2, ExternalLink, Bot, RotateCcw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 /**
@@ -71,6 +73,11 @@ export function KeyboardHelpOverlay() {
     }
   }, [toast]);
 
+  const handleRestartTour = useCallback(() => {
+    setHelpOverlayOpen(false);
+    restartOnboarding();
+  }, [setHelpOverlayOpen]);
+
   return (
     <Dialog open={helpOverlayOpen} onOpenChange={setHelpOverlayOpen}>
       <DialogContent className="dialog-mobile max-w-[100vw] flex flex-col overflow-hidden p-0 gap-0 border-primary/20 shadow-2xl shadow-primary/10 sm:rounded-2xl sm:max-w-3xl sm:h-[85vh] sm:max-h-[85vh]">
@@ -98,19 +105,38 @@ export function KeyboardHelpOverlay() {
                 {copied ? 'copied!' : 'copy_all'}
               </Button>
             )}
+            {helpOverlayTab === 'guide' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleRestartTour}
+                className="h-7 font-mono text-[10px] text-muted-foreground hover:text-foreground"
+              >
+                <RotateCcw className="w-3 h-3 mr-1" />
+                restart_tour
+              </Button>
+            )}
           </div>
         </DialogHeader>
 
-        <Tabs value={helpOverlayTab} onValueChange={(value) => setHelpOverlayTab(value as 'keyboard' | 'guide')} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <Tabs value={helpOverlayTab} onValueChange={(value) => setHelpOverlayTab(value as 'keyboard' | 'guide' | 'resources' | 'ai-workflows')} className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className="shrink-0 border-b border-border/60 px-6 py-3">
-            <TabsList className="grid w-full grid-cols-2 font-mono sm:w-80">
+            <TabsList className="grid w-full grid-cols-4 font-mono">
               <TabsTrigger value="keyboard" className="gap-2 text-xs">
                 <Keyboard className="h-3.5 w-3.5" />
-                keyboard
+                <span className="hidden sm:inline">keyboard</span>
               </TabsTrigger>
               <TabsTrigger value="guide" className="gap-2 text-xs">
                 <BookOpen className="h-3.5 w-3.5" />
-                guide
+                <span className="hidden sm:inline">guide</span>
+              </TabsTrigger>
+              <TabsTrigger value="resources" className="gap-2 text-xs">
+                <FolderGit2 className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">resources</span>
+              </TabsTrigger>
+              <TabsTrigger value="ai-workflows" className="gap-2 text-xs">
+                <Bot className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">ai_workflows</span>
               </TabsTrigger>
             </TabsList>
           </div>
@@ -181,6 +207,40 @@ export function KeyboardHelpOverlay() {
                 {helpGuide}
               </MarkdownRenderer>
             </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="resources" className="m-0 min-h-0 flex-1 overflow-hidden data-[state=inactive]:hidden">
+            <ScrollArea className="h-full max-h-full">
+              <div className="p-6 space-y-3">
+                {resources.map((resource) => (
+                  <a
+                    key={resource.url}
+                    href={resource.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-card/60 backdrop-blur-sm px-4 py-3 hover:border-primary/40 hover:bg-card/90 transition-colors group"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-mono text-sm font-semibold text-foreground">{resource.name}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{resource.description}</p>
+                    </div>
+                    <ExternalLink className="w-4 h-4 shrink-0 text-muted-foreground group-hover:text-primary transition-colors" />
+                  </a>
+                ))}
+              </div>
+            </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="ai-workflows" className="m-0 min-h-0 flex-1 overflow-hidden data-[state=inactive]:hidden">
+            <div className="h-full flex flex-col items-center justify-center gap-3 px-6 text-center">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <Bot className="h-5 w-5" />
+              </div>
+              <h3 className="font-mono text-base font-semibold">ai_workflow_guides()</h3>
+              <p className="text-sm text-muted-foreground max-w-sm">
+                guides for using refhub with ai agents and workflows are coming soon.
+              </p>
+            </div>
           </TabsContent>
         </Tabs>
 

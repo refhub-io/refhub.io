@@ -1,5 +1,5 @@
 import { BookOpen, CheckCircle2, ChevronLeft, ChevronRight, FolderOpen, Search, Settings, Sparkles, Scroll, Users } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -67,6 +67,13 @@ const ONBOARDING_STEPS = [
 
 export function OnboardingWelcomeDialog({ open, onOpenChange, onOpenGuide }: OnboardingWelcomeDialogProps) {
   const [stepIndex, setStepIndex] = useState(0);
+
+  useEffect(() => {
+    if (open) {
+      setStepIndex(0);
+    }
+  }, [open]);
+
   const activeStep = ONBOARDING_STEPS[stepIndex];
   const isFirstStep = stepIndex === 0;
   const isLastStep = stepIndex === ONBOARDING_STEPS.length - 1;
@@ -154,38 +161,48 @@ export function OnboardingWelcomeDialog({ open, onOpenChange, onOpenGuide }: Onb
           </div>
         </div>
 
-          <div className="flex flex-col-reverse gap-2 border-t border-border/60 bg-muted/20 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <Button variant="ghost" className="font-mono" onClick={() => onOpenChange(false)}>
-            skip
-          </Button>
-          <div className="flex flex-wrap justify-end gap-2">
-            <Button
-              variant="outline"
-              className="font-mono"
-              onClick={() => setStepIndex((current) => Math.max(current - 1, 0))}
-              disabled={isFirstStep}
-            >
-              <ChevronLeft className="mr-1 h-4 w-4" />
-              back
-            </Button>
-            {isLastStep && (
-              <Button variant="outline" className="font-mono" onClick={handleOpenGuide}>
-                <BookOpen className="mr-2 h-4 w-4" />
-                open guide
+          <footer className="flex flex-col gap-3 border-t border-border/60 bg-muted/20 px-6 py-4">
+            <div className="flex w-full gap-2 sm:mx-auto sm:max-w-xs">
+              <Button
+                variant="outline"
+                className="flex-1 font-mono"
+                onClick={() => setStepIndex((current) => Math.max(current - 1, 0))}
+                disabled={isFirstStep}
+              >
+                <ChevronLeft className="mr-1 h-4 w-4" />
+                back
               </Button>
-            )}
-            <Button variant="glow" className="font-mono" onClick={isLastStep ? handleOpenApp : handleNext}>
-              {isLastStep ? (
-                'open app'
-              ) : (
-                <>
-                  next
-                  <ChevronRight className="ml-1 h-4 w-4" />
-                </>
+              <Button
+                variant="glow"
+                className="flex-1 font-mono"
+                onClick={isLastStep ? handleOpenApp : handleNext}
+              >
+                {isLastStep ? (
+                  'open app'
+                ) : (
+                  <>
+                    next
+                    <ChevronRight className="ml-1 h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            </div>
+            <div className="flex items-center justify-between">
+              <Button
+                variant="ghost"
+                className="font-mono text-muted-foreground"
+                onClick={() => onOpenChange(false)}
+              >
+                skip
+              </Button>
+              {isLastStep && (
+                <Button variant="outline" className="font-mono" onClick={handleOpenGuide}>
+                  <BookOpen className="mr-2 h-4 w-4" />
+                  open guide
+                </Button>
               )}
-            </Button>
-          </div>
-          </div>
+            </div>
+          </footer>
         </DialogContent>
       </Dialog>
     </>

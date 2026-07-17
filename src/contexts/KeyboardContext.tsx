@@ -74,7 +74,7 @@ interface KeyboardState {
   /** Whether the help overlay is visible. */
   helpOverlayOpen: boolean;
   /** Active tab in the help center. */
-  helpOverlayTab: 'keyboard' | 'guide';
+  helpOverlayTab: 'keyboard' | 'guide' | 'resources' | 'ai-workflows';
   /** Whether keyboard nav is enabled (feature flag + user pref). */
   enabled: boolean;
 }
@@ -107,9 +107,9 @@ interface KeyboardContextValue extends KeyboardState {
   /** Set the help overlay open state directly. */
   setHelpOverlayOpen: (open: boolean) => void;
   /** Set the active help center tab. */
-  setHelpOverlayTab: (tab: 'keyboard' | 'guide') => void;
+  setHelpOverlayTab: (tab: 'keyboard' | 'guide' | 'resources' | 'ai-workflows') => void;
   /** Open the help center to a specific tab. */
-  openHelpOverlay: (tab?: 'keyboard' | 'guide') => void;
+  openHelpOverlay: (tab?: 'keyboard' | 'guide' | 'resources' | 'ai-workflows') => void;
   /** Enable or disable keyboard navigation. */
   setEnabled: (enabled: boolean) => void;
   /** Register an analytics callback. */
@@ -127,7 +127,7 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [rangeAnchor, setRangeAnchor] = useState<number | null>(null);
   const [helpOverlayOpen, setHelpOverlayOpen] = useState(false);
-  const [helpOverlayTab, setHelpOverlayTab] = useState<'keyboard' | 'guide'>('keyboard');
+  const [helpOverlayTab, setHelpOverlayTab] = useState<'keyboard' | 'guide' | 'resources' | 'ai-workflows'>('keyboard');
   const lastFocusedRef = useRef<Element | null>(null);
 
   // Context stack for push/pop
@@ -223,7 +223,7 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
     setHelpOverlayOpen((prev) => !prev);
   }, []);
 
-  const openHelpOverlay = useCallback((tab: 'keyboard' | 'guide' = 'keyboard') => {
+  const openHelpOverlay = useCallback((tab: 'keyboard' | 'guide' | 'resources' | 'ai-workflows' = 'keyboard') => {
     setHelpOverlayTab(tab);
     setHelpOverlayOpen(true);
   }, []);

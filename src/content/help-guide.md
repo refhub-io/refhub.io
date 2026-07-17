@@ -142,12 +142,7 @@ if the extension asks for refhub access, use an api key from profile/settings. p
 
 ### where can i find the refhub repositories?
 
-start with the [refhub github organization](https://github.com/refhub-io). useful entry points include:
-
-- [refhub.io](https://github.com/refhub-io/refhub.io) for the frontend product and help center.
-- [.netlify](https://github.com/refhub-io/.netlify) for the backend api layer.
-- [refhub-skill](https://github.com/refhub-io/refhub-skill) for agent and integration workflows.
-- [refhub-extensions](https://github.com/refhub-io/refhub-extensions) for the browser extensions.
+open the **resources** tab in this help center (the `?` menu) for the full, current list of refhub repositories with descriptions and links. it covers the frontend, backend, cli, mcp/agent integrations, and browser extensions.
 
 ### how do i integrate agent or script workflows?
 
