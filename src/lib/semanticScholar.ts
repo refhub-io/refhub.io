@@ -518,11 +518,11 @@ export async function getRecommendations(paperId: string): Promise<SSPaper[]> {
   return papers;
 }
 
-export async function getRecommendationsForSet(paperIds: string[]): Promise<SSPaper[]> {
+export async function getRecommendationsForSet(paperIds: string[], limit = 20): Promise<SSPaper[]> {
   if (paperIds.length === 0) return [];
 
   const dedupedPaperIds = [...new Set(paperIds)].filter(Boolean);
-  const cacheKey = `recs-set:${[...dedupedPaperIds].sort().join(',')}`;
+  const cacheKey = `recs-set:${[...dedupedPaperIds].sort().join(',')}:${limit}`;
   if (paperCache.has(cacheKey)) return paperCache.get(cacheKey)!;
 
   // The backend caps a single batch at MAX_RECOMMENDATION_SEED_IDS_PER_REQUEST
@@ -531,7 +531,7 @@ export async function getRecommendationsForSet(paperIds: string[]): Promise<SSPa
   const seedChunks = chunk(dedupedPaperIds, MAX_RECOMMENDATION_SEED_IDS_PER_REQUEST);
   const recommendationSets = await runSemanticScholarQueue(
     seedChunks,
-    (seedChunk) => fetchRecommendationsFromBackend(seedChunk, 20),
+    (seedChunk) => fetchRecommendationsFromBackend(seedChunk, limit),
     // Each request already batches up to 20 seeds and the backend enforces
     // its own global rate limit, so the queue's default inter-request delay
     // (meant for the old one-request-per-paper pattern) is unnecessary here.

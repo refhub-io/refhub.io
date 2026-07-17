@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { Publication } from '@/types/database';
 import {
   SSPaper,
@@ -31,6 +31,11 @@ import { SpinnerLoader } from '@/components/ui/loader';
 import { Plus, Check, ExternalLink, BookOpen, AlertCircle, RotateCcw, CheckCircle2, Search } from 'lucide-react';
 
 export type AugmentTab = 'references' | 'citations' | 'related' | 'topic';
+
+// How many recommended papers to request per seed paper in the vault's
+// selection, so the "related" result count scales with the batch instead of
+// staying fixed regardless of how many papers were selected.
+const RELATED_RESULTS_PER_SEED_PAPER = 5;
 
 export interface DiscoveredPaper {
   paper: SSPaper;
@@ -485,12 +490,15 @@ export function VaultAugmentDialog({
     // seed papers and returns a single deduplicated list. getRecommendationsForSet
     // chunks internally at 20 seeds per request, so vaults larger than that
     // still take more than one upstream call, just far fewer than one per paper.
+    // The result limit scales with how many seed papers went in, so a single
+    // selected paper isn't drowned in as many recommendations as a 10-paper set.
     const requestFailures = [...lookupFailures];
     const allSourcePubIds = resolved.map((r) => r.pubId);
     let discoveredPapers: SSPaper[] = [];
 
     try {
-      discoveredPapers = await getRecommendationsForSet(resolved.map((r) => r.ssId));
+      const limit = resolved.length * RELATED_RESULTS_PER_SEED_PAPER;
+      discoveredPapers = await getRecommendationsForSet(resolved.map((r) => r.ssId), limit);
     } catch (error) {
       // Push one TabFailure per resolved seed (not one for the whole batch) so
       // summarizeFailures' failures.length-based counting and pluralization
@@ -682,6 +690,17 @@ export function VaultAugmentDialog({
 
   const activePapers =
     activeTab === 'topic' ? topicResults : activeTab === 'related' ? related : activeTab === 'references' ? references : citations;
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  // On a cold page load, this pane's first paint can land while the main
+  // thread is still busy with startup work, and some browsers commit the DOM
+  // update without repainting this backdrop-blurred, scrollable region --
+  // switching tabs or refocusing the window "fixes" it because those force a
+  // reflow. Reading offsetHeight right after new papers land forces that same
+  // reflow synchronously instead of waiting on an unrelated user action.
+  useLayoutEffect(() => {
+    void scrollContainerRef.current?.offsetHeight;
+  }, [activePapers]);
   const activeStatus = tabStatus[activeTab];
   const initialLoading = !isTopicDiscovery && tabStatus.related.state === 'loading' && related.length === 0;
   const acknowledgeTab = (tab: AugmentTab) => {
@@ -783,7 +802,7 @@ export function VaultAugmentDialog({
               }}
             />
 
-            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-thin px-6 pb-4 pt-2">
+            <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-thin px-6 pb-4 pt-2">
               {activeStatus.state === 'loading' && activePapers.length === 0 ? (
                 <div className="flex items-center justify-center gap-3 text-muted-foreground py-8">
                   <SpinnerLoader className="w-4 h-4" />
