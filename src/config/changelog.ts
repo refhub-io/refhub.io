@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    id: 14,
+    date: '2026-07-17',
+    title: 'latex math in notes',
+    features: [
+      {
+        tag: 'feature',
+        title: 'latex formulas in markdown notes',
+        description:
+          'write $inline$ or $$block$$ latex math in any note — formulas render beautifully via katex in editors, previews, and paper views.',
+      },
+    ],
+  },
+  {
     id: 13,
     date: '2026-07-17',
     title: 'help center: resources and restart tour',
