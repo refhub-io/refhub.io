@@ -385,8 +385,11 @@ export function DuplicateCheckDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!merging) onOpenChange(next); }}>
-      <DialogContent className="max-w-2xl border-2 bg-card/95 backdrop-blur-xl">
-        <DialogHeader>
+      <DialogContent
+        forceMount
+        className="dialog-mobile max-w-[100vw] p-0 border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col gap-0 min-h-0 sm:rounded-2xl sm:h-auto sm:w-[95vw] sm:max-w-2xl sm:max-h-[90vh] data-[state=closed]:hidden"
+      >
+        <DialogHeader className="p-4 sm:p-6 pb-0">
           <DialogTitle className="font-mono text-xl font-bold">find_duplicates</DialogTitle>
           <DialogDescription className="font-mono text-sm">
             {step === 'configure' && '// tune_the_matching_heuristic_then_scan'}
@@ -394,9 +397,11 @@ export function DuplicateCheckDialog({
             {step === 'resolve' && '// resolve_git_style — pick fields and annotations to keep'}
           </DialogDescription>
         </DialogHeader>
-        {step === 'configure' && renderConfigure()}
-        {step === 'review' && renderReview()}
-        {step === 'resolve' && renderResolve()}
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pt-4">
+          {step === 'configure' && renderConfigure()}
+          {step === 'review' && renderReview()}
+          {step === 'resolve' && renderResolve()}
+        </div>
       </DialogContent>
     </Dialog>
   );
