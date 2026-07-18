@@ -159,7 +159,7 @@ destructive commands are guarded: `vaults delete` and `items delete` require `--
 
 ## use case: literature search and discovery
 
-semantic scholar discovery runs through refhub with just `vaults:read`:
+semantic scholar search and lookup run through refhub with just `vaults:read`; the final `discover add` step writes to the vault, so the key also needs `vaults:write`:
 
 > find recent papers on progressive visual analytics, show me the ten most relevant, and add the ones i pick to my vault.
 

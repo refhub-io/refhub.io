@@ -107,39 +107,48 @@ describe('KeyboardHelpOverlay new tabs', () => {
 
   it('shows a copy_guide button only on the ai-workflows tab that copies the guide markdown', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
+    const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
     Object.defineProperty(navigator, 'clipboard', {
       value: { writeText },
       configurable: true,
     });
 
-    let keyboardTabRender: ReturnType<typeof render>;
-    await act(async () => {
-      keyboardTabRender = render(
-        <KeyboardProvider>
-          <Harness tab="keyboard" />
-        </KeyboardProvider>,
-      );
-    });
-    expect(screen.queryByRole('button', { name: /copy_guide/i })).not.toBeInTheDocument();
+    try {
+      let keyboardTabRender: ReturnType<typeof render>;
+      await act(async () => {
+        keyboardTabRender = render(
+          <KeyboardProvider>
+            <Harness tab="keyboard" />
+          </KeyboardProvider>,
+        );
+      });
+      expect(screen.queryByRole('button', { name: /copy_guide/i })).not.toBeInTheDocument();
 
-    await act(async () => {
-      keyboardTabRender.unmount();
-    });
+      await act(async () => {
+        keyboardTabRender.unmount();
+      });
 
-    await act(async () => {
-      render(
-        <KeyboardProvider>
-          <Harness tab="ai-workflows" />
-        </KeyboardProvider>,
-      );
-    });
+      await act(async () => {
+        render(
+          <KeyboardProvider>
+            <Harness tab="ai-workflows" />
+          </KeyboardProvider>,
+        );
+      });
 
-    const copyButton = await screen.findByRole('button', { name: /copy_guide/i });
-    await act(async () => {
-      copyButton.click();
-    });
+      const copyButton = await screen.findByRole('button', { name: /copy_guide/i });
+      await act(async () => {
+        copyButton.click();
+      });
 
-    expect(writeText).toHaveBeenCalledTimes(1);
-    expect(writeText.mock.calls[0][0]).toContain('# ai agent workflows');
+      expect(writeText).toHaveBeenCalledTimes(1);
+      expect(writeText.mock.calls[0][0]).toContain('# ai agent workflows');
+    } finally {
+      if (clipboardDescriptor) {
+        Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);
+      } else {
+        delete (navigator as any).clipboard;
+      }
+    }
   });
 });
