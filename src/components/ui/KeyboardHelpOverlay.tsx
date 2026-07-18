@@ -38,6 +38,7 @@ export function KeyboardHelpOverlay() {
   } = useKeyboardContext();
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
+  const [guideCopied, setGuideCopied] = useState(false);
 
   // Register the ? shortcut globally to toggle the help center.
   useHotkeys(
@@ -79,6 +80,17 @@ export function KeyboardHelpOverlay() {
     restartOnboarding();
   }, [setHelpOverlayOpen]);
 
+  const handleCopyGuide = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(aiWorkflowsGuide);
+      setGuideCopied(true);
+      toast({ title: 'workflows guide copied to clipboard' });
+      setTimeout(() => setGuideCopied(false), 2000);
+    } catch {
+      toast({ title: 'failed to copy', variant: 'destructive', feedbackSeverity: 'error' });
+    }
+  }, [toast]);
+
   return (
     <Dialog open={helpOverlayOpen} onOpenChange={setHelpOverlayOpen}>
       <DialogContent className="dialog-mobile max-w-[100vw] flex flex-col overflow-hidden p-0 gap-0 border-primary/20 shadow-2xl shadow-primary/10 sm:rounded-2xl sm:max-w-3xl sm:h-[85vh] sm:max-h-[85vh]">
@@ -115,6 +127,21 @@ export function KeyboardHelpOverlay() {
               >
                 <RotateCcw className="w-3 h-3 mr-1" />
                 restart_tour
+              </Button>
+            )}
+            {helpOverlayTab === 'ai-workflows' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCopyGuide}
+                className="h-7 font-mono text-[10px] text-muted-foreground hover:text-foreground"
+              >
+                {guideCopied ? (
+                  <Check className="w-3 h-3 mr-1 text-accent" />
+                ) : (
+                  <Copy className="w-3 h-3 mr-1" />
+                )}
+                {guideCopied ? 'copied!' : 'copy_guide'}
               </Button>
             )}
           </div>
