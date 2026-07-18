@@ -156,4 +156,6 @@ use api keys for external tools, local scripts, or agents. recommended setup:
 
 for agentic workflows, the refhub cli is the cleanest execution layer when available. install it with `npm i @refhub/cli`. it reads `REFHUB_API_KEY` from the environment, also supports a one-off `--api-key` flag, returns json by default, and exposes help through `refhub --help` and command-group help such as `refhub vaults --help`. use it before direct http calls so agents get consistent authentication, output, and error handling.
 
+for full setup and worked examples — importing literature with notes and tags, vault administration, literature discovery, and grounded paper drafting — open the **ai_workflows** tab in this help center.
+
 keep paper-level metadata separate from vault curation: bibliographic fixes belong on the publication; tags, notes, and collection-specific context belong in the vault.
