@@ -49,7 +49,7 @@ describe('KeyboardHelpOverlay new tabs', () => {
     }
   });
 
-  it('shows a coming-soon placeholder on the ai-workflows tab', async () => {
+  it('renders the ai agent workflows guide on the ai-workflows tab', async () => {
     await act(async () => {
       render(
         <KeyboardProvider>
@@ -62,7 +62,10 @@ describe('KeyboardHelpOverlay new tabs', () => {
       'data-state',
       'active',
     );
-    expect(screen.getByText(/coming soon/i)).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: /ai agent workflows/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/coming soon/i)).not.toBeInTheDocument();
   });
 
   it('shows a restart_tour button only on the guide tab, which closes the overlay and restarts onboarding', async () => {

@@ -4,6 +4,7 @@ import { useHotkeys } from '@/hooks/useKeyboardNavigation';
 import { SHORTCUT_HELP, formatCombo } from '@/lib/keyboard';
 import { cn } from '@/lib/utils';
 import helpGuide from '@/content/help-guide.md?raw';
+import aiWorkflowsGuide from '@/content/ai-workflows.md?raw';
 import { resources } from '@/config/resources';
 import { restartOnboarding } from '@/hooks/useOnboarding';
 import {
@@ -232,15 +233,11 @@ export function KeyboardHelpOverlay() {
           </TabsContent>
 
           <TabsContent value="ai-workflows" className="m-0 min-h-0 flex-1 overflow-hidden data-[state=inactive]:hidden">
-            <div className="h-full flex flex-col items-center justify-center gap-3 px-6 text-center">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                <Bot className="h-5 w-5" />
-              </div>
-              <h3 className="font-mono text-base font-semibold">ai_workflow_guides()</h3>
-              <p className="text-sm text-muted-foreground max-w-sm">
-                guides for using refhub with ai agents and workflows are coming soon.
-              </p>
-            </div>
+            <ScrollArea className="h-full max-h-full">
+              <MarkdownRenderer compact className="px-6 py-5 prose-headings:font-mono prose-h1:mt-0 prose-h2:border-t prose-h2:border-border/60 prose-h2:pt-5">
+                {aiWorkflowsGuide}
+              </MarkdownRenderer>
+            </ScrollArea>
           </TabsContent>
         </Tabs>
 
