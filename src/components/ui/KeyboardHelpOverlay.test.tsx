@@ -49,7 +49,7 @@ describe('KeyboardHelpOverlay new tabs', () => {
     }
   });
 
-  it('shows a coming-soon placeholder on the ai-workflows tab', async () => {
+  it('renders the ai agent workflows guide on the ai-workflows tab', async () => {
     await act(async () => {
       render(
         <KeyboardProvider>
@@ -62,7 +62,10 @@ describe('KeyboardHelpOverlay new tabs', () => {
       'data-state',
       'active',
     );
-    expect(screen.getByText(/coming soon/i)).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: /ai agent workflows/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/coming soon/i)).not.toBeInTheDocument();
   });
 
   it('shows a restart_tour button only on the guide tab, which closes the overlay and restarts onboarding', async () => {
@@ -100,5 +103,52 @@ describe('KeyboardHelpOverlay new tabs', () => {
 
     expect(restartSpy).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('shows a copy_guide button only on the ai-workflows tab that copies the guide markdown', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    });
+
+    try {
+      let keyboardTabRender: ReturnType<typeof render>;
+      await act(async () => {
+        keyboardTabRender = render(
+          <KeyboardProvider>
+            <Harness tab="keyboard" />
+          </KeyboardProvider>,
+        );
+      });
+      expect(screen.queryByRole('button', { name: /copy_guide/i })).not.toBeInTheDocument();
+
+      await act(async () => {
+        keyboardTabRender.unmount();
+      });
+
+      await act(async () => {
+        render(
+          <KeyboardProvider>
+            <Harness tab="ai-workflows" />
+          </KeyboardProvider>,
+        );
+      });
+
+      const copyButton = await screen.findByRole('button', { name: /copy_guide/i });
+      await act(async () => {
+        copyButton.click();
+      });
+
+      expect(writeText).toHaveBeenCalledTimes(1);
+      expect(writeText.mock.calls[0][0]).toContain('# ai agent workflows');
+    } finally {
+      if (clipboardDescriptor) {
+        Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);
+      } else {
+        Reflect.deleteProperty(navigator, 'clipboard');
+      }
+    }
   });
 });

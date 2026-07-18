@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    id: 16,
+    date: '2026-07-18',
+    title: 'ai agent workflows guide',
+    features: [
+      {
+        tag: 'feature',
+        title: 'ai_workflows help tab',
+        description:
+          'the help center now walks you from zero to agent-operated refhub: api key setup, cli install, per-harness skill install, and worked use cases — importing literature with notes and tags, vault administration, literature discovery, and grounded paper drafting. copy_guide puts the whole guide on your clipboard for any agent session.',
+      },
+    ],
+  },
+  {
     id: 15,
     date: '2026-07-18',
     title: 'find duplicates, resolve them git-style',

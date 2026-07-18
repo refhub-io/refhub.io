@@ -6,6 +6,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.6.2] - 2026-07-18
+
+### Added
+- ai_workflows tab in the help center: a full agent-workflows guide covering
+  api key setup, cli install, per-harness skill install (claude code, codex,
+  gemini cli, opencode, generic harnesses), and worked use cases — importing
+  literature with notes and tags, vault administration, literature discovery,
+  and grounded paper drafting — plus prompting tips and a `copy_guide` header
+  action that copies the whole guide as markdown for agent contexts. (#161)
+- Copy button on every fenced code block rendered through the markdown
+  renderer; github.com links in the help-center tabs get a small GitHub icon.
+
+### Fixed
+- Fenced code blocks now get theme-aware syntax highlighting (token colors
+  derive from the design-system palette; cli entry points like `refhub` and
+  `claude` highlight as executable commands), no longer indent their first
+  line, and long lines scroll inside the block instead of stretching the
+  help dialog.
+
+### Changed
+- Resources tab: removed the empty `refhub-mcp` entry and renamed the
+  `.netlify` listing to `refhub-api` (display only; url unchanged).
+
 ## [1.6.0] - 2026-07-18
 
 ### Added

@@ -4,6 +4,7 @@ import { useHotkeys } from '@/hooks/useKeyboardNavigation';
 import { SHORTCUT_HELP, formatCombo } from '@/lib/keyboard';
 import { cn } from '@/lib/utils';
 import helpGuide from '@/content/help-guide.md?raw';
+import aiWorkflowsGuide from '@/content/ai-workflows.md?raw';
 import { resources } from '@/config/resources';
 import { restartOnboarding } from '@/hooks/useOnboarding';
 import {
@@ -37,6 +38,7 @@ export function KeyboardHelpOverlay() {
   } = useKeyboardContext();
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
+  const [guideCopied, setGuideCopied] = useState(false);
 
   // Register the ? shortcut globally to toggle the help center.
   useHotkeys(
@@ -78,6 +80,17 @@ export function KeyboardHelpOverlay() {
     restartOnboarding();
   }, [setHelpOverlayOpen]);
 
+  const handleCopyGuide = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(aiWorkflowsGuide);
+      setGuideCopied(true);
+      toast({ title: 'workflows guide copied to clipboard' });
+      setTimeout(() => setGuideCopied(false), 2000);
+    } catch {
+      toast({ title: 'failed to copy', variant: 'destructive', feedbackSeverity: 'error' });
+    }
+  }, [toast]);
+
   return (
     <Dialog open={helpOverlayOpen} onOpenChange={setHelpOverlayOpen}>
       <DialogContent className="dialog-mobile max-w-[100vw] flex flex-col overflow-hidden p-0 gap-0 border-primary/20 shadow-2xl shadow-primary/10 sm:rounded-2xl sm:max-w-3xl sm:h-[85vh] sm:max-h-[85vh]">
@@ -114,6 +127,21 @@ export function KeyboardHelpOverlay() {
               >
                 <RotateCcw className="w-3 h-3 mr-1" />
                 restart_tour
+              </Button>
+            )}
+            {helpOverlayTab === 'ai-workflows' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCopyGuide}
+                className="h-7 font-mono text-[10px] text-muted-foreground hover:text-foreground"
+              >
+                {guideCopied ? (
+                  <Check className="w-3 h-3 mr-1 text-accent" />
+                ) : (
+                  <Copy className="w-3 h-3 mr-1" />
+                )}
+                {guideCopied ? 'copied!' : 'copy_guide'}
               </Button>
             )}
           </div>
@@ -202,8 +230,10 @@ export function KeyboardHelpOverlay() {
           </TabsContent>
 
           <TabsContent value="guide" className="m-0 min-h-0 flex-1 overflow-hidden data-[state=inactive]:hidden">
-            <ScrollArea className="h-full max-h-full">
-              <MarkdownRenderer compact className="px-6 py-5 prose-headings:font-mono prose-h1:mt-0 prose-h2:border-t prose-h2:border-border/60 prose-h2:pt-5">
+            {/* Radix wraps viewport content in a display:table div that grows to the
+                widest code line; force it block so prose wraps and pre scrolls. */}
+            <ScrollArea className="h-full max-h-full [&_[data-radix-scroll-area-viewport]>div]:!block">
+              <MarkdownRenderer compact githubLinkIcons className="px-6 py-5 prose-headings:font-mono prose-h1:mt-0 prose-h2:border-t prose-h2:border-border/60 prose-h2:pt-5">
                 {helpGuide}
               </MarkdownRenderer>
             </ScrollArea>
@@ -232,15 +262,11 @@ export function KeyboardHelpOverlay() {
           </TabsContent>
 
           <TabsContent value="ai-workflows" className="m-0 min-h-0 flex-1 overflow-hidden data-[state=inactive]:hidden">
-            <div className="h-full flex flex-col items-center justify-center gap-3 px-6 text-center">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                <Bot className="h-5 w-5" />
-              </div>
-              <h3 className="font-mono text-base font-semibold">ai_workflow_guides()</h3>
-              <p className="text-sm text-muted-foreground max-w-sm">
-                guides for using refhub with ai agents and workflows are coming soon.
-              </p>
-            </div>
+            <ScrollArea className="h-full max-h-full [&_[data-radix-scroll-area-viewport]>div]:!block">
+              <MarkdownRenderer compact githubLinkIcons className="px-6 py-5 prose-headings:font-mono prose-h1:mt-0 prose-h2:border-t prose-h2:border-border/60 prose-h2:pt-5">
+                {aiWorkflowsGuide}
+              </MarkdownRenderer>
+            </ScrollArea>
           </TabsContent>
         </Tabs>
 
