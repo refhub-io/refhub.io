@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  DUPE_PRESETS,
+  findDuplicateCandidates,
   lastNameJaccard,
   normalizeBiblioString,
   normalizeDoi,
   normalizeLastName,
+  scorePair,
   similarityRatio,
   tokenSortRatio,
 } from './dupeDetection';
@@ -78,5 +81,95 @@ describe('lastNameJaccard', () => {
   it('is 0 when either list is empty', () => {
     expect(lastNameJaccard([], ['Jane Doe'])).toBe(0);
     expect(lastNameJaccard(null, undefined)).toBe(0);
+  });
+});
+
+const paper = (over: Partial<import('./dupeDetection').DupeCheckable> = {}) => ({
+  id: over.id ?? 'p1',
+  title: 'The Grammar of Graphics',
+  authors: ['Wilkinson, Leland'],
+  year: 2005,
+  journal: 'Statistics and Computing',
+  doi: null,
+  ...over,
+});
+
+describe('scorePair', () => {
+  it('scores identical papers 1.0', () => {
+    expect(scorePair(paper(), paper({ id: 'p2' }), DUPE_PRESETS.balanced).score).toBe(1);
+  });
+
+  it('short-circuits to 1.0 on DOI match even with different titles', () => {
+    const a = paper({ doi: '10.1/x' });
+    const b = paper({ id: 'p2', doi: 'https://doi.org/10.1/X', title: 'Completely Different' });
+    const result = scorePair(a, b, DUPE_PRESETS.balanced);
+    expect(result.score).toBe(1);
+    expect(result.doiMatch).toBe(true);
+  });
+
+  it('excludes signals missing on either side from the weighting', () => {
+    // year missing on one side: title+authors identical → still 1.0
+    const result = scorePair(paper(), paper({ id: 'p2', year: null, journal: null }), DUPE_PRESETS.balanced);
+    expect(result.score).toBe(1);
+    expect(result.breakdown.map((s) => s.signal)).toEqual(['title', 'authors']);
+  });
+
+  it('gives year ±1 half credit', () => {
+    const result = scorePair(paper(), paper({ id: 'p2', year: 2006 }), DUPE_PRESETS.balanced);
+    const year = result.breakdown.find((s) => s.signal === 'year');
+    expect(year?.score).toBe(0.5);
+  });
+
+  it('scores unrelated papers low', () => {
+    const other = paper({
+      id: 'p2',
+      title: 'Attention Is All You Need',
+      authors: ['Vaswani, Ashish'],
+      year: 2017,
+      journal: 'NeurIPS',
+    });
+    expect(scorePair(paper(), other, DUPE_PRESETS.balanced).score).toBeLessThan(0.3);
+  });
+
+  it('ignores disabled signals', () => {
+    const config = {
+      ...DUPE_PRESETS.balanced,
+      signals: {
+        ...DUPE_PRESETS.balanced.signals,
+        title: { enabled: false, weight: 0.5 },
+      },
+    };
+    const result = scorePair(paper({ title: 'A' }), paper({ id: 'p2', title: 'B' }), config);
+    expect(result.breakdown.find((s) => s.signal === 'title')).toBeUndefined();
+  });
+});
+
+describe('findDuplicateCandidates', () => {
+  it('finds near-duplicate pairs across LaTeX/accent variants, sorted by score', () => {
+    const pubs = [
+      paper({ id: 'a', title: 'Visualization of M{\\"u}ller Data' , authors: ['M{\\"u}ller, Anna'] }),
+      paper({ id: 'b', title: 'Visualization of Müller Data', authors: ['Anna Müller'] }),
+      paper({ id: 'c', title: 'Attention Is All You Need', authors: ['Vaswani, Ashish'], year: 2017 }),
+    ];
+    const candidates = findDuplicateCandidates(pubs, DUPE_PRESETS.balanced);
+    expect(candidates).toHaveLength(1);
+    expect([candidates[0].left.id, candidates[0].right.id].sort()).toEqual(['a', 'b']);
+  });
+
+  it('pairs papers one year apart (blocking does not miss ±1)', () => {
+    const pubs = [paper({ id: 'a', year: 2005 }), paper({ id: 'b', year: 2006 })];
+    expect(findDuplicateCandidates(pubs, DUPE_PRESETS.balanced)).toHaveLength(1);
+  });
+
+  it('always pairs DOI-equal papers even when nothing else matches', () => {
+    const pubs = [
+      paper({ id: 'a', doi: '10.9/z', title: 'X', authors: ['A B'], year: 1990, journal: null }),
+      paper({ id: 'b', doi: '10.9/z', title: 'Utterly Different', authors: ['C D'], year: 2020, journal: null }),
+    ];
+    expect(findDuplicateCandidates(pubs, DUPE_PRESETS.balanced)).toHaveLength(1);
+  });
+
+  it('returns empty for an empty library', () => {
+    expect(findDuplicateCandidates([], DUPE_PRESETS.balanced)).toEqual([]);
   });
 });
