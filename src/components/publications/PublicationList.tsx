@@ -38,6 +38,7 @@ import {
   Tags,
   Telescope,
   Loader2,
+  CopyCheck,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -57,6 +58,7 @@ interface PublicationListProps {
   vaultOwnerName?: string; // Display owner name next to item count
   isVaultContext?: boolean; // If true, shows "remove from vault" instead of "delete"
   onAddPublication?: () => void;
+  onFindDuplicates?: () => void;
   onEditPublication?: (pub: Publication) => void;
   onOpenPublication?: (pub: Publication) => void;
   publicationActionLabel?: string;
@@ -95,6 +97,7 @@ export function PublicationList({
   vaultOwnerName,
   isVaultContext = false,
   onAddPublication,
+  onFindDuplicates,
   onEditPublication,
   onOpenPublication,
   publicationActionLabel = 'edit',
@@ -588,6 +591,13 @@ export function PublicationList({
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
+            )}
+
+            {onFindDuplicates && (
+              <Button onClick={onFindDuplicates} variant="outline" className="h-9 w-9 sm:w-auto sm:px-3 font-mono">
+                <CopyCheck className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">find_duplicates</span>
+              </Button>
             )}
 
             {onAddPublication && (
