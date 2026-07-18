@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { BIBLIOGRAPHIC_FIELDS } from '@/lib/publicationSync';
 import type { Publication } from '@/types/database';
 import { buildMergePlan, listFieldConflicts, listVaultConflicts } from './dupeMerge';
 
@@ -90,8 +91,14 @@ describe('buildMergePlan', () => {
     expect(plan.survivorPatch.pages).toBe('1-12');
     // auto-filled from the non-empty side, no explicit choice needed
     expect(plan.survivorPatch.volume).toBe('3');
-    // survivor already has this value → not in patch
-    expect(plan.survivorPatch.abstract).toBeUndefined();
+    // survivorPatch is written unconditionally, even where the resolved value
+    // equals the survivor's own value — the client object may be display-merged
+    // (Dashboard borrows fields from vault copies) and diverge from the DB row,
+    // so every BIBLIOGRAPHIC_FIELDS entry must be present rather than diffed away.
+    expect(plan.survivorPatch.abstract).toBe('left abstract');
+    expect(plan.survivorPatch.title).toBe('A Title');
+    expect(plan.survivorPatch.journal).toBe('A Journal');
+    expect(Object.keys(plan.survivorPatch).sort()).toEqual([...BIBLIOGRAPHIC_FIELDS].sort());
     // v1 keeps the right copy (which belongs to the loser → re-point), left copy deleted
     expect(plan.deleteCopyIds).toEqual(['c1']);
     // c2 kept in v1 (re-pointed) + c3 un-conflicted loser copy (re-pointed)

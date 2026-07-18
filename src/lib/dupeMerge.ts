@@ -95,9 +95,11 @@ export function buildMergePlan(
     else if (isEmpty(r)) value = l;
     else if (comparable(l) === comparable(r)) value = l;
     else value = (decisions.fieldChoices[field] ?? decisions.survivor) === 'left' ? l : r;
-    if (comparable(value) !== comparable(survivor[field])) {
-      (survivorPatch as Record<string, unknown>)[field] = value;
-    }
+    // Written unconditionally: the caller may pass a display-merged survivor
+    // object (Dashboard borrows missing bibliographic fields from vault copies
+    // for display) that already shows this value while the DB row doesn't —
+    // diffing against it would silently drop the user's resolved choice.
+    (survivorPatch as Record<string, unknown>)[field] = value;
   }
 
   const conflicts = listVaultConflicts(left.id, right.id, links);
@@ -183,16 +185,34 @@ export async function executeMergePlan(plan: MergePlan): Promise<void> {
       .delete()
       .in('vault_publication_id', plan.deleteCopyIds);
     if (tagError) throw new Error(`removing tags of dropped copies: ${tagError.message}`);
-    const { error } = await supabase.from('vault_publications').delete().in('id', plan.deleteCopyIds);
+    const { error, count } = await supabase
+      .from('vault_publications')
+      .delete({ count: 'exact' })
+      .in('id', plan.deleteCopyIds);
     if (error) throw new Error(`removing dropped vault copies: ${error.message}`);
+    // RLS (created_by policies) can silently no-op a delete instead of erroring;
+    // if fewer rows than expected were dropped, abort now — proceeding to the
+    // loser delete would orphan the copies that failed to drop.
+    if ((count ?? 0) < plan.deleteCopyIds.length) {
+      throw new Error(
+        `removing dropped vault copies: expected ${plan.deleteCopyIds.length} rows, got ${count ?? 0} — aborting before deleting the duplicate`,
+      );
+    }
   }
 
   if (plan.repointCopyIds.length > 0) {
-    const { error } = await supabase
+    const { error, count } = await supabase
       .from('vault_publications')
-      .update({ original_publication_id: plan.survivorId })
+      .update({ original_publication_id: plan.survivorId }, { count: 'exact' })
       .in('id', plan.repointCopyIds);
     if (error) throw new Error(`re-pointing vault copies: ${error.message}`);
+    // Same RLS no-op risk as above: a short repoint means some copies would be
+    // left pointing at the row we're about to delete.
+    if ((count ?? 0) < plan.repointCopyIds.length) {
+      throw new Error(
+        `re-pointing vault copies: expected ${plan.repointCopyIds.length} rows, got ${count ?? 0} — aborting before deleting the duplicate`,
+      );
+    }
   }
 
   // move the loser's tags unless the survivor already carries the same tag
@@ -220,6 +240,36 @@ export async function executeMergePlan(plan: MergePlan): Promise<void> {
     if (toDrop.length > 0) {
       const { error } = await supabase.from('publication_tags').delete().in('id', toDrop);
       if (error) throw new Error(`dropping duplicate tags: ${error.message}`);
+    }
+  }
+
+  // publication_pdf_assets.publication_id references publications(id) ON DELETE
+  // SET NULL — deleting the loser without re-pointing first would silently
+  // orphan its stored-PDF row (still readable by vault_publication_id, but
+  // unreachable from the survivor).
+  const { data: loserAssets, error: loserAssetsError } = await supabase
+    .from('publication_pdf_assets')
+    .select('id, storage_provider')
+    .eq('publication_id', plan.loserId);
+  if (loserAssetsError) throw new Error(`reading loser PDF assets: ${loserAssetsError.message}`);
+  if (loserAssets && loserAssets.length > 0) {
+    const { data: survivorAssets, error: survivorAssetsError } = await supabase
+      .from('publication_pdf_assets')
+      .select('storage_provider')
+      .eq('publication_id', plan.survivorId);
+    if (survivorAssetsError) throw new Error(`reading survivor PDF assets: ${survivorAssetsError.message}`);
+    const survivorProviders = new Set((survivorAssets ?? []).map((a) => a.storage_provider));
+    for (const asset of loserAssets) {
+      if (survivorProviders.has(asset.storage_provider)) {
+        const { error } = await supabase.from('publication_pdf_assets').delete().eq('id', asset.id);
+        if (error) throw new Error(`dropping duplicate PDF asset: ${error.message}`);
+      } else {
+        const { error } = await supabase
+          .from('publication_pdf_assets')
+          .update({ publication_id: plan.survivorId })
+          .eq('id', asset.id);
+        if (error) throw new Error(`re-pointing PDF asset: ${error.message}`);
+      }
     }
   }
 
