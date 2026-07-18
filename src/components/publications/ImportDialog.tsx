@@ -22,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { parseBibtex, fetchDOIMetadata, generateBibtexKey } from '@/lib/bibtex';
 import { orderImportPreviewIndices } from '@/lib/importOrdering';
+import { DUPE_PRESETS, scorePair } from '@/lib/dupeDetection';
 import { FileText, Link, Upload, Check, X, Loader2, Library } from 'lucide-react';
 import { LoadingSpinner } from '@/components/ui/loading';
 import { useToast } from '@/hooks/use-toast';
@@ -71,24 +72,10 @@ export function ImportDialog({
   // Don't reset state when dialog opens/closes to preserve user input
   // State is only cleared after successful import
 
-  // Duplicate checker helper
+  // Duplicate checker helper — scored heuristic shared with the find_duplicates wizard
   const checkForDuplicate = (newPub: Partial<Publication>) => {
-    return allPublications.find(pub => {
-      // Check DOI match (if DOI exists on both)
-      if (newPub.doi && pub.doi && newPub.doi.toLowerCase().trim() === pub.doi.toLowerCase().trim()) {
-        return true;
-      }
-      
-      // Check title match (normalize for comparison)
-      if (newPub.title && pub.title) {
-        const normalizeTitle = (title: string) => title.toLowerCase().trim().replace(/\s+/g, ' ');
-        if (normalizeTitle(newPub.title) === normalizeTitle(pub.title)) {
-          return true;
-        }
-      }
-      
-      return false;
-    });
+    const preset = DUPE_PRESETS.balanced;
+    return allPublications.find((pub) => scorePair(newPub, pub, preset).score >= preset.threshold);
   };
 
   const handleDOILookup = async () => {
