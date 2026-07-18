@@ -385,10 +385,7 @@ export function DuplicateCheckDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!merging) onOpenChange(next); }}>
-      <DialogContent
-        forceMount
-        className="dialog-mobile max-w-[100vw] p-0 border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col gap-0 min-h-0 sm:rounded-2xl sm:h-auto sm:w-[95vw] sm:max-w-2xl sm:max-h-[90vh] data-[state=closed]:hidden"
-      >
+      <DialogContent className="dialog-mobile max-w-[100vw] p-0 border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col gap-0 min-h-0 sm:rounded-2xl sm:h-auto sm:w-[95vw] sm:max-w-2xl sm:max-h-[90vh]">
         <DialogHeader className="p-4 sm:p-6 pb-0">
           <DialogTitle className="font-mono text-xl font-bold">find_duplicates</DialogTitle>
           <DialogDescription className="font-mono text-sm">
