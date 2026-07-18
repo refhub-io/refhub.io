@@ -180,6 +180,7 @@ export function DuplicateCheckDialog({
             disabled={!config.signals[signal].enabled}
             value={[Math.round(config.signals[signal].weight * 100)]}
             onValueChange={([v]) => updateSignal(signal, { weight: v / 100 })}
+            aria-label={SIGNAL_LABELS[signal]}
           />
           <span className="w-10 text-right text-xs text-muted-foreground">
             {Math.round(config.signals[signal].weight * 100)}%
@@ -196,6 +197,7 @@ export function DuplicateCheckDialog({
           step={5}
           value={[Math.round(config.threshold * 100)]}
           onValueChange={([v]) => setConfig((prev) => ({ ...prev, threshold: v / 100 }))}
+          aria-label="score_threshold"
         />
         <span className="w-10 text-right text-xs text-muted-foreground">{Math.round(config.threshold * 100)}%</span>
       </div>
@@ -212,7 +214,7 @@ export function DuplicateCheckDialog({
   const renderReview = () => (
     <div className="space-y-3 font-mono">
       <div className="flex items-center justify-between">
-        <Button variant="ghost" size="sm" className="font-mono" onClick={() => setStep('configure')}>
+        <Button variant="ghost" size="sm" className="font-mono" disabled={merging} onClick={() => setStep('configure')}>
           <ArrowLeft className="mr-1 h-4 w-4" /> adjust_heuristic
         </Button>
         <span className="text-xs text-muted-foreground">
@@ -278,7 +280,7 @@ export function DuplicateCheckDialog({
 
     return (
       <div className="space-y-4 font-mono">
-        <Button variant="ghost" size="sm" className="font-mono" onClick={() => { setActive(null); setStep('review'); }}>
+        <Button variant="ghost" size="sm" className="font-mono" disabled={merging} onClick={() => { setActive(null); setStep('review'); }}>
           <ArrowLeft className="mr-1 h-4 w-4" /> back_to_candidates
         </Button>
 
@@ -307,20 +309,24 @@ export function DuplicateCheckDialog({
               conflicts.map((conflict) => (
                 <div key={conflict.field} className="rounded-lg border-2 p-2 text-xs">
                   <p className="mb-1 font-semibold">{conflict.field}</p>
-                  {(['left', 'right'] as Side[]).map((side) => (
-                    <button
-                      key={side}
-                      type="button"
-                      onClick={() => setFieldChoices((prev) => ({ ...prev, [conflict.field]: side }))}
-                      className={`block w-full rounded border px-2 py-1 text-left ${
-                        (fieldChoices[conflict.field] ?? survivor) === side
-                          ? 'border-primary bg-primary/10'
-                          : 'border-transparent hover:bg-muted'
-                      }`}
-                    >
-                      {fieldValueLabel(side === 'left' ? conflict.left : conflict.right)}
-                    </button>
-                  ))}
+                  {(['left', 'right'] as Side[]).map((side) => {
+                    const selected = (fieldChoices[conflict.field] ?? survivor) === side;
+                    return (
+                      <button
+                        key={side}
+                        type="button"
+                        onClick={() => setFieldChoices((prev) => ({ ...prev, [conflict.field]: side }))}
+                        className={`block w-full rounded border px-2 py-1 text-left ${
+                          selected
+                            ? 'border-primary bg-primary/10'
+                            : 'border-transparent hover:bg-muted'
+                        }`}
+                        aria-pressed={selected}
+                      >
+                        {fieldValueLabel(side === 'left' ? conflict.left : conflict.right)}
+                      </button>
+                    );
+                  })}
                 </div>
               ))
             )}
@@ -333,20 +339,24 @@ export function DuplicateCheckDialog({
                 {vaultConflicts.map((conflict) => (
                   <div key={conflict.vault_id} className="rounded-lg border-2 p-2 text-xs">
                     <p className="mb-1 font-semibold">{vaultNames.get(conflict.vault_id) ?? conflict.vault_id}</p>
-                    {(['left', 'right'] as Side[]).map((side) => (
-                      <button
-                        key={side}
-                        type="button"
-                        onClick={() => setVaultChoices((prev) => ({ ...prev, [conflict.vault_id]: side }))}
-                        className={`block w-full truncate rounded border px-2 py-1 text-left ${
-                          (vaultChoices[conflict.vault_id] ?? survivor) === side
-                            ? 'border-primary bg-primary/10'
-                            : 'border-transparent hover:bg-muted'
-                        }`}
-                      >
-                        keep annotations of: {sideLabel(side)}
-                      </button>
-                    ))}
+                    {(['left', 'right'] as Side[]).map((side) => {
+                      const selected = (vaultChoices[conflict.vault_id] ?? survivor) === side;
+                      return (
+                        <button
+                          key={side}
+                          type="button"
+                          onClick={() => setVaultChoices((prev) => ({ ...prev, [conflict.vault_id]: side }))}
+                          className={`block w-full truncate rounded border px-2 py-1 text-left ${
+                            selected
+                              ? 'border-primary bg-primary/10'
+                              : 'border-transparent hover:bg-muted'
+                          }`}
+                          aria-pressed={selected}
+                        >
+                          keep annotations of: {sideLabel(side)}
+                        </button>
+                      );
+                    })}
                   </div>
                 ))}
               </div>
