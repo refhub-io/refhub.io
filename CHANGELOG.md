@@ -18,6 +18,13 @@ project uses [Semantic Versioning](https://semver.org/). History prior to
 - Import-time duplicate warnings now use the same fuzzy scorer instead of
   exact DOI/title matching, so accent, punctuation, and LaTeX-markup
   variants of an existing paper are caught. (#143)
+  
+## [1.5.0] - 2026-07-17
+
+### Added
+- LaTeX math in Markdown notes: `$inline$` and `$$block$$` formulas now
+  render via KaTeX everywhere notes are shown — editors, previews, and
+  view dialogs. (#140)
 
 ## [1.4.5] - 2026-07-17
 

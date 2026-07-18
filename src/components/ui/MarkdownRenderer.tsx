@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -7,7 +8,46 @@ import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import rehypeSlug from 'rehype-slug';
 import rehypeAutolinkHeadings from 'rehype-autolink-headings';
 import rehypeHighlight from 'rehype-highlight';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { cn } from '@/lib/utils';
+
+const SINGLE_LINE_DISPLAY_MATH = /^\s*\$\$([^\n]*?)\$\$\s*$/;
+
+/** remark-math only treats $$…$$ as display math when the fences sit on
+ *  their own lines; rewrite single-line $$…$$ paragraphs into that form. */
+function normalizeMathBlocks(markdown: string): string {
+  const lines = markdown.split('\n');
+  let inFencedCode = false;
+
+  return lines
+    .map((line) => {
+      // Track fenced code blocks (``` ... ```) so we never touch math inside them.
+      if (/^\s*```/.test(line)) {
+        inFencedCode = !inFencedCode;
+        return line;
+      }
+      if (inFencedCode) {
+        return line;
+      }
+
+      const match = line.match(SINGLE_LINE_DISPLAY_MATH);
+      if (!match) {
+        return line;
+      }
+
+      const content = match[1];
+      // Non-empty content that itself contains no further `$$` (i.e. not two
+      // adjacent display-math expressions on one line).
+      if (content.trim().length === 0 || content.includes('$$')) {
+        return line;
+      }
+
+      return `$$\n${content}\n$$`;
+    })
+    .join('\n');
+}
 
 // Custom sanitize schema that allows anchors, ids, names for footnotes
 const sanitizeSchema = {
@@ -38,6 +78,8 @@ interface MarkdownRendererProps {
 }
 
 export function MarkdownRenderer({ children, className, compact = false }: MarkdownRendererProps) {
+  const normalizedChildren = useMemo(() => normalizeMathBlocks(children), [children]);
+
   return (
     <div
       className={cn(
@@ -76,6 +118,7 @@ export function MarkdownRenderer({ children, className, compact = false }: Markd
           remarkGfm,
           remarkBreaks,
           [remarkFootnotes, { inlineNotes: true }],
+          remarkMath,
         ]}
         rehypePlugins={[
           rehypeRaw,
@@ -96,6 +139,7 @@ export function MarkdownRenderer({ children, className, compact = false }: Markd
             },
           }],
           rehypeHighlight,
+          [rehypeKatex, { errorColor: 'hsl(var(--destructive))', strict: false, throwOnError: false }],
         ]}
         components={{
           a: ({ node, children, href, ...props }) => (
@@ -110,7 +154,7 @@ export function MarkdownRenderer({ children, className, compact = false }: Markd
           ),
         }}
       >
-        {children}
+        {normalizedChildren}
       </ReactMarkdown>
     </div>
   );
