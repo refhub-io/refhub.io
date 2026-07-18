@@ -6,6 +6,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.6.0] - 2026-07-18
+
+### Added
+- `find_duplicates` wizard in all_papers: configure a scoring heuristic
+  (title/author/year/venue weights + threshold, DOI exact-match override),
+  review scored candidate pairs, and resolve them git-style with
+  field-by-field picks and per-vault annotation choices. (#143, #145)
+
+### Changed
+- Import-time duplicate warnings now use the same fuzzy scorer instead of
+  exact DOI/title matching, so accent, punctuation, and LaTeX-markup
+  variants of an existing paper are caught. (#143)
+
 ## [1.4.5] - 2026-07-17
 
 ### Fixed

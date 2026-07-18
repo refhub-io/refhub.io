@@ -21,6 +21,25 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    id: 15,
+    date: '2026-07-18',
+    title: 'find duplicates, resolve them git-style',
+    features: [
+      {
+        tag: 'feature',
+        title: 'find_duplicates wizard',
+        description:
+          'scan all_papers with a tunable heuristic — weight title, authors, year, and venue similarity — then resolve each pair git-style: pick surviving fields and choose whose notes and tags win per vault.',
+      },
+      {
+        tag: 'improvement',
+        title: 'smarter import duplicate warnings',
+        description:
+          'importing now catches duplicates that differ only in accents, punctuation, or latex markup instead of requiring an exact title match.',
+      },
+    ],
+  },
+  {
     id: 13,
     date: '2026-07-17',
     title: 'help center: resources and restart tour',
