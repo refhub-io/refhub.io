@@ -6,6 +6,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.5.0] - 2026-07-17
+
+### Added
+- LaTeX math in Markdown notes: `$inline$` and `$$block$$` formulas now
+  render via KaTeX everywhere notes are shown — editors, previews, and
+  view dialogs. (#140)
+
 ## [1.4.5] - 2026-07-17
 
 ### Fixed
