@@ -10,6 +10,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationDialog } from '@/components/publications/PublicationDialog';
 import { AddImportDialog } from '@/components/publications/AddImportDialog';
+import { DuplicateCheckDialog } from '@/components/publications/DuplicateCheckDialog';
 import { VaultDialog } from '@/components/vaults/VaultDialog';
 import { CollectionAnalytics } from '@/components/publications/CollectionAnalytics';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
@@ -200,6 +201,7 @@ export default function Dashboard() {
 
   const [isPublicationDialogOpen, setIsPublicationDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [isDupeCheckOpen, setIsDupeCheckOpen] = useState(false);
   const [editingPublication, setEditingPublication] = useState<Publication | null>(null);
 
   const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
@@ -1669,6 +1671,7 @@ export default function Dashboard() {
         relationsCountMap={relationsCountMap}
         selectedVault={null}
         onAddPublication={() => setIsImportDialogOpen(true)}
+        onFindDuplicates={() => setIsDupeCheckOpen(true)}
         onEditPublication={(pub) => {
           setEditingPublication(pub);
           setIsPublicationDialogOpen(true);
@@ -1732,6 +1735,18 @@ export default function Dashboard() {
         currentVaultId={null}
         onImport={handleBulkImport}
         onAddToVaults={handleAddToVaults}
+      />
+
+      <DuplicateCheckDialog
+        open={isDupeCheckOpen}
+        onOpenChange={setIsDupeCheckOpen}
+        publications={publications}
+        vaults={vaults.concat(sharedVaults)}
+        vaultCopies={vaultPublicationLinks}
+        onMergeComplete={() => {
+          clearPageCache('dashboard');
+          fetchData();
+        }}
       />
 
       <VaultDialog

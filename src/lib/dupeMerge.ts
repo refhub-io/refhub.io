@@ -1,0 +1,282 @@
+/**
+ * Git-like merge of two duplicate publications: pure conflict listing +
+ * plan building, and a Supabase executor that applies the plan.
+ * See docs/superpowers/specs/2026-07-17-dupe-check-and-latex-notes-design.md.
+ */
+import { supabase } from '@/integrations/supabase/client';
+import { BIBLIOGRAPHIC_FIELDS, type BibliographicField } from '@/lib/publicationSync';
+import type { Publication } from '@/types/database';
+
+export type Side = 'left' | 'right';
+
+export interface VaultCopyRef {
+  id: string;
+  vault_id: string;
+  original_publication_id: string | null;
+}
+
+const comparable = (v: unknown): string => (Array.isArray(v) ? v.join('|') : v == null ? '' : String(v));
+const isEmpty = (v: unknown): boolean =>
+  v == null || (typeof v === 'string' && v.trim() === '') || (Array.isArray(v) && v.length === 0);
+
+export interface FieldConflict {
+  field: BibliographicField;
+  left: unknown;
+  right: unknown;
+}
+
+/** fields where both sides have a value and they differ; one-sided values auto-fill and never conflict */
+export function listFieldConflicts(left: Publication, right: Publication): FieldConflict[] {
+  const out: FieldConflict[] = [];
+  for (const field of BIBLIOGRAPHIC_FIELDS) {
+    const l = left[field];
+    const r = right[field];
+    if (isEmpty(l) || isEmpty(r)) continue;
+    if (comparable(l) !== comparable(r)) out.push({ field, left: l, right: r });
+  }
+  return out;
+}
+
+export interface VaultConflict {
+  vault_id: string;
+  leftCopy: VaultCopyRef;
+  rightCopy: VaultCopyRef;
+}
+
+/** vaults that contain a copy of BOTH papers — the user must pick whose annotations survive */
+export function listVaultConflicts(leftId: string, rightId: string, links: VaultCopyRef[]): VaultConflict[] {
+  const byVault = new Map<string, { left?: VaultCopyRef; right?: VaultCopyRef }>();
+  for (const link of links) {
+    if (link.original_publication_id !== leftId && link.original_publication_id !== rightId) continue;
+    const entry = byVault.get(link.vault_id) ?? {};
+    if (link.original_publication_id === leftId) entry.left = link;
+    else entry.right = link;
+    byVault.set(link.vault_id, entry);
+  }
+  const out: VaultConflict[] = [];
+  for (const [vault_id, entry] of byVault) {
+    if (entry.left && entry.right) out.push({ vault_id, leftCopy: entry.left, rightCopy: entry.right });
+  }
+  return out;
+}
+
+export interface MergeDecisions {
+  survivor: Side;
+  fieldChoices: Partial<Record<BibliographicField, Side>>;
+  /** keyed by vault_id for conflicted vaults; missing entries default to the survivor side */
+  vaultChoices: Record<string, Side>;
+}
+
+export interface MergePlan {
+  survivorId: string;
+  loserId: string;
+  survivorPatch: Partial<Publication>;
+  repointCopyIds: string[];
+  deleteCopyIds: string[];
+  /** dropped vault copies whose publication_relations rows must be re-pointed to the kept copy before deletion */
+  droppedCopyReplacements: Array<{ droppedCopyId: string; keptCopyId: string }>;
+}
+
+export function buildMergePlan(
+  left: Publication,
+  right: Publication,
+  links: VaultCopyRef[],
+  decisions: MergeDecisions,
+): MergePlan {
+  const survivor = decisions.survivor === 'left' ? left : right;
+  const loser = decisions.survivor === 'left' ? right : left;
+
+  const survivorPatch: Partial<Publication> = {};
+  for (const field of BIBLIOGRAPHIC_FIELDS) {
+    const l = left[field];
+    const r = right[field];
+    let value: unknown;
+    if (isEmpty(l)) value = r;
+    else if (isEmpty(r)) value = l;
+    else if (comparable(l) === comparable(r)) value = l;
+    else value = (decisions.fieldChoices[field] ?? decisions.survivor) === 'left' ? l : r;
+    // Written unconditionally: the caller may pass a display-merged survivor
+    // object (Dashboard borrows missing bibliographic fields from vault copies
+    // for display) that already shows this value while the DB row doesn't —
+    // diffing against it would silently drop the user's resolved choice.
+    (survivorPatch as Record<string, unknown>)[field] = value;
+  }
+
+  const conflicts = listVaultConflicts(left.id, right.id, links);
+  const conflictedVaultIds = new Set(conflicts.map((c) => c.vault_id));
+
+  const repointCopyIds: string[] = [];
+  const deleteCopyIds: string[] = [];
+  const droppedCopyReplacements: Array<{ droppedCopyId: string; keptCopyId: string }> = [];
+  for (const conflict of conflicts) {
+    const keep = decisions.vaultChoices[conflict.vault_id] ?? decisions.survivor;
+    const keptCopy = keep === 'left' ? conflict.leftCopy : conflict.rightCopy;
+    const droppedCopy = keep === 'left' ? conflict.rightCopy : conflict.leftCopy;
+    deleteCopyIds.push(droppedCopy.id);
+    droppedCopyReplacements.push({ droppedCopyId: droppedCopy.id, keptCopyId: keptCopy.id });
+    if (keptCopy.original_publication_id === loser.id) repointCopyIds.push(keptCopy.id);
+  }
+  for (const link of links) {
+    if (link.original_publication_id !== loser.id) continue;
+    if (conflictedVaultIds.has(link.vault_id)) continue;
+    repointCopyIds.push(link.id);
+  }
+
+  return {
+    survivorId: survivor.id,
+    loserId: loser.id,
+    survivorPatch,
+    repointCopyIds,
+    deleteCopyIds,
+    droppedCopyReplacements,
+  };
+}
+
+/**
+ * Applies a merge plan. Steps run in dependency order; the first failure
+ * throws with a step description and aborts the remaining steps.
+ */
+export async function executeMergePlan(plan: MergePlan): Promise<void> {
+  if (Object.keys(plan.survivorPatch).length > 0) {
+    const { error } = await supabase.from('publications').update(plan.survivorPatch).eq('id', plan.survivorId);
+    if (error) throw new Error(`updating merged fields: ${error.message}`);
+  }
+
+  // publication_relations references vault_publications(id) (ON DELETE CASCADE), not publications(id).
+  // A re-pointed copy keeps its own vault_publications row, so its relations stay valid untouched.
+  // Only copies about to be deleted need their relations re-pointed to the kept copy first —
+  // otherwise deleting the dropped copy would cascade-delete relations the kept copy should retain.
+  for (const { droppedCopyId, keptCopyId } of plan.droppedCopyReplacements) {
+    const { data: droppedRelations, error: droppedRelationsError } = await supabase
+      .from('publication_relations')
+      .select('id, publication_id, related_publication_id')
+      .or(`publication_id.eq.${droppedCopyId},related_publication_id.eq.${droppedCopyId}`);
+    if (droppedRelationsError) throw new Error(`reading dropped copy relations: ${droppedRelationsError.message}`);
+    if (!droppedRelations || droppedRelations.length === 0) continue;
+
+    const { data: keptRelations, error: keptRelationsError } = await supabase
+      .from('publication_relations')
+      .select('publication_id, related_publication_id')
+      .or(`publication_id.eq.${keptCopyId},related_publication_id.eq.${keptCopyId}`);
+    if (keptRelationsError) throw new Error(`reading kept copy relations: ${keptRelationsError.message}`);
+    const existingPairs = new Set(
+      (keptRelations ?? []).map((r) => `${r.publication_id}:${r.related_publication_id}`),
+    );
+
+    for (const relation of droppedRelations) {
+      const from = relation.publication_id === droppedCopyId ? keptCopyId : relation.publication_id;
+      const to = relation.related_publication_id === droppedCopyId ? keptCopyId : relation.related_publication_id;
+      if (from === to || existingPairs.has(`${from}:${to}`)) {
+        const { error } = await supabase.from('publication_relations').delete().eq('id', relation.id);
+        if (error) throw new Error(`dropping redundant relation: ${error.message}`);
+        continue;
+      }
+      const { error } = await supabase
+        .from('publication_relations')
+        .update({ publication_id: from, related_publication_id: to })
+        .eq('id', relation.id);
+      if (error) throw new Error(`re-pointing dropped copy relation: ${error.message}`);
+    }
+  }
+
+  if (plan.deleteCopyIds.length > 0) {
+    const { error: tagError } = await supabase
+      .from('publication_tags')
+      .delete()
+      .in('vault_publication_id', plan.deleteCopyIds);
+    if (tagError) throw new Error(`removing tags of dropped copies: ${tagError.message}`);
+    const { error, count } = await supabase
+      .from('vault_publications')
+      .delete({ count: 'exact' })
+      .in('id', plan.deleteCopyIds);
+    if (error) throw new Error(`removing dropped vault copies: ${error.message}`);
+    // RLS (created_by policies) can silently no-op a delete instead of erroring;
+    // if fewer rows than expected were dropped, abort now — proceeding to the
+    // loser delete would orphan the copies that failed to drop.
+    if ((count ?? 0) < plan.deleteCopyIds.length) {
+      throw new Error(
+        `removing dropped vault copies: expected ${plan.deleteCopyIds.length} rows, got ${count ?? 0} — aborting before deleting the duplicate`,
+      );
+    }
+  }
+
+  if (plan.repointCopyIds.length > 0) {
+    const { error, count } = await supabase
+      .from('vault_publications')
+      .update({ original_publication_id: plan.survivorId }, { count: 'exact' })
+      .in('id', plan.repointCopyIds);
+    if (error) throw new Error(`re-pointing vault copies: ${error.message}`);
+    // Same RLS no-op risk as above: a short repoint means some copies would be
+    // left pointing at the row we're about to delete.
+    if ((count ?? 0) < plan.repointCopyIds.length) {
+      throw new Error(
+        `re-pointing vault copies: expected ${plan.repointCopyIds.length} rows, got ${count ?? 0} — aborting before deleting the duplicate`,
+      );
+    }
+  }
+
+  // move the loser's tags unless the survivor already carries the same tag
+  const { data: loserTags, error: loserTagError } = await supabase
+    .from('publication_tags')
+    .select('id, tag_id')
+    .eq('publication_id', plan.loserId);
+  if (loserTagError) throw new Error(`reading tags: ${loserTagError.message}`);
+  if (loserTags && loserTags.length > 0) {
+    const { data: survivorTags, error: survivorTagError } = await supabase
+      .from('publication_tags')
+      .select('tag_id')
+      .eq('publication_id', plan.survivorId);
+    if (survivorTagError) throw new Error(`reading tags: ${survivorTagError.message}`);
+    const existing = new Set((survivorTags ?? []).map((t) => t.tag_id));
+    const toMove = loserTags.filter((t) => !existing.has(t.tag_id)).map((t) => t.id);
+    const toDrop = loserTags.filter((t) => existing.has(t.tag_id)).map((t) => t.id);
+    if (toMove.length > 0) {
+      const { error } = await supabase
+        .from('publication_tags')
+        .update({ publication_id: plan.survivorId })
+        .in('id', toMove);
+      if (error) throw new Error(`moving tags: ${error.message}`);
+    }
+    if (toDrop.length > 0) {
+      const { error } = await supabase.from('publication_tags').delete().in('id', toDrop);
+      if (error) throw new Error(`dropping duplicate tags: ${error.message}`);
+    }
+  }
+
+  // publication_pdf_assets.publication_id references publications(id) ON DELETE
+  // SET NULL — deleting the loser without re-pointing first would silently
+  // orphan its stored-PDF row (still readable by vault_publication_id, but
+  // unreachable from the survivor).
+  const { data: loserAssets, error: loserAssetsError } = await supabase
+    .from('publication_pdf_assets')
+    .select('id, storage_provider')
+    .eq('publication_id', plan.loserId);
+  if (loserAssetsError) throw new Error(`reading loser PDF assets: ${loserAssetsError.message}`);
+  if (loserAssets && loserAssets.length > 0) {
+    const { data: survivorAssets, error: survivorAssetsError } = await supabase
+      .from('publication_pdf_assets')
+      .select('storage_provider')
+      .eq('publication_id', plan.survivorId);
+    if (survivorAssetsError) throw new Error(`reading survivor PDF assets: ${survivorAssetsError.message}`);
+    const survivorProviders = new Set((survivorAssets ?? []).map((a) => a.storage_provider));
+    for (const asset of loserAssets) {
+      if (survivorProviders.has(asset.storage_provider)) {
+        const { error } = await supabase.from('publication_pdf_assets').delete().eq('id', asset.id);
+        if (error) throw new Error(`dropping duplicate PDF asset: ${error.message}`);
+      } else {
+        const { error } = await supabase
+          .from('publication_pdf_assets')
+          .update({ publication_id: plan.survivorId })
+          .eq('id', asset.id);
+        if (error) throw new Error(`re-pointing PDF asset: ${error.message}`);
+      }
+    }
+  }
+
+  const { error: deleteError, count } = await supabase
+    .from('publications')
+    .delete({ count: 'exact' })
+    .eq('id', plan.loserId);
+  if (deleteError) throw new Error(`deleting duplicate: ${deleteError.message}`);
+  if (!count) throw new Error('the duplicate row could not be deleted — you may not have permission');
+}

@@ -22,6 +22,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { parseBibtex, fetchDOIMetadata, generateBibtexKey } from '@/lib/bibtex';
 import { orderImportPreviewIndices } from '@/lib/importOrdering';
+import { DUPE_PRESETS, scorePair } from '@/lib/dupeDetection';
 import { FileText, Link, Upload, Check, X, Library, PenLine, Loader2 } from 'lucide-react';
 import { LoadingSpinner } from '@/components/ui/loading';
 import { useToast } from '@/hooks/use-toast';
@@ -122,16 +123,13 @@ export function AddImportDialog({
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+  // Uses the strict preset (title-heavy, 0.9 threshold): the balanced preset factors in
+  // authors+year+venue, so any title similarity ≥0.5 alone crosses its 0.75 threshold,
+  // false-flagging distinct series papers from the same group/venue/year as duplicates.
   const checkForDuplicate = useCallback(
     (newPub: Partial<Publication>) => {
-      return allPublications.find(pub => {
-        if (newPub.doi && pub.doi && newPub.doi.toLowerCase().trim() === pub.doi.toLowerCase().trim()) return true;
-        if (newPub.title && pub.title) {
-          const norm = (s: string) => s.toLowerCase().trim().replace(/\s+/g, ' ');
-          if (norm(newPub.title) === norm(pub.title)) return true;
-        }
-        return false;
-      });
+      const preset = DUPE_PRESETS.strict;
+      return allPublications.find((pub) => scorePair(newPub, pub, preset).score >= preset.threshold);
     },
     [allPublications],
   );
