@@ -123,9 +123,12 @@ export function AddImportDialog({
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+  // Uses the strict preset (title-heavy, 0.9 threshold): the balanced preset factors in
+  // authors+year+venue, so any title similarity ≥0.5 alone crosses its 0.75 threshold,
+  // false-flagging distinct series papers from the same group/venue/year as duplicates.
   const checkForDuplicate = useCallback(
     (newPub: Partial<Publication>) => {
-      const preset = DUPE_PRESETS.balanced;
+      const preset = DUPE_PRESETS.strict;
       return allPublications.find((pub) => scorePair(newPub, pub, preset).score >= preset.threshold);
     },
     [allPublications],
