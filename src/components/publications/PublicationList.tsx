@@ -563,7 +563,7 @@ export function PublicationList({
             )}
 
             {/* Mobile dropdown with gradient styling */}
-            {(onOpenGraph || (selectedVault && onEditVault) || (canEditTags && onUpdateTag && onDeleteTag)) && (
+            {(onOpenGraph || (selectedVault && onEditVault) || (canEditTags && onUpdateTag && onDeleteTag) || onFindDuplicates) && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="glow" size="icon" className="h-9 w-9 lg:hidden" title="More actions">
@@ -589,14 +589,20 @@ export function PublicationList({
                       manage_tags
                     </DropdownMenuItem>
                   )}
+                  {onFindDuplicates && (
+                    <DropdownMenuItem onClick={onFindDuplicates}>
+                      <CopyCheck className="w-4 h-4 mr-2" />
+                      find_duplicates
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
 
             {onFindDuplicates && (
-              <Button onClick={onFindDuplicates} variant="outline" className="h-9 w-9 sm:w-auto sm:px-3 font-mono">
-                <CopyCheck className="w-4 h-4 sm:mr-2" />
-                <span className="hidden sm:inline">find_duplicates</span>
+              <Button onClick={onFindDuplicates} variant="outline" className="hidden h-9 font-mono lg:inline-flex lg:w-auto lg:px-3">
+                <CopyCheck className="w-4 h-4 mr-2" />
+                <span>find_duplicates</span>
               </Button>
             )}
 

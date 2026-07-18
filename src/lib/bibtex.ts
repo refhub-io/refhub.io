@@ -2,13 +2,107 @@ import { Publication } from "@/types/database";
 import { supabase } from '@/integrations/supabase/client';
 import { getBackendApiBaseUrl } from '@/lib/apiKeys';
 
+const LATEX_ACCENT_CHARS = String.raw`"'` + '`^~=.' + 'uvHckrb';
+
+const LATEX_ACCENT_MAP: Record<string, Record<string, string>> = {
+  '"': { a: 'ä', e: 'ë', i: 'ï', o: 'ö', u: 'ü', y: 'ÿ', A: 'Ä', E: 'Ë', I: 'Ï', O: 'Ö', U: 'Ü', Y: 'Ÿ' },
+  "'": { a: 'á', e: 'é', i: 'í', o: 'ó', u: 'ú', y: 'ý', A: 'Á', E: 'É', I: 'Í', O: 'Ó', U: 'Ú', Y: 'Ý' },
+  '`': { a: 'à', e: 'è', i: 'ì', o: 'ò', u: 'ù', A: 'À', E: 'È', I: 'Ì', O: 'Ò', U: 'Ù' },
+  '^': { a: 'â', e: 'ê', i: 'î', o: 'ô', u: 'û', A: 'Â', E: 'Ê', I: 'Î', O: 'Ô', U: 'Û' },
+  '~': { a: 'ã', n: 'ñ', o: 'õ', A: 'Ã', N: 'Ñ', O: 'Õ' },
+  '=': { a: 'ā', e: 'ē', i: 'ī', o: 'ō', u: 'ū', A: 'Ā', E: 'Ē', I: 'Ī', O: 'Ō', U: 'Ū' },
+  '.': { z: 'ż', Z: 'Ż' },
+  u: { a: 'ă', e: 'ĕ', g: 'ğ', i: 'ĭ', o: 'ŏ', u: 'ŭ', A: 'Ă', E: 'Ĕ', G: 'Ğ', I: 'Ĭ', O: 'Ŏ', U: 'Ŭ' },
+  v: { c: 'č', d: 'ď', e: 'ě', l: 'ľ', n: 'ň', r: 'ř', s: 'š', t: 'ť', z: 'ž', C: 'Č', D: 'Ď', E: 'Ě', L: 'Ľ', N: 'Ň', R: 'Ř', S: 'Š', T: 'Ť', Z: 'Ž' },
+  H: { o: 'ő', u: 'ű', O: 'Ő', U: 'Ű' },
+  c: { c: 'ç', s: 'ş', C: 'Ç', S: 'Ş' },
+  k: { a: 'ą', e: 'ę', A: 'Ą', E: 'Ę' },
+  r: { a: 'å', A: 'Å' },
+  b: { o: 'ø', O: 'Ø' },
+};
+
+const LATEX_SPECIAL_CHAR_MAP: Record<string, string> = {
+  ae: 'æ',
+  AE: 'Æ',
+  oe: 'œ',
+  OE: 'Œ',
+  aa: 'å',
+  AA: 'Å',
+  o: 'ø',
+  O: 'Ø',
+  l: 'ł',
+  L: 'Ł',
+  ss: 'ß',
+};
+
+const UNICODE_TO_LATEX = new Map<string, string>(
+  Object.entries(LATEX_ACCENT_MAP).flatMap(([accent, chars]) =>
+    Object.entries(chars).map(([base, unicode]) => [unicode, `{\\${accent}{${base}}}`] as const)
+  ).concat(
+    Object.entries(LATEX_SPECIAL_CHAR_MAP).map(([command, unicode]) => [unicode, `{\\${command}}`] as const)
+  )
+);
+
+const SPECIAL_BIBTEX_CHARS: Record<string, string> = {
+  '&': String.raw`\&`,
+  '%': String.raw`\%`,
+  '$': String.raw`\$`,
+  '#': String.raw`\#`,
+  '_': String.raw`\_`,
+};
+
+function accentToUnicode(accent: string, base: string): string {
+  return LATEX_ACCENT_MAP[accent]?.[base] ?? base;
+}
+
+export function normalizeBibtexImportText(value: string): string {
+  let normalized = value;
+  const accentClass = LATEX_ACCENT_CHARS.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+
+  for (let pass = 0; pass < 3; pass++) {
+    normalized = normalized
+      .replace(new RegExp(String.raw`\{\\([${accentClass}])\s*\{?([A-Za-z])\}?\}`, 'g'), (_, accent, base) =>
+        accentToUnicode(accent, base)
+      )
+      .replace(new RegExp(String.raw`\\([${accentClass}])\s*\{([A-Za-z])\}`, 'g'), (_, accent, base) =>
+        accentToUnicode(accent, base)
+      )
+      .replace(new RegExp(String.raw`\\([${accentClass}])\s*([A-Za-z])`, 'g'), (_, accent, base) =>
+        accentToUnicode(accent, base)
+      );
+  }
+
+  normalized = normalized.replace(/\{\\([A-Za-z]+)\}/g, (_, command: string) => {
+    return LATEX_SPECIAL_CHAR_MAP[command] ?? `\\${command}`;
+  });
+
+  normalized = normalized.replace(/\\([{}&#%_$])/g, '$1');
+
+  return normalized.normalize('NFC');
+}
+
+function escapeBibtexValue(value: string): string {
+  return Array.from(value.normalize('NFC'), (char) =>
+    char.charCodeAt(0) > 0x7f ? UNICODE_TO_LATEX.get(char) ?? char : char
+  ).join('')
+    .replace(/[&%$#_]/g, (char) => SPECIAL_BIBTEX_CHARS[char]);
+}
+
+function normalizeBibtexKeyPart(value: string): string {
+  return normalizeBibtexImportText(value)
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
 export function generateBibtexKey(pub: Publication): string {
   if (pub.bibtex_key) return pub.bibtex_key;
   
   const firstAuthor = pub.authors[0] || 'Unknown';
-  const lastName = firstAuthor.split(' ').pop()?.toLowerCase() || 'unknown';
+  const lastName = normalizeBibtexKeyPart(firstAuthor.split(' ').pop() || 'unknown') || 'unknown';
   const year = pub.year || 'n.d.';
-  const titleWord = pub.title.split(' ')[0]?.toLowerCase().replace(/[^a-z]/g, '') || 'untitled';
+  const titleWord = normalizeBibtexKeyPart(pub.title.split(' ')[0] || 'untitled') || 'untitled';
   
   return `${lastName}${year}${titleWord}`;
 }
@@ -27,106 +121,117 @@ export function publicationToBibtex(pub: Publication, includedFields?: BibtexFie
   const fields: string[] = [];
   
   const fieldsToInclude = includedFields || ALL_FIELDS;
+
+  const appendField = (field: string, value: string | number | null | undefined) => {
+    if (value === null || value === undefined || value === '') return;
+    fields.push(`  ${field} = {${escapeBibtexValue(String(value))}}`);
+  };
+
+  const appendListField = (field: string, values: string[] | null | undefined, separator: string) => {
+    const cleaned = values?.map(value => value.trim()).filter(Boolean);
+    if (!cleaned || cleaned.length === 0) return;
+    appendField(field, cleaned.join(separator));
+  };
   
   if (fieldsToInclude.includes('title')) {
-    fields.push(`  title = {${pub.title}}`);
+    appendField('title', pub.title);
   }
   
   if (fieldsToInclude.includes('author') && pub.authors.length > 0) {
-    fields.push(`  author = {${pub.authors.join(' and ')}}`);
+    appendListField('author', pub.authors, ' and ');
   }
   
   if (fieldsToInclude.includes('year') && pub.year) {
-    fields.push(`  year = {${pub.year}}`);
+    appendField('year', pub.year);
   }
   
   if (fieldsToInclude.includes('journal') && pub.journal) {
-    fields.push(`  journal = {${pub.journal}}`);
+    appendField('journal', pub.journal);
   }
   
   if (fieldsToInclude.includes('volume') && pub.volume) {
-    fields.push(`  volume = {${pub.volume}}`);
+    appendField('volume', pub.volume);
   }
   
   if (fieldsToInclude.includes('number') && pub.issue) {
-    fields.push(`  number = {${pub.issue}}`);
+    appendField('number', pub.issue);
   }
   
   if (fieldsToInclude.includes('pages') && pub.pages) {
-    fields.push(`  pages = {${pub.pages}}`);
+    appendField('pages', pub.pages);
   }
   
   if (fieldsToInclude.includes('doi') && pub.doi) {
-    fields.push(`  doi = {${pub.doi}}`);
+    appendField('doi', pub.doi);
   }
   
   if (fieldsToInclude.includes('url') && pub.url) {
-    fields.push(`  url = {${pub.url}}`);
+    appendField('url', pub.url);
   }
   
   if (fieldsToInclude.includes('abstract') && pub.abstract) {
-    fields.push(`  abstract = {${pub.abstract}}`);
+    appendField('abstract', pub.abstract);
   }
 
   // Additional BibTeX fields
   if (fieldsToInclude.includes('booktitle') && pub.booktitle) {
-    fields.push(`  booktitle = {${pub.booktitle}}`);
+    appendField('booktitle', pub.booktitle);
   }
 
   if (fieldsToInclude.includes('chapter') && pub.chapter) {
-    fields.push(`  chapter = {${pub.chapter}}`);
+    appendField('chapter', pub.chapter);
   }
 
   if (fieldsToInclude.includes('edition') && pub.edition) {
-    fields.push(`  edition = {${pub.edition}}`);
+    appendField('edition', pub.edition);
   }
 
   if (fieldsToInclude.includes('editor') && pub.editor && pub.editor.length > 0) {
-    fields.push(`  editor = {${pub.editor.join(' and ')}}`);
+    appendListField('editor', pub.editor, ' and ');
   }
 
   if (fieldsToInclude.includes('howpublished') && pub.howpublished) {
-    fields.push(`  howpublished = {${pub.howpublished}}`);
+    appendField('howpublished', pub.howpublished);
   }
 
   if (fieldsToInclude.includes('institution') && pub.institution) {
-    fields.push(`  institution = {${pub.institution}}`);
+    appendField('institution', pub.institution);
   }
 
   if (fieldsToInclude.includes('organization') && pub.organization) {
-    fields.push(`  organization = {${pub.organization}}`);
+    appendField('organization', pub.organization);
   }
 
   if (fieldsToInclude.includes('publisher') && pub.publisher) {
-    fields.push(`  publisher = {${pub.publisher}}`);
+    appendField('publisher', pub.publisher);
   }
 
   if (fieldsToInclude.includes('school') && pub.school) {
-    fields.push(`  school = {${pub.school}}`);
+    appendField('school', pub.school);
   }
 
   if (fieldsToInclude.includes('series') && pub.series) {
-    fields.push(`  series = {${pub.series}}`);
+    appendField('series', pub.series);
   }
 
   if (fieldsToInclude.includes('type') && pub.type) {
-    fields.push(`  type = {${pub.type}}`);
+    appendField('type', pub.type);
   }
 
   if (fieldsToInclude.includes('eid') && pub.eid) {
-    fields.push(`  eid = {${pub.eid}}`);
+    appendField('eid', pub.eid);
   }
 
   if (fieldsToInclude.includes('isbn') && pub.isbn) {
-    fields.push(`  isbn = {${pub.isbn}}`);
+    appendField('isbn', pub.isbn);
   }
 
   if (fieldsToInclude.includes('issn') && pub.issn) {
-    fields.push(`  issn = {${pub.issn}}`);
+    appendField('issn', pub.issn);
   }
 
   if (fieldsToInclude.includes('keywords') && pub.keywords && pub.keywords.length > 0) {
-    fields.push(`  keywords = {${pub.keywords.join(', ')}}`);
+    appendListField('keywords', pub.keywords, ', ');
   }
   
   return `@${type}{${key},\n${fields.join(',\n')}\n}`;
@@ -167,7 +272,7 @@ function parseField(content: string): string {
     value = value.slice(1, -1);
   }
   // Handle nested braces
-  return value.replace(/\{([^}]*)\}/g, '$1').trim();
+  return normalizeBibtexImportText(value.replace(/\{([^}]*)\}/g, '$1').trim());
 }
 
 function parseBibtexEntry(entry: string): ParsedEntry | null {
