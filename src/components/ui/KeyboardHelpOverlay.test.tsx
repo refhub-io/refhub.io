@@ -147,7 +147,7 @@ describe('KeyboardHelpOverlay new tabs', () => {
       if (clipboardDescriptor) {
         Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);
       } else {
-        delete (navigator as any).clipboard;
+        Reflect.deleteProperty(navigator, 'clipboard');
       }
     }
   });
