@@ -79,10 +79,14 @@ export function DuplicateCheckDialog({
   const [vaultChoices, setVaultChoices] = useState<Record<string, Side>>({});
   const [merging, setMerging] = useState(false);
 
-  const originals = useMemo(
-    () => publications.filter((p) => !p.original_publication_id),
-    [publications],
-  );
+  const originals = useMemo(() => {
+    // Dashboard also injects standalone vault-copy pseudo-publications (original
+    // vault_publications rows with no original_publication_id) alongside real
+    // publications rows. Their `id` is a vault_publications id, not a publications
+    // id — merging one would run publications-table ops against the wrong table.
+    const vaultCopyIds = new Set(vaultCopies.map((c) => c.id));
+    return publications.filter((p) => !p.original_publication_id && !vaultCopyIds.has(p.id));
+  }, [publications, vaultCopies]);
 
   const vaultNames = useMemo(() => new Map(vaults.map((v) => [v.id, v.name])), [vaults]);
 
