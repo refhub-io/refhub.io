@@ -73,6 +73,8 @@ export interface MergePlan {
   survivorPatch: Partial<Publication>;
   repointCopyIds: string[];
   deleteCopyIds: string[];
+  /** dropped vault copies whose publication_relations rows must be re-pointed to the kept copy before deletion */
+  droppedCopyReplacements: Array<{ droppedCopyId: string; keptCopyId: string }>;
 }
 
 export function buildMergePlan(
@@ -103,11 +105,13 @@ export function buildMergePlan(
 
   const repointCopyIds: string[] = [];
   const deleteCopyIds: string[] = [];
+  const droppedCopyReplacements: Array<{ droppedCopyId: string; keptCopyId: string }> = [];
   for (const conflict of conflicts) {
     const keep = decisions.vaultChoices[conflict.vault_id] ?? decisions.survivor;
     const keptCopy = keep === 'left' ? conflict.leftCopy : conflict.rightCopy;
     const droppedCopy = keep === 'left' ? conflict.rightCopy : conflict.leftCopy;
     deleteCopyIds.push(droppedCopy.id);
+    droppedCopyReplacements.push({ droppedCopyId: droppedCopy.id, keptCopyId: keptCopy.id });
     if (keptCopy.original_publication_id === loser.id) repointCopyIds.push(keptCopy.id);
   }
   for (const link of links) {
@@ -116,7 +120,14 @@ export function buildMergePlan(
     repointCopyIds.push(link.id);
   }
 
-  return { survivorId: survivor.id, loserId: loser.id, survivorPatch, repointCopyIds, deleteCopyIds };
+  return {
+    survivorId: survivor.id,
+    loserId: loser.id,
+    survivorPatch,
+    repointCopyIds,
+    deleteCopyIds,
+    droppedCopyReplacements,
+  };
 }
 
 /**
@@ -127,6 +138,43 @@ export async function executeMergePlan(plan: MergePlan): Promise<void> {
   if (Object.keys(plan.survivorPatch).length > 0) {
     const { error } = await supabase.from('publications').update(plan.survivorPatch).eq('id', plan.survivorId);
     if (error) throw new Error(`updating merged fields: ${error.message}`);
+  }
+
+  // publication_relations references vault_publications(id) (ON DELETE CASCADE), not publications(id).
+  // A re-pointed copy keeps its own vault_publications row, so its relations stay valid untouched.
+  // Only copies about to be deleted need their relations re-pointed to the kept copy first —
+  // otherwise deleting the dropped copy would cascade-delete relations the kept copy should retain.
+  for (const { droppedCopyId, keptCopyId } of plan.droppedCopyReplacements) {
+    const { data: droppedRelations, error: droppedRelationsError } = await supabase
+      .from('publication_relations')
+      .select('id, publication_id, related_publication_id')
+      .or(`publication_id.eq.${droppedCopyId},related_publication_id.eq.${droppedCopyId}`);
+    if (droppedRelationsError) throw new Error(`reading dropped copy relations: ${droppedRelationsError.message}`);
+    if (!droppedRelations || droppedRelations.length === 0) continue;
+
+    const { data: keptRelations, error: keptRelationsError } = await supabase
+      .from('publication_relations')
+      .select('publication_id, related_publication_id')
+      .or(`publication_id.eq.${keptCopyId},related_publication_id.eq.${keptCopyId}`);
+    if (keptRelationsError) throw new Error(`reading kept copy relations: ${keptRelationsError.message}`);
+    const existingPairs = new Set(
+      (keptRelations ?? []).map((r) => `${r.publication_id}:${r.related_publication_id}`),
+    );
+
+    for (const relation of droppedRelations) {
+      const from = relation.publication_id === droppedCopyId ? keptCopyId : relation.publication_id;
+      const to = relation.related_publication_id === droppedCopyId ? keptCopyId : relation.related_publication_id;
+      if (from === to || existingPairs.has(`${from}:${to}`)) {
+        const { error } = await supabase.from('publication_relations').delete().eq('id', relation.id);
+        if (error) throw new Error(`dropping redundant relation: ${error.message}`);
+        continue;
+      }
+      const { error } = await supabase
+        .from('publication_relations')
+        .update({ publication_id: from, related_publication_id: to })
+        .eq('id', relation.id);
+      if (error) throw new Error(`re-pointing dropped copy relation: ${error.message}`);
+    }
   }
 
   if (plan.deleteCopyIds.length > 0) {
@@ -173,27 +221,6 @@ export async function executeMergePlan(plan: MergePlan): Promise<void> {
       const { error } = await supabase.from('publication_tags').delete().in('id', toDrop);
       if (error) throw new Error(`dropping duplicate tags: ${error.message}`);
     }
-  }
-
-  // re-point relations; drop any that would now relate the survivor to itself
-  const { data: relations, error: relationError } = await supabase
-    .from('publication_relations')
-    .select('id, publication_id, related_publication_id')
-    .or(`publication_id.eq.${plan.loserId},related_publication_id.eq.${plan.loserId}`);
-  if (relationError) throw new Error(`reading relations: ${relationError.message}`);
-  for (const relation of relations ?? []) {
-    const from = relation.publication_id === plan.loserId ? plan.survivorId : relation.publication_id;
-    const to = relation.related_publication_id === plan.loserId ? plan.survivorId : relation.related_publication_id;
-    if (from === to) {
-      const { error } = await supabase.from('publication_relations').delete().eq('id', relation.id);
-      if (error) throw new Error(`dropping self-relation: ${error.message}`);
-      continue;
-    }
-    const { error } = await supabase
-      .from('publication_relations')
-      .update({ publication_id: from, related_publication_id: to })
-      .eq('id', relation.id);
-    if (error) throw new Error(`re-pointing relation: ${error.message}`);
   }
 
   const { error: deleteError, count } = await supabase

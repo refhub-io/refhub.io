@@ -96,6 +96,8 @@ describe('buildMergePlan', () => {
     expect(plan.deleteCopyIds).toEqual(['c1']);
     // c2 kept in v1 (re-pointed) + c3 un-conflicted loser copy (re-pointed)
     expect([...plan.repointCopyIds].sort()).toEqual(['c2', 'c3']);
+    // c1 (dropped) relations must be re-pointed to the kept copy c2
+    expect(plan.droppedCopyReplacements).toEqual([{ droppedCopyId: 'c1', keptCopyId: 'c2' }]);
   });
 
   it('defaults unspecified conflicted vaults to the survivor side', () => {
@@ -107,5 +109,7 @@ describe('buildMergePlan', () => {
     // v1 defaults to left copy kept (already points at survivor, no repoint), right copy deleted
     expect(plan.deleteCopyIds).toEqual(['c2']);
     expect(plan.repointCopyIds).toEqual(['c3']);
+    // c2 (dropped) relations must be re-pointed to the kept copy c1
+    expect(plan.droppedCopyReplacements).toEqual([{ droppedCopyId: 'c2', keptCopyId: 'c1' }]);
   });
 });
