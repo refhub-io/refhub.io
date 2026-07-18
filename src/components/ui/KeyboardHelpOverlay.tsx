@@ -230,8 +230,10 @@ export function KeyboardHelpOverlay() {
           </TabsContent>
 
           <TabsContent value="guide" className="m-0 min-h-0 flex-1 overflow-hidden data-[state=inactive]:hidden">
-            <ScrollArea className="h-full max-h-full">
-              <MarkdownRenderer compact className="px-6 py-5 prose-headings:font-mono prose-h1:mt-0 prose-h2:border-t prose-h2:border-border/60 prose-h2:pt-5">
+            {/* Radix wraps viewport content in a display:table div that grows to the
+                widest code line; force it block so prose wraps and pre scrolls. */}
+            <ScrollArea className="h-full max-h-full [&_[data-radix-scroll-area-viewport]>div]:!block">
+              <MarkdownRenderer compact githubLinkIcons className="px-6 py-5 prose-headings:font-mono prose-h1:mt-0 prose-h2:border-t prose-h2:border-border/60 prose-h2:pt-5">
                 {helpGuide}
               </MarkdownRenderer>
             </ScrollArea>
@@ -260,8 +262,8 @@ export function KeyboardHelpOverlay() {
           </TabsContent>
 
           <TabsContent value="ai-workflows" className="m-0 min-h-0 flex-1 overflow-hidden data-[state=inactive]:hidden">
-            <ScrollArea className="h-full max-h-full">
-              <MarkdownRenderer compact className="px-6 py-5 prose-headings:font-mono prose-h1:mt-0 prose-h2:border-t prose-h2:border-border/60 prose-h2:pt-5">
+            <ScrollArea className="h-full max-h-full [&_[data-radix-scroll-area-viewport]>div]:!block">
+              <MarkdownRenderer compact githubLinkIcons className="px-6 py-5 prose-headings:font-mono prose-h1:mt-0 prose-h2:border-t prose-h2:border-border/60 prose-h2:pt-5">
                 {aiWorkflowsGuide}
               </MarkdownRenderer>
             </ScrollArea>

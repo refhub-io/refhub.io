@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo, useRef, useState, type HTMLAttributes } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -8,9 +8,12 @@ import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import rehypeSlug from 'rehype-slug';
 import rehypeAutolinkHeadings from 'rehype-autolink-headings';
 import rehypeHighlight from 'rehype-highlight';
+import bash from 'highlight.js/lib/languages/bash';
+import type { HLJSApi, Language } from 'highlight.js';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
+import { Check, Copy, Github } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const SINGLE_LINE_DISPLAY_MATH = /^\s*\$\$([^\n]*?)\$\$\s*$/;
@@ -75,9 +78,67 @@ interface MarkdownRendererProps {
   className?: string;
   /** Use compact prose sizing (prose-sm) */
   compact?: boolean;
+  /** Prefix links to github.com with a small GitHub icon */
+  githubLinkIcons?: boolean;
 }
 
-export function MarkdownRenderer({ children, className, compact = false }: MarkdownRendererProps) {
+const GITHUB_LINK = /^https?:\/\/(www\.)?github\.com\//;
+
+/** bash grammar extended so CLI entry points (`refhub`, `claude`, …) read as
+ *  executable commands instead of unstyled text. */
+function bashWithCliTools(hljs: HLJSApi): Language {
+  const def = bash(hljs);
+  def.contains = [
+    {
+      scope: 'built_in',
+      begin: /\b(?:refhub|claude|codex|gemini|npm|npx|node|git|curl|jq)(?=\s|$)/,
+    },
+    ...(def.contains ?? []),
+  ];
+  return def;
+}
+
+/** Fenced code block with a hover copy button. Copies the rendered text
+ *  (post-highlight innerText), so what you copy is what you see. */
+function CodeBlock({ children, ...props }: HTMLAttributes<HTMLPreElement>) {
+  const preRef = useRef<HTMLPreElement>(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    const text = preRef.current?.textContent ?? '';
+    try {
+      await navigator.clipboard.writeText(text.replace(/\n$/, ''));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard unavailable (permissions/insecure context) — leave button as-is
+    }
+  }, []);
+
+  return (
+    <div className="relative group/code">
+      <pre ref={preRef} {...props}>
+        {children}
+      </pre>
+      <button
+        type="button"
+        onClick={handleCopy}
+        aria-label="copy code"
+        title="copy code"
+        className="absolute right-2 top-2 rounded-md border border-border/60 bg-background/80 p-1.5 text-muted-foreground opacity-60 backdrop-blur-sm transition-opacity hover:text-foreground group-hover/code:opacity-100 focus-visible:opacity-100"
+      >
+        {copied ? <Check className="h-3.5 w-3.5 text-accent" /> : <Copy className="h-3.5 w-3.5" />}
+      </button>
+    </div>
+  );
+}
+
+export function MarkdownRenderer({
+  children,
+  className,
+  compact = false,
+  githubLinkIcons = false,
+}: MarkdownRendererProps) {
   const normalizedChildren = useMemo(() => normalizeMathBlocks(children), [children]);
 
   return (
@@ -98,6 +159,9 @@ export function MarkdownRenderer({ children, className, compact = false }: Markd
         // Code
         'prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:font-mono',
         'prose-pre:bg-muted prose-pre:p-4 prose-pre:rounded-lg prose-pre:overflow-x-auto',
+        // prose-code padding also hits pre>code, where the inline code element
+        // indents only the first line — reset it inside pre blocks.
+        '[&_pre_code]:p-0 [&_pre_code]:bg-transparent',
         // Blockquotes
         'prose-blockquote:border-l-4 prose-blockquote:border-primary prose-blockquote:pl-4 prose-blockquote:italic prose-blockquote:my-3',
         // Tables
@@ -138,10 +202,11 @@ export function MarkdownRenderer({ children, className, compact = false }: Markd
               children: [{ type: 'text', value: '#' }],
             },
           }],
-          rehypeHighlight,
+          [rehypeHighlight, { languages: { bash: bashWithCliTools } }],
           [rehypeKatex, { errorColor: 'hsl(var(--destructive))', strict: false, throwOnError: false }],
         ]}
         components={{
+          pre: ({ node, ...props }) => <CodeBlock {...props} />,
           a: ({ node, children, href, ...props }) => (
             <a
               href={href}
@@ -149,6 +214,9 @@ export function MarkdownRenderer({ children, className, compact = false }: Markd
               rel={href?.startsWith('#') ? undefined : 'noopener noreferrer'}
               {...props}
             >
+              {githubLinkIcons && GITHUB_LINK.test(href ?? '') && (
+                <Github aria-hidden="true" className="inline-block h-3.5 w-3.5 mr-1 align-[-2px]" />
+              )}
               {children}
             </a>
           ),

@@ -16,7 +16,7 @@ export const resources: RefHubResource[] = [
     url: 'https://github.com/refhub-io/refhub.io',
   },
   {
-    name: '.netlify',
+    name: 'refhub-api',
     description: 'serverless backend / api layer.',
     url: 'https://github.com/refhub-io/.netlify',
   },
@@ -24,11 +24,6 @@ export const resources: RefHubResource[] = [
     name: 'refhub-skill',
     description: 'mcp skill for agents to read, write, and manage refhub vaults.',
     url: 'https://github.com/refhub-io/refhub-skill',
-  },
-  {
-    name: 'refhub-mcp',
-    description: 'mcp server implementation backing the refhub agent integrations.',
-    url: 'https://github.com/refhub-io/refhub-mcp',
   },
   {
     name: 'refhub-extensions',

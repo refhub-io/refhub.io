@@ -207,6 +207,17 @@ the skill works in phases:
 
 citations use each item's `bibtex_key`, and the exported `.bib` uses the same keys referenced by `\cite{}`. a manuscript is only marked submission-ready when the readiness gates pass: zero unresolved `[NEEDS SOURCE]` markers, no unresolved fatal reviewer findings, ethics/consent status, ai-use disclosure, reproducibility statement, and a figure/table inventory with alt text.
 
+## prompting tips
+
+- **name the vault.** "add this to my `eurovis-2027` vault" beats "add this paper" — the agent skips a discovery round-trip and cannot guess wrong.
+- **ask for a preview before writes.** "show me what you'd import first" maps to `items preview`, `enrich --dry-run`, and reviewing `discover` results before `discover add`. cheap insurance against bulk mistakes.
+- **spell out tag hierarchies.** "tag as `evaluation > user-study`, creating missing parents" gets the structure you meant; "tag appropriately" gets whatever the agent invents.
+- **say why a paper matters.** notes written from "note that this anchors the related-work comparison" capture your framing; without it you get restated abstracts.
+- **work in small batches.** import → review → tag → next batch. easier to audit, and mistakes stay small.
+- **keep deletions in your hands.** ask the agent to print the exact `refhub ... delete --confirm` command for you to run instead of running it itself.
+- **end with an audit.** "summarize what you changed" plus `refhub audit --vault <id> --since <ISO date>` gives a reviewable trail of the session.
+- **no skill installed? paste this guide.** the copy_guide button above copies this whole page as markdown — drop it into any agent session as instant context.
+
 ## good practices
 
 - one dedicated key per workflow, minimal scopes, vault restrictions where possible. revoke and rotate from profile/settings when a workflow is retired or a secret may have leaked.

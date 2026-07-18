@@ -339,3 +339,50 @@
     fill: #ffffff;
   }
 }
+
+/* highlight.js token colors for fenced code blocks (rehype-highlight).
+   Kept out of @layer components: Tailwind's content-based tree-shaking
+   would drop these since hljs-* classes never appear in source files.
+   Uses theme tokens so light and dark modes both work. */
+.hljs-comment,
+.hljs-quote,
+.hljs-meta {
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-doctag,
+.hljs-number,
+.hljs-attr {
+  color: hsl(var(--primary));
+}
+
+.hljs-string,
+.hljs-addition,
+.hljs-symbol,
+.hljs-bullet {
+  color: hsl(var(--accent));
+}
+
+.hljs-built_in,
+.hljs-title,
+.hljs-section,
+.hljs-name,
+.hljs-type {
+  color: hsl(var(--primary) / 0.8);
+  font-weight: 600;
+}
+
+.hljs-variable,
+.hljs-template-variable,
+.hljs-attribute,
+.hljs-subst {
+  color: hsl(var(--destructive) / 0.9);
+}
+
+.hljs-deletion {
+  color: hsl(var(--destructive));
+}
