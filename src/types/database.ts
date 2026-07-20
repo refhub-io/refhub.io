@@ -32,6 +32,8 @@ export interface Publication {
   isbn: string | null;
   issn: string | null;
   keywords: string[] | null;
+  reading_state: 'unread' | 'skimmed' | 'read';
+  important: boolean;
   created_at: string;
   updated_at: string;
   /** Set when this publication is a vault-specific copy of an original */
