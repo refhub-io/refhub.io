@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { HierarchicalTagBadge } from '@/components/tags/HierarchicalTagBadge';
+import { ReadingProgressControl, ImportantToggle } from './ReadingStateControl';
 
 interface PublicationCardProps {
   publication: Publication;
@@ -50,6 +51,7 @@ interface PublicationCardProps {
   syncLoading?: boolean;
   syncCooldownSeconds?: number;
   onCheckSync?: () => void;
+  onUpdateReadingState?: (patch: Partial<Pick<Publication, 'reading_state' | 'important'>>) => void;
 }
 
 export function PublicationCard({
@@ -74,6 +76,7 @@ export function PublicationCard({
   syncLoading = false,
   syncCooldownSeconds = 0,
   onCheckSync,
+  onUpdateReadingState,
 }: PublicationCardProps) {
   const [notesExpanded, setNotesExpanded] = useState(false);
   
@@ -98,6 +101,8 @@ export function PublicationCard({
     relations: true,
     pdf: true,
     abstract: false,
+    reading_state: true,
+    important: true,
   };
 
   return (
@@ -284,6 +289,22 @@ export function PublicationCard({
               ))}
 
               <div className="flex items-center gap-2 ml-auto">
+                {(show.reading_state || show.important) && (
+                  <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    {show.reading_state && (
+                      <ReadingProgressControl
+                        value={publication.reading_state}
+                        onChange={onUpdateReadingState ? (value) => onUpdateReadingState({ reading_state: value }) : undefined}
+                      />
+                    )}
+                    {show.important && (
+                      <ImportantToggle
+                        value={publication.important}
+                        onChange={onUpdateReadingState ? (value) => onUpdateReadingState({ important: value }) : undefined}
+                      />
+                    )}
+                  </div>
+                )}
                 {show.relations && relationsCount > 0 && (
                   <span className="inline-flex items-center gap-1 text-xs font-mono text-muted-foreground">
                     <Link2 className="w-3.5 h-3.5" />
