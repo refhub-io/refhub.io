@@ -26,6 +26,7 @@ import {
   SemanticScholarMetadata,
 } from '@/lib/semanticScholar';
 import { createPublicationSyncPatch, extractBibliographicPatch, getPublicationSyncDiffs, PublicationSyncDiff } from '@/lib/publicationSync';
+import { updatePublicationReadingState } from '@/lib/publicationReadingState';
 import { filterDashboardTags, getDashboardAccessibleVaultIds } from '@/lib/dashboardTagScope';
 import { syncDrivePdfAsset } from '@/lib/pdfAssets';
 import { PublicationSyncDialog } from '@/components/publications/PublicationSyncDialog';
@@ -1262,6 +1263,26 @@ export default function Dashboard() {
     await fetchData();
   }, [syncPreviewPublication, toast, fetchData, user?.id, editingPublication]);
 
+  const handleUpdateReadingState = useCallback(async (
+    pub: Publication,
+    patch: Partial<Pick<Publication, 'reading_state' | 'important'>>,
+  ) => {
+    const previousPublications = publications;
+    setPublications(prev => prev.map(p => (p.id === pub.id ? { ...p, ...patch } : p)));
+
+    const { error } = await updatePublicationReadingState(supabase, pub.id, patch);
+
+    if (error) {
+      setPublications(previousPublications);
+      toast({
+        title: 'error_updating_paper',
+        description: error.message,
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: dashboardFeedbackRef,
+      });
+    }
+  }, [publications, setPublications, toast]);
+
   const handleDeletePublication = async () => {
     if (!deleteConfirmation) return;
 
@@ -1694,6 +1715,7 @@ export default function Dashboard() {
         syncLoadingIds={syncLoadingIds}
         syncCooldowns={syncCooldowns}
         onCheckPublicationSync={handleCheckPublicationSync}
+        onUpdateReadingState={handleUpdateReadingState}
       />
       </div>
 
