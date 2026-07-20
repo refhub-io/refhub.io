@@ -88,6 +88,8 @@ export function usePublicationRelations(publicationId: string | null, userId: st
           isbn: vp.isbn,
           issn: vp.issn,
           keywords: vp.keywords,
+          reading_state: vp.reading_state || 'unread',
+          important: vp.important ?? false,
           created_at: vp.created_at,
           updated_at: vp.updated_at,
           relation_type: relation?.relation_type || 'related',

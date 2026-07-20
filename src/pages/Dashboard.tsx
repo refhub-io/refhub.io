@@ -505,6 +505,8 @@ export default function Dashboard() {
         isbn: vp.isbn,
         issn: vp.issn,
         keywords: vp.keywords,
+        reading_state: vp.reading_state || 'unread',
+        important: vp.important ?? false,
         created_at: vp.created_at,
         updated_at: vp.updated_at,
         original_publication_id: vp.original_publication_id, // Keep track of the original
