@@ -86,6 +86,7 @@ interface PublicationListProps {
   syncLoadingIds?: Set<string>;
   syncCooldowns?: Record<string, number>;
   onCheckPublicationSync?: (pub: Publication) => void;
+  onUpdateReadingState?: (pub: Publication, patch: Partial<Pick<Publication, 'reading_state' | 'important'>>) => void;
   isLoadingPublications?: boolean;
   loadingMessage?: string;
 }
@@ -124,6 +125,7 @@ export function PublicationList({
   syncLoadingIds = new Set(),
   syncCooldowns = {},
   onCheckPublicationSync,
+  onUpdateReadingState,
   isLoadingPublications = false,
   loadingMessage = 'hang_on_getting_your_papers',
 }: PublicationListProps) {
@@ -836,6 +838,7 @@ export function PublicationList({
             syncLoadingIds={syncLoadingIds}
             syncCooldowns={syncCooldowns}
             onCheckSync={onCheckPublicationSync}
+            onUpdateReadingState={onUpdateReadingState}
           />
         ) : (
           <div className="space-y-3 sm:space-y-4 max-w-4xl mx-auto">
@@ -868,6 +871,7 @@ export function PublicationList({
                   syncLoading={syncLoadingIds.has(pub.id)}
                   syncCooldownSeconds={syncCooldowns[pub.id] || 0}
                   onCheckSync={onCheckPublicationSync ? () => onCheckPublicationSync(pub) : undefined}
+                  onUpdateReadingState={onUpdateReadingState ? (patch) => onUpdateReadingState(pub, patch) : undefined}
                 />
               </div>
             ))}
