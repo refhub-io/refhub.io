@@ -577,6 +577,8 @@ export function PublicationDialog({
         if (!modifiedFields.has('bibtex_key')) updatedData.bibtex_key = publication.bibtex_key || '';
         if (!modifiedFields.has('publication_type')) updatedData.publication_type = publication.publication_type || 'article';
         if (!modifiedFields.has('notes')) updatedData.notes = publication.notes || ''; // This is the key field for markdown preview
+        if (!modifiedFields.has('reading_state')) updatedData.reading_state = publication.reading_state;
+        if (!modifiedFields.has('important')) updatedData.important = publication.important;
         if (!modifiedFields.has('booktitle')) updatedData.booktitle = publication.booktitle || '';
         if (!modifiedFields.has('chapter')) updatedData.chapter = publication.chapter || '';
         if (!modifiedFields.has('edition')) updatedData.edition = publication.edition || '';
