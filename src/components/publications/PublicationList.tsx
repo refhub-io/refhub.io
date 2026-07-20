@@ -6,6 +6,7 @@ import { PublicationTable } from './PublicationTable';
 import { PublicationFilter, applyFilters } from './FilterBuilder';
 import { ViewSettings, ViewMode, VisibleColumns, DEFAULT_VISIBLE_COLUMNS } from './ViewSettings';
 import { useViewSettingsPersistence, SortField, SortDirection } from '@/hooks/useViewSettingsPersistence';
+import { comparePublications, SORT_FIELD_OPTIONS } from '@/lib/publicationSort';
 import { QRCodeDialog } from '@/components/vaults/QRCodeDialog';
 import { TagManager } from '@/components/tags/TagManager';
 import { Button } from '@/components/ui/button';
@@ -39,6 +40,9 @@ import {
   Telescope,
   Loader2,
   CopyCheck,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -216,42 +220,17 @@ export function PublicationList({
   const customFiltered = applyFilters(searchFiltered, persistedFilters, publicationTagsMap);
 
   // Apply sorting
-  const dir = sortDirection === 'asc' ? 1 : -1;
-  const filteredPublications = customFiltered.sort((a, b) => {
-    switch (sortBy) {
-      case 'title':
-        return dir * a.title.localeCompare(b.title);
-      case 'authors': {
-        const aFirst = a.authors[0] || '';
-        const bFirst = b.authors[0] || '';
-        return dir * aFirst.localeCompare(bFirst);
-      }
-      case 'year':
-        return dir * ((a.year || 0) - (b.year || 0));
-      case 'journal': {
-        const aJ = a.journal || '';
-        const bJ = b.journal || '';
-        return dir * aJ.localeCompare(bJ);
-      }
-      case 'type': {
-        const aT = a.publication_type || '';
-        const bT = b.publication_type || '';
-        return dir * aT.localeCompare(bT);
-      }
-      case 'created':
-      default:
-        return dir * (new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-    }
-  });
+  const filteredPublications = customFiltered.sort((a, b) => comparePublications(a, b, sortBy, sortDirection));
 
-  // Handler for table header sort clicks
+  // Handler for table header sort clicks and the sort dropdown — shared so both
+  // surfaces agree on each field's default direction (SORT_FIELD_OPTIONS).
   const handleTableSort = useCallback((field: SortField) => {
     if (sortBy === field) {
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
       setSortBy(field);
-      // Default direction per field: year/created default desc, others default asc
-      setSortDirection(field === 'year' || field === 'created' ? 'desc' : 'asc');
+      const defaultDirection = SORT_FIELD_OPTIONS.find((o) => o.field === field)?.defaultDirection ?? 'asc';
+      setSortDirection(defaultDirection);
     }
   }, [sortBy]);
 
@@ -680,15 +659,27 @@ export function PublicationList({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="font-mono" onCloseAutoFocus={handleToolbarCloseAutoFocus}>
-                  <DropdownMenuItem onClick={() => { setSortBy('created'); setSortDirection('desc'); }}>
-                    recently_added
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setSortBy('year'); setSortDirection('desc'); }}>
-                    publication_year
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setSortBy('title'); setSortDirection('asc'); }}>
-                    title_asc
-                  </DropdownMenuItem>
+                  {SORT_FIELD_OPTIONS.map((option) => {
+                    const isActive = sortBy === option.field;
+                    return (
+                      <DropdownMenuItem
+                        key={option.field}
+                        onClick={() => handleTableSort(option.field)}
+                        className="justify-between gap-4"
+                      >
+                        <span>{option.label}</span>
+                        {isActive ? (
+                          sortDirection === 'asc' ? (
+                            <ArrowUp className="w-3 h-3 text-primary" />
+                          ) : (
+                            <ArrowDown className="w-3 h-3 text-primary" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 opacity-30" />
+                        )}
+                      </DropdownMenuItem>
+                    );
+                  })}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
