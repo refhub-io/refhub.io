@@ -136,6 +136,37 @@ REVOKE EXECUTE ON FUNCTION "public"."delete_user"() FROM "anon";
 REVOKE EXECUTE ON FUNCTION "public"."create_user_profile"("p_user_id" "uuid", "p_email" "text", "p_display_name" "text") FROM "anon";
 
 -- ---------------------------------------------------------------------------
+-- CRITICAL, found while auditing the above (not from the linter -- it only
+-- flags SECURITY DEFINER functions, and this one isn't).
+--
+-- update_vault_publication_with_rollup runs as SECURITY INVOKER (the
+-- caller's own RLS applies), but it does
+-- `PERFORM set_config('request.jwt.claim.sub', p_actor_user_id::text, true)`
+-- before its UPDATEs -- spoofing auth.uid() to an arbitrary caller-supplied
+-- value for the rest of the transaction. Its own source migration
+-- (20260706000000_publication_bibliographic_rollup.sql) already revokes
+-- PUBLIC and grants only service_role for exactly this reason ("this
+-- function trusts its caller completely... must only be reachable through
+-- .netlify's own auth/scope/vault-access checks"), but a live grant check
+-- against production (information_schema.role_routine_grants) confirmed
+-- anon and authenticated both currently also hold EXECUTE.
+--
+-- Impact: any authenticated user can call this RPC directly, pass an
+-- arbitrary victim's user id as p_actor_user_id, and have "Users can manage
+-- vault publications in editable vaults" (TO authenticated, checks
+-- auth.uid() against vault ownership/share role) evaluate against the
+-- *spoofed* auth.uid() instead of the real caller -- gaining unauthorized
+-- write access to any vault_publication the impersonated victim can edit,
+-- which then fans out into the canonical publications row and every sibling
+-- vault_publication. (anon is not exploitable here: that policy is scoped
+-- TO authenticated only, so an anon-role connection has no applicable
+-- UPDATE policy regardless of the spoofed value.)
+--
+-- Re-issuing the revoke to restore the function's intended service_role-only
+-- reachability.
+REVOKE EXECUTE ON FUNCTION "public"."update_vault_publication_with_rollup"("p_vault_publication_id" "uuid", "p_vault_id" "uuid", "p_patch" "jsonb", "p_actor_user_id" "uuid") FROM "anon", "authenticated";
+
+-- ---------------------------------------------------------------------------
 -- Hardening found while auditing the above: create_user_profile is SECURITY
 -- DEFINER (bypasses RLS) and trusted its p_user_id argument outright, so any
 -- authenticated caller could create/attach a profile row for someone else's
