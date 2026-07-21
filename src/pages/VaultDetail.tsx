@@ -108,6 +108,13 @@ export default function VaultDetail() {
     setPublicationTags,
   });
 
+  const handleUpdateReadingState = useCallback((
+    pub: Publication,
+    patch: Partial<Pick<Publication, 'reading_state' | 'important'>>,
+  ) => {
+    sharedVaultOps.updateVaultPublication(pub.id, patch, { silent: true });
+  }, [sharedVaultOps]);
+
   // Local state for UI elements
   const [vaultPapers, setVaultPapers] = useState<{[key: string]: string[]}>({});
   const [vaults, setVaults] = useState<Vault[]>([]);
@@ -1993,6 +2000,7 @@ export default function VaultDetail() {
           syncLoadingIds={syncLoadingIds}
           syncCooldowns={syncCooldowns}
           onCheckPublicationSync={canEdit ? handleCheckPublicationSync : undefined}
+          onUpdateReadingState={canEdit ? handleUpdateReadingState : undefined}
           isLoadingPublications={contentLoading && publications.length === 0}
           loadingMessage="hang_on_getting_your_papers"
         />
@@ -2037,6 +2045,7 @@ export default function VaultDetail() {
         allTags={tags}
         driveUrl={viewingPublication ? (pdfAssetsMap[viewingPublication.id] ?? null) : null}
         driveLoading={pdfAssetsLoading}
+        showWorkflowBadges
       />
 
       <div ref={publicationSyncDialogRef}>

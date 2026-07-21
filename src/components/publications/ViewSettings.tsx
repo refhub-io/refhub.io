@@ -26,6 +26,8 @@ export interface VisibleColumns {
   relations: boolean;
   pdf: boolean;
   abstract: boolean;
+  reading_state: boolean;
+  important: boolean;
 }
 
 interface ViewSettingsProps {
@@ -50,6 +52,8 @@ const COLUMN_OPTIONS: { key: keyof VisibleColumns; label: string }[] = [
   { key: 'tags', label: 'Tags' },
   { key: 'vault', label: 'Vault' },
   { key: 'type', label: 'Type' },
+  { key: 'reading_state', label: 'Reading State' },
+  { key: 'important', label: 'Important' },
   { key: 'doi', label: 'DOI' },
   { key: 'notes', label: 'Notes' },
   { key: 'relations', label: 'Relations' },
@@ -71,6 +75,8 @@ export const DEFAULT_VISIBLE_COLUMNS: VisibleColumns = {
   relations: true,
   pdf: true,
   abstract: false,
+  reading_state: true,
+  important: true,
 };
 
 export function ViewSettings({

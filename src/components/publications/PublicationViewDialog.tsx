@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { Download, ExternalLink, FileText, Link2, Loader2, Pencil } from 'lucide-react';
 import { GoogleDriveIcon } from '@/components/ui/GoogleDriveIcon';
+import { ReadingProgressControl, ImportantToggle } from './ReadingStateControl';
 
 interface PublicationViewDialogProps {
   open: boolean;
@@ -28,6 +29,7 @@ interface PublicationViewDialogProps {
   onExport?: (publication: Publication) => void;
   driveUrl?: string | null;
   driveLoading?: boolean;
+  showWorkflowBadges?: boolean;
 }
 
 const DETAIL_FIELDS: Array<{ key: keyof Publication; label: string }> = [
@@ -64,6 +66,7 @@ export function PublicationViewDialog({
   onExport,
   driveUrl,
   driveLoading = false,
+  showWorkflowBadges = false,
 }: PublicationViewDialogProps) {
   if (!publication) return null;
 
@@ -116,6 +119,12 @@ export function PublicationViewDialog({
               <Badge variant="secondary" className="font-mono text-xs">
                 {publication.year}
               </Badge>
+            )}
+            {showWorkflowBadges && (
+              <div className="flex items-center gap-1 ml-auto">
+                <ReadingProgressControl value={publication.reading_state} />
+                <ImportantToggle value={publication.important} />
+              </div>
             )}
           </div>
           <DialogTitle className="pr-8 text-xl sm:text-2xl font-bold font-mono leading-tight">

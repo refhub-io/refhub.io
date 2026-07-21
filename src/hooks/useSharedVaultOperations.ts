@@ -588,6 +588,8 @@ export function useSharedVaultOperations({
       isbn: data.isbn || null,
       issn: data.issn || null,
       keywords: data.keywords || null,
+      reading_state: 'unread',
+      important: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -663,6 +665,8 @@ export function useSharedVaultOperations({
         isbn: vaultPub.isbn,
         issn: vaultPub.issn,
         keywords: vaultPub.keywords,
+        reading_state: vaultPub.reading_state || 'unread',
+        important: vaultPub.important ?? false,
         created_at: vaultPub.created_at,
         updated_at: vaultPub.updated_at,
       };
@@ -845,6 +849,8 @@ export function useSharedVaultOperations({
           isbn: payload.isbn,
           issn: payload.issn,
           keywords: payload.keywords,
+          reading_state: payload.reading_state || 'unread',
+          important: payload.important ?? false,
           created_at: payload.created_at,
           updated_at: payload.updated_at,
         };

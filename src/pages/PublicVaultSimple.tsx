@@ -262,11 +262,14 @@ export default function PublicVault() {
       await supabase.rpc('increment_vault_views', { vault_uuid: vaultData.id });
 
       // Fetch publications via vault_publications
-      const { data: vaultPublicationsData } = await supabase
+      const { data: vaultPublicationsDataRaw } = await supabase
         .from('vault_publications')
         .select('*')
         .eq('vault_id', vaultData.id);
-      
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const vaultPublicationsData = vaultPublicationsDataRaw as any[];
+
       let pubsData: Publication[] = [];
       if (vaultPublicationsData && vaultPublicationsData.length > 0) {
         // Convert vault publications to Publication format
@@ -303,6 +306,8 @@ export default function PublicVault() {
           isbn: vp.isbn,
           issn: vp.issn,
           keywords: vp.keywords,
+          reading_state: vp.reading_state || 'unread',
+          important: vp.important ?? false,
           created_at: vp.created_at,
           updated_at: vp.updated_at,
           original_publication_id: vp.original_publication_id,

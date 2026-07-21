@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { HierarchicalTagBadge } from '@/components/tags/HierarchicalTagBadge';
+import { ReadingProgressControl, ImportantToggle } from './ReadingStateControl';
 import { VisibleColumns } from './ViewSettings';
 import { SortField, SortDirection } from '@/hooks/useViewSettingsPersistence';
 import {
@@ -57,6 +58,7 @@ interface PublicationTableProps {
   syncLoadingIds?: Set<string>;
   syncCooldowns?: Record<string, number>;
   onCheckSync?: (pub: Publication) => void;
+  onUpdateReadingState?: (pub: Publication, patch: Partial<Pick<Publication, 'reading_state' | 'important'>>) => void;
   // Sort props
   sortBy: SortField;
   sortDirection: SortDirection;
@@ -87,6 +89,7 @@ export function PublicationTable({
   syncLoadingIds = new Set(),
   syncCooldowns = {},
   onCheckSync,
+  onUpdateReadingState,
   sortBy,
   sortDirection,
   onSort,
@@ -166,6 +169,12 @@ export function PublicationTable({
             )}
             {visibleColumns.type && (
               <SortableHead field="type" className="w-24">Type</SortableHead>
+            )}
+            {visibleColumns.reading_state && (
+              <SortableHead field="reading_state" className="w-28">State</SortableHead>
+            )}
+            {visibleColumns.important && (
+              <SortableHead field="important" className="w-12 text-center">★</SortableHead>
             )}
             {visibleColumns.relations && (
               <TableHead className="font-mono text-xs w-16 text-center">Links</TableHead>
@@ -317,6 +326,24 @@ export function PublicationTable({
                 {visibleColumns.type && (
                   <TableCell className="text-xs font-mono text-muted-foreground capitalize">
                     {pub.publication_type || '—'}
+                  </TableCell>
+                )}
+
+                {visibleColumns.reading_state && (
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <ReadingProgressControl
+                      value={pub.reading_state}
+                      onChange={onUpdateReadingState ? (value) => onUpdateReadingState(pub, { reading_state: value }) : undefined}
+                    />
+                  </TableCell>
+                )}
+
+                {visibleColumns.important && (
+                  <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                    <ImportantToggle
+                      value={pub.important}
+                      onChange={onUpdateReadingState ? (value) => onUpdateReadingState(pub, { important: value }) : undefined}
+                    />
                   </TableCell>
                 )}
 

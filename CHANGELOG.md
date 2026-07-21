@@ -6,6 +6,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.7.0] - 2026-07-20
+
+### Added
+- Reading progress (`unread` / `skimmed` / `read`) and an orthogonal `important`
+  star flag on every publication, with one-click quick controls in card and
+  table views, filtering, and sorting. Both fields are independent per vault
+  copy, like notes and tags — marking a paper read in one vault never affects
+  another vault's copy of the same paper. (#94)
+
+### Fixed
+- Card-view sorting now supports ascending/descending for every field, not
+  just the three previously-hardcoded presets.
+
 ## [1.6.2] - 2026-07-18
 
 ### Added

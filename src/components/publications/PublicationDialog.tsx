@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { RelatedPapersSection } from './RelatedPapersSection';
+import { ReadingProgressControl, ImportantToggle } from './ReadingStateControl';
 import { HierarchicalTagSelector } from '@/components/tags/HierarchicalTagSelector';
 import { usePublicationRelations } from '@/hooks/usePublicationRelations';
 import { useAuth } from '@/hooks/useAuth';
@@ -136,6 +137,8 @@ export function PublicationDialog({
     isbn: '',
     issn: '',
     keywords: [],
+    reading_state: 'unread',
+    important: false,
   });
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedVaultIds, setSelectedVaultIds] = useState<string[]>(currentVaultId ? [currentVaultId] : []);
@@ -503,6 +506,8 @@ export function PublicationDialog({
         isbn: publication.isbn || '',
         issn: publication.issn || '',
         keywords: publication.keywords || [],
+        reading_state: publication.reading_state,
+        important: publication.important,
       });
       setAuthorsInput(publication.authors.join(', '));
       setEditorInput((publication.editor || []).join(', '));
@@ -541,6 +546,8 @@ export function PublicationDialog({
         isbn: '',
         issn: '',
         keywords: [],
+        reading_state: 'unread',
+        important: false,
       });
       setAuthorsInput('');
       setEditorInput('');
@@ -577,6 +584,8 @@ export function PublicationDialog({
         if (!modifiedFields.has('bibtex_key')) updatedData.bibtex_key = publication.bibtex_key || '';
         if (!modifiedFields.has('publication_type')) updatedData.publication_type = publication.publication_type || 'article';
         if (!modifiedFields.has('notes')) updatedData.notes = publication.notes || ''; // This is the key field for markdown preview
+        if (!modifiedFields.has('reading_state')) updatedData.reading_state = publication.reading_state;
+        if (!modifiedFields.has('important')) updatedData.important = publication.important;
         if (!modifiedFields.has('booktitle')) updatedData.booktitle = publication.booktitle || '';
         if (!modifiedFields.has('chapter')) updatedData.chapter = publication.chapter || '';
         if (!modifiedFields.has('edition')) updatedData.edition = publication.edition || '';
@@ -1069,6 +1078,30 @@ export function PublicationDialog({
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+
+            {/* Reading state and priority */}
+            <div className="flex items-center justify-between gap-4 w-full box-border">
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="font-semibold font-mono text-sm block">reading_state</Label>
+                <ReadingProgressControl
+                  value={formData.reading_state ?? 'unread'}
+                  onChange={(value) => {
+                    setFormData({ ...formData, reading_state: value });
+                    trackFieldModification('reading_state');
+                  }}
+                />
+              </div>
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="font-semibold font-mono text-sm block">important</Label>
+                <ImportantToggle
+                  value={formData.important ?? false}
+                  onChange={(value) => {
+                    setFormData({ ...formData, important: value });
+                    trackFieldModification('important');
+                  }}
+                />
               </div>
             </div>
 

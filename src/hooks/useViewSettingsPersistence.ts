@@ -5,7 +5,7 @@ import { PublicationFilter } from '@/components/publications/FilterBuilder';
 
 const VIEW_SETTINGS_STORAGE_KEY = 'refhub-view-settings';
 
-export type SortField = 'title' | 'authors' | 'year' | 'journal' | 'type' | 'created';
+export type SortField = 'title' | 'authors' | 'year' | 'journal' | 'type' | 'created' | 'reading_state' | 'important';
 export type SortDirection = 'asc' | 'desc';
 
 interface StoredViewSettings {

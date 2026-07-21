@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Tag, Vault } from '@/types/database';
+import { Publication, Tag, Vault } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -34,7 +34,9 @@ export type FilterField =
   | 'vault' 
   | 'doi' 
   | 'notes'
-  | 'publication_type';
+  | 'publication_type'
+  | 'reading_state'
+  | 'important';
 
 export type FilterOperator = 
   | 'contains' 
@@ -73,6 +75,8 @@ const FIELD_OPTIONS: { value: FilterField; label: string }[] = [
   { value: 'doi', label: 'DOI' },
   { value: 'notes', label: 'Notes' },
   { value: 'publication_type', label: 'Type' },
+  { value: 'reading_state', label: 'Reading State' },
+  { value: 'important', label: 'Important' },
 ];
 
 const getOperatorsForField = (field: FilterField): { value: FilterOperator; label: string }[] => {
@@ -107,6 +111,8 @@ const getOperatorsForField = (field: FilterField): { value: FilterOperator; labe
     case 'tags':
     case 'vault':
     case 'publication_type':
+    case 'reading_state':
+    case 'important':
       return selectOperators;
     default:
       return textOperators;
@@ -184,6 +190,39 @@ export function FilterBuilder({ filters, onFiltersChange, tags, vaults, open: co
                   {vault.name}
                 </SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+        );
+      case 'reading_state':
+        return (
+          <Select
+            value={filter.value}
+            onValueChange={(value) => updateFilter(filter.id, { value })}
+          >
+            <SelectTrigger className="h-8 w-full sm:w-32 text-xs font-mono">
+              <SelectValue placeholder="Select state" />
+            </SelectTrigger>
+            <SelectContent>
+              {(['unread', 'skimmed', 'read'] as const).map((state) => (
+                <SelectItem key={state} value={state} className="text-xs font-mono">
+                  {state}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
+      case 'important':
+        return (
+          <Select
+            value={filter.value}
+            onValueChange={(value) => updateFilter(filter.id, { value })}
+          >
+            <SelectTrigger className="h-8 w-full sm:w-32 text-xs font-mono">
+              <SelectValue placeholder="Select" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="true" className="text-xs font-mono">important</SelectItem>
+              <SelectItem value="false" className="text-xs font-mono">not important</SelectItem>
             </SelectContent>
           </Select>
         );
@@ -422,6 +461,12 @@ export function applyFilters(
           break;
         case 'doi':
           fieldValue = pub.doi || '';
+          break;
+        case 'reading_state':
+          fieldValue = pub.reading_state;
+          break;
+        case 'important':
+          fieldValue = pub.important ? 'true' : 'false';
           break;
         case 'notes':
           fieldValue = pub.notes || '';

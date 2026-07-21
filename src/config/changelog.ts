@@ -21,6 +21,25 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    id: 17,
+    date: '2026-07-20',
+    title: 'track what you\'ve read',
+    features: [
+      {
+        tag: 'feature',
+        title: 'reading state & priority',
+        description:
+          'mark papers unread, skimmed, or read with a one-click control on every card and table row, and star the ones that matter most. filter and sort by either, independently per vault.',
+      },
+      {
+        tag: 'fix',
+        title: 'card-view sort direction',
+        description:
+          'sorting in card view now supports ascending and descending for every field, matching table view.',
+      },
+    ],
+  },
+  {
     id: 16,
     date: '2026-07-18',
     title: 'ai agent workflows guide',

@@ -36,6 +36,8 @@ const basePublication: Publication = {
   isbn: null,
   issn: null,
   keywords: null,
+  reading_state: 'unread',
+  important: false,
   created_at: '2026-05-21T00:00:00Z',
   updated_at: '2026-05-21T00:00:00Z',
 };
