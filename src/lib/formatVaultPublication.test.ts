@@ -56,4 +56,26 @@ describe('formatVaultPublication', () => {
     expect(merged.notes).toBe('long notes that would get TOASTed');
     expect(merged.reading_state).toBe('read');
   });
+
+  it('the same merge preserves notes when the update instead touches important (reported symptom: important toggle also wiped notes)', () => {
+    // important and reading_state go through the exact same onUpdateReadingState
+    // handler and DB write path (see PublicationCard.tsx), so an update that only
+    // touches `important` is just as capable of omitting unchanged, TOASTed
+    // `notes` from the realtime payload as one that touches `reading_state`.
+    const existing = formatVaultPublication({
+      id: 'vp-1',
+      created_by: 'user-1',
+      title: 'T',
+      notes: 'long notes that would get TOASTed',
+      important: false,
+    });
+
+    // Realtime payload for an update that only touched important — no `notes` key at all.
+    const incompletePayload = { id: 'vp-1', created_by: 'user-1', title: 'T', important: true };
+
+    const merged = formatVaultPublication({ ...existing, ...incompletePayload });
+
+    expect(merged.notes).toBe('long notes that would get TOASTed');
+    expect(merged.important).toBe(true);
+  });
 });
