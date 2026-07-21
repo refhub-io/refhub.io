@@ -96,6 +96,8 @@ export function PublicationDialog({
   const saveButtonRef = useRef<HTMLButtonElement | null>(null);
   const fullscreenSaveFeedbackRef = useRef<HTMLDivElement | null>(null);
   const footerSaveFeedbackRef = useRef<HTMLDivElement | null>(null);
+  const notesTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const fullscreenNotesTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const syncButtonRef = useRef<HTMLButtonElement | null>(null);
   const {
     relations,
@@ -189,8 +191,12 @@ export function PublicationDialog({
   const openRef = useRef(open);
   const formDataRef = useRef(formData);
   const authorsInputRef = useRef(authorsInput);
+  const editorInputRef2 = useRef(editorInput);
+  const keywordsInputRef2 = useRef(keywordsInput);
   const selectedTagsRef = useRef(selectedTags);
   const lastPublicationIdRef = useRef<string | null>(null);
+  const autosaveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const notesFullscreenRef = useRef(notesFullscreen);
 
   // ─── Keyboard context for dialog ────────────────────────────────────────────
   const kbCtx = useKeyboardContext();
@@ -207,6 +213,66 @@ export function PublicationDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  const getCurrentFormDataForSave = useCallback(() => {
+    const liveNotes = notesFullscreenRef.current
+      ? fullscreenNotesTextareaRef.current?.value
+      : notesTextareaRef.current?.value;
+    const currentData = { ...formDataRef.current };
+
+    if (liveNotes !== undefined) {
+      currentData.notes = liveNotes;
+    }
+
+    formDataRef.current = currentData;
+    return currentData;
+  }, []);
+
+  const buildSaveDataFromRefs = useCallback(() => {
+    const authors = authorsInputRef.current
+      .split(',')
+      .map((a) => a.trim())
+      .filter((a) => a.length > 0);
+    const editor = editorInputRef2.current
+      .split(',')
+      .map((e) => e.trim())
+      .filter((e) => e.length > 0);
+    const keywords = keywordsInputRef2.current
+      .split(',')
+      .map((k) => k.trim())
+      .filter((k) => k.length > 0);
+
+    return { ...getCurrentFormDataForSave(), authors, editor, keywords };
+  }, [getCurrentFormDataForSave]);
+
+  const runAutosaveFromRefs = useCallback((feedbackSource: RefObject<Element | null>) => {
+    setSaving(true);
+    const previousSave = autosaveQueueRef.current.catch(() => undefined);
+    const queuedSave = previousSave.then(async () => {
+      const dataToSave = buildSaveDataFromRefs();
+      await onSave(
+        dataToSave,
+        selectedTagsRef.current,
+        publication ? undefined : selectedVaultIds,
+        true,
+        undefined,
+        feedbackSource,
+      );
+      setModifiedFields(new Set());
+      setLastSavedAt(new Date());
+      if (notesFullscreenRef.current) {
+        fullscreenCleanNotesRef.current = dataToSave.notes ?? '';
+      }
+    });
+    const trackedSave = queuedSave.finally(() => {
+      if (autosaveQueueRef.current === trackedSave) {
+        setSaving(false);
+      }
+    });
+
+    autosaveQueueRef.current = trackedSave;
+    return trackedSave;
+  }, [buildSaveDataFromRefs, onSave, publication, selectedVaultIds]);
+
   // Ctrl+S save without closing
   useHotkeys(
     'dialog',
@@ -218,55 +284,22 @@ export function PublicationDialog({
           if (!open) return false;
           e.preventDefault();
           // Trigger form save without closing
-          const doSave = async () => {
-            setSaving(true);
-            try {
-              const authors = authorsInputRef.current
-                .split(',')
-                .map((a) => a.trim())
-                .filter((a) => a.length > 0);
-              const editor = editorInputRef2.current
-                .split(',')
-                .map((e) => e.trim())
-                .filter((e) => e.length > 0);
-              const kw = keywordsInputRef2.current
-                .split(',')
-                .map((k) => k.trim())
-                .filter((k) => k.length > 0);
-              await onSave(
-                { ...formDataRef.current, authors, editor, keywords: kw },
-                selectedTagsRef.current,
-                publication ? undefined : selectedVaultIds,
-                true, // isAutoSave
-                undefined,
-                notesFullscreen ? fullscreenSaveFeedbackRef : footerSaveFeedbackRef,
-              );
-              setModifiedFields(new Set());
-              setLastSavedAt(new Date());
-              if (notesFullscreen) {
-                fullscreenCleanNotesRef.current = formDataRef.current.notes ?? '';
-              }
-            } finally {
-              setSaving(false);
-            }
-          };
-          doSave();
+          void runAutosaveFromRefs(notesFullscreenRef.current ? fullscreenSaveFeedbackRef : footerSaveFeedbackRef);
           return true;
         },
         allowInInput: true,
       },
     ],
-    [open, publication, selectedVaultIds, onSave, notesFullscreen],
+    [open, runAutosaveFromRefs],
   );
 
   // Keep refs in sync for the hotkey handler
-  const editorInputRef2 = useRef(editorInput);
-  const keywordsInputRef2 = useRef(keywordsInput);
   useEffect(() => { authorsInputRef.current = authorsInput; }, [authorsInput]);
   useEffect(() => { editorInputRef2.current = editorInput; }, [editorInput]);
   useEffect(() => { keywordsInputRef2.current = keywordsInput; }, [keywordsInput]);
   useEffect(() => { formDataRef.current = formData; }, [formData]);
   useEffect(() => { selectedTagsRef.current = selectedTags; }, [selectedTags]);
+  useEffect(() => { notesFullscreenRef.current = notesFullscreen; }, [notesFullscreen]);
   useEffect(() => { setDrivePdfInput(driveUrl ?? ''); }, [driveUrl]);
 
   useEffect(() => {
@@ -357,35 +390,8 @@ export function PublicationDialog({
 
   // ─── Fullscreen notes save handler ─────────────────────────────────────────
   const handleFullscreenSave = useCallback(async () => {
-    setSaving(true);
-    try {
-      const authors = authorsInputRef.current
-        .split(',')
-        .map((a: string) => a.trim())
-        .filter((a: string) => a.length > 0);
-      const editor = editorInputRef2.current
-        .split(',')
-        .map((e: string) => e.trim())
-        .filter((e: string) => e.length > 0);
-      const kw = keywordsInputRef2.current
-        .split(',')
-        .map((k: string) => k.trim())
-        .filter((k: string) => k.length > 0);
-      await onSave(
-        { ...formDataRef.current, authors, editor, keywords: kw },
-        selectedTagsRef.current,
-        publication ? undefined : selectedVaultIds,
-        true,
-        undefined,
-        fullscreenSaveFeedbackRef,
-      );
-      setModifiedFields(new Set());
-      setLastSavedAt(new Date());
-      fullscreenCleanNotesRef.current = formData.notes;
-    } finally {
-      setSaving(false);
-    }
-  }, [onSave, publication, selectedVaultIds, formData.notes]);
+    await runAutosaveFromRefs(fullscreenSaveFeedbackRef);
+  }, [runAutosaveFromRefs]);
 
   // ─── Exit fullscreen helper ────────────────────────────────────────────────
   const handleExitFullscreen = useCallback(() => {
@@ -395,6 +401,7 @@ export function PublicationDialog({
       setPendingExitFullscreen(true);
       setShowUnsavedDialog(true);
     } else {
+      notesFullscreenRef.current = false;
       setNotesFullscreen(false);
     }
   }, [formData.notes]);
@@ -747,6 +754,7 @@ export function PublicationDialog({
         return next;
       });
       setPendingExitFullscreen(false);
+      notesFullscreenRef.current = false;
       setNotesFullscreen(false);
     } else {
       setModifiedFields(new Set());
@@ -782,6 +790,7 @@ export function PublicationDialog({
         // Save succeeded — update snapshot and exit fullscreen, keep dialog open
         fullscreenCleanNotesRef.current = formData.notes;
         setPendingExitFullscreen(false);
+        notesFullscreenRef.current = false;
         setNotesFullscreen(false);
       } else {
         setPendingClose(false);
@@ -902,9 +911,15 @@ export function PublicationDialog({
                 <div className="flex-1 px-4 sm:px-6 py-3 sm:py-4 overflow-hidden min-h-0">
                   <textarea
                     id="fullscreen-notes-textarea"
+                    ref={fullscreenNotesTextareaRef}
                     value={formData.notes}
                     onChange={(e) => {
-                      setFormData({ ...formData, notes: e.target.value });
+                      const notes = e.target.value;
+                      setFormData(prev => {
+                        const next = { ...prev, notes };
+                        formDataRef.current = next;
+                        return next;
+                      });
                       trackFieldModification('notes');
                     }}
                     autoFocus
@@ -1664,6 +1679,7 @@ export function PublicationDialog({
                   size="sm"
                   onClick={() => {
                     fullscreenCleanNotesRef.current = formData.notes; // snapshot for dirty check
+                    notesFullscreenRef.current = true;
                     setNotesFullscreen(true);
                   }}
                   className="h-7 font-mono text-xs"
@@ -1680,9 +1696,15 @@ export function PublicationDialog({
                 <TabsContent value="write" className="mt-2 min-w-0">
                   <Textarea
                     id="notes"
+                    ref={notesTextareaRef}
                     value={formData.notes}
                     onChange={(e) => {
-                      setFormData({ ...formData, notes: e.target.value });
+                      const notes = e.target.value;
+                      setFormData(prev => {
+                        const next = { ...prev, notes };
+                        formDataRef.current = next;
+                        return next;
+                      });
                       trackFieldModification('notes');
                     }}
                     placeholder="// your_personal_notes...\n\n**Bold text**, *italic*, `code`, [links](url)\n\n- bullet points\n- supported"
