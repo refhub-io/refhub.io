@@ -6,6 +6,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.7.1] - 2026-07-21
+
+### Fixed
+- Editing a publication inside a vault (e.g. toggling reading state or
+  importance) could make its notes disappear from the screen until a page
+  reload. Root cause: Postgres's logical replication omits unchanged
+  large/TOASTed columns (like `notes`) from realtime update payloads unless
+  the table's replica identity is `FULL`; the notes were never actually
+  lost from the database, but the live view rebuilt itself from an
+  incomplete payload. Fixed at both layers: `vault_publications` now has
+  `REPLICA IDENTITY FULL` set, and the realtime update handler merges onto
+  the existing record before applying a payload, so a field missing from
+  one update can no longer clobber it locally either way.
+
 ## [1.7.0] - 2026-07-20
 
 ### Added

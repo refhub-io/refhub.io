@@ -1,0 +1,30 @@
+-- 20260721000000_vault_publications_replica_identity_full.sql
+--
+-- Fixes a bug where toggling a single field on a vault_publications row
+-- (e.g. reading_state/important) could make large/unchanged columns like
+-- `notes` disappear from the live UI until a page reload.
+--
+-- Root cause: with the default REPLICA IDENTITY, Postgres's logical
+-- replication (what Supabase Realtime consumes) omits unchanged TOASTed
+-- (out-of-line, large) column values from the WAL stream for UPDATEs.
+-- `notes` is the one column on this row long enough to actually get
+-- TOASTed; short fields (title, doi, etc.) are never affected. When an
+-- UPDATE only touches a different column, Realtime's payload.new can
+-- arrive with `notes` missing, and VaultContentContext.tsx's realtime
+-- handler fully replaces the local publication object from that payload
+-- (formatVaultPublication(newRecord)), wiping notes client-side until the
+-- next full fetch (which reads the real row directly, bypassing Realtime,
+-- and is why a reload "brings it back").
+--
+-- REPLICA IDENTITY FULL forces Postgres to always include the complete
+-- row image in the replication stream, eliminating this whole class of
+-- "randomly missing large columns in realtime payloads" bugs, not just
+-- this one manifestation (e.g. it also protects `abstract`). This is
+-- Supabase's own documented fix for this exact symptom.
+--
+-- Only vault_publications needs this: it's the only table that is both
+-- realtime-subscribed (VaultContentContext.tsx) and uses a full-replace
+-- pattern on UPDATE. The canonical `publications` table has no realtime
+-- subscription anywhere in the codebase.
+
+ALTER TABLE "public"."vault_publications" REPLICA IDENTITY FULL;
