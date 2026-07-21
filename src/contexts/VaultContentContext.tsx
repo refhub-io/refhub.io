@@ -7,6 +7,7 @@ import { handleError } from '@/lib/toast';
 import { debug, warn, error as logError } from '@/lib/logger';
 import { getPageCache, setPageCache } from '@/lib/pageCache';
 import { syncDrivePdfAsset } from '@/lib/pdfAssets';
+import { formatVaultPublication } from '@/lib/formatVaultPublication';
 
 // Info about the last activity in the vault
 export type ActivityType = 'publication_added' | 'publication_updated' | 'publication_removed' | 'tag_added' | 'tag_updated' | 'tag_removed';
@@ -206,47 +207,6 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
     });
   }, [getUserDisplayName]);
 
-  // Helper to convert vault publication to Publication format
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const formatVaultPublication = useCallback((vp: any): Publication => ({
-    id: vp.id,
-    user_id: vp.created_by,
-    title: vp.title,
-    authors: vp.authors || [],
-    year: vp.year,
-    journal: vp.journal,
-    volume: vp.volume,
-    issue: vp.issue,
-    pages: vp.pages,
-    doi: vp.doi,
-    url: vp.url,
-    abstract: vp.abstract,
-    pdf_url: vp.pdf_url,
-    bibtex_key: vp.bibtex_key,
-    publication_type: vp.publication_type || 'article',
-    notes: vp.notes,
-    booktitle: vp.booktitle,
-    chapter: vp.chapter,
-    edition: vp.edition,
-    editor: vp.editor,
-    howpublished: vp.howpublished,
-    institution: vp.institution,
-    number: vp.number,
-    organization: vp.organization,
-    publisher: vp.publisher,
-    school: vp.school,
-    series: vp.series,
-    type: vp.type,
-    eid: vp.eid,
-    isbn: vp.isbn,
-    issn: vp.issn,
-    keywords: vp.keywords,
-    reading_state: vp.reading_state || 'unread',
-    important: vp.important ?? false,
-    created_at: vp.created_at,
-    updated_at: vp.updated_at,
-    original_publication_id: vp.original_publication_id,
-  }), []);
 
   const fetchPdfAssets = useCallback(async (vaultPublications: Publication[]) => {
     if (vaultPublications.length === 0) {
@@ -628,11 +588,15 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
             // Track activity (from realtime)
             updateLastActivity('publication_added', newRecord.created_by, newRecord.created_at, true);
           } else if (eventType === 'UPDATE') {
-            // Update existing publication
+            // Update existing publication. Merge onto the existing record before
+            // formatting: Postgres's logical replication can omit unchanged
+            // TOASTed columns (e.g. large `notes`) from the payload when a
+            // different column is updated, and formatting the raw payload alone
+            // would wipe those fields locally until the next full fetch.
             setPublications(prev =>
               prev.map(pub =>
                 pub.id === newRecord.id
-                  ? formatVaultPublication(newRecord)
+                  ? formatVaultPublication({ ...pub, ...newRecord })
                   : pub
               )
             );

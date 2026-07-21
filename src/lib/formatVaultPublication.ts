@@ -1,0 +1,45 @@
+import type { Publication } from '@/types/database';
+
+/** Converts a raw vault_publications row (DB shape or realtime payload) to a Publication. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function formatVaultPublication(vp: any): Publication {
+  return {
+    id: vp.id,
+    user_id: vp.created_by,
+    title: vp.title,
+    authors: vp.authors || [],
+    year: vp.year,
+    journal: vp.journal,
+    volume: vp.volume,
+    issue: vp.issue,
+    pages: vp.pages,
+    doi: vp.doi,
+    url: vp.url,
+    abstract: vp.abstract,
+    pdf_url: vp.pdf_url,
+    bibtex_key: vp.bibtex_key,
+    publication_type: vp.publication_type || 'article',
+    notes: vp.notes,
+    booktitle: vp.booktitle,
+    chapter: vp.chapter,
+    edition: vp.edition,
+    editor: vp.editor,
+    howpublished: vp.howpublished,
+    institution: vp.institution,
+    number: vp.number,
+    organization: vp.organization,
+    publisher: vp.publisher,
+    school: vp.school,
+    series: vp.series,
+    type: vp.type,
+    eid: vp.eid,
+    isbn: vp.isbn,
+    issn: vp.issn,
+    keywords: vp.keywords,
+    reading_state: vp.reading_state || 'unread',
+    important: vp.important ?? false,
+    created_at: vp.created_at,
+    updated_at: vp.updated_at,
+    original_publication_id: vp.original_publication_id,
+  };
+}
