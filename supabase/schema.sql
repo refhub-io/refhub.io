@@ -695,6 +695,107 @@ $$;
 ALTER FUNCTION "public"."set_vault_publication_updated_by"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."take_openalex_budget"("p_bucket_key" "text", "p_cost_usd" numeric, "p_daily_budget_usd" numeric) RETURNS TABLE("allowed" boolean, "spent_usd" numeric)
+    LANGUAGE "plpgsql"
+    AS $$
+DECLARE
+    v_now timestamptz := clock_timestamp();
+    v_next_reset timestamptz := date_trunc('day', v_now) + interval '1 day';
+    v_reset_at timestamptz;
+    v_spent numeric;
+BEGIN
+    SELECT "obs"."window_reset_at", "obs"."spent_usd" INTO v_reset_at, v_spent
+    FROM "public"."openalex_budget_state" AS "obs"
+    WHERE "obs"."bucket_key" = p_bucket_key
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        IF p_cost_usd > p_daily_budget_usd THEN
+            INSERT INTO "public"."openalex_budget_state" ("bucket_key", "spent_usd", "window_reset_at")
+            VALUES (p_bucket_key, 0, v_next_reset);
+            RETURN QUERY SELECT false, 0::numeric;
+            RETURN;
+        END IF;
+
+        INSERT INTO "public"."openalex_budget_state" ("bucket_key", "spent_usd", "window_reset_at")
+        VALUES (p_bucket_key, p_cost_usd, v_next_reset);
+        RETURN QUERY SELECT true, p_cost_usd;
+        RETURN;
+    END IF;
+
+    IF v_reset_at <= v_now THEN
+        v_spent := 0;
+        v_reset_at := v_next_reset;
+    END IF;
+
+    IF v_spent + p_cost_usd > p_daily_budget_usd THEN
+        UPDATE "public"."openalex_budget_state"
+        SET "spent_usd" = v_spent, "window_reset_at" = v_reset_at
+        WHERE "bucket_key" = p_bucket_key;
+        RETURN QUERY SELECT false, v_spent;
+        RETURN;
+    END IF;
+
+    UPDATE "public"."openalex_budget_state"
+    SET "spent_usd" = v_spent + p_cost_usd, "window_reset_at" = v_reset_at
+    WHERE "bucket_key" = p_bucket_key;
+    RETURN QUERY SELECT true, v_spent + p_cost_usd;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."take_openalex_budget"("p_bucket_key" "text", "p_cost_usd" numeric, "p_daily_budget_usd" numeric) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."take_semantic_scholar_rate_limit"("p_bucket_key" "text", "p_max_requests" integer, "p_window_ms" integer) RETURNS TABLE("allowed" boolean, "retry_after_seconds" integer)
+    LANGUAGE "plpgsql"
+    AS $$
+DECLARE
+    v_now timestamptz := clock_timestamp();
+    v_reset_at timestamptz;
+    v_count integer;
+BEGIN
+    -- FOR UPDATE serializes concurrent callers on this one row. That's the
+    -- whole point: it's the only thing that can coordinate across Netlify's
+    -- independent, memory-isolated function instances. Contention is not a
+    -- concern at Semantic Scholar's own per-key rate (on the order of one
+    -- request per second) -- this row is touched far less often than that.
+    SELECT "window_reset_at", "request_count" INTO v_reset_at, v_count
+    FROM "public"."semantic_scholar_rate_limit_state"
+    WHERE "bucket_key" = p_bucket_key
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        INSERT INTO "public"."semantic_scholar_rate_limit_state" ("bucket_key", "request_count", "window_reset_at")
+        VALUES (p_bucket_key, 1, v_now + make_interval(secs => p_window_ms / 1000.0));
+        RETURN QUERY SELECT true, 0;
+        RETURN;
+    END IF;
+
+    IF v_reset_at <= v_now THEN
+        UPDATE "public"."semantic_scholar_rate_limit_state"
+        SET "request_count" = 1, "window_reset_at" = v_now + make_interval(secs => p_window_ms / 1000.0)
+        WHERE "bucket_key" = p_bucket_key;
+        RETURN QUERY SELECT true, 0;
+        RETURN;
+    END IF;
+
+    IF v_count >= p_max_requests THEN
+        RETURN QUERY SELECT false, GREATEST(1, CEIL(EXTRACT(EPOCH FROM (v_reset_at - v_now)))::integer);
+        RETURN;
+    END IF;
+
+    UPDATE "public"."semantic_scholar_rate_limit_state"
+    SET "request_count" = "request_count" + 1
+    WHERE "bucket_key" = p_bucket_key;
+    RETURN QUERY SELECT true, 0;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."take_semantic_scholar_rate_limit"("p_bucket_key" "text", "p_max_requests" integer, "p_window_ms" integer) OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."update_tag_depth"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     SET "search_path" TO 'public'
@@ -725,6 +826,222 @@ $$;
 
 
 ALTER FUNCTION "public"."update_updated_at_column"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."update_vault_publication_with_rollup"("p_vault_publication_id" "uuid", "p_vault_id" "uuid", "p_patch" "jsonb", "p_actor_user_id" "uuid") RETURNS "void"
+    LANGUAGE "plpgsql"
+    AS $$
+DECLARE
+    v_original_id uuid;
+    v_has_bibliographic_patch boolean;
+BEGIN
+    -- This function is only ever called under the service-role key (see
+    -- .netlify's handleUpdateItem), which has no JWT context of its own, so
+    -- auth.uid() would otherwise resolve to NULL for the rest of this
+    -- transaction. vault_publications' own "set updated_by from auth.uid()"
+    -- BEFORE UPDATE trigger fires on every UPDATE below regardless -- setting
+    -- this makes it record the real actor instead of overwriting every touched
+    -- row's updated_by with NULL.
+    PERFORM set_config('request.jwt.claim.sub', p_actor_user_id::text, true);
+
+    UPDATE vault_publications SET
+        title = CASE WHEN p_patch ? 'title' THEN p_patch->>'title' ELSE title END,
+        authors = CASE
+            WHEN p_patch ? 'authors' AND jsonb_typeof(p_patch->'authors') = 'array'
+                THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'authors'))
+            WHEN p_patch ? 'authors' AND jsonb_typeof(p_patch->'authors') = 'null'
+                THEN NULL
+            ELSE authors
+        END,
+        year = CASE
+            WHEN p_patch ? 'year' AND jsonb_typeof(p_patch->'year') = 'null'
+                THEN NULL
+            WHEN p_patch ? 'year' AND jsonb_typeof(p_patch->'year') = 'number'
+                THEN (p_patch->>'year')::numeric::integer
+            WHEN p_patch ? 'year'
+                THEN year
+            ELSE year
+        END,
+        journal = CASE WHEN p_patch ? 'journal' THEN p_patch->>'journal' ELSE journal END,
+        volume = CASE WHEN p_patch ? 'volume' THEN p_patch->>'volume' ELSE volume END,
+        issue = CASE WHEN p_patch ? 'issue' THEN p_patch->>'issue' ELSE issue END,
+        pages = CASE WHEN p_patch ? 'pages' THEN p_patch->>'pages' ELSE pages END,
+        doi = CASE WHEN p_patch ? 'doi' THEN p_patch->>'doi' ELSE doi END,
+        url = CASE WHEN p_patch ? 'url' THEN p_patch->>'url' ELSE url END,
+        abstract = CASE WHEN p_patch ? 'abstract' THEN p_patch->>'abstract' ELSE abstract END,
+        pdf_url = CASE WHEN p_patch ? 'pdf_url' THEN p_patch->>'pdf_url' ELSE pdf_url END,
+        bibtex_key = CASE WHEN p_patch ? 'bibtex_key' THEN p_patch->>'bibtex_key' ELSE bibtex_key END,
+        publication_type = CASE WHEN p_patch ? 'publication_type' THEN p_patch->>'publication_type' ELSE publication_type END,
+        notes = CASE WHEN p_patch ? 'notes' THEN p_patch->>'notes' ELSE notes END,
+        booktitle = CASE WHEN p_patch ? 'booktitle' THEN p_patch->>'booktitle' ELSE booktitle END,
+        chapter = CASE WHEN p_patch ? 'chapter' THEN p_patch->>'chapter' ELSE chapter END,
+        edition = CASE WHEN p_patch ? 'edition' THEN p_patch->>'edition' ELSE edition END,
+        editor = CASE
+            WHEN p_patch ? 'editor' AND jsonb_typeof(p_patch->'editor') = 'array'
+                THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'editor'))
+            WHEN p_patch ? 'editor' AND jsonb_typeof(p_patch->'editor') = 'null'
+                THEN NULL
+            ELSE editor
+        END,
+        howpublished = CASE WHEN p_patch ? 'howpublished' THEN p_patch->>'howpublished' ELSE howpublished END,
+        institution = CASE WHEN p_patch ? 'institution' THEN p_patch->>'institution' ELSE institution END,
+        number = CASE WHEN p_patch ? 'number' THEN p_patch->>'number' ELSE number END,
+        organization = CASE WHEN p_patch ? 'organization' THEN p_patch->>'organization' ELSE organization END,
+        publisher = CASE WHEN p_patch ? 'publisher' THEN p_patch->>'publisher' ELSE publisher END,
+        school = CASE WHEN p_patch ? 'school' THEN p_patch->>'school' ELSE school END,
+        series = CASE WHEN p_patch ? 'series' THEN p_patch->>'series' ELSE series END,
+        type = CASE WHEN p_patch ? 'type' THEN p_patch->>'type' ELSE type END,
+        eid = CASE WHEN p_patch ? 'eid' THEN p_patch->>'eid' ELSE eid END,
+        isbn = CASE WHEN p_patch ? 'isbn' THEN p_patch->>'isbn' ELSE isbn END,
+        issn = CASE WHEN p_patch ? 'issn' THEN p_patch->>'issn' ELSE issn END,
+        keywords = CASE
+            WHEN p_patch ? 'keywords' AND jsonb_typeof(p_patch->'keywords') = 'array'
+                THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'keywords'))
+            WHEN p_patch ? 'keywords' AND jsonb_typeof(p_patch->'keywords') = 'null'
+                THEN NULL
+            ELSE keywords
+        END,
+        version = version + 1,
+        updated_at = now()
+    WHERE id = p_vault_publication_id AND vault_id = p_vault_id
+    RETURNING original_publication_id INTO v_original_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'vault publication % not found in vault %', p_vault_publication_id, p_vault_id
+            USING ERRCODE = 'P0002';
+    END IF;
+
+    v_has_bibliographic_patch := p_patch ?| ARRAY[
+        'title', 'authors', 'year', 'journal', 'volume', 'issue', 'pages', 'doi', 'url',
+        'abstract', 'pdf_url', 'bibtex_key', 'publication_type', 'booktitle', 'chapter',
+        'edition', 'editor', 'howpublished', 'institution', 'number', 'organization',
+        'publisher', 'school', 'series', 'type', 'eid', 'isbn', 'issn', 'keywords'
+    ];
+
+    IF v_original_id IS NOT NULL AND v_has_bibliographic_patch THEN
+        UPDATE publications SET
+            title = CASE WHEN p_patch ? 'title' THEN p_patch->>'title' ELSE title END,
+            authors = CASE
+            WHEN p_patch ? 'authors' AND jsonb_typeof(p_patch->'authors') = 'array'
+                THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'authors'))
+            WHEN p_patch ? 'authors' AND jsonb_typeof(p_patch->'authors') = 'null'
+                THEN NULL
+            ELSE authors
+        END,
+            year = CASE
+            WHEN p_patch ? 'year' AND jsonb_typeof(p_patch->'year') = 'null'
+                THEN NULL
+            WHEN p_patch ? 'year' AND jsonb_typeof(p_patch->'year') = 'number'
+                THEN (p_patch->>'year')::numeric::integer
+            WHEN p_patch ? 'year'
+                THEN year
+            ELSE year
+        END,
+            journal = CASE WHEN p_patch ? 'journal' THEN p_patch->>'journal' ELSE journal END,
+            volume = CASE WHEN p_patch ? 'volume' THEN p_patch->>'volume' ELSE volume END,
+            issue = CASE WHEN p_patch ? 'issue' THEN p_patch->>'issue' ELSE issue END,
+            pages = CASE WHEN p_patch ? 'pages' THEN p_patch->>'pages' ELSE pages END,
+            doi = CASE WHEN p_patch ? 'doi' THEN p_patch->>'doi' ELSE doi END,
+            url = CASE WHEN p_patch ? 'url' THEN p_patch->>'url' ELSE url END,
+            abstract = CASE WHEN p_patch ? 'abstract' THEN p_patch->>'abstract' ELSE abstract END,
+            pdf_url = CASE WHEN p_patch ? 'pdf_url' THEN p_patch->>'pdf_url' ELSE pdf_url END,
+            bibtex_key = CASE WHEN p_patch ? 'bibtex_key' THEN p_patch->>'bibtex_key' ELSE bibtex_key END,
+            publication_type = CASE WHEN p_patch ? 'publication_type' THEN p_patch->>'publication_type' ELSE publication_type END,
+            booktitle = CASE WHEN p_patch ? 'booktitle' THEN p_patch->>'booktitle' ELSE booktitle END,
+            chapter = CASE WHEN p_patch ? 'chapter' THEN p_patch->>'chapter' ELSE chapter END,
+            edition = CASE WHEN p_patch ? 'edition' THEN p_patch->>'edition' ELSE edition END,
+            editor = CASE
+            WHEN p_patch ? 'editor' AND jsonb_typeof(p_patch->'editor') = 'array'
+                THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'editor'))
+            WHEN p_patch ? 'editor' AND jsonb_typeof(p_patch->'editor') = 'null'
+                THEN NULL
+            ELSE editor
+        END,
+            howpublished = CASE WHEN p_patch ? 'howpublished' THEN p_patch->>'howpublished' ELSE howpublished END,
+            institution = CASE WHEN p_patch ? 'institution' THEN p_patch->>'institution' ELSE institution END,
+            number = CASE WHEN p_patch ? 'number' THEN p_patch->>'number' ELSE number END,
+            organization = CASE WHEN p_patch ? 'organization' THEN p_patch->>'organization' ELSE organization END,
+            publisher = CASE WHEN p_patch ? 'publisher' THEN p_patch->>'publisher' ELSE publisher END,
+            school = CASE WHEN p_patch ? 'school' THEN p_patch->>'school' ELSE school END,
+            series = CASE WHEN p_patch ? 'series' THEN p_patch->>'series' ELSE series END,
+            type = CASE WHEN p_patch ? 'type' THEN p_patch->>'type' ELSE type END,
+            eid = CASE WHEN p_patch ? 'eid' THEN p_patch->>'eid' ELSE eid END,
+            isbn = CASE WHEN p_patch ? 'isbn' THEN p_patch->>'isbn' ELSE isbn END,
+            issn = CASE WHEN p_patch ? 'issn' THEN p_patch->>'issn' ELSE issn END,
+            keywords = CASE
+            WHEN p_patch ? 'keywords' AND jsonb_typeof(p_patch->'keywords') = 'array'
+                THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'keywords'))
+            WHEN p_patch ? 'keywords' AND jsonb_typeof(p_patch->'keywords') = 'null'
+                THEN NULL
+            ELSE keywords
+        END,
+            updated_at = now()
+        WHERE id = v_original_id;
+
+        UPDATE vault_publications SET
+            title = CASE WHEN p_patch ? 'title' THEN p_patch->>'title' ELSE title END,
+            authors = CASE
+            WHEN p_patch ? 'authors' AND jsonb_typeof(p_patch->'authors') = 'array'
+                THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'authors'))
+            WHEN p_patch ? 'authors' AND jsonb_typeof(p_patch->'authors') = 'null'
+                THEN NULL
+            ELSE authors
+        END,
+            year = CASE
+            WHEN p_patch ? 'year' AND jsonb_typeof(p_patch->'year') = 'null'
+                THEN NULL
+            WHEN p_patch ? 'year' AND jsonb_typeof(p_patch->'year') = 'number'
+                THEN (p_patch->>'year')::numeric::integer
+            WHEN p_patch ? 'year'
+                THEN year
+            ELSE year
+        END,
+            journal = CASE WHEN p_patch ? 'journal' THEN p_patch->>'journal' ELSE journal END,
+            volume = CASE WHEN p_patch ? 'volume' THEN p_patch->>'volume' ELSE volume END,
+            issue = CASE WHEN p_patch ? 'issue' THEN p_patch->>'issue' ELSE issue END,
+            pages = CASE WHEN p_patch ? 'pages' THEN p_patch->>'pages' ELSE pages END,
+            doi = CASE WHEN p_patch ? 'doi' THEN p_patch->>'doi' ELSE doi END,
+            url = CASE WHEN p_patch ? 'url' THEN p_patch->>'url' ELSE url END,
+            abstract = CASE WHEN p_patch ? 'abstract' THEN p_patch->>'abstract' ELSE abstract END,
+            pdf_url = CASE WHEN p_patch ? 'pdf_url' THEN p_patch->>'pdf_url' ELSE pdf_url END,
+            bibtex_key = CASE WHEN p_patch ? 'bibtex_key' THEN p_patch->>'bibtex_key' ELSE bibtex_key END,
+            publication_type = CASE WHEN p_patch ? 'publication_type' THEN p_patch->>'publication_type' ELSE publication_type END,
+            booktitle = CASE WHEN p_patch ? 'booktitle' THEN p_patch->>'booktitle' ELSE booktitle END,
+            chapter = CASE WHEN p_patch ? 'chapter' THEN p_patch->>'chapter' ELSE chapter END,
+            edition = CASE WHEN p_patch ? 'edition' THEN p_patch->>'edition' ELSE edition END,
+            editor = CASE
+            WHEN p_patch ? 'editor' AND jsonb_typeof(p_patch->'editor') = 'array'
+                THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'editor'))
+            WHEN p_patch ? 'editor' AND jsonb_typeof(p_patch->'editor') = 'null'
+                THEN NULL
+            ELSE editor
+        END,
+            howpublished = CASE WHEN p_patch ? 'howpublished' THEN p_patch->>'howpublished' ELSE howpublished END,
+            institution = CASE WHEN p_patch ? 'institution' THEN p_patch->>'institution' ELSE institution END,
+            number = CASE WHEN p_patch ? 'number' THEN p_patch->>'number' ELSE number END,
+            organization = CASE WHEN p_patch ? 'organization' THEN p_patch->>'organization' ELSE organization END,
+            publisher = CASE WHEN p_patch ? 'publisher' THEN p_patch->>'publisher' ELSE publisher END,
+            school = CASE WHEN p_patch ? 'school' THEN p_patch->>'school' ELSE school END,
+            series = CASE WHEN p_patch ? 'series' THEN p_patch->>'series' ELSE series END,
+            type = CASE WHEN p_patch ? 'type' THEN p_patch->>'type' ELSE type END,
+            eid = CASE WHEN p_patch ? 'eid' THEN p_patch->>'eid' ELSE eid END,
+            isbn = CASE WHEN p_patch ? 'isbn' THEN p_patch->>'isbn' ELSE isbn END,
+            issn = CASE WHEN p_patch ? 'issn' THEN p_patch->>'issn' ELSE issn END,
+            keywords = CASE
+            WHEN p_patch ? 'keywords' AND jsonb_typeof(p_patch->'keywords') = 'array'
+                THEN ARRAY(SELECT jsonb_array_elements_text(p_patch->'keywords'))
+            WHEN p_patch ? 'keywords' AND jsonb_typeof(p_patch->'keywords') = 'null'
+                THEN NULL
+            ELSE keywords
+        END,
+            updated_at = now()
+        WHERE original_publication_id = v_original_id AND id <> p_vault_publication_id;
+    END IF;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."update_vault_publication_with_rollup"("p_vault_publication_id" "uuid", "p_vault_id" "uuid", "p_patch" "jsonb", "p_actor_user_id" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."user_can_access_vault"("p_vault_uuid" "uuid", "p_required_permission" "text" DEFAULT 'viewer'::"text") RETURNS boolean
@@ -852,6 +1169,16 @@ CREATE TABLE IF NOT EXISTS "public"."notifications" (
 ALTER TABLE "public"."notifications" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."openalex_budget_state" (
+    "bucket_key" "text" NOT NULL,
+    "spent_usd" numeric DEFAULT 0 NOT NULL,
+    "window_reset_at" timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE "public"."openalex_budget_state" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."profiles" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "user_id" "uuid" NOT NULL,
@@ -951,7 +1278,10 @@ CREATE TABLE IF NOT EXISTS "public"."publications" (
     "eid" "text",
     "isbn" "text",
     "issn" "text",
-    "keywords" "text"[] DEFAULT '{}'::"text"[]
+    "keywords" "text"[] DEFAULT '{}'::"text"[],
+    "reading_state" "text" DEFAULT 'unread'::"text" NOT NULL,
+    "important" boolean DEFAULT false NOT NULL,
+    CONSTRAINT "publications_reading_state_check" CHECK (("reading_state" = ANY (ARRAY['unread'::"text", 'skimmed'::"text", 'read'::"text"])))
 );
 
 
@@ -1020,6 +1350,24 @@ COMMENT ON COLUMN "public"."publications"."issn" IS 'International Standard Seri
 
 COMMENT ON COLUMN "public"."publications"."keywords" IS 'Keywords for searching or annotation';
 
+
+
+COMMENT ON COLUMN "public"."publications"."reading_state" IS 'Personal reading-progress tracker: unread, skimmed, or read. Independent per row, never synced across vault copies.';
+
+
+
+COMMENT ON COLUMN "public"."publications"."important" IS 'User-starred importance flag, orthogonal to reading_state.';
+
+
+
+CREATE TABLE IF NOT EXISTS "public"."semantic_scholar_rate_limit_state" (
+    "bucket_key" "text" NOT NULL,
+    "request_count" integer DEFAULT 0 NOT NULL,
+    "window_reset_at" timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE "public"."semantic_scholar_rate_limit_state" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."tags" (
@@ -1159,7 +1507,10 @@ CREATE TABLE IF NOT EXISTS "public"."vault_publications" (
     "updated_at" timestamp with time zone DEFAULT "now"(),
     "created_by" "uuid",
     "version" integer DEFAULT 1,
-    "updated_by" "uuid"
+    "updated_by" "uuid",
+    "reading_state" "text" DEFAULT 'unread'::"text" NOT NULL,
+    "important" boolean DEFAULT false NOT NULL,
+    CONSTRAINT "vault_publications_reading_state_check" CHECK (("reading_state" = ANY (ARRAY['unread'::"text", 'skimmed'::"text", 'read'::"text"])))
 );
 
 
@@ -1167,6 +1518,14 @@ ALTER TABLE "public"."vault_publications" OWNER TO "postgres";
 
 
 COMMENT ON COLUMN "public"."vault_publications"."updated_by" IS 'The user who last updated this vault publication';
+
+
+
+COMMENT ON COLUMN "public"."vault_publications"."reading_state" IS 'Personal reading-progress tracker: unread, skimmed, or read. Independent per vault copy, never synced across sibling copies or the canonical row.';
+
+
+
+COMMENT ON COLUMN "public"."vault_publications"."important" IS 'User-starred importance flag, orthogonal to reading_state.';
 
 
 
@@ -1248,6 +1607,11 @@ ALTER TABLE ONLY "public"."notifications"
 
 
 
+ALTER TABLE ONLY "public"."openalex_budget_state"
+    ADD CONSTRAINT "openalex_budget_state_pkey" PRIMARY KEY ("bucket_key");
+
+
+
 ALTER TABLE ONLY "public"."profiles"
     ADD CONSTRAINT "profiles_pkey" PRIMARY KEY ("id");
 
@@ -1285,6 +1649,11 @@ ALTER TABLE ONLY "public"."publication_tags"
 
 ALTER TABLE ONLY "public"."publications"
     ADD CONSTRAINT "publications_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."semantic_scholar_rate_limit_state"
+    ADD CONSTRAINT "semantic_scholar_rate_limit_state_pkey" PRIMARY KEY ("bucket_key");
 
 
 
@@ -2545,6 +2914,20 @@ GRANT ALL ON FUNCTION "public"."set_vault_publication_updated_by"() TO "service_
 
 
 
+REVOKE ALL ON FUNCTION "public"."take_openalex_budget"("p_bucket_key" "text", "p_cost_usd" numeric, "p_daily_budget_usd" numeric) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."take_openalex_budget"("p_bucket_key" "text", "p_cost_usd" numeric, "p_daily_budget_usd" numeric) TO "anon";
+GRANT ALL ON FUNCTION "public"."take_openalex_budget"("p_bucket_key" "text", "p_cost_usd" numeric, "p_daily_budget_usd" numeric) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."take_openalex_budget"("p_bucket_key" "text", "p_cost_usd" numeric, "p_daily_budget_usd" numeric) TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."take_semantic_scholar_rate_limit"("p_bucket_key" "text", "p_max_requests" integer, "p_window_ms" integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."take_semantic_scholar_rate_limit"("p_bucket_key" "text", "p_max_requests" integer, "p_window_ms" integer) TO "anon";
+GRANT ALL ON FUNCTION "public"."take_semantic_scholar_rate_limit"("p_bucket_key" "text", "p_max_requests" integer, "p_window_ms" integer) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."take_semantic_scholar_rate_limit"("p_bucket_key" "text", "p_max_requests" integer, "p_window_ms" integer) TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."update_tag_depth"() TO "anon";
 GRANT ALL ON FUNCTION "public"."update_tag_depth"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_tag_depth"() TO "service_role";
@@ -2554,6 +2937,13 @@ GRANT ALL ON FUNCTION "public"."update_tag_depth"() TO "service_role";
 GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "anon";
 GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."update_vault_publication_with_rollup"("p_vault_publication_id" "uuid", "p_vault_id" "uuid", "p_patch" "jsonb", "p_actor_user_id" "uuid") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."update_vault_publication_with_rollup"("p_vault_publication_id" "uuid", "p_vault_id" "uuid", "p_patch" "jsonb", "p_actor_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."update_vault_publication_with_rollup"("p_vault_publication_id" "uuid", "p_vault_id" "uuid", "p_patch" "jsonb", "p_actor_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_vault_publication_with_rollup"("p_vault_publication_id" "uuid", "p_vault_id" "uuid", "p_patch" "jsonb", "p_actor_user_id" "uuid") TO "service_role";
 
 
 
@@ -2608,6 +2998,12 @@ GRANT ALL ON TABLE "public"."notifications" TO "service_role";
 
 
 
+GRANT ALL ON TABLE "public"."openalex_budget_state" TO "anon";
+GRANT ALL ON TABLE "public"."openalex_budget_state" TO "authenticated";
+GRANT ALL ON TABLE "public"."openalex_budget_state" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."profiles" TO "anon";
 GRANT ALL ON TABLE "public"."profiles" TO "authenticated";
 GRANT ALL ON TABLE "public"."profiles" TO "service_role";
@@ -2635,6 +3031,12 @@ GRANT ALL ON TABLE "public"."publication_tags" TO "service_role";
 GRANT ALL ON TABLE "public"."publications" TO "anon";
 GRANT ALL ON TABLE "public"."publications" TO "authenticated";
 GRANT ALL ON TABLE "public"."publications" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."semantic_scholar_rate_limit_state" TO "anon";
+GRANT ALL ON TABLE "public"."semantic_scholar_rate_limit_state" TO "authenticated";
+GRANT ALL ON TABLE "public"."semantic_scholar_rate_limit_state" TO "service_role";
 
 
 
