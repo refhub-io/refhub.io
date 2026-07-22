@@ -12,9 +12,9 @@
 -- the "any future permissive GRANT is immediately exploitable" exposure the
 -- linter flags on any public-schema table without RLS enabled.
 -- ---------------------------------------------------------------------------
-
-ALTER TABLE "public"."semantic_scholar_rate_limit_state" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "public"."openalex_budget_state" ENABLE ROW LEVEL SECURITY;
+-- DONE
+-- ALTER TABLE "public"."semantic_scholar_rate_limit_state" ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE "public"."openalex_budget_state" ENABLE ROW LEVEL SECURITY;
 
 -- ---------------------------------------------------------------------------
 -- WARN: rls_policy_always_true on public.vault_papers
