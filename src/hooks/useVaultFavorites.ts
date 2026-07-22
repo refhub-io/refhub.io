@@ -48,7 +48,7 @@ export function useVaultFavorites() {
             const enrichedVaults = await Promise.all(
               vaultsData.map(async (vault) => {
                 const { count } = await supabase
-                  .from('publications')
+                  .from('vault_publications')
                   .select('*', { count: 'exact', head: true })
                   .eq('vault_id', vault.id);
 
