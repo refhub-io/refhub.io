@@ -158,7 +158,11 @@ export function formatCSV(
 
 function csvEscape(value: string): string {
   let v = value;
-  if (/^[=+\-@\t\r]/.test(v)) {
+  // Neutralize spreadsheet formula injection. The `\s*` prefix matters: some
+  // spreadsheet apps (e.g. Google Sheets) trim leading whitespace/newlines
+  // before evaluating a cell, so " =1+1" or "\n=1+1" would otherwise bypass a
+  // strictly-anchored check while still being treated as a formula.
+  if (/^\s*[=+\-@\t\r]/.test(v)) {
     v = `'${v}`;
   }
   if (/[",\r\n]/.test(v)) {

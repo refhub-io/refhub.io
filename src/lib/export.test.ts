@@ -94,6 +94,29 @@ describe('formatCSV', () => {
     expect(dataLine1).toContain("'\t danger");
   });
 
+  it('neutralizes formulas hidden behind leading whitespace', () => {
+    const csv = formatCSV([makePub({ title: ' =cmd|/C calc!A1' })]);
+    const dataLine = csv.split('\r\n')[1];
+    expect(dataLine.startsWith("' =cmd|/C calc!A1")).toBe(true);
+  });
+
+  it('neutralizes formulas hidden behind a leading newline', () => {
+    const csv = formatCSV([makePub({ notes: '\n=1+1' })]);
+    // The embedded newline forces quoting, but the apostrophe guard is applied first.
+    expect(csv).toContain('"\'\n=1+1"');
+  });
+
+  it('does not neutralize ordinary values that merely start with whitespace', () => {
+    const csv = formatCSV([makePub({ title: '  A Paper' })]);
+    const dataLine = csv.split('\r\n')[1];
+    expect(dataLine.startsWith('  A Paper')).toBe(true);
+  });
+
+  it('does not prepend a BOM (formatCSV stays pure for preview/clipboard use)', () => {
+    expect(formatCSV([makePub()]).startsWith('\uFEFF')).toBe(false);
+    expect(formatCSV([]).startsWith('\uFEFF')).toBe(false);
+  });
+
   it('neutralizes CR at start of abstract field', () => {
     const csv2 = formatCSV([makePub({ abstract: '\r danger' })]);
     const dataLine2 = csv2.split('\r\n')[1];

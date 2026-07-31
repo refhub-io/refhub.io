@@ -44,6 +44,15 @@ const DEFAULT_SELECTED: BibtexField[] = ['title', 'author', 'year', 'journal', '
 
 type ExportFormat = 'bibtex' | 'apa' | 'csv';
 
+/**
+ * UTF-8 byte order mark. Excel on Windows ignores the MIME charset of a
+ * downloaded .csv and falls back to the system codepage, mangling diacritics
+ * (Müller, Zaïdi, Łukasiewicz). Prepending the BOM forces UTF-8 detection.
+ * Intentionally applied only to the download path — `formatCSV` stays BOM-free
+ * so the <pre> preview and copy-to-clipboard output are not polluted.
+ */
+const CSV_BOM = '\uFEFF';
+
 export function ExportDialog({
   open,
   onOpenChange,
@@ -165,7 +174,7 @@ export function ExportDialog({
       ? `${vaultName.toLowerCase().replace(/\s+/g, '-')}.csv`
       : 'references.csv';
 
-    downloadTextFile(csvContent, filename, 'text/csv;charset=utf-8');
+    downloadTextFile(CSV_BOM + csvContent, filename, 'text/csv;charset=utf-8');
   };
 
   const handleCopyToClipboard = async () => {
