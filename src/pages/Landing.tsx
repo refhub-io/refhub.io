@@ -4,21 +4,28 @@ import { BrandMark } from '@/components/branding/BrandMark';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { Button } from '@/components/ui/button';
 
+// `label` is the snake_case comment heading rendered above each card. It is kept
+// separate from `title` on purpose: deriving it from the human-readable title
+// only replaced whitespace, so punctuation (e.g. the "&" in "bibtex & apa
+// export") leaked into the comment. Decoupling them keeps both readable.
 const FEATURES = [
   {
     icon: BookOpen,
     title: 'vaults',
+    label: 'vaults',
     body: 'organize papers into vaults — private, shared with collaborators, or public.',
   },
   {
     icon: Network,
     title: 'citation graphs',
+    label: 'citation_graphs',
     body: 'link related work and visualize how papers connect to each other.',
   },
   {
     icon: FileDown,
-    title: 'bibtex & apa export',
-    body: 'cite with confidence — export selections in the format your writing tool expects.',
+    title: 'bibtex, apa & csv export',
+    label: 'bibtex_apa_csv_export',
+    body: 'cite with confidence — export selections as bibtex, apa, or csv, whichever your writing tool or spreadsheet expects.',
   },
 ];
 
@@ -32,7 +39,7 @@ export default function Landing() {
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 py-6 sm:px-6 lg:px-8">
         <header className="mb-8 flex items-center justify-between gap-4">
           <Link
-            to="/about"
+            to="/"
             className="inline-flex items-center gap-3 rounded-full border border-border/60 bg-card/70 px-4 py-2 text-sm font-medium text-foreground/90 backdrop-blur transition-colors hover:border-primary/40 hover:text-white"
           >
             <BrandMark className="h-9 w-9 shrink-0 rounded-2xl shadow-lg" />
@@ -59,8 +66,8 @@ export default function Landing() {
             </h1>
             <p className="max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
               refhub is a modern reference manager for researchers who live in the terminal.
-              collect papers into vaults, tag and cross-link them, and export clean bibtex or apa
-              citations when it's time to write.
+              collect papers into vaults, tag and cross-link them, and export clean bibtex, apa,
+              or csv when it's time to write.
             </p>
             <div className="flex flex-wrap items-center gap-3 pt-2">
               <Button asChild variant="glow" size="lg" className="font-mono gap-2">
@@ -76,13 +83,13 @@ export default function Landing() {
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            {FEATURES.map(({ icon: Icon, title, body }) => (
+            {FEATURES.map(({ icon: Icon, title, label, body }) => (
               <div
                 key={title}
                 className="rounded-lg border-2 border-border bg-card/80 p-5 backdrop-blur-xl"
               >
                 <Icon className="mb-3 h-5 w-5 text-primary" />
-                <p className="font-mono text-sm font-semibold">// {title.replace(/\s+/g, '_')}</p>
+                <p className="font-mono text-sm font-semibold">// {label}</p>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">{body}</p>
               </div>
             ))}
