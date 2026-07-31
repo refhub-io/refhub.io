@@ -23,13 +23,19 @@ const changelog: ChangelogEntry[] = [
   {
     id: 18,
     date: '2026-07-31',
-    title: 'export to csv',
+    title: 'csv export & public landing page',
     features: [
       {
         tag: 'feature',
         title: 'csv export',
         description:
           'export publications to csv format with all key metadata: title, authors, year, venue, doi, url, abstract, tags, notes, and refhub id.',
+      },
+      {
+        tag: 'feature',
+        title: 'public landing page',
+        description:
+          'a new /about page explains what refhub is to signed-out visitors, with a clear path to sign in or explore the codex.',
       },
     ],
   },
