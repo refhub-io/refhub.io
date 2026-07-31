@@ -24,14 +24,14 @@ const FEATURES = [
   {
     icon: FileDown,
     title: 'bibtex, apa & csv export',
-    label: 'bibtex_apa_csv_export',
+    label: 'export',
     body: 'cite with confidence — export selections as bibtex, apa, or csv, whichever your writing tool or spreadsheet expects.',
   },
   {
     icon: Bot,
     title: 'agentic workflows',
     label: 'agentic_workflows',
-    body: 'built for agents too — an mcp skill and a cli let claude and other tools read, write, and cite alongside you.',
+    body: 'built for agents too — claude skills for the refhub cli and drafting papers let agents read, write, and cite alongside you.',
   },
 ];
 
@@ -95,7 +95,7 @@ export default function Landing() {
                 className="rounded-lg border-2 border-border bg-card/80 p-5 backdrop-blur-xl"
               >
                 <Icon className="mb-3 h-5 w-5 text-primary" />
-                <p className="font-mono text-sm font-semibold">// {label}</p>
+                <p className="font-mono text-sm font-semibold break-words">// {label}</p>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">{body}</p>
               </div>
             ))}
