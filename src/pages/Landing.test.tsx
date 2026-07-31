@@ -40,8 +40,10 @@ describe('Landing', () => {
         <Landing />
       </MemoryRouter>
     );
-    // Feature card heading is a snake_case label, so no stray punctuation leaks in.
-    expect(screen.getByText('// bibtex_apa_csv_export')).toBeInTheDocument();
+    // Feature card heading is a short snake_case label (kept short so it never
+    // wraps to a second line and throws off the row's vertical alignment),
+    // decoupled from the fuller `title`/body copy, so no stray punctuation leaks in.
+    expect(screen.getByText('// export')).toBeInTheDocument();
     expect(screen.queryByText(/&/)).not.toBeInTheDocument();
     expect(screen.getByText(/export selections as bibtex, apa, or csv/i)).toBeInTheDocument();
     expect(screen.getByText(/export clean bibtex, apa,\s*or csv/i)).toBeInTheDocument();
@@ -64,6 +66,6 @@ describe('Landing', () => {
       </MemoryRouter>
     );
     expect(screen.getByText('// agentic_workflows')).toBeInTheDocument();
-    expect(screen.getByText(/mcp skill and a cli/i)).toBeInTheDocument();
+    expect(screen.getByText(/claude skills for the refhub cli and drafting papers/i)).toBeInTheDocument();
   });
 });

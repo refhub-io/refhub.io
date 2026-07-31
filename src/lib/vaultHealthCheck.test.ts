@@ -136,8 +136,27 @@ describe('computeVaultHealthScore', () => {
     const pubs = [makePub({ id: 'a', doi: null, url: 'https://example.com/a' })]; // only 1 of 10 field checks fails (doi); url present so missing_url isn't also triggered
     const score = computeVaultHealthScore(pubs, scanVaultHealth(pubs));
     expect(score.scorePercent).toBe(90); // 1 - (1/10)
-    expect(score.completeCount).toBe(0);
+    // missing_doi is not a "core identity" field (see CORE_ISSUE_TYPES) — a paper
+    // can still be counted complete/citable without one (many legit papers lack a DOI).
+    expect(score.completeCount).toBe(1);
     expect(score.totalCount).toBe(1);
+  });
+
+  it('does not let a missing pdf or bibtex_key disqualify a paper from completeCount, even though they lower scorePercent', () => {
+    // Regression test: these two fields are legitimately absent for most papers
+    // (no local PDF attached, no hand-set bibtex key) — requiring them for
+    // "complete" status made completeCount collapse toward zero in real vaults
+    // even at a healthy scorePercent, which read as a contradiction.
+    const pubs = [makePub({ id: 'a', pdf_url: null, bibtex_key: null })];
+    const score = computeVaultHealthScore(pubs, scanVaultHealth(pubs));
+    expect(score.scorePercent).toBe(80); // 2 of 10 field checks fail
+    expect(score.completeCount).toBe(1); // still counted complete: title/authors/year are all present
+  });
+
+  it('does disqualify a paper from completeCount when a core identity field (title/authors/year) is missing', () => {
+    const pubs = [makePub({ id: 'a', title: '' })];
+    const score = computeVaultHealthScore(pubs, scanVaultHealth(pubs));
+    expect(score.completeCount).toBe(0);
   });
 
   it('does not let possible_duplicate issues affect scorePercent (not a field check) but does exclude duplicated papers from completeCount', () => {

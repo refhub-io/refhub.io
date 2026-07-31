@@ -87,10 +87,21 @@ const FIELD_ISSUE_TYPES: HealthIssueType[] = [
   'missing_bibtex_key', 'malformed_bibtex_key', 'missing_pdf',
 ];
 
+/**
+ * Field types that gate `completeCount` — a paper's basic citable identity.
+ * Deliberately much narrower than `FIELD_ISSUE_TYPES` (used for `scorePercent`):
+ * a missing PDF attachment or bibtex key is common and legitimate (most users
+ * don't attach a local PDF or hand-set a key), so requiring all ten checks to
+ * pass made `completeCount` collapse to ~0 in real vaults even at a healthy
+ * overall `scorePercent` — read as contradictory ("75% but 0 complete?").
+ * `scorePercent` still weighs all ten fields; only this stricter stat is narrowed.
+ */
+const CORE_ISSUE_TYPES: HealthIssueType[] = ['missing_title', 'missing_authors', 'missing_year'];
+
 export interface VaultHealthScore {
   /** 0-100: share of tracked fields present across all publications. */
   scorePercent: number;
-  /** publications with zero issues of any kind, including not being flagged as a possible duplicate. */
+  /** publications with title, authors, and year present, and not flagged as a likely duplicate. See CORE_ISSUE_TYPES. */
   completeCount: number;
   totalCount: number;
 }
@@ -118,8 +129,10 @@ export function computeVaultHealthScore(publications: Publication[], issues: Hea
   const rawScore = totalChecks === 0 ? 100 : (1 - fieldIssueCount / totalChecks) * 100;
   const scorePercent = Math.max(0, Math.min(100, Math.round(rawScore)));
 
+  const disqualifyingTypes = new Set<HealthIssueType>([...CORE_ISSUE_TYPES, 'possible_duplicate']);
   const flaggedPublicationIds = new Set<string>();
   for (const issue of issues) {
+    if (!disqualifyingTypes.has(issue.type)) continue;
     flaggedPublicationIds.add(issue.publicationId);
     if (issue.duplicateOfPublicationId) flaggedPublicationIds.add(issue.duplicateOfPublicationId);
   }
