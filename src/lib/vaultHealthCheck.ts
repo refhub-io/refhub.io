@@ -5,6 +5,13 @@
  */
 import { Publication } from '@/types/database';
 import { findDuplicateCandidates, DUPE_PRESETS } from '@/lib/dupeDetection';
+import {
+  runSemanticScholarQueue,
+  fetchSemanticScholarMetadataByDoi,
+  SemanticScholarQueueProgress,
+  formatSemanticScholarErrorMessage,
+} from '@/lib/semanticScholar';
+import { getPublicationSyncDiffs, PublicationSyncDiff } from '@/lib/publicationSync';
 
 export type HealthIssueType =
   | 'missing_doi' | 'missing_title' | 'missing_authors' | 'missing_venue'
@@ -71,4 +78,42 @@ export function groupHealthIssuesByType(issues: HealthIssue[]): Record<HealthIss
     (groups[issue.type] ??= []).push(issue);
   }
   return groups;
+}
+
+export interface VaultHealthEnrichmentResult {
+  publication: Publication;
+  diffs: PublicationSyncDiff[];
+  error?: string;
+}
+
+/**
+ * Queues Semantic Scholar lookups for DOI-bearing publications and returns
+ * the sync diffs (if any) for each. Only publications with a DOI are
+ * eligible — this matches the existing single-paper sync flow's own
+ * precondition (see src/pages/VaultDetail.tsx:874-882, "Add a DOI before
+ * syncing"); there is no title-search fallback in this codebase yet.
+ * Individual lookup failures are captured per-item in `error` rather than
+ * aborting the whole batch — `runSemanticScholarQueue` already isolates
+ * worker failures per item.
+ */
+export async function runVaultHealthEnrichment(
+  publications: Publication[],
+  onProgress?: (progress: SemanticScholarQueueProgress) => void,
+): Promise<VaultHealthEnrichmentResult[]> {
+  const eligible = publications.filter(p => !!p.doi);
+
+  const queueResults = await runSemanticScholarQueue(
+    eligible,
+    async (pub) => {
+      const metadata = await fetchSemanticScholarMetadataByDoi(pub.doi!);
+      return metadata ? getPublicationSyncDiffs(pub, metadata) : [];
+    },
+    { onProgress },
+  );
+
+  return queueResults.map((r, i) => ({
+    publication: eligible[i],
+    diffs: r.ok ? (r.data ?? []) : [],
+    error: r.ok ? undefined : formatSemanticScholarErrorMessage(r.error),
+  }));
 }

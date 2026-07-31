@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { scanVaultHealth, groupHealthIssuesByType } from './vaultHealthCheck';
+import { describe, expect, it, vi } from 'vitest';
+import { scanVaultHealth, groupHealthIssuesByType, runVaultHealthEnrichment } from './vaultHealthCheck';
 import { Publication } from '@/types/database';
 
 function makePub(overrides: Partial<Publication> = {}): Publication {
@@ -80,5 +80,37 @@ describe('groupHealthIssuesByType', () => {
     expect(grouped.missing_doi?.length).toBe(1);
     expect(grouped.missing_year?.length).toBe(1);
     expect(grouped.missing_abstract).toBeUndefined();
+  });
+});
+
+vi.mock('@/lib/semanticScholar', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/semanticScholar')>();
+  return {
+    ...actual,
+    fetchSemanticScholarMetadataByDoi: vi.fn(async (doi: string) =>
+      doi === '10.1/has-update'
+        ? { title: 'Updated Title', authors: [], year: null, journal: null, doi, url: null, abstract: null, type: null }
+        : null
+    ),
+  };
+});
+
+describe('runVaultHealthEnrichment', () => {
+  it('skips publications without a DOI', async () => {
+    const results = await runVaultHealthEnrichment([makePub({ id: 'no-doi', doi: null })]);
+    expect(results).toEqual([]);
+  });
+
+  it('produces diffs for DOI-bearing publications with an available update', async () => {
+    const results = await runVaultHealthEnrichment([
+      makePub({ id: 'p1', doi: '10.1/has-update', title: 'Old Title' }),
+    ]);
+    expect(results).toHaveLength(1);
+    expect(results[0].diffs.some(d => d.field === 'title')).toBe(true);
+  });
+
+  it('produces an empty diff list when no match is found, without throwing', async () => {
+    const results = await runVaultHealthEnrichment([makePub({ id: 'p2', doi: '10.1/no-match' })]);
+    expect(results[0].diffs).toEqual([]);
   });
 });
