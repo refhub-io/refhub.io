@@ -23,6 +23,7 @@ import { createPublicationSyncPatch, getPublicationSyncDiffs, PublicationSyncDif
 import { PublicationSyncDialog } from '@/components/publications/PublicationSyncDialog';
 import { AddImportDialog } from '@/components/publications/AddImportDialog';
 import { VaultDialog } from '@/components/vaults/VaultDialog';
+import { VaultHealthCheckDialog } from '@/components/vaults/VaultHealthCheckDialog';
 import { CollectionAnalytics } from '@/components/publications/CollectionAnalytics';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { ExportDialog } from '@/components/publications/ExportDialog';
@@ -36,7 +37,7 @@ import { useVaultContent } from '@/contexts/VaultContentContext';
 import { useSharedVaultOperations } from '@/hooks/useSharedVaultOperations';
 import { getForkSourceHref, getForkSourceLabel, getVaultForkInfo, VaultForkInfo } from '@/lib/vaultFork';
 import { buildVaultPublicationCopyPayload } from '@/lib/vaultPublicationAttribution';
-import { Lock, Globe, Shield, Users, Clock, User, ExternalLink, Sparkles, Crown, Edit, Eye, Heart, GitFork, PencilLine } from 'lucide-react';
+import { Lock, Globe, Shield, Users, Clock, User, ExternalLink, Sparkles, Crown, Edit, Eye, Heart, GitFork, PencilLine, Stethoscope } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -179,6 +180,7 @@ export default function VaultDetail() {
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [exportPublications, setExportPublications] = useState<Publication[]>([]);
+  const [isHealthCheckOpen, setIsHealthCheckOpen] = useState(false);
 
   const [deleteConfirmation, setDeleteConfirmation] = useState<Publication | null>(null);
   const [bulkDeleteConfirmation, setBulkDeleteConfirmation] = useState<Publication[]>([]);
@@ -960,6 +962,36 @@ export default function VaultDetail() {
     setSyncPreviewPublication(null);
     updateLastActivity('publication_updated', user?.id || null);
   }, [canEdit, editingPublication, sharedVaultOps, syncPreviewPublication, toast, updateLastActivity, user?.id]);
+
+  const handleApplyHealthCheckDiffs = useCallback(async (
+    patches: { publicationId: string; patch: Partial<Publication> }[]
+  ) => {
+    if (!canEdit || patches.length === 0) return;
+
+    const results = await Promise.all(
+      patches.map(({ publicationId, patch }) => sharedVaultOps.updateVaultPublication(publicationId, patch)),
+    );
+
+    const failures = results.filter(result => !result.success);
+
+    if (failures.length > 0) {
+      toast({
+        title: `${failures.length} of ${patches.length} update${patches.length === 1 ? '' : 's'} failed`,
+        description: 'RefHub could not save some of the selected fields. Review the report and try again.',
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: vaultPageRef,
+      });
+      // Reject so the dialog reverts from 'applying' to 'review' and preserves the user's selections.
+      throw new Error('Some vault health check updates failed to apply');
+    }
+
+    toast({
+      title: `${patches.length} publication${patches.length === 1 ? '' : 's'} updated`,
+      description: 'Vault health check changes applied.',
+      source: vaultPageRef,
+    });
+    updateLastActivity('publication_updated', user?.id || null);
+  }, [canEdit, sharedVaultOps, toast, updateLastActivity, user?.id]);
 
   const handleAddToVaults = async (publicationId: string, vaultIds: string[]) => {
     if (!user || !canEdit) return; // Only allow adding if user has edit permission
@@ -1853,6 +1885,20 @@ export default function VaultDetail() {
                   </>
                 )}
 
+                {/* Health check for anyone with edit access to this vault */}
+                {canEdit && currentVault && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsHealthCheckOpen(true)}
+                    className="font-mono h-8"
+                    title="Run vault health check"
+                  >
+                    <Stethoscope className="w-4 h-4" />
+                    <span className="ml-2 hidden md:inline">health check</span>
+                  </Button>
+                )}
+
                 {/* Fork and Favorite buttons for non-owners (viewers and editors) */}
                 {!isOwner && currentVault && (
                   <>
@@ -2126,6 +2172,14 @@ export default function VaultDetail() {
         vaultName={vault?.name}
         tags={tags}
         publicationTags={publicationTags}
+      />
+
+      <VaultHealthCheckDialog
+        open={isHealthCheckOpen}
+        onOpenChange={setIsHealthCheckOpen}
+        publications={publications}
+        onApplyDiffs={handleApplyHealthCheckDiffs}
+        disabled={!canEdit}
       />
 
       <AlertDialog open={!!deleteConfirmation} onOpenChange={() => setDeleteConfirmation(null)}>
