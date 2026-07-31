@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    id: 18,
+    date: '2026-07-31',
+    title: 'export to csv',
+    features: [
+      {
+        tag: 'feature',
+        title: 'csv export',
+        description:
+          'export publications to csv format with all key metadata: title, authors, year, venue, doi, url, abstract, tags, notes, and refhub id.',
+      },
+    ],
+  },
+  {
     id: 17,
     date: '2026-07-20',
     title: 'track what you\'ve read',

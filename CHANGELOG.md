@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.8.0] - 2026-07-31
+
+### Added
+- CSV export option alongside BibTeX and APA.
+
 ## [1.7.1] - 2026-07-21
 
 ### Fixed
