@@ -115,6 +115,9 @@ export function LegalDocumentLayout({
         <footer className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border/60 px-1 pt-5 text-sm text-muted-foreground">
           <p>refhub legal documents v1.</p>
           <div className="flex items-center gap-4">
+            <Link to="/about" className="transition-colors hover:text-foreground">
+              about
+            </Link>
             <Link to="/privacy" className="transition-colors hover:text-foreground">
               privacy
             </Link>
