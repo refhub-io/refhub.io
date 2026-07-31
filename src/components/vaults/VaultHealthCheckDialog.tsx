@@ -166,6 +166,10 @@ export function VaultHealthCheckDialog({
     () => resultsWithDiffs.reduce((sum, r) => sum + r.diffs.length, 0),
     [resultsWithDiffs],
   );
+  // A failed lookup yields `diffs: []`, which the filter above drops — without
+  // surfacing these the user would be told the vault is already up to date even
+  // when Semantic Scholar was rate-limited or unreachable for every paper.
+  const failedResults = useMemo(() => results.filter((r) => !!r.error), [results]);
 
   const runEnrichment = async () => {
     setPhase('enriching');
@@ -258,6 +262,17 @@ export function VaultHealthCheckDialog({
                   {progress.rateLimited > 0 && <span>{progress.rateLimited}_rate_limited</span>}
                 </div>
               )}
+            </div>
+          )}
+
+          {(phase === 'review' || phase === 'applying') && failedResults.length > 0 && (
+            <div className="rounded-lg border-2 border-neon-orange/40 p-3 space-y-1">
+              <p className="font-mono text-sm font-bold text-neon-orange">
+                {`// ${failedResults.length}_lookups_failed`}
+              </p>
+              <p className="font-mono text-xs text-muted-foreground break-words">
+                {failedResults[0].error}
+              </p>
             </div>
           )}
 

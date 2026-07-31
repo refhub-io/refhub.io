@@ -966,18 +966,32 @@ export default function VaultDetail() {
   const handleApplyHealthCheckDiffs = useCallback(async (
     patches: { publicationId: string; patch: Partial<Publication> }[]
   ) => {
-    if (!canEdit || patches.length === 0) return;
+    // Two distinct early exits, deliberately handled differently:
+    // - no edit rights should never reach here (the dialog is gated on `canEdit`),
+    //   so fail loud rather than resolving and letting the dialog claim success.
+    if (!canEdit) {
+      throw new Error('Not authorized to apply vault health check updates');
+    }
+    // - an empty patch list is a legitimate no-op ("nothing selected"), not a
+    //   failure, so resolve normally and let the dialog finish.
+    if (patches.length === 0) return;
 
-    const results = await Promise.all(
-      patches.map(({ publicationId, patch }) => sharedVaultOps.updateVaultPublication(publicationId, patch)),
-    );
+    // Applied sequentially rather than with Promise.all: updateVaultPublication
+    // rolls back its optimistic local state on failure, and serializing the calls
+    // keeps a mid-batch failure from racing with its siblings' optimistic updates.
+    // `silent: true` suppresses the per-paper toast — the batch summary below is
+    // the single piece of feedback for the whole operation.
+    const results: { success: boolean; error?: Error }[] = [];
+    for (const { publicationId, patch } of patches) {
+      results.push(await sharedVaultOps.updateVaultPublication(publicationId, patch, { silent: true }));
+    }
 
     const failures = results.filter(result => !result.success);
 
     if (failures.length > 0) {
       toast({
         title: `${failures.length} of ${patches.length} update${patches.length === 1 ? '' : 's'} failed`,
-        description: 'RefHub could not save some of the selected fields. Review the report and try again.',
+        description: failures[0].error?.message || 'RefHub could not save some of the selected fields. Review the report and try again.',
         variant: 'destructive', feedbackSeverity: 'error',
         source: vaultPageRef,
       });

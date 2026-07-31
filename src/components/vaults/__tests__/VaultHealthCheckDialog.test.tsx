@@ -244,6 +244,84 @@ describe('VaultHealthCheckDialog', () => {
     expect(screen.getByRole('button', { name: /apply_selected/i })).toBeEnabled();
   });
 
+  it('surfaces failed lookups instead of silently reporting "no changes found"', async () => {
+    mockedRunVaultHealthEnrichment.mockResolvedValue([
+      { publication: healthyPub, diffs: [], error: 'Semantic Scholar is rate limiting requests. Try again shortly.' },
+    ]);
+
+    render(
+      <VaultHealthCheckDialog
+        open
+        onOpenChange={() => {}}
+        publications={[healthyPub]}
+        onApplyDiffs={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /run_enrichment/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('// 1_lookups_failed')).toBeInTheDocument();
+    });
+
+    // The first failure's message is shown so a rate limit / outage is diagnosable.
+    expect(
+      screen.getByText('Semantic Scholar is rate limiting requests. Try again shortly.'),
+    ).toBeInTheDocument();
+    // The empty-diff state still renders alongside it, but it is no longer the only signal.
+    expect(screen.getByText('// no_metadata_changes_found')).toBeInTheDocument();
+  });
+
+  it('counts every failed lookup and shows only the first error message', async () => {
+    const pubTwo = makePublication({ id: 'healthy-2', doi: '10.1000/second', bibtex_key: 'Second2021' });
+    const pubThree = makePublication({ id: 'healthy-3', doi: '10.1000/third', bibtex_key: 'Third2021' });
+    mockedRunVaultHealthEnrichment.mockResolvedValue([
+      { publication: healthyPub, diffs: [], error: 'first failure' },
+      { publication: pubTwo, diffs: [{ field: 'title', label: 'title', current: pubTwo.title, incoming: 'Updated' }] },
+      { publication: pubThree, diffs: [], error: 'second failure' },
+    ]);
+
+    render(
+      <VaultHealthCheckDialog
+        open
+        onOpenChange={() => {}}
+        publications={[healthyPub, pubTwo, pubThree]}
+        onApplyDiffs={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /run_enrichment/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('// 2_lookups_failed')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('first failure')).toBeInTheDocument();
+    expect(screen.queryByText('second failure')).not.toBeInTheDocument();
+    // Failures are reported without hiding the diffs that did come back.
+    expect(screen.getByRole('button', { name: /apply_selected \(1\)/i })).toBeInTheDocument();
+  });
+
+  it('does not render a failure banner when every lookup succeeded', async () => {
+    mockedRunVaultHealthEnrichment.mockResolvedValue([{ publication: healthyPub, diffs: [] }]);
+
+    render(
+      <VaultHealthCheckDialog
+        open
+        onOpenChange={() => {}}
+        publications={[healthyPub]}
+        onApplyDiffs={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /run_enrichment/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('// no_metadata_changes_found')).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/_lookups_failed/)).not.toBeInTheDocument();
+  });
+
   it('keeps apply disabled when disabled=true regardless of phase, even with checked diffs', async () => {
     mockedRunVaultHealthEnrichment.mockResolvedValue([
       { publication: healthyPub, diffs: [{ field: 'title', label: 'title', current: healthyPub.title, incoming: 'Updated' }] },
