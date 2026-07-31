@@ -46,4 +46,24 @@ describe('Landing', () => {
     expect(screen.getByText(/export selections as bibtex, apa, or csv/i)).toBeInTheDocument();
     expect(screen.getByText(/export clean bibtex, apa,\s*or csv/i)).toBeInTheDocument();
   });
+
+  it('mentions hierarchical tagging and markdown notes, split across the vaults and citation graphs cards', () => {
+    render(
+      <MemoryRouter>
+        <Landing />
+      </MemoryRouter>
+    );
+    expect(screen.getByText(/hierarchical tags/i)).toBeInTheDocument();
+    expect(screen.getByText(/markdown notes/i)).toBeInTheDocument();
+  });
+
+  it('has a feature card for agentic workflows', () => {
+    render(
+      <MemoryRouter>
+        <Landing />
+      </MemoryRouter>
+    );
+    expect(screen.getByText('// agentic_workflows')).toBeInTheDocument();
+    expect(screen.getByText(/mcp skill and a cli/i)).toBeInTheDocument();
+  });
 });

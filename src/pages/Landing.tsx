@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, BookOpen, Network, FileDown } from 'lucide-react';
+import { ArrowRight, BookOpen, Network, FileDown, Bot } from 'lucide-react';
 import { BrandMark } from '@/components/branding/BrandMark';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { Button } from '@/components/ui/button';
@@ -13,19 +13,25 @@ const FEATURES = [
     icon: BookOpen,
     title: 'vaults',
     label: 'vaults',
-    body: 'organize papers into vaults — private, shared with collaborators, or public.',
+    body: 'organize papers into vaults — private, shared with collaborators, or public — and keep large libraries navigable with hierarchical tags.',
   },
   {
     icon: Network,
     title: 'citation graphs',
     label: 'citation_graphs',
-    body: 'link related work and visualize how papers connect to each other.',
+    body: 'link related work, visualize how papers connect, and annotate the connections with markdown notes.',
   },
   {
     icon: FileDown,
     title: 'bibtex, apa & csv export',
     label: 'bibtex_apa_csv_export',
     body: 'cite with confidence — export selections as bibtex, apa, or csv, whichever your writing tool or spreadsheet expects.',
+  },
+  {
+    icon: Bot,
+    title: 'agentic workflows',
+    label: 'agentic_workflows',
+    body: 'built for agents too — an mcp skill and a cli let claude and other tools read, write, and cite alongside you.',
   },
 ];
 
@@ -82,7 +88,7 @@ export default function Landing() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {FEATURES.map(({ icon: Icon, title, label, body }) => (
               <div
                 key={title}
