@@ -17,12 +17,14 @@ import {
   HealthIssue,
   HealthIssueType,
   VaultHealthEnrichmentResult,
+  computeVaultHealthScore,
   groupHealthIssuesByType,
   runVaultHealthEnrichment,
   scanVaultHealth,
 } from '@/lib/vaultHealthCheck';
 import { SemanticScholarQueueProgress } from '@/lib/semanticScholar';
 import { createPublicationSyncPatch, formatSyncValue, PublicationSyncDiff } from '@/lib/publicationSync';
+import { VaultHealthGauge } from './VaultHealthGauge';
 
 // Fixed display order for issue-type sections, independent of the order
 // issues happen to land in during the scan.
@@ -158,6 +160,7 @@ export function VaultHealthCheckDialog({
 
   const issues = useMemo(() => (open ? scanVaultHealth(publications) : []), [open, publications]);
   const groupedIssues = useMemo(() => groupHealthIssuesByType(issues), [issues]);
+  const healthScore = useMemo(() => computeVaultHealthScore(publications, issues), [publications, issues]);
   const pubById = useMemo(() => new Map(publications.map((p) => [p.id, p])), [publications]);
   const hasDoiPublications = useMemo(() => publications.some((p) => !!p.doi), [publications]);
 
@@ -238,13 +241,22 @@ export function VaultHealthCheckDialog({
 
         <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin px-6 py-4 space-y-3">
           {phase === 'report' && (
-            issues.length === 0 ? (
-              <p className="font-mono text-xs text-muted-foreground py-8 text-center">// vault_looks_healthy</p>
-            ) : (
-              ISSUE_TYPE_ORDER.filter((type) => (groupedIssues[type]?.length ?? 0) > 0).map((type) => (
-                <IssueSection key={type} type={type} issues={groupedIssues[type]} pubById={pubById} />
-              ))
-            )
+            <>
+              {publications.length > 0 && (
+                <VaultHealthGauge
+                  scorePercent={healthScore.scorePercent}
+                  completeCount={healthScore.completeCount}
+                  totalCount={healthScore.totalCount}
+                />
+              )}
+              {issues.length === 0 ? (
+                <p className="font-mono text-xs text-muted-foreground py-8 text-center">// vault_looks_healthy</p>
+              ) : (
+                ISSUE_TYPE_ORDER.filter((type) => (groupedIssues[type]?.length ?? 0) > 0).map((type) => (
+                  <IssueSection key={type} type={type} issues={groupedIssues[type]} pubById={pubById} />
+                ))
+              )}
+            </>
           )}
 
           {phase === 'enriching' && (

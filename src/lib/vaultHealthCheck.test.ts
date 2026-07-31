@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { scanVaultHealth, groupHealthIssuesByType, runVaultHealthEnrichment } from './vaultHealthCheck';
+import { scanVaultHealth, groupHealthIssuesByType, runVaultHealthEnrichment, computeVaultHealthScore, getVaultHealthStatus } from './vaultHealthCheck';
 import { Publication } from '@/types/database';
 
 function makePub(overrides: Partial<Publication> = {}): Publication {
@@ -112,5 +112,69 @@ describe('runVaultHealthEnrichment', () => {
   it('produces an empty diff list when no match is found, without throwing', async () => {
     const results = await runVaultHealthEnrichment([makePub({ id: 'p2', doi: '10.1/no-match' })]);
     expect(results[0].diffs).toEqual([]);
+  });
+});
+
+describe('computeVaultHealthScore', () => {
+  it('scores an empty vault as 100 with zero complete/total', () => {
+    expect(computeVaultHealthScore([], [])).toEqual({ scorePercent: 100, completeCount: 0, totalCount: 0 });
+  });
+
+  it('scores a vault with no issues as 100, all papers complete', () => {
+    // Distinct titles/authors/years/DOIs so scanVaultHealth doesn't also flag these as duplicates of each other
+    // (a shared DOI alone short-circuits findDuplicateCandidates to a perfect match regardless of other fields).
+    const pubs = [
+      makePub({ id: 'a', title: 'Paper A', authors: ['Ada Lovelace'], year: 2020, doi: '10.1/paper-a' }),
+      makePub({ id: 'b', title: 'Paper B', authors: ['Grace Hopper'], year: 2021, doi: '10.1/paper-b' }),
+    ];
+    expect(computeVaultHealthScore(pubs, scanVaultHealth(pubs))).toEqual({
+      scorePercent: 100, completeCount: 2, totalCount: 2,
+    });
+  });
+
+  it('deducts proportionally to the number of missing field-checks, not just presence of any issue', () => {
+    const pubs = [makePub({ id: 'a', doi: null, url: 'https://example.com/a' })]; // only 1 of 10 field checks fails (doi); url present so missing_url isn't also triggered
+    const score = computeVaultHealthScore(pubs, scanVaultHealth(pubs));
+    expect(score.scorePercent).toBe(90); // 1 - (1/10)
+    expect(score.completeCount).toBe(0);
+    expect(score.totalCount).toBe(1);
+  });
+
+  it('does not let possible_duplicate issues affect scorePercent (not a field check) but does exclude duplicated papers from completeCount', () => {
+    const pubs = [
+      makePub({ id: 'a', title: 'Same Title', authors: ['Ada Lovelace'], year: 2024 }),
+      makePub({ id: 'b', title: 'Same Title', authors: ['Ada Lovelace'], year: 2024 }),
+    ];
+    const issues = scanVaultHealth(pubs);
+    expect(issues.some(i => i.type === 'possible_duplicate')).toBe(true);
+
+    const score = computeVaultHealthScore(pubs, issues);
+    expect(score.scorePercent).toBe(100); // no field-level issues, only the pairwise duplicate flag
+    expect(score.completeCount).toBe(0); // both papers are touched by the duplicate pair, so neither is "complete"
+    expect(score.totalCount).toBe(2);
+  });
+
+  it('clamps to [0, 100] even in degenerate inputs', () => {
+    const pubs = [makePub({ id: 'a', doi: null, title: '', authors: [], journal: null, booktitle: null, year: null, abstract: null, url: null, bibtex_key: null, pdf_url: null })];
+    const score = computeVaultHealthScore(pubs, scanVaultHealth(pubs));
+    expect(score.scorePercent).toBeGreaterThanOrEqual(0);
+    expect(score.scorePercent).toBeLessThanOrEqual(100);
+  });
+});
+
+describe('getVaultHealthStatus', () => {
+  it('returns good for scores >= 80', () => {
+    expect(getVaultHealthStatus(80)).toEqual({ level: 'good', label: 'healthy' });
+    expect(getVaultHealthStatus(100)).toEqual({ level: 'good', label: 'healthy' });
+  });
+
+  it('returns warning for scores in [50, 80)', () => {
+    expect(getVaultHealthStatus(79)).toEqual({ level: 'warning', label: 'needs attention' });
+    expect(getVaultHealthStatus(50)).toEqual({ level: 'warning', label: 'needs attention' });
+  });
+
+  it('returns critical for scores below 50', () => {
+    expect(getVaultHealthStatus(49)).toEqual({ level: 'critical', label: 'needs work' });
+    expect(getVaultHealthStatus(0)).toEqual({ level: 'critical', label: 'needs work' });
   });
 });

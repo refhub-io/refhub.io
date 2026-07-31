@@ -80,6 +80,61 @@ export function groupHealthIssuesByType(issues: HealthIssue[]): Record<HealthIss
   return groups;
 }
 
+/** Per-publication field checks — excludes 'possible_duplicate', which is a pairwise/cross-publication signal, not a single field. */
+const FIELD_ISSUE_TYPES: HealthIssueType[] = [
+  'missing_doi', 'missing_title', 'missing_authors', 'missing_venue',
+  'missing_year', 'missing_abstract', 'missing_url',
+  'missing_bibtex_key', 'malformed_bibtex_key', 'missing_pdf',
+];
+
+export interface VaultHealthScore {
+  /** 0-100: share of tracked fields present across all publications. */
+  scorePercent: number;
+  /** publications with zero issues of any kind, including not being flagged as a possible duplicate. */
+  completeCount: number;
+  totalCount: number;
+}
+
+export type VaultHealthStatusLevel = 'good' | 'warning' | 'critical';
+
+export interface VaultHealthStatus {
+  level: VaultHealthStatusLevel;
+  label: string;
+}
+
+/**
+ * Summarizes `scanVaultHealth`'s output into a single completeness score
+ * (percent of field-checks passed across the vault) plus a complete/total
+ * paper count. An empty vault scores 100 — there's nothing missing.
+ */
+export function computeVaultHealthScore(publications: Publication[], issues: HealthIssue[]): VaultHealthScore {
+  const totalCount = publications.length;
+  if (totalCount === 0) {
+    return { scorePercent: 100, completeCount: 0, totalCount: 0 };
+  }
+
+  const fieldIssueCount = issues.filter(i => FIELD_ISSUE_TYPES.includes(i.type)).length;
+  const totalChecks = totalCount * FIELD_ISSUE_TYPES.length;
+  const rawScore = totalChecks === 0 ? 100 : (1 - fieldIssueCount / totalChecks) * 100;
+  const scorePercent = Math.max(0, Math.min(100, Math.round(rawScore)));
+
+  const flaggedPublicationIds = new Set<string>();
+  for (const issue of issues) {
+    flaggedPublicationIds.add(issue.publicationId);
+    if (issue.duplicateOfPublicationId) flaggedPublicationIds.add(issue.duplicateOfPublicationId);
+  }
+  const completeCount = totalCount - flaggedPublicationIds.size;
+
+  return { scorePercent, completeCount, totalCount };
+}
+
+/** Maps a score to a status level/label. Never rely on the level's color alone — pair with this label. */
+export function getVaultHealthStatus(scorePercent: number): VaultHealthStatus {
+  if (scorePercent >= 80) return { level: 'good', label: 'healthy' };
+  if (scorePercent >= 50) return { level: 'warning', label: 'needs attention' };
+  return { level: 'critical', label: 'needs work' };
+}
+
 export interface VaultHealthEnrichmentResult {
   publication: Publication;
   diffs: PublicationSyncDiff[];
