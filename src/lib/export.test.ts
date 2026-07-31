@@ -65,4 +65,39 @@ describe('formatCSV', () => {
     const csv = formatCSV([]);
     expect(csv).toBe('title,authors,year,venue,doi,url,abstract,tags,notes,refhub_id');
   });
+
+  it('neutralizes formula injection in title by prefixing with apostrophe', () => {
+    const csv = formatCSV([makePub({ title: '=cmd|/C calc!A1' })]);
+    const dataLine = csv.split('\r\n')[1];
+    expect(dataLine.startsWith("'=cmd|/C calc!A1")).toBe(true);
+  });
+
+  it('neutralizes and quotes when formula also contains comma', () => {
+    const csv = formatCSV([makePub({ title: '=cmd, with comma' })]);
+    const dataLine = csv.split('\r\n')[1];
+    // Should have apostrophe prefix, then quoted due to comma
+    expect(dataLine.startsWith('"\'=cmd, with comma"')).toBe(true);
+  });
+
+  it('neutralizes formula injection with various dangerous prefixes', () => {
+    const formulaStarts = ['=', '+', '-', '@'];
+    formulaStarts.forEach(prefix => {
+      const csv = formatCSV([makePub({ title: `${prefix}formula` })]);
+      const dataLine = csv.split('\r\n')[1];
+      expect(dataLine.startsWith(`'${prefix}formula`)).toBe(true);
+    });
+  });
+
+  it('neutralizes tab at start of notes field', () => {
+    const csv1 = formatCSV([makePub({ notes: '\t danger' })]);
+    const dataLine1 = csv1.split('\r\n')[1];
+    expect(dataLine1).toContain("'\t danger");
+  });
+
+  it('neutralizes CR at start of abstract field', () => {
+    const csv2 = formatCSV([makePub({ abstract: '\r danger' })]);
+    const dataLine2 = csv2.split('\r\n')[1];
+    // CR at start triggers neutralization and quoting (due to \r inside)
+    expect(dataLine2.includes("'\r danger")).toBe(true);
+  });
 });
