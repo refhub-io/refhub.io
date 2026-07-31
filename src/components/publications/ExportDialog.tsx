@@ -13,7 +13,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Download, FileText, Copy, Check, BookOpen, Table } from 'lucide-react';
 import { exportMultipleToBibtexWithFields, publicationToBibtex, downloadBibtex, BibtexField } from '@/lib/bibtex';
-import { formatAPA, formatMultipleAPA, formatCSV, buildTagKeywords, downloadTextFile } from '@/lib/export';
+import { formatAPA, formatMultipleAPA, formatCSV, buildTagKeywords, downloadTextFile, CsvField, ALL_CSV_FIELDS } from '@/lib/export';
 import { useToast } from '@/hooks/use-toast';
 import { useKeyboardContext } from '@/contexts/KeyboardContext';
 import { KbdHint } from '@/components/ui/KbdHint';
@@ -42,6 +42,19 @@ const BIBTEX_FIELDS: { key: BibtexField; label: string; description: string }[] 
 
 const DEFAULT_SELECTED: BibtexField[] = ['title', 'author', 'year', 'journal', 'doi'];
 
+const CSV_FIELDS: { key: CsvField; label: string; description: string }[] = [
+  { key: 'title', label: 'title', description: 'publication title' },
+  { key: 'authors', label: 'authors', description: 'author names' },
+  { key: 'year', label: 'year', description: 'publication year' },
+  { key: 'venue', label: 'venue', description: 'journal or conference' },
+  { key: 'doi', label: 'doi', description: 'digital object identifier' },
+  { key: 'url', label: 'url', description: 'web address' },
+  { key: 'abstract', label: 'abstract', description: 'paper abstract' },
+  { key: 'tags', label: 'tags', description: 'hierarchical tag path' },
+  { key: 'notes', label: 'notes', description: 'your notes' },
+  { key: 'refhub_id', label: 'refhub_id', description: 'internal record id' },
+];
+
 type ExportFormat = 'bibtex' | 'apa' | 'csv';
 
 /**
@@ -64,6 +77,7 @@ export function ExportDialog({
   const { toast } = useToast();
   const footerActionGroupRef = useRef<HTMLDivElement>(null);
   const [selectedFields, setSelectedFields] = useState<BibtexField[]>(DEFAULT_SELECTED);
+  const [selectedCsvFields, setSelectedCsvFields] = useState<CsvField[]>(ALL_CSV_FIELDS);
   const [format, setFormat] = useState<ExportFormat>('bibtex');
   const [includeHierarchicalTags, setIncludeHierarchicalTags] = useState(false);
   const [includeNotes, setIncludeNotes] = useState(false);
@@ -96,6 +110,22 @@ export function ExportDialog({
 
   const selectNone = () => {
     setSelectedFields([]);
+  };
+
+  const toggleCsvField = (field: CsvField) => {
+    setSelectedCsvFields(prev =>
+      prev.includes(field)
+        ? prev.filter(f => f !== field)
+        : [...prev, field]
+    );
+  };
+
+  const selectAllCsv = () => {
+    setSelectedCsvFields(CSV_FIELDS.map(f => f.key));
+  };
+
+  const selectNoneCsv = () => {
+    setSelectedCsvFields([]);
   };
 
   // Build BibTeX content with optional tags and notes
@@ -144,7 +174,10 @@ export function ExportDialog({
     return map;
   }, [publications, tags, publicationTags]);
 
-  const csvContent = useMemo(() => formatCSV(publications, tagsByPublicationId), [publications, tagsByPublicationId]);
+  const csvContent = useMemo(
+    () => formatCSV(publications, selectedCsvFields, tagsByPublicationId),
+    [publications, selectedCsvFields, tagsByPublicationId]
+  );
 
   const handleBibtexExport = () => {
     if (publications.length === 0 || selectedFields.length === 0) return;
@@ -168,7 +201,7 @@ export function ExportDialog({
   };
 
   const handleCSVExport = () => {
-    if (publications.length === 0) return;
+    if (publications.length === 0 || selectedCsvFields.length === 0) return;
 
     const filename = vaultName
       ? `${vaultName.toLowerCase().replace(/\s+/g, '-')}.csv`
@@ -176,6 +209,10 @@ export function ExportDialog({
 
     downloadTextFile(CSV_BOM + csvContent, filename, 'text/csv;charset=utf-8');
   };
+
+  const isFieldSelectionEmpty =
+    (format === 'bibtex' && selectedFields.length === 0) ||
+    (format === 'csv' && selectedCsvFields.length === 0);
 
   const handleCopyToClipboard = async () => {
     const content = format === 'bibtex' ? buildBibtexContent() : format === 'apa' ? apaContent : csvContent;
@@ -312,14 +349,52 @@ export function ExportDialog({
             </TabsContent>
 
             {/* CSV tab */}
-            <TabsContent value="csv" className="flex-1 overflow-hidden flex flex-col space-y-3 mt-4">
-              <Label className="text-xs sm:text-sm font-medium font-mono">preview:</Label>
-              <ScrollArea className="flex-1 max-h-[40vh] border rounded-lg bg-muted/30 p-3">
-                <pre className="text-xs font-mono whitespace-pre-wrap break-words">{csvContent}</pre>
-              </ScrollArea>
-              <p className="text-xs text-muted-foreground font-mono">
-                // flat table — title, authors, year, venue, doi, url, abstract, tags, notes, refhub_id
-              </p>
+            <TabsContent value="csv" className="flex-1 overflow-auto space-y-4 mt-4">
+              <div className="space-y-2 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="text-xs sm:text-sm font-medium font-mono">select fields to include:</Label>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" onClick={selectAllCsv} className="text-xs h-7 px-2 font-mono">
+                      all
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={selectNoneCsv} className="text-xs h-7 px-2 font-mono">
+                      none
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 bg-muted/50 rounded-lg border border-border min-w-0">
+                  {CSV_FIELDS.map(field => (
+                    <label
+                      key={field.key}
+                      className="flex items-center gap-2 p-2 rounded-md hover:bg-muted cursor-pointer transition-colors min-w-0"
+                    >
+                      <Checkbox
+                        checked={selectedCsvFields.includes(field.key)}
+                        onCheckedChange={() => toggleCsvField(field.key)}
+                        className="shrink-0"
+                      />
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-sm font-medium">{field.label}</span>
+                        <span className="text-xs text-muted-foreground">{field.description}</span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {selectedCsvFields.length === 0 ? (
+                <p className="text-sm text-destructive text-center font-mono">
+                  // please select at least one field
+                </p>
+              ) : (
+                <div className="space-y-2 min-w-0">
+                  <Label className="text-xs sm:text-sm font-medium font-mono">preview:</Label>
+                  <ScrollArea className="max-h-[30vh] border rounded-lg bg-muted/30 p-3">
+                    <pre className="text-xs font-mono whitespace-pre-wrap break-words">{csvContent}</pre>
+                  </ScrollArea>
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         </div>
@@ -332,7 +407,7 @@ export function ExportDialog({
             <Button
               variant="outline"
               onClick={handleCopyToClipboard}
-              disabled={(format === 'bibtex' && selectedFields.length === 0) || publications.length === 0}
+              disabled={isFieldSelectionEmpty || publications.length === 0}
               className="gap-2 font-mono w-full sm:w-auto"
             >
               {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
@@ -342,7 +417,7 @@ export function ExportDialog({
           <Button
             variant="glow"
             onClick={format === 'bibtex' ? handleBibtexExport : format === 'apa' ? handleAPAExport : handleCSVExport}
-            disabled={(format === 'bibtex' && selectedFields.length === 0) || publications.length === 0}
+            disabled={isFieldSelectionEmpty || publications.length === 0}
             className="gap-2 font-mono w-full sm:w-auto"
           >
             <Download className="w-4 h-4" />

@@ -40,6 +40,31 @@ describe('ExportDialog CSV tab', () => {
     expect(preview?.textContent).toContain('A Paper');
   });
 
+  it('lets the user deselect a CSV field, removing it from the preview and download', () => {
+    render(<ExportDialog open onOpenChange={() => {}} publications={[pub as never]} />);
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /csv/i }));
+
+    // All fields start checked; uncheck "notes".
+    const notesCheckbox = screen.getByText('notes').closest('label')!.querySelector('button[role="checkbox"]')!;
+    fireEvent.click(notesCheckbox);
+
+    const preview = document.body.querySelector('pre');
+    expect(preview?.textContent?.split('\n')[0]).not.toContain('notes');
+
+    fireEvent.click(screen.getByRole('button', { name: /export_\.csv/i }));
+    const [content] = mockedDownloadTextFile.mock.calls[0];
+    expect(content.split('\r\n')[0]).not.toContain('notes');
+  });
+
+  it('disables copy/export and shows a warning when no CSV fields are selected', () => {
+    render(<ExportDialog open onOpenChange={() => {}} publications={[pub as never]} />);
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /csv/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^none$/i }));
+
+    expect(screen.getByText(/please select at least one field/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /export_\.csv/i })).toBeDisabled();
+  });
+
   it('downloads the CSV with a UTF-8 BOM so Excel renders diacritics correctly', () => {
     const diacriticPub = { ...pub, id: 'pub-2', authors: ['Müller, Zaïdi, Łukasiewicz'] };
     render(

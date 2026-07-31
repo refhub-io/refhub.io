@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatCSV } from './export';
+import { formatCSV, ALL_CSV_FIELDS } from './export';
 import { Publication } from '@/types/database';
 
 function makePub(overrides: Partial<Publication> = {}): Publication {
@@ -57,8 +57,22 @@ describe('formatCSV', () => {
   });
 
   it('injects tags from the optional tagsByPublicationId map', () => {
-    const csv = formatCSV([makePub({ id: 'pub-2' })], { 'pub-2': 'nlp; graphs' });
+    const csv = formatCSV([makePub({ id: 'pub-2' })], ALL_CSV_FIELDS, { 'pub-2': 'nlp; graphs' });
     expect(csv.split('\r\n')[1]).toContain('nlp; graphs');
+  });
+
+  it('restricts columns to the requested fields, in canonical order regardless of input order', () => {
+    const csv = formatCSV([makePub()], ['doi', 'title', 'year']);
+    const lines = csv.split('\r\n');
+    expect(lines[0]).toBe('title,year,doi');
+    expect(lines[1]).toBe('A Paper,2024,10.1234/abc');
+  });
+
+  it('emits an empty header (and blank rows) when no fields are selected', () => {
+    const csv = formatCSV([makePub()], []);
+    const lines = csv.split('\r\n');
+    expect(lines[0]).toBe('');
+    expect(lines[1]).toBe('');
   });
 
   it('handles an empty publication list by returning just the header', () => {
