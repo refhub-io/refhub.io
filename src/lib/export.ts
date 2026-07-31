@@ -136,6 +136,33 @@ export function formatMultipleAPA(publications: Publication[]): string {
   return sorted.map(pub => formatAPA(pub)).join('\n\n');
 }
 
+export function formatCSV(
+  publications: Publication[],
+  tagsByPublicationId?: Record<string, string>,
+): string {
+  const header = ['title', 'authors', 'year', 'venue', 'doi', 'url', 'abstract', 'tags', 'notes', 'refhub_id'];
+  const rows = publications.map(pub => [
+    pub.title || '',
+    (pub.authors || []).join('; '),
+    pub.year != null ? String(pub.year) : '',
+    pub.journal || pub.booktitle || '',
+    pub.doi || '',
+    pub.url || '',
+    pub.abstract || '',
+    tagsByPublicationId?.[pub.id] || '',
+    pub.notes || '',
+    pub.id,
+  ]);
+  return [header, ...rows].map(row => row.map(csvEscape).join(',')).join('\r\n');
+}
+
+function csvEscape(value: string): string {
+  if (/[",\r\n]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
+
 /**
  * Build hierarchical tag path string, e.g. "Science > Biology > Genetics"
  */
