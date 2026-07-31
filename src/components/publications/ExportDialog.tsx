@@ -11,9 +11,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Download, FileText, Copy, Check, BookOpen } from 'lucide-react';
+import { Download, FileText, Copy, Check, BookOpen, Table } from 'lucide-react';
 import { exportMultipleToBibtexWithFields, publicationToBibtex, downloadBibtex, BibtexField } from '@/lib/bibtex';
-import { formatAPA, formatMultipleAPA, buildTagKeywords, downloadTextFile } from '@/lib/export';
+import { formatAPA, formatMultipleAPA, formatCSV, buildTagKeywords, downloadTextFile } from '@/lib/export';
 import { useToast } from '@/hooks/use-toast';
 import { useKeyboardContext } from '@/contexts/KeyboardContext';
 import { KbdHint } from '@/components/ui/KbdHint';
@@ -42,7 +42,7 @@ const BIBTEX_FIELDS: { key: BibtexField; label: string; description: string }[] 
 
 const DEFAULT_SELECTED: BibtexField[] = ['title', 'author', 'year', 'journal', 'doi'];
 
-type ExportFormat = 'bibtex' | 'apa';
+type ExportFormat = 'bibtex' | 'apa' | 'csv';
 
 export function ExportDialog({
   open,
@@ -121,6 +121,22 @@ export function ExportDialog({
     return formatMultipleAPA(publications);
   }, [publications]);
 
+  // Tag label lookup, shared by CSV export
+  const tagsByPublicationId = useMemo(() => {
+    if (!tags || !publicationTags) return undefined;
+    const map: Record<string, string> = {};
+    for (const pub of publications) {
+      const pubTagIds = publicationTags
+        .filter(pt => pt.publication_id === pub.id || pt.vault_publication_id === pub.id)
+        .map(pt => pt.tag_id);
+      const label = buildTagKeywords(pubTagIds, tags);
+      if (label) map[pub.id] = label;
+    }
+    return map;
+  }, [publications, tags, publicationTags]);
+
+  const csvContent = useMemo(() => formatCSV(publications, tagsByPublicationId), [publications, tagsByPublicationId]);
+
   const handleBibtexExport = () => {
     if (publications.length === 0 || selectedFields.length === 0) return;
 
@@ -142,8 +158,18 @@ export function ExportDialog({
     downloadTextFile(apaContent, filename);
   };
 
+  const handleCSVExport = () => {
+    if (publications.length === 0) return;
+
+    const filename = vaultName
+      ? `${vaultName.toLowerCase().replace(/\s+/g, '-')}.csv`
+      : 'references.csv';
+
+    downloadTextFile(csvContent, filename, 'text/csv;charset=utf-8');
+  };
+
   const handleCopyToClipboard = async () => {
-    const content = format === 'bibtex' ? buildBibtexContent() : apaContent;
+    const content = format === 'bibtex' ? buildBibtexContent() : format === 'apa' ? apaContent : csvContent;
     try {
       await navigator.clipboard.writeText(content);
       setCopied(true);
@@ -182,7 +208,7 @@ export function ExportDialog({
             onValueChange={(v) => setFormat(v as ExportFormat)}
             className="flex-1 flex flex-col overflow-hidden"
           >
-            <TabsList className="grid w-full grid-cols-2 font-mono">
+            <TabsList className="grid w-full grid-cols-3 font-mono">
               <TabsTrigger value="bibtex" className="gap-1.5">
                 <FileText className="w-3.5 h-3.5" />
                 BibTeX
@@ -190,6 +216,10 @@ export function ExportDialog({
               <TabsTrigger value="apa" className="gap-1.5">
                 <BookOpen className="w-3.5 h-3.5" />
                 APA
+              </TabsTrigger>
+              <TabsTrigger value="csv" className="gap-1.5">
+                <Table className="w-3.5 h-3.5" />
+                CSV
               </TabsTrigger>
             </TabsList>
 
@@ -271,6 +301,17 @@ export function ExportDialog({
                 // APA 7th edition style — ready for copy/paste
               </p>
             </TabsContent>
+
+            {/* CSV tab */}
+            <TabsContent value="csv" className="flex-1 overflow-hidden flex flex-col space-y-3 mt-4">
+              <Label className="text-xs sm:text-sm font-medium font-mono">preview:</Label>
+              <ScrollArea className="flex-1 max-h-[40vh] border rounded-lg bg-muted/30 p-3">
+                <pre className="text-xs font-mono whitespace-pre-wrap break-words">{csvContent}</pre>
+              </ScrollArea>
+              <p className="text-xs text-muted-foreground font-mono">
+                // flat table — title, authors, year, venue, doi, url, abstract, tags, notes, refhub_id
+              </p>
+            </TabsContent>
           </Tabs>
         </div>
 
@@ -291,12 +332,12 @@ export function ExportDialog({
           </div>
           <Button
             variant="glow"
-            onClick={format === 'bibtex' ? handleBibtexExport : handleAPAExport}
+            onClick={format === 'bibtex' ? handleBibtexExport : format === 'apa' ? handleAPAExport : handleCSVExport}
             disabled={(format === 'bibtex' && selectedFields.length === 0) || publications.length === 0}
             className="gap-2 font-mono w-full sm:w-auto"
           >
             <Download className="w-4 h-4" />
-            {format === 'bibtex' ? `export_.bib` : `export_.txt`}
+            {format === 'bibtex' ? `export_.bib` : format === 'apa' ? `export_.txt` : `export_.csv`}
           </Button>
         </div>
       </DialogContent>
