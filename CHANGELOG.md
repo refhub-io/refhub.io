@@ -11,6 +11,7 @@ project uses [Semantic Versioning](https://semver.org/). History prior to
 ### Added
 - CSV export option alongside BibTeX and APA.
 - Public /about landing page for signed-out visitors.
+- Vault health check: scan for missing metadata and duplicates, with optional Semantic Scholar enrichment review.
 
 ## [1.7.1] - 2026-07-21
 

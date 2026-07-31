@@ -23,7 +23,7 @@ const changelog: ChangelogEntry[] = [
   {
     id: 18,
     date: '2026-07-31',
-    title: 'csv export & public landing page',
+    title: 'csv export, public landing page & vault health check',
     features: [
       {
         tag: 'feature',
@@ -36,6 +36,12 @@ const changelog: ChangelogEntry[] = [
         title: 'public landing page',
         description:
           'a new /about page explains what refhub is to signed-out visitors, with a clear path to sign in or explore the codex.',
+      },
+      {
+        tag: 'feature',
+        title: 'vault health check',
+        description:
+          'scan a vault for missing metadata and likely duplicates, then optionally enrich from semantic scholar and review every change before applying it.',
       },
     ],
   },
