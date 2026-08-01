@@ -444,6 +444,7 @@ export function useKeyboardNavigation(
       {
         combo: 'Ctrl+a',
         description: 'Select all',
+        appWide: appWideShortcuts,
         handler: (e) => { e.preventDefault(); selectAll(); return true; },
         allowInInput: false,
       },
@@ -451,6 +452,7 @@ export function useKeyboardNavigation(
       {
         combo: 'Ctrl+e',
         description: 'Export selected',
+        appWide: appWideShortcuts,
         handler: (e) => {
           e.preventDefault();
           const ids = Array.from(selectedIdsRef.current);
@@ -519,6 +521,7 @@ export function useKeyboardNavigation(
       {
         combo: 'Ctrl+d',
         description: 'Deselect all',
+        appWide: appWideShortcuts,
         handler: (e) => {
           e.preventDefault();
           clearSelection();
