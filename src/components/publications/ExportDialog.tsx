@@ -128,16 +128,32 @@ export function ExportDialog({
     setSelectedCsvFields([]);
   };
 
+  // Pre-indexed publicationTags -> tagIds, built once rather than re-filtering
+  // the full array per publication (was O(publications × publicationTags)).
+  const tagIdsByPublicationId = useMemo(() => {
+    if (!publicationTags) return undefined;
+    const map = new Map<string, string[]>();
+    const addTo = (key: string | null | undefined, tagId: string) => {
+      if (!key) return;
+      const list = map.get(key);
+      if (list) list.push(tagId);
+      else map.set(key, [tagId]);
+    };
+    for (const pt of publicationTags) {
+      addTo(pt.publication_id, pt.tag_id);
+      addTo(pt.vault_publication_id, pt.tag_id);
+    }
+    return map;
+  }, [publicationTags]);
+
   // Build BibTeX content with optional tags and notes
   const buildBibtexContent = (): string => {
     return publications.map(pub => {
       let entry = publicationToBibtex(pub, selectedFields);
 
       // Inject hierarchical tags as keywords if enabled
-      if (includeHierarchicalTags && tags && publicationTags) {
-        const pubTagIds = publicationTags
-          .filter(pt => pt.publication_id === pub.id || pt.vault_publication_id === pub.id)
-          .map(pt => pt.tag_id);
+      if (includeHierarchicalTags && tags && tagIdsByPublicationId) {
+        const pubTagIds = tagIdsByPublicationId.get(pub.id) ?? [];
         const keywords = buildTagKeywords(pubTagIds, tags);
         if (keywords) {
           // Insert keywords before closing brace
@@ -162,17 +178,15 @@ export function ExportDialog({
 
   // Tag label lookup, shared by CSV export
   const tagsByPublicationId = useMemo(() => {
-    if (!tags || !publicationTags) return undefined;
+    if (!tags || !tagIdsByPublicationId) return undefined;
     const map: Record<string, string> = {};
     for (const pub of publications) {
-      const pubTagIds = publicationTags
-        .filter(pt => pt.publication_id === pub.id || pt.vault_publication_id === pub.id)
-        .map(pt => pt.tag_id);
+      const pubTagIds = tagIdsByPublicationId.get(pub.id) ?? [];
       const label = buildTagKeywords(pubTagIds, tags);
       if (label) map[pub.id] = label;
     }
     return map;
-  }, [publications, tags, publicationTags]);
+  }, [publications, tags, tagIdsByPublicationId]);
 
   const csvContent = useMemo(
     () => formatCSV(publications, selectedCsvFields, tagsByPublicationId),

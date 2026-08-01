@@ -1907,6 +1907,7 @@ export default function VaultDetail() {
                     onClick={() => setIsHealthCheckOpen(true)}
                     className="font-mono h-8"
                     title="Run vault health check"
+                    aria-label="Run vault health check"
                   >
                     <Stethoscope className="w-4 h-4" />
                     <span className="ml-2 hidden md:inline">health check</span>

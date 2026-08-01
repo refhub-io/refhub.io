@@ -1,7 +1,10 @@
 /**
- * Pure vault health scan: flags publications with missing metadata fields
- * and likely duplicates. No I/O — takes a Publication[] snapshot and
- * returns a flat list of issues.
+ * Vault health scanning and scoring (scanVaultHealth, computeVaultHealthScore,
+ * computeVaultHealthUserStats) are pure — no I/O, just a Publication[]
+ * snapshot in and a flat list of issues/stats out. `runVaultHealthEnrichment`
+ * is the one exception: it performs network I/O (Semantic Scholar lookups)
+ * to suggest metadata fixes, kept in this module because it's the other half
+ * of the same health-check workflow.
  */
 import { Publication } from '@/types/database';
 import { findDuplicateCandidates, DUPE_PRESETS } from '@/lib/dupeDetection';
