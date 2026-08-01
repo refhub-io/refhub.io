@@ -424,7 +424,7 @@ export function ExportDialog({
                     + ellipsis-truncating columns instead of ever overflowing --
                     so extra columns just got clipped with no way to reach them.
                     Dropping `w-full` lets the table size to its natural content
-                    width so this container's overflow-x-auto has something to
+                    width so this container's overflow-auto has something to
                     actually scroll.
                   */}
                   <div className="max-h-[30vh] overflow-auto border rounded-lg bg-muted/30">
