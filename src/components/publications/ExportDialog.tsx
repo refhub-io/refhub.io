@@ -417,36 +417,44 @@ export function ExportDialog({
                       {`// ${Math.min(CSV_PREVIEW_ROW_LIMIT, publications.length)} of ${publications.length} rows`}
                     </span>
                   </div>
-                  <ScrollArea className="max-h-[30vh] border rounded-lg bg-muted/30">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-xs font-mono border-collapse">
-                        <thead>
-                          <tr className="border-b border-border">
-                            {csvPreviewRows.columns.map(column => (
-                              <th key={column} className="text-left font-semibold px-3 py-2 whitespace-nowrap">
-                                {column}
-                              </th>
+                  {/*
+                    Plain scrollable div, not <ScrollArea>: ScrollArea only ships a
+                    vertical scrollbar by default, and the table previously had
+                    `w-full`, which let the browser satisfy that width by shrinking
+                    + ellipsis-truncating columns instead of ever overflowing --
+                    so extra columns just got clipped with no way to reach them.
+                    Dropping `w-full` lets the table size to its natural content
+                    width so this container's overflow-x-auto has something to
+                    actually scroll.
+                  */}
+                  <div className="max-h-[30vh] overflow-auto border rounded-lg bg-muted/30">
+                    <table className="text-xs font-mono border-collapse">
+                      <thead>
+                        <tr className="border-b border-border">
+                          {csvPreviewRows.columns.map(column => (
+                            <th key={column} className="text-left font-semibold px-3 py-2 whitespace-nowrap">
+                              {column}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {csvPreviewRows.rows.map((row, rowIndex) => (
+                          <tr key={rowIndex} className="border-b border-border/50 last:border-0">
+                            {row.map((cell, cellIndex) => (
+                              <td
+                                key={cellIndex}
+                                title={cell || undefined}
+                                className="px-3 py-2 max-w-[220px] truncate align-top text-muted-foreground"
+                              >
+                                {cell || '—'}
+                              </td>
                             ))}
                           </tr>
-                        </thead>
-                        <tbody>
-                          {csvPreviewRows.rows.map((row, rowIndex) => (
-                            <tr key={rowIndex} className="border-b border-border/50 last:border-0">
-                              {row.map((cell, cellIndex) => (
-                                <td
-                                  key={cellIndex}
-                                  title={cell || undefined}
-                                  className="px-3 py-2 max-w-[220px] truncate align-top text-muted-foreground"
-                                >
-                                  {cell || '—'}
-                                </td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </ScrollArea>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </TabsContent>

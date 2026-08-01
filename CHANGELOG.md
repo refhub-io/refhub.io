@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.8.3] - 2026-08-01
+
+### Fixed
+- CSV export preview: columns beyond what fit the dialog's width were silently clipped with no way to reach them, since the table was forced to exactly fit its container and `<ScrollArea>` only ships a vertical scrollbar by default. The preview table now sizes to its natural content width inside a horizontally-scrollable container.
+
 ## [1.8.2] - 2026-08-01
 
 ### Fixed
