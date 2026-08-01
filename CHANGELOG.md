@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.8.2] - 2026-08-01
+
+### Fixed
+- Ctrl+A (select all), Ctrl+D (deselect all), and Ctrl+E (export) keyboard shortcuts were silently swallowed by the browser's own defaults (e.g. select-page-text) whenever the list wasn't already the active keyboard context — now app-wide like the app's other list shortcuts.
+
 ## [1.8.1] - 2026-08-01
 
 ### Changed
