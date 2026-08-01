@@ -21,6 +21,31 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    id: 18,
+    date: '2026-07-31',
+    title: 'csv export, public landing page & vault health check',
+    features: [
+      {
+        tag: 'feature',
+        title: 'csv export',
+        description:
+          'export publications to csv format with all key metadata: title, authors, year, venue, doi, url, abstract, tags, notes, and refhub id.',
+      },
+      {
+        tag: 'feature',
+        title: 'public landing page',
+        description:
+          'a new /about page explains what refhub is to signed-out visitors, with a clear path to sign in or explore the codex.',
+      },
+      {
+        tag: 'feature',
+        title: 'vault health check',
+        description:
+          'scan a vault for missing metadata and likely duplicates, then optionally enrich from semantic scholar and review every change before applying it.',
+      },
+    ],
+  },
+  {
     id: 17,
     date: '2026-07-20',
     title: 'track what you\'ve read',

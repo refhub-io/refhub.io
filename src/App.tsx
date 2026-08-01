@@ -15,6 +15,7 @@ import { useOnboarding } from "@/hooks/useOnboarding";
 import { useKeyboardContext } from "@/contexts/KeyboardContext";
 import { useAuth } from "@/hooks/useAuth";
 import Index from "./pages/Index";
+import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
 import Dashboard from "./pages/Dashboard";
@@ -111,6 +112,7 @@ const App = () => {
                   <Route path="/profile-edit" element={<AuthWrapper><ProfileEdit /></AuthWrapper>} />
                   <Route path="/signup-next-steps" element={<SignupNextSteps />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
+                  <Route path="/about" element={<Landing />} />
                   <Route path="/privacy" element={<PrivacyPolicy />} />
                   <Route path="/tos" element={<TermsOfService />} />
                   <Route path="*" element={<NotFound />} />

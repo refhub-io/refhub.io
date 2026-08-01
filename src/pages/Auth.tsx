@@ -310,6 +310,9 @@ export default function Auth() {
             <span className="text-muted-foreground">.io</span>
           </h1>
           <p className="text-muted-foreground mt-2 font-mono text-sm">// your research, organized</p>
+          <Link to="/about" className="text-muted-foreground hover:text-foreground transition-colors text-xs font-mono mt-4 inline-block">
+            what is refhub?
+          </Link>
         </div>
 
         <Card className="border-2 border-border/50 bg-card/80 backdrop-blur-xl">

@@ -146,10 +146,17 @@ export function useSharedVaultOperations({
 
       return { success: true };
     } catch (error) {
-      // Rollback optimistic update on error
+      // Rollback the optimistic update — but only for the publication this call
+      // touched. `previousState` is a snapshot of the whole array taken from the
+      // render closure, so restoring it wholesale would also revert unrelated
+      // updates that happened after the snapshot and already persisted (e.g. the
+      // sibling patches of a vault health check batch apply).
       const pending = pendingPublicationUpdates.current.get(operationId);
       if (pending) {
-        setPublications(pending.previousState);
+        const previousPublication = pending.previousState.find(p => p.id === publicationId);
+        if (previousPublication) {
+          setPublications(prev => prev.map(pub => (pub.id === publicationId ? previousPublication : pub)));
+        }
         pendingPublicationUpdates.current.delete(operationId);
       }
 

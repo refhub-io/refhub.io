@@ -2,7 +2,6 @@
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
 import Dashboard from './Dashboard';
-import Auth from './Auth';
 import ProfileEdit from './ProfileEdit';
 import { FullScreenLoader } from '@/components/ui/loading';
 import { Navigate } from 'react-router-dom';
@@ -17,7 +16,7 @@ const Index = () => {
   }
 
   if (!user) {
-    return <Auth />;
+    return <Navigate to="/about" replace />;
   }
 
 

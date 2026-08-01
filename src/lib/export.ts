@@ -136,6 +136,52 @@ export function formatMultipleAPA(publications: Publication[]): string {
   return sorted.map(pub => formatAPA(pub)).join('\n\n');
 }
 
+export type CsvField = 'title' | 'authors' | 'year' | 'venue' | 'doi' | 'url' | 'abstract' | 'tags' | 'notes' | 'refhub_id';
+
+/** Canonical column order. `formatCSV` follows this order regardless of the order `fields` is passed in. */
+export const ALL_CSV_FIELDS: CsvField[] = ['title', 'authors', 'year', 'venue', 'doi', 'url', 'abstract', 'tags', 'notes', 'refhub_id'];
+
+function getCsvFieldValue(pub: Publication, field: CsvField, tagsByPublicationId?: Record<string, string>): string {
+  switch (field) {
+    case 'title': return pub.title || '';
+    case 'authors': return (pub.authors || []).join('; ');
+    case 'year': return pub.year != null ? String(pub.year) : '';
+    case 'venue': return pub.journal || pub.booktitle || '';
+    case 'doi': return pub.doi || '';
+    case 'url': return pub.url || '';
+    case 'abstract': return pub.abstract || '';
+    case 'tags': return tagsByPublicationId?.[pub.id] || '';
+    case 'notes': return pub.notes || '';
+    case 'refhub_id': return pub.id;
+  }
+}
+
+export function formatCSV(
+  publications: Publication[],
+  fields: CsvField[] = ALL_CSV_FIELDS,
+  tagsByPublicationId?: Record<string, string>,
+): string {
+  const selected = new Set(fields);
+  const columns = ALL_CSV_FIELDS.filter(f => selected.has(f));
+  const rows = publications.map(pub => columns.map(f => getCsvFieldValue(pub, f, tagsByPublicationId)));
+  return [columns, ...rows].map(row => row.map(csvEscape).join(',')).join('\r\n');
+}
+
+function csvEscape(value: string): string {
+  let v = value;
+  // Neutralize spreadsheet formula injection. The `\s*` prefix matters: some
+  // spreadsheet apps (e.g. Google Sheets) trim leading whitespace/newlines
+  // before evaluating a cell, so " =1+1" or "\n=1+1" would otherwise bypass a
+  // strictly-anchored check while still being treated as a formula.
+  if (/^\s*[=+\-@\t\r]/.test(v)) {
+    v = `'${v}`;
+  }
+  if (/[",\r\n]/.test(v)) {
+    return `"${v.replace(/"/g, '""')}"`;
+  }
+  return v;
+}
+
 /**
  * Build hierarchical tag path string, e.g. "Science > Biology > Genetics"
  */
