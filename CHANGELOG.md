@@ -6,6 +6,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.8.4] - 2026-08-01
+
+### Fixed
+- The public /about page kept showing "sign in" / "get_started" even when you were already signed in — it now shows "dashboard" / "go_to_dashboard" and links straight to the app instead of `/auth`.
+- The /about page's hero eyebrow badge (a long unbroken snake_case string) had no natural word-break points and got silently clipped on narrow/mobile viewports; it now wraps.
+
 ## [1.8.3] - 2026-08-01
 
 ### Fixed

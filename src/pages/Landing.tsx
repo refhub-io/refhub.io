@@ -3,6 +3,7 @@ import { ArrowRight, BookOpen, Network, FileDown, Bot } from 'lucide-react';
 import { BrandMark } from '@/components/branding/BrandMark';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/hooks/useAuth';
 
 // `label` is the snake_case comment heading rendered above each card. It is kept
 // separate from `title` on purpose: deriving it from the human-readable title
@@ -36,6 +37,8 @@ const FEATURES = [
 ];
 
 export default function Landing() {
+  const { user } = useAuth();
+
   return (
     <div className="min-h-screen overflow-hidden bg-background text-foreground">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_hsl(var(--electric-purple)/0.16),_transparent_42%)]" />
@@ -55,8 +58,8 @@ export default function Landing() {
             </span>
           </Link>
           <div className="flex items-center gap-3">
-            <Link to="/auth" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-              sign in
+            <Link to={user ? '/' : '/auth'} className="text-sm text-muted-foreground transition-colors hover:text-foreground">
+              {user ? 'dashboard' : 'sign in'}
             </Link>
             <ThemeToggle />
           </div>
@@ -64,7 +67,7 @@ export default function Landing() {
 
         <main className="flex-1 flex flex-col justify-center gap-10 py-10">
           <div className="space-y-6 max-w-3xl">
-            <div className="inline-flex items-center gap-3 rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-xs font-mono uppercase tracking-[0.24em] text-primary">
+            <div className="inline-flex max-w-full items-center gap-3 rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-center text-[10px] font-mono uppercase tracking-[0.12em] text-primary break-words sm:text-xs sm:tracking-[0.24em]">
               // reference_manager_for_the_command_line_generation
             </div>
             <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
@@ -77,8 +80,8 @@ export default function Landing() {
             </p>
             <div className="flex flex-wrap items-center gap-3 pt-2">
               <Button asChild variant="glow" size="lg" className="font-mono gap-2">
-                <Link to="/auth">
-                  get_started
+                <Link to={user ? '/' : '/auth'}>
+                  {user ? 'go_to_dashboard' : 'get_started'}
                   <ArrowRight className="w-4 h-4" />
                 </Link>
               </Button>
