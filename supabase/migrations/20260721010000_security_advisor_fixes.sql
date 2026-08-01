@@ -33,42 +33,43 @@
 -- schema -- vault_papers has no legitimate anon write path).
 -- ---------------------------------------------------------------------------
 
-DROP POLICY IF EXISTS "Users can manage vault papers" ON "public"."vault_papers";
+-- DONE
+--DROP POLICY IF EXISTS "Users can manage vault papers" ON "public"."vault_papers";
 
-CREATE POLICY "Users can manage vault papers" ON "public"."vault_papers"
-    FOR ALL TO "authenticated"
-    USING (
-        ("auth"."uid"() = "added_by")
-        OR (EXISTS (
-            SELECT 1 FROM "public"."vaults" "v"
-            WHERE ("v"."id" = "vault_papers"."vault_id")
-              AND (
-                ("v"."user_id" = "auth"."uid"())
-                OR (EXISTS (
-                    SELECT 1 FROM "public"."vault_shares" "vs"
-                    WHERE ("vs"."vault_id" = "v"."id")
-                      AND ("vs"."shared_with_user_id" = "auth"."uid"())
-                      AND ("vs"."role" = ANY (ARRAY['editor'::"public"."vault_permission", 'owner'::"public"."vault_permission"]))
-                ))
-              )
-        ))
-    )
-    WITH CHECK (
-        ("auth"."uid"() = "added_by")
-        OR (EXISTS (
-            SELECT 1 FROM "public"."vaults" "v"
-            WHERE ("v"."id" = "vault_papers"."vault_id")
-              AND (
-                ("v"."user_id" = "auth"."uid"())
-                OR (EXISTS (
-                    SELECT 1 FROM "public"."vault_shares" "vs"
-                    WHERE ("vs"."vault_id" = "v"."id")
-                      AND ("vs"."shared_with_user_id" = "auth"."uid"())
-                      AND ("vs"."role" = ANY (ARRAY['editor'::"public"."vault_permission", 'owner'::"public"."vault_permission"]))
-                ))
-              )
-        ))
-    );
+--CREATE POLICY "Users can manage vault papers" ON "public"."vault_papers"
+    -- FOR ALL TO "authenticated"
+    -- USING (
+    --     ("auth"."uid"() = "added_by")
+    --     OR (EXISTS (
+    --         SELECT 1 FROM "public"."vaults" "v"
+    --         WHERE ("v"."id" = "vault_papers"."vault_id")
+    --           AND (
+    --             ("v"."user_id" = "auth"."uid"())
+    --             OR (EXISTS (
+    --                 SELECT 1 FROM "public"."vault_shares" "vs"
+    --                 WHERE ("vs"."vault_id" = "v"."id")
+    --                   AND ("vs"."shared_with_user_id" = "auth"."uid"())
+    --                   AND ("vs"."role" = ANY (ARRAY['editor'::"public"."vault_permission", 'owner'::"public"."vault_permission"]))
+    --             ))
+    --           )
+    --     ))
+    -- )
+    -- WITH CHECK (
+    --     ("auth"."uid"() = "added_by")
+    --     OR (EXISTS (
+    --         SELECT 1 FROM "public"."vaults" "v"
+    --         WHERE ("v"."id" = "vault_papers"."vault_id")
+    --           AND (
+    --             ("v"."user_id" = "auth"."uid"())
+    --             OR (EXISTS (
+    --                 SELECT 1 FROM "public"."vault_shares" "vs"
+    --                 WHERE ("vs"."vault_id" = "v"."id")
+    --                   AND ("vs"."shared_with_user_id" = "auth"."uid"())
+    --                   AND ("vs"."role" = ANY (ARRAY['editor'::"public"."vault_permission", 'owner'::"public"."vault_permission"]))
+    --             ))
+    --           )
+    --     ))
+    -- );
 
 -- ---------------------------------------------------------------------------
 -- WARN: function_search_path_mutable
@@ -79,16 +80,17 @@ CREATE POLICY "Users can manage vault papers" ON "public"."vault_papers"
 -- call time. Pin each to the schema it actually needs.
 -- ---------------------------------------------------------------------------
 
-ALTER FUNCTION "public"."enforce_forked_vaults_public"() SET "search_path" TO 'public';
-ALTER FUNCTION "public"."set_updated_at"() SET "search_path" TO 'public';
-ALTER FUNCTION "public"."copy_publication_to_vault"("pub_id" "uuid", "target_vault_id" "uuid", "user_id" "uuid") SET "search_path" TO 'public';
-ALTER FUNCTION "public"."create_user_profile"("p_user_id" "uuid", "p_email" "text", "p_display_name" "text") SET "search_path" TO 'public';
-ALTER FUNCTION "public"."has_vault_access"("p_user_id" "uuid", "p_vault_id" "uuid", "p_required_role" "text") SET "search_path" TO 'public';
-ALTER FUNCTION "public"."user_can_access_vault"("p_vault_uuid" "uuid", "p_required_permission" "text") SET "search_path" TO 'public';
-ALTER FUNCTION "public"."get_researcher_stats"("p_user_ids" "uuid"[]) SET "search_path" TO 'public';
-ALTER FUNCTION "public"."update_vault_publication_with_rollup"("p_vault_publication_id" "uuid", "p_vault_id" "uuid", "p_patch" "jsonb", "p_actor_user_id" "uuid") SET "search_path" TO 'public';
-ALTER FUNCTION "public"."take_semantic_scholar_rate_limit"("p_bucket_key" "text", "p_max_requests" integer, "p_window_ms" integer) SET "search_path" TO 'public';
-ALTER FUNCTION "public"."take_openalex_budget"("p_bucket_key" "text", "p_cost_usd" numeric, "p_daily_budget_usd" numeric) SET "search_path" TO 'public';
+-- DONE
+-- ALTER FUNCTION "public"."enforce_forked_vaults_public"() SET "search_path" TO 'public';
+-- ALTER FUNCTION "public"."set_updated_at"() SET "search_path" TO 'public';
+-- ALTER FUNCTION "public"."copy_publication_to_vault"("pub_id" "uuid", "target_vault_id" "uuid", "user_id" "uuid") SET "search_path" TO 'public';
+-- ALTER FUNCTION "public"."create_user_profile"("p_user_id" "uuid", "p_email" "text", "p_display_name" "text") SET "search_path" TO 'public';
+-- ALTER FUNCTION "public"."has_vault_access"("p_user_id" "uuid", "p_vault_id" "uuid", "p_required_role" "text") SET "search_path" TO 'public';
+-- ALTER FUNCTION "public"."user_can_access_vault"("p_vault_uuid" "uuid", "p_required_permission" "text") SET "search_path" TO 'public';
+-- ALTER FUNCTION "public"."get_researcher_stats"("p_user_ids" "uuid"[]) SET "search_path" TO 'public';
+-- ALTER FUNCTION "public"."update_vault_publication_with_rollup"("p_vault_publication_id" "uuid", "p_vault_id" "uuid", "p_patch" "jsonb", "p_actor_user_id" "uuid") SET "search_path" TO 'public';
+-- ALTER FUNCTION "public"."take_semantic_scholar_rate_limit"("p_bucket_key" "text", "p_max_requests" integer, "p_window_ms" integer) SET "search_path" TO 'public';
+-- ALTER FUNCTION "public"."take_openalex_budget"("p_bucket_key" "text", "p_cost_usd" numeric, "p_daily_budget_usd" numeric) SET "search_path" TO 'public';
 
 -- ---------------------------------------------------------------------------
 -- WARN: anon/authenticated_security_definer_function_executable
@@ -105,35 +107,36 @@ ALTER FUNCTION "public"."take_openalex_budget"("p_bucket_key" "text", "p_cost_us
 -- invoking role's EXECUTE privilege), it only removes the direct RPC path.
 -- ---------------------------------------------------------------------------
 
-REVOKE EXECUTE ON FUNCTION "public"."handle_new_user"() FROM "anon", "authenticated";
-REVOKE EXECUTE ON FUNCTION "public"."notify_vault_access_requested"() FROM "anon", "authenticated";
-REVOKE EXECUTE ON FUNCTION "public"."notify_vault_access_status_changed"() FROM "anon", "authenticated";
-REVOKE EXECUTE ON FUNCTION "public"."notify_vault_favorited"() FROM "anon", "authenticated";
-REVOKE EXECUTE ON FUNCTION "public"."notify_vault_forked"() FROM "anon", "authenticated";
-REVOKE EXECUTE ON FUNCTION "public"."notify_vault_shared"() FROM "anon", "authenticated";
-REVOKE EXECUTE ON FUNCTION "public"."set_vault_publication_updated_by"() FROM "anon", "authenticated";
-REVOKE EXECUTE ON FUNCTION "public"."validate_username"() FROM "anon", "authenticated";
+-- DONE
+-- REVOKE EXECUTE ON FUNCTION "public"."handle_new_user"() FROM "anon", "authenticated";
+-- REVOKE EXECUTE ON FUNCTION "public"."notify_vault_access_requested"() FROM "anon", "authenticated";
+-- REVOKE EXECUTE ON FUNCTION "public"."notify_vault_access_status_changed"() FROM "anon", "authenticated";
+-- REVOKE EXECUTE ON FUNCTION "public"."notify_vault_favorited"() FROM "anon", "authenticated";
+-- REVOKE EXECUTE ON FUNCTION "public"."notify_vault_forked"() FROM "anon", "authenticated";
+-- REVOKE EXECUTE ON FUNCTION "public"."notify_vault_shared"() FROM "anon", "authenticated";
+-- REVOKE EXECUTE ON FUNCTION "public"."set_vault_publication_updated_by"() FROM "anon", "authenticated";
+-- REVOKE EXECUTE ON FUNCTION "public"."validate_username"() FROM "anon", "authenticated";
 
 -- has_vault_access has no callers anywhere in the schema or app (superseded
 -- by user_can_access_vault) and is SECURITY DEFINER, so leaving it publicly
 -- executable would let anon probe arbitrary user/vault access relationships
 -- for free. Lock it down to service_role like the other internal-only
 -- SECURITY DEFINER helpers in this schema.
-REVOKE EXECUTE ON FUNCTION "public"."has_vault_access"("p_user_id" "uuid", "p_vault_id" "uuid", "p_required_role" "text") FROM "anon", "authenticated";
+-- REVOKE EXECUTE ON FUNCTION "public"."has_vault_access"("p_user_id" "uuid", "p_vault_id" "uuid", "p_required_role" "text") FROM "anon", "authenticated";
 
 -- user_can_access_vault is referenced from several RLS policies scoped
 -- `TO authenticated`, so authenticated still needs EXECUTE for those policies
 -- to evaluate. Nothing calls it as anon (no `TO public`/`TO anon` policy
 -- uses it, and the app never calls it directly via .rpc()).
-REVOKE EXECUTE ON FUNCTION "public"."user_can_access_vault"("p_vault_uuid" "uuid", "p_required_permission" "text") FROM "anon";
+-- REVOKE EXECUTE ON FUNCTION "public"."user_can_access_vault"("p_vault_uuid" "uuid", "p_required_permission" "text") FROM "anon";
 
 -- delete_user requires auth.uid() internally and raises for an unauthenticated
 -- caller, but anon never has a legitimate reason to call it.
-REVOKE EXECUTE ON FUNCTION "public"."delete_user"() FROM "anon";
+-- REVOKE EXECUTE ON FUNCTION "public"."delete_user"() FROM "anon";
 
 -- create_user_profile is only ever called by the client with an active
 -- session (src/lib/profile.ts), never as anon.
-REVOKE EXECUTE ON FUNCTION "public"."create_user_profile"("p_user_id" "uuid", "p_email" "text", "p_display_name" "text") FROM "anon";
+-- REVOKE EXECUTE ON FUNCTION "public"."create_user_profile"("p_user_id" "uuid", "p_email" "text", "p_display_name" "text") FROM "anon";
 
 -- ---------------------------------------------------------------------------
 -- CRITICAL, found while auditing the above (not from the linter -- it only
@@ -164,7 +167,7 @@ REVOKE EXECUTE ON FUNCTION "public"."create_user_profile"("p_user_id" "uuid", "p
 --
 -- Re-issuing the revoke to restore the function's intended service_role-only
 -- reachability.
-REVOKE EXECUTE ON FUNCTION "public"."update_vault_publication_with_rollup"("p_vault_publication_id" "uuid", "p_vault_id" "uuid", "p_patch" "jsonb", "p_actor_user_id" "uuid") FROM "anon", "authenticated";
+-- REVOKE EXECUTE ON FUNCTION "public"."update_vault_publication_with_rollup"("p_vault_publication_id" "uuid", "p_vault_id" "uuid", "p_patch" "jsonb", "p_actor_user_id" "uuid") FROM "anon", "authenticated";
 
 -- ---------------------------------------------------------------------------
 -- Hardening found while auditing the above: create_user_profile is SECURITY
@@ -174,29 +177,29 @@ REVOKE EXECUTE ON FUNCTION "public"."update_vault_publication_with_rollup"("p_va
 -- trigger-internal call from handle_new_user (which runs with no request JWT
 -- context, so auth.uid() is NULL there, not the new user's id).
 -- ---------------------------------------------------------------------------
+-- DONE
+-- CREATE OR REPLACE FUNCTION "public"."create_user_profile"("p_user_id" "uuid", "p_email" "text", "p_display_name" "text") RETURNS TABLE("id" "uuid", "user_id" "uuid", "display_name" "text", "email" "text", "avatar_url" "text", "username" "text", "bio" "text", "github_url" "text", "linkedin_url" "text", "bluesky_url" "text", "created_at" timestamp with time zone, "updated_at" timestamp with time zone, "is_setup" boolean)
+--     LANGUAGE "plpgsql" SECURITY DEFINER
+--     SET "search_path" TO 'public'
+--     AS $$
+-- BEGIN
+--   IF "auth"."uid"() IS NOT NULL AND "auth"."uid"() <> p_user_id THEN
+--     RAISE EXCEPTION 'Cannot create a profile for another user';
+--   END IF;
 
-CREATE OR REPLACE FUNCTION "public"."create_user_profile"("p_user_id" "uuid", "p_email" "text", "p_display_name" "text") RETURNS TABLE("id" "uuid", "user_id" "uuid", "display_name" "text", "email" "text", "avatar_url" "text", "username" "text", "bio" "text", "github_url" "text", "linkedin_url" "text", "bluesky_url" "text", "created_at" timestamp with time zone, "updated_at" timestamp with time zone, "is_setup" boolean)
-    LANGUAGE "plpgsql" SECURITY DEFINER
-    SET "search_path" TO 'public'
-    AS $$
-BEGIN
-  IF "auth"."uid"() IS NOT NULL AND "auth"."uid"() <> p_user_id THEN
-    RAISE EXCEPTION 'Cannot create a profile for another user';
-  END IF;
+--   INSERT INTO public.profiles (
+--     user_id, email, display_name, username, bio, avatar_url,
+--     github_url, linkedin_url, bluesky_url, is_setup
+--   ) VALUES (
+--     p_user_id, p_email, p_display_name, null, null, null,
+--     null, null, null, false
+--   )
+--   ON CONFLICT ON CONSTRAINT "profiles_user_id_key" DO NOTHING;
 
-  INSERT INTO public.profiles (
-    user_id, email, display_name, username, bio, avatar_url,
-    github_url, linkedin_url, bluesky_url, is_setup
-  ) VALUES (
-    p_user_id, p_email, p_display_name, null, null, null,
-    null, null, null, false
-  )
-  ON CONFLICT ON CONSTRAINT "profiles_user_id_key" DO NOTHING;
+--   RETURN QUERY
+--   SELECT * FROM public.profiles p
+--   WHERE p.user_id = p_user_id;
+-- END;
+-- $$;
 
-  RETURN QUERY
-  SELECT * FROM public.profiles p
-  WHERE p.user_id = p_user_id;
-END;
-$$;
-
-ALTER FUNCTION "public"."create_user_profile"("p_user_id" "uuid", "p_email" "text", "p_display_name" "text") OWNER TO "postgres";
+-- ALTER FUNCTION "public"."create_user_profile"("p_user_id" "uuid", "p_email" "text", "p_display_name" "text") OWNER TO "postgres";
