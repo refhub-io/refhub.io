@@ -39,6 +39,23 @@ describe('ExportDialog CSV tab', () => {
     expect(preview?.textContent).toContain('A Paper');
   });
 
+  it('lets the preview table scroll horizontally instead of clipping columns', () => {
+    render(<ExportDialog open onOpenChange={() => {}} publications={[pub as never]} />);
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /csv/i }));
+
+    const table = document.body.querySelector('table');
+    // Regression: the table previously had `w-full`, which let the browser
+    // satisfy that width by shrinking/ellipsis-truncating columns instead of
+    // ever overflowing its container -- so extra columns were unreachable,
+    // with no scrollbar. It must size to its natural content width instead.
+    expect(table?.className).not.toMatch(/(^|\s)w-full(\s|$)/);
+
+    // Its scroll container must allow horizontal overflow (not just vertical,
+    // which is all <ScrollArea>'s default scrollbar provides).
+    const scrollContainer = table?.parentElement;
+    expect(scrollContainer?.className).toMatch(/overflow-(auto|x-auto)/);
+  });
+
   it('lets the user deselect a CSV field, removing it from the preview and download', () => {
     render(<ExportDialog open onOpenChange={() => {}} publications={[pub as never]} />);
     fireEvent.mouseDown(screen.getByRole('tab', { name: /csv/i }));
