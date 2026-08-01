@@ -1,9 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Landing from './Landing';
+import { useAuth } from '@/hooks/useAuth';
+
+vi.mock('@/hooks/useAuth', () => ({ useAuth: vi.fn() }));
+
+const mockedUseAuth = vi.mocked(useAuth);
 
 describe('Landing', () => {
+  beforeEach(() => {
+    // Default: signed out. Individual tests override this to cover the signed-in case.
+    mockedUseAuth.mockReturnValue({ user: null } as ReturnType<typeof useAuth>);
+  });
+
   it('renders without requiring authentication and shows a sign-in CTA', () => {
     render(
       <MemoryRouter>
@@ -12,6 +22,20 @@ describe('Landing', () => {
     );
     expect(screen.getByText(/get_started/i)).toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: /sign in/i }).length).toBeGreaterThan(0);
+  });
+
+  it('shows a dashboard CTA instead of sign-in copy when already signed in', () => {
+    mockedUseAuth.mockReturnValue({ user: { id: 'user-1' } } as ReturnType<typeof useAuth>);
+    render(
+      <MemoryRouter>
+        <Landing />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole('link', { name: 'dashboard' })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('link', { name: /go_to_dashboard/i })).toHaveAttribute('href', '/');
+    expect(screen.queryByText(/sign in/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('get_started')).not.toBeInTheDocument();
   });
 
   it('links to the codex and legal pages', () => {
@@ -67,5 +91,19 @@ describe('Landing', () => {
     );
     expect(screen.getByText('// agentic_workflows')).toBeInTheDocument();
     expect(screen.getByText(/claude skills for the refhub cli and drafting papers/i)).toBeInTheDocument();
+  });
+
+  it('lets the hero eyebrow badge wrap on narrow viewports instead of overflowing', () => {
+    render(
+      <MemoryRouter>
+        <Landing />
+      </MemoryRouter>
+    );
+    const badge = screen.getByText(/reference_manager_for_the_command_line_generation/i);
+    // Regression: this single unbroken snake_case string has no natural word-break
+    // points, and the page root has `overflow-hidden`, so on narrow viewports it
+    // used to get silently clipped instead of wrapping.
+    expect(badge.className).toMatch(/(^|\s)break-words(\s|$)/);
+    expect(badge.className).toMatch(/(^|\s)max-w-full(\s|$)/);
   });
 });
