@@ -13,7 +13,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Download, FileText, Copy, Check, BookOpen, Table } from 'lucide-react';
 import { exportMultipleToBibtexWithFields, publicationToBibtex, downloadBibtex, BibtexField } from '@/lib/bibtex';
-import { formatAPA, formatMultipleAPA, formatCSV, buildTagKeywords, downloadTextFile, CsvField, ALL_CSV_FIELDS } from '@/lib/export';
+import { formatAPA, formatMultipleAPA, formatCSV, getCsvRows, buildTagKeywords, downloadTextFile, CsvField, ALL_CSV_FIELDS } from '@/lib/export';
 import { useToast } from '@/hooks/use-toast';
 import { useKeyboardContext } from '@/contexts/KeyboardContext';
 import { KbdHint } from '@/components/ui/KbdHint';
@@ -42,6 +42,8 @@ const BIBTEX_FIELDS: { key: BibtexField; label: string; description: string }[] 
 
 const DEFAULT_SELECTED: BibtexField[] = ['title', 'author', 'year', 'journal', 'doi'];
 
+const CSV_PREVIEW_ROW_LIMIT = 5;
+
 const CSV_FIELDS: { key: CsvField; label: string; description: string }[] = [
   { key: 'title', label: 'title', description: 'publication title' },
   { key: 'authors', label: 'authors', description: 'author names' },
@@ -52,7 +54,6 @@ const CSV_FIELDS: { key: CsvField; label: string; description: string }[] = [
   { key: 'abstract', label: 'abstract', description: 'paper abstract' },
   { key: 'tags', label: 'tags', description: 'hierarchical tag path' },
   { key: 'notes', label: 'notes', description: 'your notes' },
-  { key: 'refhub_id', label: 'refhub_id', description: 'internal record id' },
 ];
 
 type ExportFormat = 'bibtex' | 'apa' | 'csv';
@@ -190,6 +191,13 @@ export function ExportDialog({
 
   const csvContent = useMemo(
     () => formatCSV(publications, selectedCsvFields, tagsByPublicationId),
+    [publications, selectedCsvFields, tagsByPublicationId]
+  );
+
+  // Preview only ever shows a handful of rows as a readable table -- the raw
+  // CSV text (with its escaping/quoting) is what actually gets copied/downloaded.
+  const csvPreviewRows = useMemo(
+    () => getCsvRows(publications.slice(0, CSV_PREVIEW_ROW_LIMIT), selectedCsvFields, tagsByPublicationId),
     [publications, selectedCsvFields, tagsByPublicationId]
   );
 
@@ -403,9 +411,41 @@ export function ExportDialog({
                 </p>
               ) : (
                 <div className="space-y-2 min-w-0">
-                  <Label className="text-xs sm:text-sm font-medium font-mono">preview:</Label>
-                  <ScrollArea className="max-h-[30vh] border rounded-lg bg-muted/30 p-3">
-                    <pre className="text-xs font-mono whitespace-pre-wrap break-words">{csvContent}</pre>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label className="text-xs sm:text-sm font-medium font-mono">preview:</Label>
+                    <span className="text-xs text-muted-foreground font-mono">
+                      {`// ${Math.min(CSV_PREVIEW_ROW_LIMIT, publications.length)} of ${publications.length} rows`}
+                    </span>
+                  </div>
+                  <ScrollArea className="max-h-[30vh] border rounded-lg bg-muted/30">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs font-mono border-collapse">
+                        <thead>
+                          <tr className="border-b border-border">
+                            {csvPreviewRows.columns.map(column => (
+                              <th key={column} className="text-left font-semibold px-3 py-2 whitespace-nowrap">
+                                {column}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {csvPreviewRows.rows.map((row, rowIndex) => (
+                            <tr key={rowIndex} className="border-b border-border/50 last:border-0">
+                              {row.map((cell, cellIndex) => (
+                                <td
+                                  key={cellIndex}
+                                  title={cell || undefined}
+                                  className="px-3 py-2 max-w-[220px] truncate align-top text-muted-foreground"
+                                >
+                                  {cell || '—'}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </ScrollArea>
                 </div>
               )}

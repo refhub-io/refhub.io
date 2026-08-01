@@ -6,6 +6,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.8.1] - 2026-08-01
+
+### Changed
+- CSV export: dropped the `refhub_id` column from the exportable field list.
+- CSV export preview now renders as a table capped at 5 rows instead of dumping the full raw CSV text.
+
 ## [1.8.0] - 2026-07-31
 
 ### Added

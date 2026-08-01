@@ -41,8 +41,8 @@ describe('formatCSV', () => {
   it('emits a header row followed by one row per publication', () => {
     const csv = formatCSV([makePub()]);
     const lines = csv.split('\r\n');
-    expect(lines[0]).toBe('title,authors,year,venue,doi,url,abstract,tags,notes,refhub_id');
-    expect(lines[1]).toBe('A Paper,Ada Lovelace; Grace Hopper,2024,Journal of Things,10.1234/abc,,An abstract.,,,pub-1');
+    expect(lines[0]).toBe('title,authors,year,venue,doi,url,abstract,tags,notes');
+    expect(lines[1]).toBe('A Paper,Ada Lovelace; Grace Hopper,2024,Journal of Things,10.1234/abc,,An abstract.,,');
   });
 
   it('falls back to booktitle when journal is absent', () => {
@@ -77,7 +77,7 @@ describe('formatCSV', () => {
 
   it('handles an empty publication list by returning just the header', () => {
     const csv = formatCSV([]);
-    expect(csv).toBe('title,authors,year,venue,doi,url,abstract,tags,notes,refhub_id');
+    expect(csv).toBe('title,authors,year,venue,doi,url,abstract,tags,notes');
   });
 
   it('neutralizes formula injection in title by prefixing with apostrophe', () => {
