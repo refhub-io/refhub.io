@@ -59,8 +59,8 @@ describe('useKeyboardNavigation app-wide Ctrl shortcuts', () => {
   });
 
   it('lets Ctrl+E invoke onExport app-wide, defaulting to every item when nothing is selected', () => {
-    const onExport = (ids: string[]) => exported.push(ids);
     const exported: string[][] = [];
+    const onExport = (ids: string[]) => exported.push(ids);
 
     renderHook(
       () =>
