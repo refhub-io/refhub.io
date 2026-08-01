@@ -1,17 +1,24 @@
 import { describe, expect, it, vi } from 'vitest';
-import { scanVaultHealth, groupHealthIssuesByType, runVaultHealthEnrichment, computeVaultHealthScore, getVaultHealthStatus } from './vaultHealthCheck';
+import {
+  scanVaultHealth,
+  groupHealthIssuesByType,
+  runVaultHealthEnrichment,
+  computeVaultHealthScore,
+  computeVaultHealthUserStats,
+  getVaultHealthStatus,
+} from './vaultHealthCheck';
 import { Publication } from '@/types/database';
 
 function makePub(overrides: Partial<Publication> = {}): Publication {
   return {
     id: 'pub-1', user_id: 'u1', title: 'A Paper', authors: ['Ada Lovelace'],
-    year: 2024, journal: 'J', volume: null, issue: null, pages: null,
+    year: 2024, journal: 'J', volume: '1', issue: '1', pages: '1-10',
     doi: '10.1/abc', url: null, abstract: 'abs', pdf_url: 'https://x/y.pdf',
     bibtex_key: 'lovelace2024paper', publication_type: 'article', notes: null,
     booktitle: null, chapter: null, edition: null, editor: null, howpublished: null,
     institution: null, number: null, organization: null, publisher: null, school: null,
     series: null, type: null, eid: null,
-    isbn: null, issn: null, keywords: null, reading_state: 'unread', important: false,
+    isbn: null, issn: null, keywords: ['machine learning'], reading_state: 'unread', important: false,
     created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
   } as Publication;
@@ -56,6 +63,45 @@ describe('scanVaultHealth', () => {
   it('accepts bibtex keys with valid special characters (colon, dot, dash, underscore)', () => {
     const issues = scanVaultHealth([makePub({ bibtex_key: 'lovelace_2024:paper-v2.final' })]);
     expect(issues.some(i => i.type === 'malformed_bibtex_key')).toBe(false);
+  });
+
+  it('flags missing_publication_type when publication_type is blank', () => {
+    const issues = scanVaultHealth([makePub({ publication_type: '' })]);
+    expect(issues.some(i => i.type === 'missing_publication_type')).toBe(true);
+  });
+
+  it('flags missing_venue when neither journal nor booktitle is set', () => {
+    const issues = scanVaultHealth([makePub({ journal: null, booktitle: null })]);
+    expect(issues.some(i => i.type === 'missing_venue')).toBe(true);
+  });
+
+  it('flags missing_keywords for an empty keywords array', () => {
+    const issues = scanVaultHealth([makePub({ keywords: [] })]);
+    expect(issues.some(i => i.type === 'missing_keywords')).toBe(true);
+  });
+
+  it('flags missing_volume and missing_issue for an article missing them, but not book-only fields', () => {
+    const issues = scanVaultHealth([makePub({ volume: null, issue: null })]);
+    const types = issues.map(i => i.type);
+    expect(types).toEqual(expect.arrayContaining(['missing_volume', 'missing_issue']));
+    expect(types).not.toContain('missing_editor');
+    expect(types).not.toContain('missing_isbn');
+    expect(types).not.toContain('missing_publisher');
+  });
+
+  it('does not flag missing_volume/missing_issue for a book, but does flag book-specific fields', () => {
+    const issues = scanVaultHealth([makePub({
+      publication_type: 'book', journal: null, booktitle: 'Some Book',
+      volume: null, issue: null, pages: null,
+      editor: null, publisher: null, isbn: null, series: null, edition: null,
+    })]);
+    const types = issues.map(i => i.type);
+    expect(types).not.toContain('missing_volume');
+    expect(types).not.toContain('missing_issue');
+    expect(types).not.toContain('missing_pages');
+    expect(types).toEqual(expect.arrayContaining([
+      'missing_editor', 'missing_publisher', 'missing_isbn', 'missing_series', 'missing_edition',
+    ]));
   });
 
   it('flags near-duplicate publications as possible_duplicate', () => {
@@ -132,31 +178,40 @@ describe('computeVaultHealthScore', () => {
     });
   });
 
-  it('deducts proportionally to the number of missing field-checks, not just presence of any issue', () => {
-    const pubs = [makePub({ id: 'a', doi: null, url: 'https://example.com/a' })]; // only 1 of 10 field checks fails (doi); url present so missing_url isn't also triggered
+  it('weighs a missing tier-1 field (doi) more heavily than a missing tier-3 field, and excludes the paper from completeCount', () => {
+    // For a fully-populated 'article', 30 total weighted checks apply: 6 tier-1 (x3) +
+    // 3 tier-2 (volume/issue/pages, x2) + 6 tier-3 (x1). Missing only doi (weight 3)
+    // drops 3 of 30 -> (30-3)/30 = 90%.
+    const pubs = [makePub({ id: 'a', doi: null, url: 'https://example.com/a' })];
     const score = computeVaultHealthScore(pubs, scanVaultHealth(pubs));
-    expect(score.scorePercent).toBe(90); // 1 - (1/10)
-    // missing_doi is not a "core identity" field (see CORE_ISSUE_TYPES) — a paper
-    // can still be counted complete/citable without one (many legit papers lack a DOI).
-    expect(score.completeCount).toBe(1);
+    expect(score.scorePercent).toBe(90);
+    // doi is now one of the absolute-minimum required fields (authors, year, doi, venue,
+    // publication_type, title) -- a paper without one is not "complete", even at a high score.
+    expect(score.completeCount).toBe(0);
     expect(score.totalCount).toBe(1);
   });
 
-  it('does not let a missing pdf or bibtex_key disqualify a paper from completeCount, even though they lower scorePercent', () => {
-    // Regression test: these two fields are legitimately absent for most papers
-    // (no local PDF attached, no hand-set bibtex key) — requiring them for
-    // "complete" status made completeCount collapse toward zero in real vaults
-    // even at a healthy scorePercent, which read as a contradiction.
-    const pubs = [makePub({ id: 'a', pdf_url: null, bibtex_key: null })];
+  it('does not let missing pdf or keywords disqualify a paper from completeCount, even though they lower scorePercent', () => {
+    // Regression: these tier-3 fields are legitimately absent for most papers (no local PDF,
+    // no hand-set keywords) -- requiring them for "complete" collapsed completeCount toward
+    // zero in real vaults even at a healthy overall scorePercent.
+    const pubs = [makePub({ id: 'a', pdf_url: null, keywords: [] })];
     const score = computeVaultHealthScore(pubs, scanVaultHealth(pubs));
-    expect(score.scorePercent).toBe(80); // 2 of 10 field checks fail
-    expect(score.completeCount).toBe(1); // still counted complete: title/authors/year are all present
+    expect(score.scorePercent).toBe(93); // (30-2)/30 = 93.33 -> 93
+    expect(score.completeCount).toBe(1); // still counted complete: all tier-1 required fields are present
   });
 
-  it('does disqualify a paper from completeCount when a core identity field (title/authors/year) is missing', () => {
+  it('does disqualify a paper from completeCount when a tier-1 required field (title) is missing', () => {
     const pubs = [makePub({ id: 'a', title: '' })];
     const score = computeVaultHealthScore(pubs, scanVaultHealth(pubs));
     expect(score.completeCount).toBe(0);
+  });
+
+  it('does not check tier-2 fields that do not apply to the manuscript type, so an article is never penalized for lacking an isbn', () => {
+    const pubs = [makePub({ id: 'a' })]; // 'article' -- isbn/editor/publisher/edition/series never apply
+    const score = computeVaultHealthScore(pubs, scanVaultHealth(pubs));
+    expect(score.scorePercent).toBe(100);
+    expect(score.completeCount).toBe(1);
   });
 
   it('does not let possible_duplicate issues affect scorePercent (not a field check) but does exclude duplicated papers from completeCount', () => {
@@ -174,10 +229,39 @@ describe('computeVaultHealthScore', () => {
   });
 
   it('clamps to [0, 100] even in degenerate inputs', () => {
-    const pubs = [makePub({ id: 'a', doi: null, title: '', authors: [], journal: null, booktitle: null, year: null, abstract: null, url: null, bibtex_key: null, pdf_url: null })];
+    const pubs = [makePub({
+      id: 'a', doi: null, title: '', authors: [], journal: null, booktitle: null, year: null,
+      abstract: null, url: null, bibtex_key: null, pdf_url: null, keywords: null,
+      volume: null, issue: null, pages: null,
+    })];
     const score = computeVaultHealthScore(pubs, scanVaultHealth(pubs));
     expect(score.scorePercent).toBeGreaterThanOrEqual(0);
     expect(score.scorePercent).toBeLessThanOrEqual(100);
+  });
+});
+
+describe('computeVaultHealthUserStats', () => {
+  it('returns null for tag/drive-url counts when no data source is supplied, but still computes notes/reading state from the publication itself', () => {
+    const pubs = [
+      makePub({ id: 'a', notes: null, reading_state: 'unread' }),
+      makePub({ id: 'b', notes: 'some notes', reading_state: 'read' }),
+    ];
+    const stats = computeVaultHealthUserStats(pubs);
+    expect(stats.missingTagsCount).toBeNull();
+    expect(stats.missingDriveUrlCount).toBeNull();
+    expect(stats.missingNotesCount).toBe(1);
+    expect(stats.unreadCount).toBe(1);
+    expect(stats.totalCount).toBe(2);
+  });
+
+  it('computes missing-tag and missing-drive-url counts when data sources are supplied', () => {
+    const pubs = [makePub({ id: 'a' }), makePub({ id: 'b' })];
+    const stats = computeVaultHealthUserStats(pubs, {
+      hasTag: (id) => id === 'a',
+      hasDriveUrl: () => false,
+    });
+    expect(stats.missingTagsCount).toBe(1);
+    expect(stats.missingDriveUrlCount).toBe(2);
   });
 });
 

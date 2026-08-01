@@ -31,7 +31,7 @@ const FEATURES = [
     icon: Bot,
     title: 'agentic workflows',
     label: 'agentic_workflows',
-    body: 'built for agents too — skills for the refhub cli and drafting papers let agents read, write, and cite alongside you.',
+    body: 'built for agents too — claude skills for the refhub cli and drafting papers let agents read, write, and cite alongside you.',
   },
 ];
 

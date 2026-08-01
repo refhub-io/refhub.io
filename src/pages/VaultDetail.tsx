@@ -2194,6 +2194,8 @@ export default function VaultDetail() {
         publications={publications}
         onApplyDiffs={handleApplyHealthCheckDiffs}
         disabled={!canEdit}
+        publicationTags={publicationTags}
+        driveUrlsMap={pdfAssetsMap}
       />
 
       <AlertDialog open={!!deleteConfirmation} onOpenChange={() => setDeleteConfirmation(null)}>

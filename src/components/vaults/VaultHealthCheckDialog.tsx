@@ -12,12 +12,13 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 import { SpinnerLoader } from '@/components/ui/loader';
-import { Publication } from '@/types/database';
+import { Publication, PublicationTag } from '@/types/database';
 import {
   HealthIssue,
   HealthIssueType,
   VaultHealthEnrichmentResult,
   computeVaultHealthScore,
+  computeVaultHealthUserStats,
   groupHealthIssuesByType,
   runVaultHealthEnrichment,
   scanVaultHealth,
@@ -26,13 +27,36 @@ import { SemanticScholarQueueProgress } from '@/lib/semanticScholar';
 import { createPublicationSyncPatch, formatSyncValue, PublicationSyncDiff } from '@/lib/publicationSync';
 import { VaultHealthGauge } from './VaultHealthGauge';
 
-// Fixed display order for issue-type sections, independent of the order
-// issues happen to land in during the scan.
-const ISSUE_TYPE_ORDER: HealthIssueType[] = [
-  'missing_doi', 'missing_title', 'missing_authors', 'missing_venue',
-  'missing_year', 'missing_abstract', 'missing_url',
-  'missing_bibtex_key', 'malformed_bibtex_key', 'missing_pdf',
-  'possible_duplicate',
+// Fixed display order for issue-type sections, grouped by importance tier
+// (independent of the order issues happen to land in during the scan) so the
+// report visually communicates "these are required, these are secondary,
+// these are nice-to-have" rather than presenting every issue as equally bad.
+const TIER_GROUPS: { label: string; types: HealthIssueType[] }[] = [
+  {
+    label: 'required',
+    types: [
+      'missing_title', 'missing_authors', 'missing_year',
+      'missing_doi', 'missing_venue', 'missing_publication_type',
+    ],
+  },
+  {
+    label: 'secondary',
+    types: [
+      'missing_volume', 'missing_issue', 'missing_pages', 'missing_editor',
+      'missing_publisher', 'missing_edition', 'missing_series', 'missing_isbn',
+    ],
+  },
+  {
+    label: 'supplementary',
+    types: [
+      'missing_pdf', 'missing_url', 'missing_keywords', 'missing_abstract',
+      'missing_bibtex_key', 'malformed_bibtex_key',
+    ],
+  },
+  {
+    label: 'duplicates',
+    types: ['possible_duplicate'],
+  },
 ];
 
 type HealthCheckPhase = 'report' | 'enriching' | 'review' | 'applying' | 'done';
@@ -43,6 +67,10 @@ interface VaultHealthCheckDialogProps {
   publications: Publication[];
   onApplyDiffs: (patches: { publicationId: string; patch: Partial<Publication> }[]) => Promise<void>;
   disabled?: boolean;
+  /** Used only to compute the tier-4 "missing tags" info stat — omit and that stat is hidden. */
+  publicationTags?: PublicationTag[];
+  /** publicationId -> google-drive-attached PDF url, if any. Used only for the "missing drive pdf" info stat. */
+  driveUrlsMap?: Record<string, string | null>;
 }
 
 function publicationLabel(publication: Publication | undefined): string {
@@ -142,6 +170,8 @@ export function VaultHealthCheckDialog({
   publications,
   onApplyDiffs,
   disabled,
+  publicationTags,
+  driveUrlsMap,
 }: VaultHealthCheckDialogProps) {
   const [phase, setPhase] = useState<HealthCheckPhase>('report');
   const [progress, setProgress] = useState<SemanticScholarQueueProgress | null>(null);
@@ -163,6 +193,25 @@ export function VaultHealthCheckDialog({
   const healthScore = useMemo(() => computeVaultHealthScore(publications, issues), [publications, issues]);
   const pubById = useMemo(() => new Map(publications.map((p) => [p.id, p])), [publications]);
   const hasDoiPublications = useMemo(() => publications.some((p) => !!p.doi), [publications]);
+
+  const taggedPublicationIds = useMemo(() => {
+    if (!publicationTags) return undefined;
+    const set = new Set<string>();
+    for (const pt of publicationTags) {
+      if (pt.publication_id) set.add(pt.publication_id);
+      if (pt.vault_publication_id) set.add(pt.vault_publication_id);
+    }
+    return set;
+  }, [publicationTags]);
+
+  const userStats = useMemo(
+    () =>
+      computeVaultHealthUserStats(publications, {
+        hasTag: taggedPublicationIds ? (id) => taggedPublicationIds.has(id) : undefined,
+        hasDriveUrl: driveUrlsMap ? (id) => !!driveUrlsMap[id] : undefined,
+      }),
+    [publications, taggedPublicationIds, driveUrlsMap],
+  );
 
   const resultsWithDiffs = useMemo(() => results.filter((r) => r.diffs.length > 0), [results]);
   const totalDiffCount = useMemo(
@@ -252,9 +301,37 @@ export function VaultHealthCheckDialog({
               {issues.length === 0 ? (
                 <p className="font-mono text-xs text-muted-foreground py-8 text-center">// vault_looks_healthy</p>
               ) : (
-                ISSUE_TYPE_ORDER.filter((type) => (groupedIssues[type]?.length ?? 0) > 0).map((type) => (
-                  <IssueSection key={type} type={type} issues={groupedIssues[type]} pubById={pubById} />
-                ))
+                TIER_GROUPS.map((group) => {
+                  const typesWithIssues = group.types.filter((type) => (groupedIssues[type]?.length ?? 0) > 0);
+                  if (typesWithIssues.length === 0) return null;
+                  return (
+                    <div key={group.label} className="space-y-2">
+                      <p className="font-mono text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                        {`// ${group.label}`}
+                      </p>
+                      {typesWithIssues.map((type) => (
+                        <IssueSection key={type} type={type} issues={groupedIssues[type]} pubById={pubById} />
+                      ))}
+                    </div>
+                  );
+                })
+              )}
+              {publications.length > 0 && (
+                <div className="rounded-lg border-2 border-dashed border-border/50 p-3 space-y-1">
+                  <p className="font-mono text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                    // user_metadata (not scored)
+                  </p>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs text-muted-foreground">
+                    {userStats.missingTagsCount != null && (
+                      <span>{userStats.missingTagsCount}_missing_tags</span>
+                    )}
+                    <span>{userStats.missingNotesCount}_missing_notes</span>
+                    {userStats.missingDriveUrlCount != null && (
+                      <span>{userStats.missingDriveUrlCount}_missing_drive_pdf</span>
+                    )}
+                    <span>{userStats.unreadCount}_unread</span>
+                  </div>
+                </div>
               )}
             </>
           )}
