@@ -35,8 +35,7 @@ describe('ExportDialog CSV tab', () => {
     const csvTab = screen.getByRole('tab', { name: /csv/i });
     fireEvent.mouseDown(csvTab);
     // Dialog content is portaled to document.body, so query there directly.
-    const preview = document.body.querySelector('pre');
-    expect(preview?.textContent).toContain('refhub_id');
+    const preview = document.body.querySelector('table');
     expect(preview?.textContent).toContain('A Paper');
   });
 
@@ -44,16 +43,32 @@ describe('ExportDialog CSV tab', () => {
     render(<ExportDialog open onOpenChange={() => {}} publications={[pub as never]} />);
     fireEvent.mouseDown(screen.getByRole('tab', { name: /csv/i }));
 
-    // All fields start checked; uncheck "notes".
-    const notesCheckbox = screen.getByText('notes').closest('label')!.querySelector('button[role="checkbox"]')!;
+    // All fields start checked; uncheck "notes". "notes" also appears as a table
+    // header once the preview renders, so disambiguate by picking the match
+    // that's inside a checkbox <label>, not a <th>.
+    const notesLabel = screen.getAllByText('notes').map(el => el.closest('label')).find((el): el is HTMLLabelElement => !!el)!;
+    const notesCheckbox = notesLabel.querySelector('button[role="checkbox"]')!;
     fireEvent.click(notesCheckbox);
 
-    const preview = document.body.querySelector('pre');
-    expect(preview?.textContent?.split('\n')[0]).not.toContain('notes');
+    const headerCells = Array.from(document.body.querySelectorAll('table thead th')).map(th => th.textContent);
+    expect(headerCells).not.toContain('notes');
 
     fireEvent.click(screen.getByRole('button', { name: /export_\.csv/i }));
     const [content] = mockedDownloadTextFile.mock.calls[0];
     expect(content.split('\r\n')[0]).not.toContain('notes');
+  });
+
+  it('truncates the preview table to a handful of rows and says how many were left out', () => {
+    const pubs = Array.from({ length: 7 }, (_, i) => ({ ...pub, id: `pub-${i}`, title: `Paper ${i}` }));
+    render(<ExportDialog open onOpenChange={() => {}} publications={pubs as never[]} />);
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /csv/i }));
+
+    expect(document.body.querySelectorAll('table tbody tr').length).toBe(5);
+    expect(screen.getByText('// 5 of 7 rows')).toBeInTheDocument();
+    // The full file (not just the preview) still contains every row.
+    fireEvent.click(screen.getByRole('button', { name: /export_\.csv/i }));
+    const [content] = mockedDownloadTextFile.mock.calls[0];
+    expect(content.split('\r\n').length).toBe(8); // 1 header row + 7 publication rows
   });
 
   it('disables copy/export and shows a warning when no CSV fields are selected', () => {
@@ -91,7 +106,7 @@ describe('ExportDialog CSV tab', () => {
   it('does not put a BOM in the on-screen CSV preview', () => {
     render(<ExportDialog open onOpenChange={() => {}} publications={[pub as never]} />);
     fireEvent.mouseDown(screen.getByRole('tab', { name: /csv/i }));
-    const preview = document.body.querySelector('pre');
-    expect(preview?.textContent?.startsWith('\uFEFF')).toBe(false);
+    const preview = document.body.querySelector('table');
+    expect(preview?.textContent?.includes('\uFEFF')).toBe(false);
   });
 });
