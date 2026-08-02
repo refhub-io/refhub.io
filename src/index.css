@@ -214,19 +214,19 @@
   }
 
   .animate-blob-drift-a {
-    animation: blobDriftA 20s ease-in-out infinite;
+    animation: blobDriftA 14s ease-in-out infinite;
   }
 
   .animate-blob-drift-b {
-    animation: blobDriftB 24s ease-in-out infinite;
+    animation: blobDriftB 16s ease-in-out infinite;
   }
 
   .animate-blob-drift-a-subtle {
-    animation: blobDriftASubtle 30s ease-in-out infinite;
+    animation: blobDriftASubtle 20s ease-in-out infinite;
   }
 
   .animate-blob-drift-b-subtle {
-    animation: blobDriftBSubtle 34s ease-in-out infinite;
+    animation: blobDriftBSubtle 23s ease-in-out infinite;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -284,22 +284,30 @@
 
 @keyframes blobDriftA {
   0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  50% { transform: translate3d(-4%, 5%, 0) scale(1.06); }
+  25% { transform: translate3d(-14%, 10%, 0) scale(1.12); }
+  50% { transform: translate3d(6%, 16%, 0) scale(0.94); }
+  75% { transform: translate3d(14%, -8%, 0) scale(1.08); }
 }
 
 @keyframes blobDriftB {
   0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  50% { transform: translate3d(5%, -4%, 0) scale(1.08); }
+  25% { transform: translate3d(14%, -10%, 0) scale(1.14); }
+  50% { transform: translate3d(-8%, -16%, 0) scale(0.92); }
+  75% { transform: translate3d(-14%, 8%, 0) scale(1.1); }
 }
 
 @keyframes blobDriftASubtle {
   0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  50% { transform: translate3d(-2%, 3%, 0) scale(1.03); }
+  25% { transform: translate3d(-7%, 5%, 0) scale(1.05); }
+  50% { transform: translate3d(4%, 8%, 0) scale(0.97); }
+  75% { transform: translate3d(7%, -4%, 0) scale(1.04); }
 }
 
 @keyframes blobDriftBSubtle {
   0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  50% { transform: translate3d(3%, -2%, 0) scale(1.04); }
+  25% { transform: translate3d(7%, -5%, 0) scale(1.06); }
+  50% { transform: translate3d(-4%, -8%, 0) scale(0.96); }
+  75% { transform: translate3d(-7%, 4%, 0) scale(1.05); }
 }
 
 /* Notion-style focus */
