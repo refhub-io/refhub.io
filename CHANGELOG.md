@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.8.5] - 2026-08-02
+
+### Fixed
+- The background gradient blobs on the /tos and /privacy pages (and /about) were positioned relative to the initial viewport instead of the page, so they visually cut off partway down the page on scroll. The wrapping container is now a positioning context sized to the full page, so the gradient now covers the whole scrollable height.
+
+### Changed
+- Background gradient blobs on /tos, /privacy, and /about now drift gently as you scroll (parallax). On /about they also idle-animate with a slow continuous drift for a livelier feel.
+
 ## [1.8.4] - 2026-08-01
 
 ### Fixed

@@ -212,6 +212,21 @@
   .animate-glow-pulse {
     animation: glowPulse 2s ease-in-out infinite;
   }
+
+  .animate-blob-drift-a {
+    animation: blobDriftA 20s ease-in-out infinite;
+  }
+
+  .animate-blob-drift-b {
+    animation: blobDriftB 24s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-blob-drift-a,
+    .animate-blob-drift-b {
+      animation: none;
+    }
+  }
 }
 
 /* No anchor source element to position against: center the fallback toast
@@ -255,6 +270,16 @@
 @keyframes glowPulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
+}
+
+@keyframes blobDriftA {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-4%, 5%, 0) scale(1.06); }
+}
+
+@keyframes blobDriftB {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(5%, -4%, 0) scale(1.08); }
 }
 
 /* Notion-style focus */
