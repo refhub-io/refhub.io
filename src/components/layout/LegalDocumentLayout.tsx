@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { ArrowLeft, FileText, Scale, Shield } from "lucide-react";
 
+import { AnimatedGradientBackdrop } from "@/components/layout/AnimatedGradientBackdrop";
 import { BrandMark } from "@/components/branding/BrandMark";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { Card, CardContent } from "@/components/ui/card";
@@ -31,10 +32,8 @@ export function LegalDocumentLayout({
   const DocumentIcon = icon === "privacy" ? Shield : Scale;
 
   return (
-    <div className="min-h-screen overflow-hidden bg-background text-foreground">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_hsl(var(--electric-purple)/0.16),_transparent_42%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_right,_hsl(var(--neon-green)/0.12),_transparent_36%)]" />
-      <div className="absolute inset-0 bg-noise" />
+    <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
+      <AnimatedGradientBackdrop />
 
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 py-6 sm:px-6 lg:px-8">
         <header className="mb-8 flex items-center justify-between gap-4">

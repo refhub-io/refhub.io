@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.8.5] - 2026-08-02
+
+### Fixed
+- The background gradient on the /tos, /privacy, and /about pages was an edge-to-edge radial wash positioned relative to the initial viewport instead of the page, so it visually cut off partway down the page on scroll. It's now rendered as bounded, blurred blobs floating over the page's solid background color, which can't misalign or run out no matter how tall the page is.
+
+### Changed
+- The purple/green background blobs on /tos, /privacy, and /about now drift gently and continuously (CSS-only, no scroll-linked motion this time — that approach caused a hard-edged bar to appear near the top when scrolling). /about gets a faster, larger-amplitude drift for a livelier feel.
+
 ## [1.8.4] - 2026-08-01
 
 ### Fixed
