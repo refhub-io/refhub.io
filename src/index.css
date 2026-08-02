@@ -221,9 +221,19 @@
     animation: blobDriftB 24s ease-in-out infinite;
   }
 
+  .animate-blob-drift-a-subtle {
+    animation: blobDriftASubtle 30s ease-in-out infinite;
+  }
+
+  .animate-blob-drift-b-subtle {
+    animation: blobDriftBSubtle 34s ease-in-out infinite;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .animate-blob-drift-a,
-    .animate-blob-drift-b {
+    .animate-blob-drift-b,
+    .animate-blob-drift-a-subtle,
+    .animate-blob-drift-b-subtle {
       animation: none;
     }
   }
@@ -280,6 +290,16 @@
 @keyframes blobDriftB {
   0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
   50% { transform: translate3d(5%, -4%, 0) scale(1.08); }
+}
+
+@keyframes blobDriftASubtle {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-2%, 3%, 0) scale(1.03); }
+}
+
+@keyframes blobDriftBSubtle {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(3%, -2%, 0) scale(1.04); }
 }
 
 /* Notion-style focus */
