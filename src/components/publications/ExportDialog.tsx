@@ -306,7 +306,7 @@ export function ExportDialog({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 bg-muted/50 rounded-lg border border-border min-w-0">
+                <div className="grid grid-cols-2 gap-2 p-3 bg-muted/50 rounded-lg border border-border min-w-0">
                   {BIBTEX_FIELDS.map(field => (
                     <label
                       key={field.key}
@@ -385,7 +385,7 @@ export function ExportDialog({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 bg-muted/50 rounded-lg border border-border min-w-0">
+                <div className="grid grid-cols-2 gap-2 p-3 bg-muted/50 rounded-lg border border-border min-w-0">
                   {CSV_FIELDS.map(field => (
                     <label
                       key={field.key}
