@@ -538,6 +538,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
               <div className="font-mono text-sm space-y-3">
                 <p>// this_will_permanently_delete_your_account</p>
                 <p>// all_your_vaults_papers_and_data_will_be_lost</p>
+                <p>// shared_vault_access_and_pending_requests_will_be_removed</p>
                 <p className="text-destructive font-semibold">// this_action_cannot_be_undone</p>
                 <div className="space-y-1 pt-1">
                   <p className="text-muted-foreground">// type <span className="text-foreground font-semibold">delete my account</span> to confirm:</p>

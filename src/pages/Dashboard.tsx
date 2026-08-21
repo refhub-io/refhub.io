@@ -1870,6 +1870,7 @@ export default function Dashboard() {
               <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-2">
                 <li>all annotated publications in this vault</li>
                 <li>all tags and relationships</li>
+                <li>all shares, access requests, and collaborator permissions</li>
                 <li>all vault settings and metadata</li>
               </ul>
               <p className="text-muted-foreground">
