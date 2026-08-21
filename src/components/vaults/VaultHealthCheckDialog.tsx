@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Check, Play, X } from 'lucide-react';
+import { ArrowRight, Check, Play, RotateCcw, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -177,6 +177,7 @@ export function VaultHealthCheckDialog({
   const [progress, setProgress] = useState<SemanticScholarQueueProgress | null>(null);
   const [results, setResults] = useState<VaultHealthEnrichmentResult[]>([]);
   const [checkedKeys, setCheckedKeys] = useState<Set<string>>(new Set());
+  const [lastSkippedCount, setLastSkippedCount] = useState(0);
 
   // Reset to a clean report each time the dialog is (re)opened.
   useEffect(() => {
@@ -185,6 +186,7 @@ export function VaultHealthCheckDialog({
       setProgress(null);
       setResults([]);
       setCheckedKeys(new Set());
+      setLastSkippedCount(0);
     }
   }, [open]);
 
@@ -223,10 +225,16 @@ export function VaultHealthCheckDialog({
   // when Semantic Scholar was rate-limited or unreachable for every paper.
   const failedResults = useMemo(() => results.filter((r) => !!r.error), [results]);
 
-  const runEnrichment = async () => {
+  const runEnrichment = async (forceRecheck = false) => {
     setPhase('enriching');
     setProgress(null);
-    const enrichmentResults = await runVaultHealthEnrichment(publications, (p) => setProgress(p));
+    setLastSkippedCount(0);
+    const { results: enrichmentResults, skippedCount } = await runVaultHealthEnrichment(
+      publications,
+      (p) => setProgress(p),
+      { skipRecentMs: forceRecheck ? 0 : undefined },
+    );
+    setLastSkippedCount(skippedCount);
     setResults(enrichmentResults);
     // Default every incoming diff to selected, mirroring PublicationSyncDialog's convention.
     const allKeys = new Set<string>();
@@ -354,6 +362,14 @@ export function VaultHealthCheckDialog({
             </div>
           )}
 
+          {(phase === 'review' || phase === 'applying') && lastSkippedCount > 0 && (
+            <div className="rounded-lg border border-border/50 p-3 space-y-1">
+              <p className="font-mono text-xs text-muted-foreground">
+                {`// ${lastSkippedCount}_skipped (checked < 24h ago)`}
+              </p>
+            </div>
+          )}
+
           {(phase === 'review' || phase === 'applying') && failedResults.length > 0 && (
             <div className="rounded-lg border-2 border-neon-orange/40 p-3 space-y-1">
               <p className="font-mono text-sm font-bold text-neon-orange">
@@ -405,15 +421,27 @@ export function VaultHealthCheckDialog({
           </Button>
 
           {phase === 'report' && (
-            <Button
-              variant="glow"
-              onClick={() => void runEnrichment()}
-              disabled={!hasDoiPublications}
-              className="font-mono"
-            >
-              <Play className="w-4 h-4 mr-1.5" />
-              run_enrichment
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                onClick={() => void runEnrichment(true)}
+                disabled={!hasDoiPublications}
+                className="font-mono"
+                title="Ignore the 24-hour cache and recheck every paper"
+              >
+                <RotateCcw className="w-4 h-4 mr-1.5" />
+                recheck_all
+              </Button>
+              <Button
+                variant="glow"
+                onClick={() => void runEnrichment()}
+                disabled={!hasDoiPublications}
+                className="font-mono"
+              >
+                <Play className="w-4 h-4 mr-1.5" />
+                run_enrichment
+              </Button>
+            </>
           )}
 
           {(phase === 'review' || phase === 'applying') && (

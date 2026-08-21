@@ -220,6 +220,15 @@ export async function createApiKey(accessToken: string, input: ApiKeyCreateInput
   };
 }
 
+export async function deleteApiKey(accessToken: string, apiKeyId: string): Promise<void> {
+  await apiKeyRequest<unknown>(
+    accessToken,
+    `/${apiKeyId}`,
+    { method: 'DELETE' },
+    { treatMissingRouteAsUnavailable: false },
+  );
+}
+
 export async function revokeApiKey(accessToken: string, apiKeyId: string) {
   try {
     const payload = await apiKeyRequest<unknown>(

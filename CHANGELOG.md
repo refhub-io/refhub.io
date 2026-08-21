@@ -6,6 +6,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.8.7] - 2026-08-21
+
+### Added
+- API key management: delete action now available on every key row (revoke: invalidates the key, keeping it in history; delete: revokes server-side and removes from the list). Revoke uses a distinct `ShieldOff` icon; delete uses `Trash2` — both are visually separate with a confirmation dialog (#176).
+- Vault health check: DOI-check results are now cached in localStorage for 24 hours, so re-running health check skips papers checked recently and avoids burning Semantic Scholar quota. A `recheck_all` button bypasses the cache for a full refresh. Skipped-paper count is surfaced in the results panel (#178).
+
 ## [1.8.6] - 2026-08-21
 
 ### Fixed
