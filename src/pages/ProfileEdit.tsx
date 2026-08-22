@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { showSuccess, showError, showToast } from '@/lib/toast';
+import { showError, showSuccess, showToast } from '@/lib/toast';
 import { ApiKeyManagementPanel } from '@/components/profile/ApiKeyManagementPanel';
 import { GoogleDriveSettingsPanel } from '@/components/profile/GoogleDriveSettingsPanel';
 import { Loader2, User, Lock, Mail, ArrowLeft, KeyRound, HardDrive } from 'lucide-react';
@@ -47,6 +47,8 @@ export default function ProfileEdit() {
   const [changingEmail, setChangingEmail] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const [currentEmail, setCurrentEmail] = useState(user?.email || '');
+  const accountFeedbackRef = useRef<HTMLDivElement>(null);
+  const profileFeedbackRef = useRef<HTMLDivElement>(null);
   const passwordFeedbackRef = useRef<HTMLDivElement>(null);
   const emailFeedbackRef = useRef<HTMLDivElement>(null);
 
@@ -106,9 +108,9 @@ export default function ProfileEdit() {
     const driveMessage = (rawDriveMessage && ALLOWED_GDRIVE_MESSAGES[rawDriveMessage]) || null;
 
     if (driveState === 'connected') {
-      showSuccess('google drive connected', driveMessage || 'refhub can now store saved pdfs in your managed drive folder.');
+      showSuccess('google drive connected', driveMessage || 'refhub can now store saved pdfs in your managed drive folder.', { source: accountFeedbackRef });
     } else if (driveState === 'error') {
-      showError('google drive link failed', driveMessage || 'the google drive oauth flow did not complete.');
+      showError('google drive link failed', driveMessage || 'the google drive oauth flow did not complete.', { source: accountFeedbackRef });
     }
 
     const next = new URLSearchParams(searchParams);
@@ -121,16 +123,16 @@ export default function ProfileEdit() {
   const handleSaveProfile = async () => {
     setSaving(true);
     try {
-      await updateProfile({ 
+      const { error } = await updateProfile({
         username: userName, 
         display_name: displayName,
         bio, 
         is_setup: true 
-      });
+      }, { source: profileFeedbackRef });
+      if (error) return;
       await refetch();
-      showSuccess('Profile updated');
     } catch (error) {
-      showError('Failed to update profile', (error as Error).message);
+      showError('Failed to update profile', (error as Error).message, { source: profileFeedbackRef });
     } finally {
       setSaving(false);
     }
@@ -263,6 +265,7 @@ export default function ProfileEdit() {
             <p className="text-xs text-muted-foreground font-mono sm:text-sm">// manage your profile, security, API access, and linked storage</p>
           </div>
         </div>
+        <div ref={accountFeedbackRef} data-quoterm-anchor="account-settings" className="mx-auto mb-4 w-full max-w-xl" />
 
         <Tabs value={activeTab} onValueChange={handleTabChange} className="min-w-0 space-y-6">
           <TabsList className="grid h-auto w-full grid-cols-5 gap-1 rounded-2xl border border-border/70 bg-muted/60 p-1 font-mono dark:border-white/8 dark:bg-[#1a1722]">
@@ -347,15 +350,17 @@ export default function ProfileEdit() {
                 />
               </div>
               
-              <Button 
-                variant="glow" 
-                className="w-full min-h-11 font-mono text-xs sm:text-sm" 
-                onClick={handleSaveProfile}
-                disabled={saving}
-              >
-                {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                save_profile
-              </Button>
+              <div ref={profileFeedbackRef} data-quoterm-anchor="account-profile" className="flex flex-col gap-2">
+                <Button
+                  variant="glow"
+                  className="w-full min-h-11 font-mono text-xs sm:text-sm"
+                  onClick={handleSaveProfile}
+                  disabled={saving}
+                >
+                  {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  save_profile
+                </Button>
+              </div>
             </div>
           </TabsContent>
 

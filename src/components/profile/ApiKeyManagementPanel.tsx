@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { AlertCircle, CheckCircle2, Copy, KeyRound, Loader2, RefreshCw, ShieldAlert, ShieldOff, Trash2 } from 'lucide-react';
 
@@ -98,6 +98,9 @@ export function ApiKeyManagementPanel({ userId, userEmail, accessToken }: ApiKey
   const [deleteTarget, setDeleteTarget] = useState<ApiKeyRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [createdSecret, setCreatedSecret] = useState<{ label: string; secret: string } | null>(null);
+  const createKeyFeedbackRef = useRef<HTMLDivElement>(null);
+  const secretFeedbackRef = useRef<HTMLDivElement>(null);
+  const keyListFeedbackRef = useRef<HTMLDivElement>(null);
 
   const [label, setLabel] = useState('');
   const [description, setDescription] = useState('');
@@ -248,30 +251,30 @@ export function ApiKeyManagementPanel({ userId, userEmail, accessToken }: ApiKey
 
     try {
       await navigator.clipboard.writeText(createdSecret.secret);
-      showSuccess('API key copied', 'Store it somewhere secure now. It will not be shown again.');
+      showSuccess('API key copied', 'Store it somewhere secure now. It will not be shown again.', { source: secretFeedbackRef });
     } catch (error) {
-      showError('Failed to copy API key', (error as Error).message);
+      showError('Failed to copy API key', (error as Error).message, { source: secretFeedbackRef });
     }
   };
 
   const handleCreateApiKey = async () => {
     if (!accessToken) {
-      showError('Missing session', 'Sign in again before creating an API key.');
+      showError('Missing session', 'Sign in again before creating an API key.', { source: createKeyFeedbackRef });
       return;
     }
 
     if (!label.trim()) {
-      showWarning('Label required', 'Give the API key a clear label so you can identify it later.');
+      showWarning('Label required', 'Give the API key a clear label so you can identify it later.', { source: createKeyFeedbackRef });
       return;
     }
 
     if (selectedScopeValues.length === 0) {
-      showWarning('Select at least one scope');
+      showWarning('Select at least one scope', undefined, { source: createKeyFeedbackRef });
       return;
     }
 
     if (restrictToVaults && selectedVaultIds.length === 0) {
-      showWarning('Select at least one vault', 'Restricted keys need at least one permitted vault.');
+      showWarning('Select at least one vault', 'Restricted keys need at least one permitted vault.', { source: createKeyFeedbackRef });
       return;
     }
 
@@ -305,12 +308,12 @@ export function ApiKeyManagementPanel({ userId, userEmail, accessToken }: ApiKey
       });
 
       await fetchApiKeys();
-      showSuccess('API key created', 'Copy the secret now. Only the prefix will remain visible later.');
+      showSuccess('API key created', 'Copy the secret now. Only the prefix will remain visible later.', { source: createKeyFeedbackRef });
     } catch (error) {
       if (error instanceof ApiKeyManagementUnavailableError) {
         setKeyLoadError(error.message);
       }
-      showError('Failed to create API key', (error as Error).message);
+      showError('Failed to create API key', (error as Error).message, { source: createKeyFeedbackRef });
     } finally {
       setIsCreating(false);
     }
@@ -324,10 +327,10 @@ export function ApiKeyManagementPanel({ userId, userEmail, accessToken }: ApiKey
     try {
       const updated = await revokeApiKey(accessToken, revokeTarget.id);
       setApiKeys((current) => current.map((key) => (key.id === updated.id ? updated : key)));
-      showSuccess('API key revoked', `${revokeTarget.label} can no longer be used.`);
+      showSuccess('API key revoked', `${revokeTarget.label} can no longer be used.`, { source: keyListFeedbackRef });
       setRevokeTarget(null);
     } catch (error) {
-      showError('Failed to revoke API key', (error as Error).message);
+      showError('Failed to revoke API key', (error as Error).message, { source: keyListFeedbackRef });
     } finally {
       setIsRevoking(false);
     }
@@ -341,10 +344,10 @@ export function ApiKeyManagementPanel({ userId, userEmail, accessToken }: ApiKey
     try {
       await deleteApiKey(accessToken, deleteTarget.id);
       setApiKeys((current) => current.filter((key) => key.id !== deleteTarget.id));
-      showSuccess('API key deleted', `${deleteTarget.label} has been permanently removed.`);
+      showSuccess('API key deleted', `${deleteTarget.label} has been permanently removed.`, { source: keyListFeedbackRef });
       setDeleteTarget(null);
     } catch (error) {
-      showError('Failed to delete API key', (error as Error).message);
+      showError('Failed to delete API key', (error as Error).message, { source: keyListFeedbackRef });
     } finally {
       setIsDeleting(false);
     }
@@ -376,7 +379,7 @@ export function ApiKeyManagementPanel({ userId, userEmail, accessToken }: ApiKey
             <div className="rounded-lg border border-border bg-background/80 p-3">
               <p className="break-all text-xs text-foreground sm:text-sm">{createdSecret.secret}</p>
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
+            <div ref={secretFeedbackRef} data-quoterm-anchor="account-api-secret" className="flex flex-col gap-2 sm:flex-row">
               <Button type="button" variant="outline" className="font-mono" onClick={() => void handleCopySecret()}>
                 <Copy className="h-4 w-4" />
                 copy_secret
@@ -543,16 +546,18 @@ export function ApiKeyManagementPanel({ userId, userEmail, accessToken }: ApiKey
               </AlertDescription>
             </Alert>
 
-            <Button
-              type="button"
-              variant="glow"
-              className="w-full font-mono"
-              onClick={handleCreateApiKey}
-              disabled={isCreating || loadingVaults || !accessToken}
-            >
-              {isCreating && <Loader2 className="h-4 w-4 animate-spin" />}
-              create_api_key
-            </Button>
+            <div ref={createKeyFeedbackRef} data-quoterm-anchor="account-api-create" className="flex flex-col gap-2">
+              <Button
+                type="button"
+                variant="glow"
+                className="w-full font-mono"
+                onClick={handleCreateApiKey}
+                disabled={isCreating || loadingVaults || !accessToken}
+              >
+                {isCreating && <Loader2 className="h-4 w-4 animate-spin" />}
+                create_api_key
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -572,7 +577,7 @@ export function ApiKeyManagementPanel({ userId, userEmail, accessToken }: ApiKey
             </div>
             <Separator />
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent ref={keyListFeedbackRef} data-quoterm-anchor="account-api-list" className="space-y-4">
             {loadingKeys && (
               <div className="space-y-3">
                 <Skeleton className="h-28 w-full" />

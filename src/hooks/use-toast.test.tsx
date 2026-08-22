@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { dismissQuoterm, getQuotermsSnapshot } from 'quoterm';
 
 import { toast, useToast } from './use-toast';
+import { showSuccess } from '../lib/toast';
 
 describe('RefHub toast to Quoterm adapter', () => {
   afterEach(() => {
@@ -68,6 +69,26 @@ describe('RefHub toast to Quoterm adapter', () => {
     } finally {
       saveButton.remove();
       syncButton.remove();
+    }
+  });
+
+  it('lets centralized toast helpers pass account settings source refs through to Quoterm', async () => {
+    const accountAction = document.createElement('button');
+    accountAction.dataset.quotermAnchor = 'account-profile';
+    document.body.append(accountAction);
+
+    try {
+      await act(async () => {
+        showSuccess('Profile updated', undefined, { source: { current: accountAction }, duration: 0 });
+      });
+
+      expect(getQuotermsSnapshot().items[0]).toMatchObject({
+        title: 'Profile updated',
+        sourceElement: accountAction,
+        variant: 'success',
+      });
+    } finally {
+      accountAction.remove();
     }
   });
 
