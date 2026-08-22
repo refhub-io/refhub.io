@@ -266,6 +266,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
       alert('Error deleting account: ' + (error as Error).message);
       setIsDeleting(false);
       setShowDeleteConfirm(false);
+      setDeleteAccountInput('');
     }
   };
 

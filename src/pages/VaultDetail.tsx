@@ -1281,6 +1281,7 @@ export default function VaultDetail() {
           source: vaultDialogFeedbackRef,
         });
         setDeleteVaultConfirmation(null);
+        setDeleteVaultNameInput('');
         return;
       }
 
@@ -1330,6 +1331,7 @@ export default function VaultDetail() {
       });
     } finally {
       setDeleteVaultConfirmation(null);
+      setDeleteVaultNameInput('');
     }
   };
 

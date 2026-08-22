@@ -1422,6 +1422,7 @@ export default function Dashboard() {
           source: dashboardFeedbackRef,
         });
         setDeleteVaultConfirmation(null);
+        setDeleteVaultNameInput('');
         return;
       }
 
@@ -1467,6 +1468,7 @@ export default function Dashboard() {
       });
     } finally {
       setDeleteVaultConfirmation(null);
+      setDeleteVaultNameInput('');
     }
   };
 
