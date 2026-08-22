@@ -10,6 +10,8 @@ interface ShowToastOptions {
   source?: EventTarget | Element | { current: Element | null } | null;
 }
 
+type ShowToastSource = Pick<ShowToastOptions, "duration" | "source">;
+
 /**
  * Centralized inline feedback helper for local, CLI-style user-facing feedback.
  * The existing toast API now renders near the triggering source instead of as a global toaster.
@@ -34,22 +36,22 @@ export function showToast({
 /**
  * Show success toast
  */
-export function showSuccess(title: string, description?: string) {
-  showToast({ title, description, severity: "success" });
+export function showSuccess(title: string, description?: string, options: ShowToastSource = {}) {
+  showToast({ title, description, severity: "success", ...options });
 }
 
 /**
  * Show error toast - use for operation failures
  */
-export function showError(title: string, description?: string) {
-  showToast({ title, description, severity: "error" });
+export function showError(title: string, description?: string, options: ShowToastSource = {}) {
+  showToast({ title, description, severity: "error", ...options });
 }
 
 /**
  * Show warning toast - use for non-blocking issues
  */
-export function showWarning(title: string, description?: string) {
-  showToast({ title, description, severity: "warning" });
+export function showWarning(title: string, description?: string, options: ShowToastSource = {}) {
+  showToast({ title, description, severity: "warning", ...options });
 }
 
 /**

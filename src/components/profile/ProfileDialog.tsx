@@ -70,6 +70,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteAccountInput, setDeleteAccountInput] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const footerFeedbackRef = useRef<HTMLDivElement>(null);
 
   const form = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
@@ -167,7 +168,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
         avatar_url: data.avatar_url || null,
       };
 
-      const { error } = await updateProfile(updates);
+      const { error } = await updateProfile(updates, { source: footerFeedbackRef });
       if (!error) {
         form.reset({
           display_name: updates.display_name || '',
@@ -230,7 +231,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
         avatar_url: data.avatar_url || null,
       };
 
-      const { error } = await updateProfile(updates);
+      const { error } = await updateProfile(updates, { source: footerFeedbackRef });
       if (!error) {
         form.reset({
           display_name: updates.display_name || '',
@@ -505,7 +506,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
                   </Button>
                 </Link>
               </div>
-              <div className="flex items-center gap-2">
+              <div ref={footerFeedbackRef} data-quoterm-anchor="profile-dialog-save" className="flex items-center gap-2">
                 <Button
                   type="button"
                   variant="outline"

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Check, ExternalLink, FolderSync, HardDrive, Link2, Loader2, Shield, Unplug } from 'lucide-react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -38,6 +38,7 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
   const [status, setStatus] = useState<GoogleDriveStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState<'connect' | 'ensure' | 'disconnect' | null>(null);
+  const driveFeedbackRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!accessToken) {
@@ -50,7 +51,7 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
       try {
         setStatus(await fetchGoogleDriveStatus(accessToken));
       } catch (error) {
-        showError('failed to load google drive status', (error as Error).message);
+        showError('failed to load google drive status', (error as Error).message, { source: driveFeedbackRef });
       } finally {
         setLoading(false);
       }
@@ -68,7 +69,7 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
       const authorizationUrl = await startGoogleDriveLink(accessToken, returnTo);
       window.location.assign(authorizationUrl);
     } catch (error) {
-      showError('failed to start google drive link', (error as Error).message);
+      showError('failed to start google drive link', (error as Error).message, { source: driveFeedbackRef });
       setAction(null);
     }
   };
@@ -80,9 +81,9 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
     try {
       const nextStatus = await ensureGoogleDriveFolder(accessToken);
       setStatus(nextStatus);
-      showSuccess('drive folder ready', `${nextStatus.folderName || 'refhub'} is available for pdf storage.`);
+      showSuccess('drive folder ready', `${nextStatus.folderName || 'refhub'} is available for pdf storage.`, { source: driveFeedbackRef });
     } catch (error) {
-      showError('failed to prepare drive folder', (error as Error).message);
+      showError('failed to prepare drive folder', (error as Error).message, { source: driveFeedbackRef });
     } finally {
       setAction(null);
     }
@@ -94,9 +95,9 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
     setAction('disconnect');
     try {
       setStatus(await disconnectGoogleDrive(accessToken));
-      showSuccess('google drive disconnected');
+      showSuccess('google drive disconnected', undefined, { source: driveFeedbackRef });
     } catch (error) {
-      showError('failed to disconnect google drive', (error as Error).message);
+      showError('failed to disconnect google drive', (error as Error).message, { source: driveFeedbackRef });
     } finally {
       setAction(null);
     }
@@ -210,7 +211,7 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
 
           <Separator />
 
-          <div className="flex flex-col gap-3 sm:flex-row">
+          <div ref={driveFeedbackRef} data-quoterm-anchor="account-storage" className="flex flex-col gap-3 sm:flex-row">
             <Button
               type="button"
               className="bg-gradient-primary font-mono text-white shadow-lg shadow-fuchsia-950/40 hover:opacity-90 hover:shadow-fuchsia-900/50"

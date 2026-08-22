@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatDistanceToNowStrict } from 'date-fns';
-import { AlertCircle, CheckCircle2, Copy, KeyRound, Loader2, RefreshCw, ShieldAlert, Trash2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Copy, KeyRound, Loader2, RefreshCw, ShieldAlert, ShieldOff, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,6 +37,7 @@ import {
   ApiKeyRecord,
   ApiKeyScope,
   createApiKey,
+  deleteApiKey,
   getApiKeyManagementBaseUrl,
   isApiKeyManagementUsingDefaultBaseUrl,
   listApiKeys,
@@ -94,7 +95,12 @@ export function ApiKeyManagementPanel({ userId, userEmail, accessToken }: ApiKey
   const [isCreating, setIsCreating] = useState(false);
   const [revokeTarget, setRevokeTarget] = useState<ApiKeyRecord | null>(null);
   const [isRevoking, setIsRevoking] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<ApiKeyRecord | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [createdSecret, setCreatedSecret] = useState<{ label: string; secret: string } | null>(null);
+  const createKeyFeedbackRef = useRef<HTMLDivElement>(null);
+  const secretFeedbackRef = useRef<HTMLDivElement>(null);
+  const keyListFeedbackRef = useRef<HTMLDivElement>(null);
 
   const [label, setLabel] = useState('');
   const [description, setDescription] = useState('');
@@ -245,30 +251,30 @@ export function ApiKeyManagementPanel({ userId, userEmail, accessToken }: ApiKey
 
     try {
       await navigator.clipboard.writeText(createdSecret.secret);
-      showSuccess('API key copied', 'Store it somewhere secure now. It will not be shown again.');
+      showSuccess('API key copied', 'Store it somewhere secure now. It will not be shown again.', { source: secretFeedbackRef });
     } catch (error) {
-      showError('Failed to copy API key', (error as Error).message);
+      showError('Failed to copy API key', (error as Error).message, { source: secretFeedbackRef });
     }
   };
 
   const handleCreateApiKey = async () => {
     if (!accessToken) {
-      showError('Missing session', 'Sign in again before creating an API key.');
+      showError('Missing session', 'Sign in again before creating an API key.', { source: createKeyFeedbackRef });
       return;
     }
 
     if (!label.trim()) {
-      showWarning('Label required', 'Give the API key a clear label so you can identify it later.');
+      showWarning('Label required', 'Give the API key a clear label so you can identify it later.', { source: createKeyFeedbackRef });
       return;
     }
 
     if (selectedScopeValues.length === 0) {
-      showWarning('Select at least one scope');
+      showWarning('Select at least one scope', undefined, { source: createKeyFeedbackRef });
       return;
     }
 
     if (restrictToVaults && selectedVaultIds.length === 0) {
-      showWarning('Select at least one vault', 'Restricted keys need at least one permitted vault.');
+      showWarning('Select at least one vault', 'Restricted keys need at least one permitted vault.', { source: createKeyFeedbackRef });
       return;
     }
 
@@ -302,12 +308,12 @@ export function ApiKeyManagementPanel({ userId, userEmail, accessToken }: ApiKey
       });
 
       await fetchApiKeys();
-      showSuccess('API key created', 'Copy the secret now. Only the prefix will remain visible later.');
+      showSuccess('API key created', 'Copy the secret now. Only the prefix will remain visible later.', { source: createKeyFeedbackRef });
     } catch (error) {
       if (error instanceof ApiKeyManagementUnavailableError) {
         setKeyLoadError(error.message);
       }
-      showError('Failed to create API key', (error as Error).message);
+      showError('Failed to create API key', (error as Error).message, { source: createKeyFeedbackRef });
     } finally {
       setIsCreating(false);
     }
@@ -321,12 +327,29 @@ export function ApiKeyManagementPanel({ userId, userEmail, accessToken }: ApiKey
     try {
       const updated = await revokeApiKey(accessToken, revokeTarget.id);
       setApiKeys((current) => current.map((key) => (key.id === updated.id ? updated : key)));
-      showSuccess('API key revoked', `${revokeTarget.label} can no longer be used.`);
+      showSuccess('API key revoked', `${revokeTarget.label} can no longer be used.`, { source: keyListFeedbackRef });
       setRevokeTarget(null);
     } catch (error) {
-      showError('Failed to revoke API key', (error as Error).message);
+      showError('Failed to revoke API key', (error as Error).message, { source: keyListFeedbackRef });
     } finally {
       setIsRevoking(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget || !accessToken) return;
+
+    setIsDeleting(true);
+
+    try {
+      await deleteApiKey(accessToken, deleteTarget.id);
+      setApiKeys((current) => current.filter((key) => key.id !== deleteTarget.id));
+      showSuccess('API key deleted', `${deleteTarget.label} has been permanently removed.`, { source: keyListFeedbackRef });
+      setDeleteTarget(null);
+    } catch (error) {
+      showError('Failed to delete API key', (error as Error).message, { source: keyListFeedbackRef });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -356,7 +379,7 @@ export function ApiKeyManagementPanel({ userId, userEmail, accessToken }: ApiKey
             <div className="rounded-lg border border-border bg-background/80 p-3">
               <p className="break-all text-xs text-foreground sm:text-sm">{createdSecret.secret}</p>
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
+            <div ref={secretFeedbackRef} data-quoterm-anchor="account-api-secret" className="flex flex-col gap-2 sm:flex-row">
               <Button type="button" variant="outline" className="font-mono" onClick={() => void handleCopySecret()}>
                 <Copy className="h-4 w-4" />
                 copy_secret
@@ -523,16 +546,18 @@ export function ApiKeyManagementPanel({ userId, userEmail, accessToken }: ApiKey
               </AlertDescription>
             </Alert>
 
-            <Button
-              type="button"
-              variant="glow"
-              className="w-full font-mono"
-              onClick={handleCreateApiKey}
-              disabled={isCreating || loadingVaults || !accessToken}
-            >
-              {isCreating && <Loader2 className="h-4 w-4 animate-spin" />}
-              create_api_key
-            </Button>
+            <div ref={createKeyFeedbackRef} data-quoterm-anchor="account-api-create" className="flex flex-col gap-2">
+              <Button
+                type="button"
+                variant="glow"
+                className="w-full font-mono"
+                onClick={handleCreateApiKey}
+                disabled={isCreating || loadingVaults || !accessToken}
+              >
+                {isCreating && <Loader2 className="h-4 w-4 animate-spin" />}
+                create_api_key
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -552,7 +577,7 @@ export function ApiKeyManagementPanel({ userId, userEmail, accessToken }: ApiKey
             </div>
             <Separator />
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent ref={keyListFeedbackRef} data-quoterm-anchor="account-api-list" className="space-y-4">
             {loadingKeys && (
               <div className="space-y-3">
                 <Skeleton className="h-28 w-full" />
@@ -627,17 +652,30 @@ export function ApiKeyManagementPanel({ userId, userEmail, accessToken }: ApiKey
                         </div>
                       </div>
 
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        className="font-mono"
-                        disabled={isRevoked}
-                        onClick={() => setRevokeTarget(apiKey)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        revoke
-                      </Button>
+                      <div className="flex gap-2">
+                        {!isRevoked && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="font-mono text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => setRevokeTarget(apiKey)}
+                          >
+                            <ShieldOff className="h-4 w-4" />
+                            revoke
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="font-mono text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => setDeleteTarget(apiKey)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          delete
+                        </Button>
+                      </div>
                     </div>
 
                     <div className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-2">
@@ -686,6 +724,34 @@ export function ApiKeyManagementPanel({ userId, userEmail, accessToken }: ApiKey
             >
               {isRevoking && <Loader2 className="h-4 w-4 animate-spin" />}
               revoke_key
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent className="border-2 bg-card/95 backdrop-blur-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-mono text-xl text-destructive">delete_api_key?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 font-mono text-sm text-muted-foreground">
+                <p>
+                  This permanently removes <span className="text-foreground">{deleteTarget?.label}</span> from your key
+                  list.{!deleteTarget?.revokedAt && ' The key will also be revoked immediately.'}
+                </p>
+                <p>This cannot be undone.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="font-mono">cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono"
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting && <Loader2 className="h-4 w-4 animate-spin" />}
+              delete_key
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

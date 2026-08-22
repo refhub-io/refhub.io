@@ -16,6 +16,42 @@ import {
 } from '@/lib/semanticScholar';
 import { getPublicationSyncDiffs, PublicationSyncDiff } from '@/lib/publicationSync';
 
+// doi_check_cache — skips DOIs checked within the last 24 h so repeated runs
+// don't burn Semantic Scholar quota on unchanged papers.
+const HC_CACHE_KEY = 'refhub_hc_doi_cache_v1';
+const HC_DEFAULT_SKIP_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+function readHcDoiCache(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(HC_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, number>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeHcDoiCacheEntries(dois: string[]): void {
+  if (dois.length === 0) return;
+  try {
+    const cache = readHcDoiCache();
+    const now = Date.now();
+    for (const doi of dois) cache[doi] = now;
+    localStorage.setItem(HC_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // best-effort: if localStorage is full or unavailable, skip caching
+  }
+}
+
+function getRecentlyCheckedDois(ttlMs: number): Set<string> {
+  const cache = readHcDoiCache();
+  const cutoff = Date.now() - ttlMs;
+  const recent = new Set<string>();
+  for (const [doi, ts] of Object.entries(cache)) {
+    if (ts >= cutoff) recent.add(doi);
+  }
+  return recent;
+}
+
 export type HealthIssueType =
   | 'missing_doi' | 'missing_title' | 'missing_authors' | 'missing_venue'
   | 'missing_year' | 'missing_publication_type'
@@ -249,6 +285,12 @@ export interface VaultHealthEnrichmentResult {
   error?: string;
 }
 
+export interface VaultHealthEnrichmentSummary {
+  results: VaultHealthEnrichmentResult[];
+  /** publications with a DOI that were skipped because they were queried within `skipRecentMs`. */
+  skippedCount: number;
+}
+
 /**
  * Queues Semantic Scholar lookups for DOI-bearing publications and returns
  * the sync diffs (if any) for each. Only publications with a DOI are
@@ -258,15 +300,34 @@ export interface VaultHealthEnrichmentResult {
  * Individual lookup failures are captured per-item in `error` rather than
  * aborting the whole batch — `runSemanticScholarQueue` already isolates
  * worker failures per item.
+ *
+ * By default, DOIs that were successfully looked up within the last 24 h are
+ * skipped to avoid re-hitting Semantic Scholar and running into rate limits.
+ * Pass `skipRecentMs: 0` to force a full recheck of every DOI-bearing paper.
  */
 export async function runVaultHealthEnrichment(
   publications: Publication[],
   onProgress?: (progress: SemanticScholarQueueProgress) => void,
-): Promise<VaultHealthEnrichmentResult[]> {
+  options?: { skipRecentMs?: number },
+): Promise<VaultHealthEnrichmentSummary> {
+  const skipRecentMs = options?.skipRecentMs ?? HC_DEFAULT_SKIP_MS;
   const eligible = publications.filter(p => !!p.doi);
 
+  let toCheck = eligible;
+  let skippedCount = 0;
+
+  if (skipRecentMs > 0 && eligible.length > 0) {
+    const recent = getRecentlyCheckedDois(skipRecentMs);
+    toCheck = eligible.filter(p => !recent.has(p.doi!));
+    skippedCount = eligible.length - toCheck.length;
+  }
+
+  if (toCheck.length === 0) {
+    return { results: [], skippedCount };
+  }
+
   const queueResults = await runSemanticScholarQueue(
-    eligible,
+    toCheck,
     async (pub) => {
       const metadata = await fetchSemanticScholarMetadataByDoi(pub.doi!);
       return metadata ? getPublicationSyncDiffs(pub, metadata) : [];
@@ -274,9 +335,19 @@ export async function runVaultHealthEnrichment(
     { onProgress },
   );
 
-  return queueResults.map((r, i) => ({
-    publication: eligible[i],
-    diffs: r.ok ? (r.data ?? []) : [],
-    error: r.ok ? undefined : formatSemanticScholarErrorMessage(r.error),
-  }));
+  const successfulDois: string[] = [];
+  const results = queueResults.map((r, i) => {
+    if (r.ok) successfulDois.push(toCheck[i].doi!);
+    return {
+      publication: toCheck[i],
+      diffs: r.ok ? (r.data ?? []) : [],
+      error: r.ok ? undefined : formatSemanticScholarErrorMessage(r.error),
+    };
+  });
+
+  // Only cache successful lookups — rate-limited or failed papers should be
+  // retried on the next run rather than silently skipped.
+  writeHcDoiCacheEntries(successfulDois);
+
+  return { results, skippedCount };
 }

@@ -7,6 +7,13 @@ import { Profile, ensureProfileExists } from '@/lib/profile';
 
 export type { Profile };
 
+type ProfileFeedbackSource = EventTarget | Element | { current: Element | null } | null;
+
+interface UpdateProfileOptions {
+  silent?: boolean;
+  source?: ProfileFeedbackSource;
+}
+
 export function useProfile() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -44,7 +51,7 @@ export function useProfile() {
     fetchProfile();
   }, [fetchProfile]);
 
-  const updateProfile = async (updates: Partial<Profile>) => {
+  const updateProfile = async (updates: Partial<Profile>, options: UpdateProfileOptions = {}) => {
     if (!user || !profile) return { error: new Error('Not authenticated or no profile') };
 
     try {
@@ -61,13 +68,16 @@ export function useProfile() {
       if (error) throw error;
 
       setProfile(updatedProfile as Profile);
-      toast({ title: 'Profile updated ✨' });
+      if (!options.silent) {
+        toast({ title: 'Profile updated ✨', source: options.source });
+      }
       return { error: null };
     } catch (error) {
       toast({
         title: 'Error updating profile',
         description: (error as Error).message,
         variant: 'destructive', feedbackSeverity: 'error',
+        source: options.source,
       });
       return { error };
     }
