@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Process guide for any coding agent (or human) working in this repo — Claude Code, Codex, Cursor, or otherwise. The point is that behavior stays consistent no matter which tool or session is doing the work. This file describes *how we ship*; `.github/refhub-identity.md` describes *what to build it to look/feel like*.
+Repo-local operating guide for coding agents working in this repo. The point is that agent behavior stays consistent no matter which tool or session is doing the work. Contributor process lives in `CONTRIBUTING.md`; `.github/refhub-identity.md` describes what to build it to look/feel like.
 
 ## 1. Check the visual/style identity first
 
