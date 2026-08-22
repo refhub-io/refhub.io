@@ -5,9 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { showSuccess, showError, showWarning } from '@/lib/toast';
+import { showSuccess, showError, showToast } from '@/lib/toast';
 import { ApiKeyManagementPanel } from '@/components/profile/ApiKeyManagementPanel';
 import { GoogleDriveSettingsPanel } from '@/components/profile/GoogleDriveSettingsPanel';
 import { Loader2, User, Lock, Mail, ArrowLeft, KeyRound, HardDrive } from 'lucide-react';
@@ -46,6 +46,9 @@ export default function ProfileEdit() {
   const [emailPassword, setEmailPassword] = useState('');
   const [changingEmail, setChangingEmail] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+  const [currentEmail, setCurrentEmail] = useState(user?.email || '');
+  const passwordFeedbackRef = useRef<HTMLDivElement>(null);
+  const emailFeedbackRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setUserName(profile?.username || '');
@@ -58,6 +61,31 @@ export default function ProfileEdit() {
       setActiveTab(requestedTab as SettingsTab);
     }
   }, [requestedTab]);
+
+  useEffect(() => {
+    setCurrentEmail(user?.email || '');
+  }, [user?.email]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const refreshCurrentEmail = async () => {
+      const { data: refreshedSession } = await supabase.auth.refreshSession();
+      const refreshedUser = refreshedSession.user;
+
+      if (!cancelled) {
+        setCurrentEmail(refreshedUser?.email || user?.email || '');
+      }
+    };
+
+    refreshCurrentEmail();
+    window.addEventListener('focus', refreshCurrentEmail);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', refreshCurrentEmail);
+    };
+  }, [user?.email]);
 
   useEffect(() => {
     const driveState = searchParams.get('gdrive');
@@ -111,15 +139,15 @@ export default function ProfileEdit() {
   const handleChangePassword = async () => {
     // Validation
     if (!currentPassword) {
-      showWarning('Current password required');
+      showToast({ title: 'Current password required', severity: 'warning', source: passwordFeedbackRef });
       return;
     }
     if (!newPassword || newPassword.length < 8) {
-      showWarning('New password must be at least 8 characters');
+      showToast({ title: 'New password must be at least 8 characters', severity: 'warning', source: passwordFeedbackRef });
       return;
     }
     if (newPassword !== confirmPassword) {
-      showError('Passwords do not match');
+      showToast({ title: 'Passwords do not match', severity: 'error', source: passwordFeedbackRef });
       return;
     }
     
@@ -127,12 +155,12 @@ export default function ProfileEdit() {
     try {
       // Re-authenticate with current password first
       const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: user?.email || '',
+        email: currentEmail || user?.email || '',
         password: currentPassword,
       });
       
       if (signInError) {
-        showError('Current password is incorrect');
+        showToast({ title: 'Current password is incorrect', severity: 'error', source: passwordFeedbackRef });
         return;
       }
       
@@ -142,16 +170,16 @@ export default function ProfileEdit() {
       });
       
       if (updateError) {
-        showError('Failed to update password', updateError.message);
+        showToast({ title: 'Failed to update password', description: updateError.message, severity: 'error', source: passwordFeedbackRef });
         return;
       }
       
-      showSuccess('Password updated successfully');
+      showToast({ title: 'Password updated successfully', source: passwordFeedbackRef });
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (error) {
-      showError('Failed to change password', (error as Error).message);
+      showToast({ title: 'Failed to change password', description: (error as Error).message, severity: 'error', source: passwordFeedbackRef });
     } finally {
       setChangingPassword(false);
     }
@@ -160,11 +188,11 @@ export default function ProfileEdit() {
   const handleChangeEmail = async () => {
     // Validation
     if (!newEmail || !newEmail.includes('@')) {
-      showWarning('Please enter a valid email address');
+      showToast({ title: 'Please enter a valid email address', severity: 'warning', source: emailFeedbackRef });
       return;
     }
     if (!emailPassword) {
-      showWarning('Password required to change email');
+      showToast({ title: 'Password required to change email', severity: 'warning', source: emailFeedbackRef });
       return;
     }
     
@@ -172,12 +200,12 @@ export default function ProfileEdit() {
     try {
       // Re-authenticate with current password first
       const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: user?.email || '',
+        email: currentEmail || user?.email || '',
         password: emailPassword,
       });
       
       if (signInError) {
-        showError('Password is incorrect');
+        showToast({ title: 'Password is incorrect', severity: 'error', source: emailFeedbackRef });
         return;
       }
       
@@ -187,15 +215,20 @@ export default function ProfileEdit() {
       });
       
       if (updateError) {
-        showError('Failed to update email', updateError.message);
+        showToast({ title: 'Failed to update email', description: updateError.message, severity: 'error', source: emailFeedbackRef });
         return;
       }
       
-      showSuccess('Verification email sent', 'Please check your new email to confirm the change.');
+      await supabase.auth.refreshSession();
+      showToast({
+        title: 'Verification email sent',
+        description: 'Please check your new email to confirm the change.',
+        source: emailFeedbackRef,
+      });
       setNewEmail('');
       setEmailPassword('');
     } catch (error) {
-      showError('Failed to change email', (error as Error).message);
+      showToast({ title: 'Failed to change email', description: (error as Error).message, severity: 'error', source: emailFeedbackRef });
     } finally {
       setChangingEmail(false);
     }
@@ -372,15 +405,17 @@ export default function ProfileEdit() {
                     />
                   </div>
                   
-                  <Button 
-                    variant="glow" 
-                    className="w-full font-mono" 
-                    onClick={handleChangePassword}
-                    disabled={changingPassword}
-                  >
-                    {changingPassword && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                    change_password
-                  </Button>
+                  <div ref={passwordFeedbackRef} data-quoterm-anchor="account-password" className="flex flex-col gap-2">
+                    <Button
+                      variant="glow"
+                      className="w-full font-mono"
+                      onClick={handleChangePassword}
+                      disabled={changingPassword}
+                    >
+                      {changingPassword && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      change_password
+                    </Button>
+                  </div>
                 </>
               ) : (
                 <div className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-500/5 p-4">
@@ -399,7 +434,7 @@ export default function ProfileEdit() {
               <div className="p-3 bg-muted/50 rounded-lg">
                 <p className="text-sm font-mono">
                   <span className="text-muted-foreground">current_email:</span>{' '}
-                  <span className="text-foreground">{user?.email}</span>
+                  <span className="text-foreground">{currentEmail || user?.email}</span>
                 </p>
               </div>
               
@@ -433,15 +468,17 @@ export default function ProfileEdit() {
                     />
                   </div>
                   
-                  <Button 
-                    variant="glow" 
-                    className="w-full font-mono" 
-                    onClick={handleChangeEmail}
-                    disabled={changingEmail}
-                  >
-                    {changingEmail && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                    change_email
-                  </Button>
+                  <div ref={emailFeedbackRef} data-quoterm-anchor="account-email" className="flex flex-col gap-2">
+                    <Button
+                      variant="glow"
+                      className="w-full font-mono"
+                      onClick={handleChangeEmail}
+                      disabled={changingEmail}
+                    >
+                      {changingEmail && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      change_email
+                    </Button>
+                  </div>
                 </>
               ) : (
                 <div className="rounded-xl border border-pink-500/20 bg-pink-500/5 p-4">

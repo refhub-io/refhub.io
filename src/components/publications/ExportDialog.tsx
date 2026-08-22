@@ -3,7 +3,6 @@ import { Publication, Tag, PublicationTag } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog,
   DialogContent,
@@ -255,15 +254,15 @@ export function ExportDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="dialog-mobile max-w-[100vw] sm:rounded-2xl sm:h-auto sm:w-[95vw] sm:max-w-lg sm:max-h-[90vh] flex flex-col overflow-hidden border-2 bg-card/95 backdrop-blur-xl p-0">
-        <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-4">
+      <DialogContent className="w-[100vw] max-w-[100vw] max-h-[100dvh] sm:rounded-2xl sm:w-[95vw] sm:max-w-lg sm:max-h-[90vh] flex flex-col overflow-hidden border-2 bg-card/95 backdrop-blur-xl p-0">
+        <DialogHeader className="px-4 sm:px-6 pt-[max(env(safe-area-inset-top),1rem)] sm:pt-6 pb-3 sm:pb-4 shrink-0">
           <DialogTitle className="flex items-center gap-2 font-mono text-xl sm:text-2xl font-bold">
             // export_references
             <KbdHint shortcut="Ctrl+E" className="ml-auto" size="sm" />
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden px-4 sm:px-6 pb-4 sm:pb-6 space-y-4 min-w-0 flex flex-col">
+        <div className="min-h-0 overflow-y-auto overflow-x-hidden px-4 sm:px-6 pb-4 sm:pb-6 space-y-3 sm:space-y-4 min-w-0">
           <div className="flex items-center justify-between min-w-0">
             <p className="text-xs sm:text-sm text-muted-foreground font-mono">
               // exporting <span className="font-semibold text-foreground">{publications.length}</span> publication{publications.length !== 1 ? 's' : ''}
@@ -274,7 +273,7 @@ export function ExportDialog({
           <Tabs
             value={format}
             onValueChange={(v) => setFormat(v as ExportFormat)}
-            className="flex-1 flex flex-col overflow-hidden"
+            className="min-h-0 flex flex-col"
           >
             <TabsList className="grid w-full grid-cols-3 font-mono">
               <TabsTrigger value="bibtex" className="gap-1.5">
@@ -292,7 +291,7 @@ export function ExportDialog({
             </TabsList>
 
             {/* BibTeX tab */}
-            <TabsContent value="bibtex" className="flex-1 overflow-auto space-y-4 mt-4">
+            <TabsContent value="bibtex" className="space-y-3 sm:space-y-4 mt-3 sm:mt-4">
               <div className="space-y-2 min-w-0">
                 <div className="flex items-center justify-between gap-2">
                   <Label className="text-xs sm:text-sm font-medium font-mono">select fields to include:</Label>
@@ -306,7 +305,7 @@ export function ExportDialog({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 bg-muted/50 rounded-lg border border-border min-w-0">
+                <div className="grid grid-cols-2 gap-2 p-3 bg-muted/50 rounded-lg border border-border min-w-0">
                   {BIBTEX_FIELDS.map(field => (
                     <label
                       key={field.key}
@@ -354,9 +353,9 @@ export function ExportDialog({
             </TabsContent>
 
             {/* APA tab */}
-            <TabsContent value="apa" className="flex-1 overflow-hidden flex flex-col space-y-3 mt-4">
+            <TabsContent value="apa" className="space-y-3 mt-3 sm:mt-4">
               <Label className="text-xs sm:text-sm font-medium font-mono">preview:</Label>
-              <ScrollArea className="flex-1 max-h-[40vh] border rounded-lg bg-muted/30 p-3">
+              <div className="max-h-[45dvh] sm:max-h-[40vh] overflow-y-auto border rounded-lg bg-muted/30 p-3">
                 <div className="space-y-3 font-mono text-sm leading-relaxed">
                   {publications.map((pub) => (
                     <p key={pub.id} className="break-words" style={{ textIndent: '-2em', paddingLeft: '2em' }}>
@@ -364,14 +363,14 @@ export function ExportDialog({
                     </p>
                   ))}
                 </div>
-              </ScrollArea>
+              </div>
               <p className="text-xs text-muted-foreground font-mono">
                 // APA 7th edition style — ready for copy/paste
               </p>
             </TabsContent>
 
             {/* CSV tab */}
-            <TabsContent value="csv" className="flex-1 overflow-auto space-y-4 mt-4">
+            <TabsContent value="csv" className="space-y-3 sm:space-y-4 mt-3 sm:mt-4">
               <div className="space-y-2 min-w-0">
                 <div className="flex items-center justify-between gap-2">
                   <Label className="text-xs sm:text-sm font-medium font-mono">select fields to include:</Label>
@@ -385,7 +384,7 @@ export function ExportDialog({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 bg-muted/50 rounded-lg border border-border min-w-0">
+                <div className="grid grid-cols-2 gap-2 p-3 bg-muted/50 rounded-lg border border-border min-w-0">
                   {CSV_FIELDS.map(field => (
                     <label
                       key={field.key}
@@ -461,7 +460,7 @@ export function ExportDialog({
           </Tabs>
         </div>
 
-        <div ref={footerActionGroupRef} className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 dialog-mobile-safe-footer px-4 sm:px-6 pb-4 sm:pb-6 pt-4 border-t gap-3">
+        <div ref={footerActionGroupRef} className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 shrink-0 px-4 sm:px-6 pb-[max(env(safe-area-inset-bottom),1rem)] sm:pb-6 pt-4 border-t gap-3">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="font-mono w-full sm:w-auto">
             cancel
           </Button>

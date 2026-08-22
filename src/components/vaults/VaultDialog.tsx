@@ -659,8 +659,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     void handleSubmit();
   }, [handleSubmit]);
 
-  const handleShareWithUser = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleShareWithUser = async () => {
     if (!vault || !user || !email.trim()) return;
 
     // Prevent self-sharing
@@ -1091,6 +1090,14 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                         if (email.trim().length >= 2) setSuggestionsOpen(true);
                       }}
                       onBlur={() => window.setTimeout(() => setSuggestionsOpen(false), 120)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (email.trim() && !saving && !loadingSuggestions) {
+                            void handleShareWithUser();
+                          }
+                        }
+                      }}
                       placeholder="name, username, or email"
                       className="pl-10 font-mono text-sm"
                       autoComplete="off"
@@ -1143,7 +1150,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={handleShareWithUser}
+                    onClick={() => void handleShareWithUser()}
                     disabled={saving || !email.trim() || loadingSuggestions}
                     className="font-mono"
                   >

@@ -218,6 +218,7 @@ export default function Dashboard() {
   const [deleteConfirmation, setDeleteConfirmation] = useState<Publication | null>(null);
   const [bulkDeleteConfirmation, setBulkDeleteConfirmation] = useState<Publication[]>([]);
   const [deleteVaultConfirmation, setDeleteVaultConfirmation] = useState<Vault | null>(null);
+  const [deleteVaultNameInput, setDeleteVaultNameInput] = useState('');
   const [syncLoadingIds, setSyncLoadingIds] = useState<Set<string>>(new Set());
   const [syncDiffsByPublication, setSyncDiffsByPublication] = useState<Record<string, PublicationSyncDiff[]>>({});
   const [syncMetadataByPublication, setSyncMetadataByPublication] = useState<Record<string, SemanticScholarMetadata>>({});
@@ -1421,6 +1422,7 @@ export default function Dashboard() {
           source: dashboardFeedbackRef,
         });
         setDeleteVaultConfirmation(null);
+        setDeleteVaultNameInput('');
         return;
       }
 
@@ -1466,6 +1468,7 @@ export default function Dashboard() {
       });
     } finally {
       setDeleteVaultConfirmation(null);
+      setDeleteVaultNameInput('');
     }
   };
 
@@ -1853,36 +1856,53 @@ export default function Dashboard() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={!!deleteVaultConfirmation} onOpenChange={() => setDeleteVaultConfirmation(null)}>
+      <AlertDialog open={!!deleteVaultConfirmation} onOpenChange={(open) => { if (!open) { setDeleteVaultConfirmation(null); setDeleteVaultNameInput(''); } }}>
         <AlertDialogContent className="border-2 bg-card/95 backdrop-blur-xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-bold font-mono text-destructive">⚠️ delete_vault?</AlertDialogTitle>
+          <AlertDialogHeader className="overflow-visible">
+            <AlertDialogTitle className="text-xl font-bold text-destructive">delete vault?</AlertDialogTitle>
           </AlertDialogHeader>
           <div className="px-6 pb-4">
-            <div className="font-mono text-sm space-y-3">
+            <div className="text-sm space-y-3">
               <p className="text-foreground">
-                // vault: <span className="font-bold text-destructive">"{deleteVaultConfirmation?.name}"</span>
+                Delete <span className="font-bold text-destructive">"{deleteVaultConfirmation?.name}"</span> permanently.
               </p>
               <p className="text-muted-foreground">
-                // this_will_permanently_delete:
+                This removes:
               </p>
               <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-2">
                 <li>all annotated publications in this vault</li>
                 <li>all tags and relationships</li>
+                <li>all shares, access requests, and collaborator permissions</li>
                 <li>all vault settings and metadata</li>
               </ul>
               <p className="text-muted-foreground">
-                // original papers remain in all_papers collection
+                Original papers remain in your all_papers collection.
               </p>
               <p className="text-destructive font-bold mt-3">
-                ⚡ this_action_is_irreversible
+                This action cannot be undone.
               </p>
+              <div className="space-y-1 pt-1">
+                <p className="text-muted-foreground">
+                  Type the vault name to confirm.
+                </p>
+                <input
+                  type="text"
+                  value={deleteVaultNameInput}
+                  onChange={(e) => setDeleteVaultNameInput(e.target.value)}
+                  placeholder={deleteVaultConfirmation?.name ?? ''}
+                  className="h-10 w-full rounded-md border border-destructive/50 bg-background px-3 py-2 text-sm font-mono outline-none overflow-hidden transition-colors placeholder:text-muted-foreground/50 hover:border-destructive/50 focus:border-destructive focus:ring-2 focus:ring-destructive/20 focus:ring-offset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/20 focus-visible:ring-offset-0"
+                />
+              </div>
             </div>
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel className="font-mono">cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteVault} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono">
-              delete_vault
+            <AlertDialogAction
+              onClick={handleDeleteVault}
+              disabled={deleteVaultNameInput !== deleteVaultConfirmation?.name}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono disabled:opacity-40"
+            >
+              delete vault
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

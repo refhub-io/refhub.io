@@ -68,6 +68,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteAccountInput, setDeleteAccountInput] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
 
   const form = useForm<ProfileFormData>({
@@ -265,6 +266,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
       alert('Error deleting account: ' + (error as Error).message);
       setIsDeleting(false);
       setShowDeleteConfirm(false);
+      setDeleteAccountInput('');
     }
   };
 
@@ -527,26 +529,46 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
         </Form>
       </DialogContent>
 
-      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+      <AlertDialog open={showDeleteConfirm} onOpenChange={(open) => { setShowDeleteConfirm(open); if (!open) setDeleteAccountInput(''); }}>
         <AlertDialogContent className="border-2 bg-card/95 backdrop-blur-xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-bold text-destructive font-mono">
-              delete_account?
+          <AlertDialogHeader className="overflow-visible">
+            <AlertDialogTitle className="text-xl font-bold text-destructive">
+              delete account?
             </AlertDialogTitle>
-            <AlertDialogDescription className="font-mono text-sm space-y-2">
-              <p>// this_will_permanently_delete_your_account</p>
-              <p>// all_your_vaults_papers_and_data_will_be_lost</p>
-              <p className="text-destructive font-semibold">// this_action_cannot_be_undone</p>
+            <AlertDialogDescription asChild>
+              <div className="text-sm space-y-3">
+                <p className="text-foreground">
+                  This permanently deletes your account, vaults, papers, profile, and saved settings.
+                </p>
+                <p>
+                  Shared vault access and pending requests connected to your account will also be removed.
+                </p>
+                <p className="text-destructive font-semibold">
+                  This action cannot be undone.
+                </p>
+                <div className="space-y-1 pt-1">
+                  <p className="text-muted-foreground">
+                    Type <span className="text-foreground font-semibold font-mono">delete my account</span> to confirm.
+                  </p>
+                  <input
+                    type="text"
+                    value={deleteAccountInput}
+                    onChange={(e) => setDeleteAccountInput(e.target.value)}
+                    placeholder="delete my account"
+                    className="h-10 w-full rounded-md border border-destructive/50 bg-background px-3 py-2 text-sm font-mono outline-none overflow-hidden transition-colors placeholder:text-muted-foreground/50 hover:border-destructive/50 focus:border-destructive focus:ring-2 focus:ring-destructive/20 focus:ring-offset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/20 focus-visible:ring-offset-0"
+                  />
+                </div>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting} className="font-mono">cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteAccount}
-              disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono"
+              disabled={isDeleting || deleteAccountInput !== 'delete my account'}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono disabled:opacity-40"
             >
-              {isDeleting ? 'deleting...' : 'delete_account'}
+              {isDeleting ? 'deleting...' : 'delete account'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
