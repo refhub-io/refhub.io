@@ -11,7 +11,9 @@ project uses [Semantic Versioning](https://semver.org/). History prior to
 ### Fixed
 - Vault settings: typing a collaborator email and pressing Enter submitted the vault settings form instead of adding the collaborator. Enter in the collaborator email field now triggers the add-collaborator action and no longer accidentally saves vault settings (#177).
 - Delete vault and delete account dialogs now require typing the vault name (or "delete my account") before the delete button becomes enabled, and now call out that shared vault access/request state is removed with the deleted vault or account (#182, #183).
+- Destructive account/vault confirmation dialogs now use clearer warning copy, cleaner typed-confirmation focus styling, and less decorative code-comment text.
 - Export dialog field selector grids (BibTeX and CSV) are now always two columns instead of single-column on mobile, halving their height and eliminating the large empty gap between the format selector and the export options on narrow viewports (#179).
+- Export dialog mobile panels now size to their content with bounded preview scrolling, avoiding dead empty scroll regions in BibTeX, CSV, and APA views.
 - Account settings now refresh the displayed email after Supabase email-change verification flows and anchor password/email change feedback to the relevant settings action instead of the page fallback slot (#181, #180).
 
 ## [1.8.5] - 2026-08-02

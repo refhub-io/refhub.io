@@ -1856,16 +1856,16 @@ export default function Dashboard() {
 
       <AlertDialog open={!!deleteVaultConfirmation} onOpenChange={(open) => { if (!open) { setDeleteVaultConfirmation(null); setDeleteVaultNameInput(''); } }}>
         <AlertDialogContent className="border-2 bg-card/95 backdrop-blur-xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-bold font-mono text-destructive">⚠️ delete_vault?</AlertDialogTitle>
+          <AlertDialogHeader className="overflow-visible">
+            <AlertDialogTitle className="text-xl font-bold text-destructive">delete vault?</AlertDialogTitle>
           </AlertDialogHeader>
           <div className="px-6 pb-4">
-            <div className="font-mono text-sm space-y-3">
+            <div className="text-sm space-y-3">
               <p className="text-foreground">
-                // vault: <span className="font-bold text-destructive">"{deleteVaultConfirmation?.name}"</span>
+                Delete <span className="font-bold text-destructive">"{deleteVaultConfirmation?.name}"</span> permanently.
               </p>
               <p className="text-muted-foreground">
-                // this_will_permanently_delete:
+                This removes:
               </p>
               <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-2">
                 <li>all annotated publications in this vault</li>
@@ -1874,19 +1874,21 @@ export default function Dashboard() {
                 <li>all vault settings and metadata</li>
               </ul>
               <p className="text-muted-foreground">
-                // original papers remain in all_papers collection
+                Original papers remain in your all_papers collection.
               </p>
               <p className="text-destructive font-bold mt-3">
-                ⚡ this_action_is_irreversible
+                This action cannot be undone.
               </p>
               <div className="space-y-1 pt-1">
-                <p className="text-muted-foreground">// type the vault name to confirm:</p>
+                <p className="text-muted-foreground">
+                  Type the vault name to confirm.
+                </p>
                 <input
                   type="text"
                   value={deleteVaultNameInput}
                   onChange={(e) => setDeleteVaultNameInput(e.target.value)}
                   placeholder={deleteVaultConfirmation?.name ?? ''}
-                  className="w-full rounded-md border border-destructive/50 bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-destructive placeholder:text-muted-foreground/50"
+                  className="h-10 w-full rounded-md border border-destructive/50 bg-background px-3 py-2 text-sm font-mono outline-none overflow-hidden transition-colors placeholder:text-muted-foreground/50 hover:border-destructive/50 focus:border-destructive focus:ring-2 focus:ring-destructive/20 focus:ring-offset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/20 focus-visible:ring-offset-0"
                 />
               </div>
             </div>
@@ -1898,7 +1900,7 @@ export default function Dashboard() {
               disabled={deleteVaultNameInput !== deleteVaultConfirmation?.name}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono disabled:opacity-40"
             >
-              delete_vault
+              delete vault
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
