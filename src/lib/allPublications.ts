@@ -16,6 +16,20 @@ export interface AllPublicationsData {
   publicationTagsMap: Record<string, string[]>;
 }
 
+/**
+ * Throws the first error found among a batch of Supabase responses, so a
+ * failed query (RLS denial, network blip, etc.) surfaces to the caller
+ * instead of silently degrading into an empty/partial aggregate — which for
+ * live smart-collection matching would be indistinguishable from "the user
+ * genuinely has no data."
+ */
+function throwOnAnyError(results: { error: { message?: string } | null }[]): void {
+  const failed = results.find((result) => result.error);
+  if (failed?.error) {
+    throw failed.error;
+  }
+}
+
 export async function fetchAllPublicationsData(
   supabase: SupabaseClient,
   userId: string,
@@ -31,6 +45,7 @@ export async function fetchAllPublicationsData(
     supabase.from('vault_publications').select('*').order('created_at', { ascending: false }),
     supabase.from('publication_tags').select('*'),
   ]);
+  throwOnAnyError([pubsRes, ownedVaultsRes, sharedVaultsRes, vaultPubsRes, pubTagsRes]);
 
   const ownedVaults = (ownedVaultsRes.data as Vault[]) || [];
   const sharedVaultIds = (sharedVaultsRes.data || []).map((share: { vault_id: string }) => share.vault_id);
@@ -38,8 +53,9 @@ export async function fetchAllPublicationsData(
 
   let sharedVaults: Vault[] = [];
   if (sharedVaultIds.length > 0) {
-    const { data: sharedVaultDetails } = await supabase.from('vaults').select('*').in('id', sharedVaultIds);
-    sharedVaults = (sharedVaultDetails as Vault[]) || [];
+    const sharedVaultsDetailRes = await supabase.from('vaults').select('*').in('id', sharedVaultIds);
+    throwOnAnyError([sharedVaultsDetailRes]);
+    sharedVaults = (sharedVaultsDetailRes.data as Vault[]) || [];
   }
 
   const tagQueries = [
@@ -49,6 +65,7 @@ export async function fetchAllPublicationsData(
     tagQueries.push(supabase.from('tags').select('*').in('vault_id', scopedVaultIds).order('name'));
   }
   const tagResults = await Promise.all(tagQueries);
+  throwOnAnyError(tagResults);
   const scopedTags = filterDashboardTags(
     tagResults.flatMap((result) => (result.data as Tag[] | null) || []),
     { userId, ownedVaults, sharedVaultIds },

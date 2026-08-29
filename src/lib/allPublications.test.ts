@@ -17,6 +17,14 @@ import type { RawVaultPublicationRow } from './publicationAggregate';
 // Each branch (eq vs in, for 'vaults' and 'tags') is distinguished by which
 // method is called, mirroring how the real query builder supports either
 // continuation from the same select() call.
+type MockError = { message: string };
+
+/** Resolves to an error response if one is configured for `key`, else to `rows`. */
+function resolveOrError<T>(rows: T[] | undefined, error: MockError | undefined) {
+  if (error) return Promise.resolve({ data: null, error });
+  return Promise.resolve({ data: rows ?? [], error: null });
+}
+
 function makeClient(data: {
   publications?: Publication[];
   ownedVaults?: Vault[];
@@ -26,38 +34,49 @@ function makeClient(data: {
   publicationTags?: PublicationTag[];
   personalTags?: Tag[];
   vaultTags?: Tag[];
+  errors?: {
+    publications?: MockError;
+    ownedVaults?: MockError;
+    vaultShares?: MockError;
+    vaultPublications?: MockError;
+    publicationTags?: MockError;
+    sharedVaultDetails?: MockError;
+    personalTags?: MockError;
+    vaultTags?: MockError;
+  };
 }): SupabaseClient {
+  const errors = data.errors ?? {};
   const from = vi.fn((table: string) => {
     switch (table) {
       case 'publications':
         return {
           select: () => ({
-            order: () => Promise.resolve({ data: data.publications ?? [], error: null }),
+            order: () => resolveOrError(data.publications, errors.publications),
           }),
         };
       case 'vault_publications':
         return {
           select: () => ({
-            order: () => Promise.resolve({ data: data.vaultPublications ?? [], error: null }),
+            order: () => resolveOrError(data.vaultPublications, errors.vaultPublications),
           }),
         };
       case 'publication_tags':
         return {
-          select: () => Promise.resolve({ data: data.publicationTags ?? [], error: null }),
+          select: () => resolveOrError(data.publicationTags, errors.publicationTags),
         };
       case 'vault_shares':
         return {
           select: () => ({
-            or: () => Promise.resolve({ data: data.vaultShares ?? [], error: null }),
+            or: () => resolveOrError(data.vaultShares, errors.vaultShares),
           }),
         };
       case 'vaults':
         return {
           select: () => ({
             eq: () => ({
-              order: () => Promise.resolve({ data: data.ownedVaults ?? [], error: null }),
+              order: () => resolveOrError(data.ownedVaults, errors.ownedVaults),
             }),
-            in: () => Promise.resolve({ data: data.sharedVaultDetails ?? [], error: null }),
+            in: () => resolveOrError(data.sharedVaultDetails, errors.sharedVaultDetails),
           }),
         };
       case 'tags':
@@ -65,11 +84,11 @@ function makeClient(data: {
           select: () => ({
             eq: () => ({
               is: () => ({
-                order: () => Promise.resolve({ data: data.personalTags ?? [], error: null }),
+                order: () => resolveOrError(data.personalTags, errors.personalTags),
               }),
             }),
             in: () => ({
-              order: () => Promise.resolve({ data: data.vaultTags ?? [], error: null }),
+              order: () => resolveOrError(data.vaultTags, errors.vaultTags),
             }),
           }),
         };
@@ -165,5 +184,32 @@ describe('fetchAllPublicationsData', () => {
 
     expect(result.vaults.map((v) => v.id).sort()).toEqual(['vault-1', 'vault-2']);
     expect(result.tags.map((t) => t.id).sort()).toEqual(['tag-1', 'tag-2']);
+  });
+
+  it('rejects when one of the initial parallel queries errors, instead of returning an empty result', async () => {
+    const client = makeClient({ errors: { publications: { message: 'permission denied for table publications' } } });
+
+    await expect(fetchAllPublicationsData(client, 'user-1', 'user@example.com')).rejects.toMatchObject({
+      message: 'permission denied for table publications',
+    });
+  });
+
+  it('rejects when the shared-vault-detail lookup errors', async () => {
+    const client = makeClient({
+      vaultShares: [{ vault_id: 'vault-2' }],
+      errors: { sharedVaultDetails: { message: 'network error' } },
+    });
+
+    await expect(fetchAllPublicationsData(client, 'user-1', 'user@example.com')).rejects.toMatchObject({
+      message: 'network error',
+    });
+  });
+
+  it('rejects when a tags query errors', async () => {
+    const client = makeClient({ errors: { personalTags: { message: 'tags query failed' } } });
+
+    await expect(fetchAllPublicationsData(client, 'user-1', 'user@example.com')).rejects.toMatchObject({
+      message: 'tags query failed',
+    });
   });
 });
