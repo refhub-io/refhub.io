@@ -1868,10 +1868,17 @@ export default function VaultDetail() {
         onEditProfile={() => setIsProfileDialogOpen(true)}
       />
 
-      <div className="flex-1 lg:pl-72 min-w-0 flex flex-col min-h-screen relative">
+      <div className="flex-1 lg:pl-72 min-w-0 flex flex-col min-h-screen">
         {/* Positioning anchor only, for inline feedback toasts — absolute so it
-            doesn't reserve layout space (it has no visible content of its own). */}
-        <div ref={vaultPageRef} className="absolute left-3 top-3 sm:left-4 sm:top-4" />
+            doesn't reserve layout space (it has no visible content of its own).
+            `relative` lives on this 0-size wrapper, not the column above: giving
+            the column itself a position stacks it (as a later DOM sibling with
+            the same effective z-index) above the fixed sidebar, swallowing every
+            click meant for it above the lg breakpoint where lg:pl-72 padding
+            physically overlaps the sidebar's screen position. */}
+        <div className="relative">
+          <div ref={vaultPageRef} className="absolute left-3 top-3 sm:left-4 sm:top-4" />
+        </div>
         {/* Vault Header */}
         <div className="border-b border-border bg-card/50 backdrop-blur-xl sm:sticky sm:top-0 sm:z-30 shrink-0">
           <div className="px-3 sm:px-4 py-3">
