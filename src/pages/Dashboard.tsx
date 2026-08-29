@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag, PublicationRelation } from '@/types/database';
 import { VaultRole } from '@/types/vault-extensions';
 import { DndContext, DragOverlay } from '@dnd-kit/core';
+import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import { useVaultDragAndDrop } from '@/hooks/useVaultDragAndDrop';
 import { VaultDragOverlayContent } from '@/components/dnd/VaultDragOverlayContent';
 import { generateBibtexKey } from '@/lib/bibtex';
@@ -1186,6 +1187,7 @@ export default function Dashboard() {
   const vaultDnd = useVaultDragAndDrop({
     userId: user?.id ?? null,
     ownedVaults: vaults,
+    sharedVaults,
     sharedVaultRoles,
     onAddPublicationsToVault: handleDropPublicationsOnVault,
   });
@@ -1698,8 +1700,9 @@ export default function Dashboard() {
     <div className="min-h-screen bg-background flex">
       <Sidebar
         vaults={vaultDnd.orderedOwnedVaults}
-        sharedVaults={sharedVaults}
+        sharedVaults={vaultDnd.orderedSharedVaults}
         droppableVaultIds={vaultDnd.droppableVaultIds}
+        isDraggingPublication={vaultDnd.activeDrag?.type === 'publication'}
         selectedVaultId={null}
         onSelectVault={() => {}}
         onCreateVault={() => {
@@ -1716,10 +1719,10 @@ export default function Dashboard() {
         onEditProfile={() => setIsProfileDialogOpen(true)}
       />
 
-      <div className="flex-1 lg:pl-72 min-w-0 flex flex-col min-h-screen">
-        <div className="px-3 pt-3 sm:px-4 sm:pt-4">
-          <div ref={dashboardFeedbackRef} />
-        </div>
+      <div className="flex-1 lg:pl-72 min-w-0 flex flex-col min-h-screen relative">
+        {/* Positioning anchor only, for inline feedback toasts — absolute so it
+            doesn't reserve layout space (it has no visible content of its own). */}
+        <div ref={dashboardFeedbackRef} className="absolute left-3 top-3 sm:left-4 sm:top-4" />
         <PublicationList
         publications={publications}
         tags={tags}
@@ -1940,7 +1943,7 @@ export default function Dashboard() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <DragOverlay>
+      <DragOverlay modifiers={[snapCenterToCursor]} style={{ width: 'fit-content' }}>
         <VaultDragOverlayContent activeDrag={vaultDnd.activeDrag} />
       </DragOverlay>
     </div>

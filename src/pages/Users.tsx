@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile, Profile } from '@/hooks/useProfile';
 import { Vault } from '@/types/database';
-import { Sidebar } from '@/components/layout/Sidebar';
+import { SidebarDndBoundary } from '@/components/layout/SidebarDndBoundary';
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { VaultDialog } from '@/components/vaults/VaultDialog';
@@ -257,7 +257,7 @@ export default function Users() {
   return (
     <div className="min-h-screen bg-background flex">
       {user && (
-        <Sidebar
+        <SidebarDndBoundary
           vaults={vaults}
           sharedVaults={sharedVaults}
           selectedVaultId={null}

@@ -1,4 +1,4 @@
-import { CSSProperties, ReactNode } from 'react';
+import { CSSProperties, ReactNode, useMemo } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
@@ -17,15 +17,27 @@ export interface VaultSortHandle {
 
 interface SortableVaultRowProps {
   vaultId: string;
+  /** 'vault' (owned, default), 'favorite', or 'shared' — kept distinct so
+   * dragging across sidebar lists resolves to a no-op instead of reordering
+   * the wrong one. */
+  dragType?: 'vault' | 'favorite' | 'shared';
   children: (handle: VaultSortHandle) => ReactNode;
 }
 
-/** Owned vaults are always droppable (the user can always edit their own
- * vault) and always reorderable, so one hook covers both. */
-export function SortableVaultRow({ vaultId, children }: SortableVaultRowProps) {
+/** Owned vaults are always droppable and always reorderable, so one hook
+ * covers both. Favorites reuse this for reordering only. Shared vaults are
+ * always kept fully droppable+sortable here too — dnd-kit's `disabled`
+ * removes a row from collision detection *entirely*, not just from
+ * accepting drops, so disabling it per-role would have also made
+ * non-editable shared vaults untargetable for reordering. The "can't drop
+ * a paper here" permission check happens one layer up instead, in
+ * resolveVaultDragEndAction's caller (see useVaultDragAndDrop). */
+export function SortableVaultRow({ vaultId, dragType = 'vault', children }: SortableVaultRowProps) {
+  const data = useMemo(() => ({ type: dragType }), [dragType]);
+
   const { attributes, listeners, setNodeRef, transform, transition, isOver, isDragging } = useSortable({
     id: vaultId,
-    data: { type: 'vault' as const },
+    data,
   });
 
   const style: CSSProperties = {

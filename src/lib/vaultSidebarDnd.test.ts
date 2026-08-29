@@ -134,4 +134,76 @@ describe('resolveVaultDragEndAction', () => {
     });
     expect(action).toEqual({ type: 'noop' });
   });
+
+  it('reorders favorites when a favorite is dropped on another favorite', () => {
+    const action = resolveVaultDragEndAction({
+      active: { id: 'fav-1', data: { type: 'favorite' } },
+      over: { id: 'fav-2', data: { type: 'favorite' } },
+    });
+    expect(action).toEqual({ type: 'reorder-favorites', activeVaultId: 'fav-1', overVaultId: 'fav-2' });
+  });
+
+  it('does nothing when a favorite is dropped on itself', () => {
+    const action = resolveVaultDragEndAction({
+      active: { id: 'fav-1', data: { type: 'favorite' } },
+      over: { id: 'fav-1', data: { type: 'favorite' } },
+    });
+    expect(action).toEqual({ type: 'noop' });
+  });
+
+  it('does nothing when a favorite is dropped on an owned vault (separate lists)', () => {
+    const action = resolveVaultDragEndAction({
+      active: { id: 'fav-1', data: { type: 'favorite' } },
+      over: { id: 'vault-1', data: { type: 'vault' } },
+    });
+    expect(action).toEqual({ type: 'noop' });
+  });
+
+  it('does nothing when an owned vault is dropped on a favorite (separate lists)', () => {
+    const action = resolveVaultDragEndAction({
+      active: { id: 'vault-1', data: { type: 'vault' } },
+      over: { id: 'fav-1', data: { type: 'favorite' } },
+    });
+    expect(action).toEqual({ type: 'noop' });
+  });
+
+  it('does nothing when a publication is dropped on a favorite (favorites are not droppable)', () => {
+    const action = resolveVaultDragEndAction({
+      active: { id: 'publication:pub-1', data: { type: 'publication', publicationIds: ['pub-1'] } },
+      over: { id: 'fav-1', data: { type: 'favorite' } },
+    });
+    expect(action).toEqual({ type: 'noop' });
+  });
+
+  it('adds a dragged publication to a shared vault it was dropped on', () => {
+    const action = resolveVaultDragEndAction({
+      active: { id: 'publication:pub-1', data: { type: 'publication', publicationIds: ['pub-1'] } },
+      over: { id: 'shared-1', data: { type: 'shared' } },
+    });
+    expect(action).toEqual({ type: 'add-to-vault', publicationIds: ['pub-1'], vaultId: 'shared-1' });
+  });
+
+  it('reorders shared vaults when a shared vault is dropped on another shared vault', () => {
+    const action = resolveVaultDragEndAction({
+      active: { id: 'shared-1', data: { type: 'shared' } },
+      over: { id: 'shared-2', data: { type: 'shared' } },
+    });
+    expect(action).toEqual({ type: 'reorder-shared', activeVaultId: 'shared-1', overVaultId: 'shared-2' });
+  });
+
+  it('does nothing when a shared vault is dropped on itself', () => {
+    const action = resolveVaultDragEndAction({
+      active: { id: 'shared-1', data: { type: 'shared' } },
+      over: { id: 'shared-1', data: { type: 'shared' } },
+    });
+    expect(action).toEqual({ type: 'noop' });
+  });
+
+  it('does nothing when a shared vault is dropped on an owned vault (separate lists)', () => {
+    const action = resolveVaultDragEndAction({
+      active: { id: 'shared-1', data: { type: 'shared' } },
+      over: { id: 'vault-1', data: { type: 'vault' } },
+    });
+    expect(action).toEqual({ type: 'noop' });
+  });
 });

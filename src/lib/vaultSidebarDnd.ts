@@ -46,7 +46,7 @@ export function getDroppableVaultIds(
   return new Set([...ownedVaultIds, ...editableShared]);
 }
 
-export type VaultDragItemType = 'publication' | 'vault';
+export type VaultDragItemType = 'publication' | 'vault' | 'favorite' | 'shared';
 
 interface VaultDragEndInfo {
   active: {
@@ -61,16 +61,21 @@ interface VaultDragEndInfo {
 
 export type VaultDragEndAction =
   | { type: 'reorder-vaults'; activeVaultId: string; overVaultId: string }
+  | { type: 'reorder-favorites'; activeVaultId: string; overVaultId: string }
+  | { type: 'reorder-shared'; activeVaultId: string; overVaultId: string }
   | { type: 'add-to-vault'; publicationIds: string[]; vaultId: string }
   | { type: 'noop' };
 
 // Single dispatch point for the sidebar's DndContext: decides whether a drop
-// means "add these papers to this vault" or "move this vault to this spot",
-// based on what was dragged (active) and what it landed on (over).
+// means "add these papers to this vault", or "move this vault/favorite/shared
+// item to this spot" — based on what was dragged (active) and what it landed
+// on (over). 'vault' (owned), 'favorite', and 'shared' reordering are kept as
+// distinct item types so dragging across two lists is a no-op rather than
+// corrupting either order.
 export function resolveVaultDragEndAction({ active, over }: VaultDragEndInfo): VaultDragEndAction {
   if (!over) return { type: 'noop' };
 
-  if (active.data.type === 'publication' && over.data.type === 'vault') {
+  if (active.data.type === 'publication' && (over.data.type === 'vault' || over.data.type === 'shared')) {
     const publicationIds = active.data.publicationIds ?? [];
     if (publicationIds.length === 0) return { type: 'noop' };
     return { type: 'add-to-vault', publicationIds, vaultId: over.id };
@@ -78,6 +83,14 @@ export function resolveVaultDragEndAction({ active, over }: VaultDragEndInfo): V
 
   if (active.data.type === 'vault' && over.data.type === 'vault' && active.id !== over.id) {
     return { type: 'reorder-vaults', activeVaultId: active.id, overVaultId: over.id };
+  }
+
+  if (active.data.type === 'favorite' && over.data.type === 'favorite' && active.id !== over.id) {
+    return { type: 'reorder-favorites', activeVaultId: active.id, overVaultId: over.id };
+  }
+
+  if (active.data.type === 'shared' && over.data.type === 'shared' && active.id !== over.id) {
+    return { type: 'reorder-shared', activeVaultId: active.id, overVaultId: over.id };
   }
 
   return { type: 'noop' };

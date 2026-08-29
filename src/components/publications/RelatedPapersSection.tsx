@@ -146,7 +146,7 @@ export function RelatedPapersSection({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 text-muted-foreground hover:text-destructive"
                 onClick={() => onRemoveRelation(rel.relation_id)}
               >
                 <X className="w-3 h-3" />

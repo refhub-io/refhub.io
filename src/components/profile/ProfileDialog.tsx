@@ -518,8 +518,9 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
                 </Button>
                 <Button
                   type="submit"
+                  variant="glow"
                   disabled={isSubmitting || usernameStatus === 'taken'}
-                  className="bg-gradient-primary hover:opacity-90 font-mono"
+                  className="font-mono"
                 >
                   <Check className="w-4 h-4 sm:hidden" />
                   <span className="hidden sm:inline">{isSubmitting ? 'saving...' : 'save_profile'}</span>

@@ -5,6 +5,7 @@ import {
   Plus,
   LogOut,
   ChevronDown,
+  ChevronUp,
   ChevronRight,
   X,
   Zap,
@@ -19,7 +20,9 @@ import {
   Share2,
   GripVertical
 } from 'lucide-react';
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { SortableContext, verticalListSortingStrategy, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import { DndContext, DragOverlay, PointerSensor, KeyboardSensor, useSensor, useSensors, DragStartEvent, DragEndEvent } from '@dnd-kit/core';
+import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import { BrandMark } from '@/components/branding/BrandMark';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -28,6 +31,8 @@ import { Vault } from '@/types/database';
 import { ProfileAvatar } from '@/components/profile/ProfileAvatar';
 import { Profile } from '@/hooks/useProfile';
 import { useVaultFavorites } from '@/hooks/useVaultFavorites';
+import { useVaultFavoritesOrder } from '@/hooks/useVaultFavoritesOrder';
+import { resolveVaultDragEndAction } from '@/lib/vaultSidebarDnd';
 import { ThemeToggle } from './ThemeToggle';
 import { useKeyboardNavigation, useHotkeys } from '@/hooks/useKeyboardNavigation';
 import { KbdHint } from '@/components/ui/KbdHint';
@@ -36,14 +41,22 @@ import { WhatsNewDialog } from '@/components/ui/WhatsNewDialog';
 import { useWhatsNew } from '@/hooks/useWhatsNew';
 import { Sparkles } from 'lucide-react';
 import { SortableVaultRow } from '@/components/dnd/SortableVaultRow';
-import { DroppableVaultRow } from '@/components/dnd/DroppableVaultRow';
+import { VaultDragOverlayContent } from '@/components/dnd/VaultDragOverlayContent';
+import type { ActiveVaultDrag } from '@/hooks/useVaultDragAndDrop';
 
-interface SidebarProps {
+/** Vaults shown per sidebar section before a "show more" toggle appears — keeps
+ * the sidebar scannable and matches the 1-9 keybind range for owned vaults. */
+const VISIBLE_VAULT_LIMIT = 9;
+
+export interface SidebarProps {
   /** Owned vaults, already in the user's custom sidebar order. */
   vaults: Vault[];
   sharedVaults?: Vault[];
   /** Vault ids a dragged paper may be dropped on (owned + editable shared). */
   droppableVaultIds?: Set<string>;
+  /** True while a paper (not a vault) is being dragged — gates the
+   * "drop here" row highlight so it doesn't also fire while reordering. */
+  isDraggingPublication?: boolean;
   selectedVaultId: string | null;
   onSelectVault: (vaultId: string | null) => void;
   onCreateVault: () => void;
@@ -58,6 +71,7 @@ export function Sidebar({
   vaults,
   sharedVaults = [],
   droppableVaultIds,
+  isDraggingPublication = false,
   selectedVaultId,
   onSelectVault,
   onCreateVault,
@@ -70,8 +84,13 @@ export function Sidebar({
   const [isVaultsExpanded, setIsVaultsExpanded] = useState(true);
   const [isSharedExpanded, setIsSharedExpanded] = useState(true);
   const [isFavoritesExpanded, setIsFavoritesExpanded] = useState(true);
+  const [showAllOwnedVaults, setShowAllOwnedVaults] = useState(false);
+  const [showAllSharedVaults, setShowAllSharedVaults] = useState(false);
+  const [showAllFavoriteVaults, setShowAllFavoriteVaults] = useState(false);
   const { user, signOut } = useAuth();
   const { favoriteVaults } = useVaultFavorites();
+  const { orderFavorites, reorder: reorderFavorites } = useVaultFavoritesOrder(user?.id);
+  const [activeFavoriteDrag, setActiveFavoriteDrag] = useState<ActiveVaultDrag | null>(null);
   const { open: whatsNewOpen, hasUnseen, onOpenChange: onWhatsNewOpenChange, openDialog: openWhatsNew } = useWhatsNew();
   const navigate = useNavigate();
   const location = useLocation();
@@ -107,7 +126,62 @@ export function Sidebar({
   const isDashboardActive = location.pathname === '/dashboard' || (location.pathname === '/' && !activeVaultId);
 
   // ─── Vault list keyboard navigation ─────────────────────────────────────────
-  const vaultIds = useMemo(() => vaults.map((v) => v.id), [vaults]);
+  // Every list here is memoized end-to-end (slice → ids) so a drag in progress
+  // — which re-renders the sidebar on every pointer move via dnd-kit's own
+  // context updates — doesn't hand SortableContext a brand-new `items` array
+  // each frame purely because .slice() allocates a fresh one every render.
+  const visibleOwnedVaults = useMemo(
+    () => (showAllOwnedVaults ? vaults : vaults.slice(0, VISIBLE_VAULT_LIMIT)),
+    [vaults, showAllOwnedVaults],
+  );
+  const hiddenOwnedVaultCount = Math.max(0, vaults.length - VISIBLE_VAULT_LIMIT);
+  const vaultIds = useMemo(() => visibleOwnedVaults.map((v) => v.id), [visibleOwnedVaults]);
+
+  const visibleSharedVaults = useMemo(
+    () => (showAllSharedVaults ? sharedVaults : sharedVaults.slice(0, VISIBLE_VAULT_LIMIT)),
+    [sharedVaults, showAllSharedVaults],
+  );
+  const hiddenSharedVaultCount = Math.max(0, sharedVaults.length - VISIBLE_VAULT_LIMIT);
+  const sharedVaultIds = useMemo(() => visibleSharedVaults.map((v) => v.id), [visibleSharedVaults]);
+
+  const orderedFavoriteVaults = useMemo(() => orderFavorites(favoriteVaults), [orderFavorites, favoriteVaults]);
+  const visibleFavoriteVaults = useMemo(
+    () => (showAllFavoriteVaults ? orderedFavoriteVaults : orderedFavoriteVaults.slice(0, VISIBLE_VAULT_LIMIT)),
+    [orderedFavoriteVaults, showAllFavoriteVaults],
+  );
+  const hiddenFavoriteVaultCount = Math.max(0, orderedFavoriteVaults.length - VISIBLE_VAULT_LIMIT);
+  const favoriteVaultIds = useMemo(() => visibleFavoriteVaults.map((v) => v.id), [visibleFavoriteVaults]);
+
+  // Favorites reordering is self-contained (its own DndContext) so it works on
+  // every page the sidebar renders on, not just Dashboard/VaultDetail — unlike
+  // "drag paper onto vault", it never needs to see anything outside the sidebar.
+  const favoritesSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleFavoriteDragStart = useCallback((event: DragStartEvent) => {
+    const vault = orderedFavoriteVaults.find((v) => v.id === String(event.active.id));
+    setActiveFavoriteDrag(vault ? { type: 'vault', vault } : null);
+  }, [orderedFavoriteVaults]);
+
+  const handleFavoriteDragEnd = useCallback((event: DragEndEvent) => {
+    setActiveFavoriteDrag(null);
+    const action = resolveVaultDragEndAction({
+      active: {
+        id: String(event.active.id),
+        data: event.active.data.current as { type?: 'publication' | 'vault' | 'favorite' } ?? {},
+      },
+      over: event.over
+        ? { id: String(event.over.id), data: event.over.data.current as { type?: 'publication' | 'vault' | 'favorite' } ?? {} }
+        : null,
+    });
+    if (action.type === 'reorder-favorites') {
+      reorderFavorites(favoriteVaults, action.activeVaultId, action.overVaultId);
+    }
+  }, [reorderFavorites, favoriteVaults]);
+
+  const handleFavoriteDragCancel = useCallback(() => setActiveFavoriteDrag(null), []);
 
   const handleVaultOpen = useCallback(
     (id: string) => {
@@ -290,7 +364,7 @@ export function Sidebar({
             {isVaultsExpanded && (
               <div className="mt-2 space-y-1" role="listbox" aria-label="My vaults" data-onboarding-target="vault-list">
                 <SortableContext items={vaultIds} strategy={verticalListSortingStrategy}>
-                  {vaults.map((vault, index) => (
+                  {visibleOwnedVaults.map((vault, index) => (
                     <SortableVaultRow key={vault.id} vaultId={vault.id}>
                       {({ ref, style, isOver, isDragging, dragHandleProps }) => (
                         <div
@@ -303,8 +377,15 @@ export function Sidebar({
                               ? "bg-gradient-to-br from-primary/15 to-violet-500/10 text-primary border-2 border-primary/30"
                               : "hover:bg-sidebar-accent/50 text-sidebar-foreground/70 border-2 border-transparent",
                             vaultKb.isFocused(index) && "ring-2 ring-[hsl(var(--cyber-blue))]/50 ring-offset-1 ring-offset-background",
-                            isOver && "border-primary bg-primary/10",
-                            isDragging && "opacity-40"
+                            // Only highlight as a drop target for incoming papers — during a
+                            // vault reorder, dnd-kit's own shift animation already shows position,
+                            // so an identical border here would just add confusing extra highlights.
+                            isOver && isDraggingPublication && "border-primary bg-primary/10",
+                            // Marks the row currently being grabbed, independent of the
+                            // active-vault border above — otherwise only a vault you also
+                            // happen to be viewing would visibly indicate it's being dragged.
+                            // Matches the drag ghost's purple treatment (bg + text + border).
+                            isDragging && "opacity-40 bg-gradient-to-br from-primary/15 to-violet-500/10 text-primary border-primary/40"
                           )}
                         >
                           <button
@@ -362,6 +443,25 @@ export function Sidebar({
                   ))}
                 </SortableContext>
 
+                {hiddenOwnedVaultCount > 0 && (
+                  <button
+                    onClick={() => setShowAllOwnedVaults((prev) => !prev)}
+                    className="w-full flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-mono text-sidebar-foreground/40 hover:text-sidebar-foreground/70 hover:bg-sidebar-accent/50 transition-all duration-200"
+                  >
+                    {showAllOwnedVaults ? (
+                      <>
+                        <ChevronUp className="w-3.5 h-3.5" />
+                        show_less
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="w-3.5 h-3.5" />
+                        +{hiddenOwnedVaultCount} more
+                      </>
+                    )}
+                  </button>
+                )}
+
                 <button
                   onClick={() => {
                     onCreateVault();
@@ -397,40 +497,74 @@ export function Sidebar({
 
               {isSharedExpanded && (
                 <div className="mt-2 space-y-1">
-                  {sharedVaults.map((vault) => {
-                    const isDroppable = droppableVaultIds ? droppableVaultIds.has(vault.id) : false;
-                    return (
-                      <DroppableVaultRow key={vault.id} vaultId={vault.id} droppable={isDroppable}>
-                        {({ ref, isOver }) => (
-                          <div
-                            ref={ref}
-                            className={cn(
-                              "w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm transition-all duration-200 group",
-                              activeVaultId === vault.id
-                                ? "bg-gradient-to-br from-blue-500/15 to-cyan-500/10 text-blue-400 border-2 border-blue-400/30"
-                                : "hover:bg-sidebar-accent/50 text-sidebar-foreground/70 border-2 border-transparent",
-                              isOver && "border-primary bg-primary/10"
-                            )}
-                          >
-                            <Link
-                              to={`/vault/${vault.id}`}
-                              onClick={() => {
-                                onMobileClose();
-                              }}
-                              className="flex items-center gap-3 flex-1 min-w-0"
+                  <SortableContext items={sharedVaultIds} strategy={verticalListSortingStrategy}>
+                    {visibleSharedVaults.map((vault) => {
+                      const isDroppable = droppableVaultIds ? droppableVaultIds.has(vault.id) : false;
+                      return (
+                        <SortableVaultRow key={vault.id} vaultId={vault.id} dragType="shared">
+                          {({ ref, style, isOver, isDragging, dragHandleProps }) => (
+                            <div
+                              ref={ref}
+                              style={style}
+                              className={cn(
+                                "w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm transition-all duration-200 group",
+                                activeVaultId === vault.id
+                                  ? "bg-gradient-to-br from-blue-500/15 to-cyan-500/10 text-blue-400 border-2 border-blue-400/30"
+                                  : "hover:bg-sidebar-accent/50 text-sidebar-foreground/70 border-2 border-transparent",
+                                // isDroppable gate: a viewer-role shared vault stays a valid
+                                // reorder target (see SortableVaultRow) but must not look like
+                                // it'll accept a paper drop it can't actually receive.
+                                isOver && isDraggingPublication && isDroppable && "border-primary bg-primary/10",
+                                isDragging && "opacity-40 bg-gradient-to-br from-blue-500/15 to-cyan-500/10 text-blue-400 border-blue-400/40"
+                              )}
                             >
-                              <div
-                                className="w-3 h-3 rounded-md shrink-0 shadow-sm"
-                                style={{ backgroundColor: vault.color || '#6366f1' }}
-                              />
-                              <span className="truncate font-medium">{vault.name}</span>
-                              <Share2 className="w-3 h-3 text-blue-400 shrink-0" />
-                            </Link>
-                          </div>
-                        )}
-                      </DroppableVaultRow>
-                    );
-                  })}
+                              <button
+                                type="button"
+                                {...dragHandleProps.attributes}
+                                {...dragHandleProps.listeners}
+                                className="shrink-0 h-5 w-5 -ml-1 flex items-center justify-center text-sidebar-foreground/0 group-hover:text-sidebar-foreground/40 hover:!text-sidebar-foreground focus-visible:text-sidebar-foreground/40 cursor-grab active:cursor-grabbing touch-none"
+                                aria-label={`Reorder ${vault.name}`}
+                              >
+                                <GripVertical className="w-3.5 h-3.5" />
+                              </button>
+                              <Link
+                                to={`/vault/${vault.id}`}
+                                onClick={() => {
+                                  onMobileClose();
+                                }}
+                                className="flex items-center gap-3 flex-1 min-w-0"
+                              >
+                                <div
+                                  className="w-3 h-3 rounded-md shrink-0 shadow-sm"
+                                  style={{ backgroundColor: vault.color || '#6366f1' }}
+                                />
+                                <span className="truncate font-medium">{vault.name}</span>
+                                <Share2 className="w-3 h-3 text-blue-400 shrink-0" />
+                              </Link>
+                            </div>
+                          )}
+                        </SortableVaultRow>
+                      );
+                    })}
+                  </SortableContext>
+                  {hiddenSharedVaultCount > 0 && (
+                    <button
+                      onClick={() => setShowAllSharedVaults((prev) => !prev)}
+                      className="w-full flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-mono text-sidebar-foreground/40 hover:text-sidebar-foreground/70 hover:bg-sidebar-accent/50 transition-all duration-200"
+                    >
+                      {showAllSharedVaults ? (
+                        <>
+                          <ChevronUp className="w-3.5 h-3.5" />
+                          show_less
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="w-3.5 h-3.5" />
+                          +{hiddenSharedVaultCount} more
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -456,30 +590,81 @@ export function Sidebar({
 
               {isFavoritesExpanded && (
                 <div className="mt-2 space-y-1">
-                  {favoriteVaults.map((vault) => {
-                    const href = vault.public_slug
-                      ? `/public/${vault.public_slug}`
-                      : `/vault/${vault.id}`;
-                    return (
-                      <Link
-                        key={vault.id}
-                        to={href}
-                        onClick={onMobileClose}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm hover:bg-sidebar-accent/50 text-sidebar-foreground/70 border-2 border-transparent transition-all duration-200"
-                      >
-                        <div 
-                          className="w-3 h-3 rounded-md shrink-0 shadow-sm" 
-                          style={{ backgroundColor: vault.color || '#6366f1' }}
-                        />
-                        <span className="truncate font-medium">{vault.name}</span>
-                        {vault.public_slug ? (
-                          <Globe className="w-3 h-3 text-muted-foreground shrink-0" />
-                        ) : (
-                          <Share2 className="w-3 h-3 text-muted-foreground shrink-0" />
-                        )}
-                      </Link>
-                    );
-                  })}
+                  <DndContext
+                    sensors={favoritesSensors}
+                    onDragStart={handleFavoriteDragStart}
+                    onDragEnd={handleFavoriteDragEnd}
+                    onDragCancel={handleFavoriteDragCancel}
+                  >
+                    <SortableContext items={favoriteVaultIds} strategy={verticalListSortingStrategy}>
+                      {visibleFavoriteVaults.map((vault) => {
+                        const href = vault.public_slug
+                          ? `/public/${vault.public_slug}`
+                          : `/vault/${vault.id}`;
+                        return (
+                          <SortableVaultRow key={vault.id} vaultId={vault.id} dragType="favorite">
+                            {({ ref, style, isDragging, dragHandleProps }) => (
+                              <div
+                                ref={ref}
+                                style={style}
+                                className={cn(
+                                  "w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm transition-all duration-200 group hover:bg-sidebar-accent/50 text-sidebar-foreground/70 border-2 border-transparent",
+                                  isDragging && "opacity-40 bg-gradient-to-br from-primary/15 to-violet-500/10 text-primary border-primary/40"
+                                )}
+                              >
+                                <button
+                                  type="button"
+                                  {...dragHandleProps.attributes}
+                                  {...dragHandleProps.listeners}
+                                  className="shrink-0 h-5 w-5 -ml-1 flex items-center justify-center text-sidebar-foreground/0 group-hover:text-sidebar-foreground/40 hover:!text-sidebar-foreground focus-visible:text-sidebar-foreground/40 cursor-grab active:cursor-grabbing touch-none"
+                                  aria-label={`Reorder ${vault.name}`}
+                                >
+                                  <GripVertical className="w-3.5 h-3.5" />
+                                </button>
+                                <Link
+                                  to={href}
+                                  onClick={onMobileClose}
+                                  className="flex items-center gap-3 flex-1 min-w-0"
+                                >
+                                  <div
+                                    className="w-3 h-3 rounded-md shrink-0 shadow-sm"
+                                    style={{ backgroundColor: vault.color || '#6366f1' }}
+                                  />
+                                  <span className="truncate font-medium">{vault.name}</span>
+                                  {vault.public_slug ? (
+                                    <Globe className="w-3 h-3 text-muted-foreground shrink-0" />
+                                  ) : (
+                                    <Share2 className="w-3 h-3 text-muted-foreground shrink-0" />
+                                  )}
+                                </Link>
+                              </div>
+                            )}
+                          </SortableVaultRow>
+                        );
+                      })}
+                    </SortableContext>
+                    <DragOverlay modifiers={[snapCenterToCursor]} style={{ width: 'fit-content' }}>
+                      <VaultDragOverlayContent activeDrag={activeFavoriteDrag} />
+                    </DragOverlay>
+                  </DndContext>
+                  {hiddenFavoriteVaultCount > 0 && (
+                    <button
+                      onClick={() => setShowAllFavoriteVaults((prev) => !prev)}
+                      className="w-full flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-mono text-sidebar-foreground/40 hover:text-sidebar-foreground/70 hover:bg-sidebar-accent/50 transition-all duration-200"
+                    >
+                      {showAllFavoriteVaults ? (
+                        <>
+                          <ChevronUp className="w-3.5 h-3.5" />
+                          show_less
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="w-3.5 h-3.5" />
+                          +{hiddenFavoriteVaultCount} more
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               )}
             </div>

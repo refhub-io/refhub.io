@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag, PublicationRelation, VaultShare } from '@/types/database';
 import { VaultRole } from '@/types/vault-extensions';
 import { DndContext, DragOverlay } from '@dnd-kit/core';
+import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import { useVaultDragAndDrop } from '@/hooks/useVaultDragAndDrop';
 import { VaultDragOverlayContent } from '@/components/dnd/VaultDragOverlayContent';
 import { generateBibtexKey } from '@/lib/bibtex';
@@ -1108,6 +1109,7 @@ export default function VaultDetail() {
   const vaultDnd = useVaultDragAndDrop({
     userId: user?.id ?? null,
     ownedVaults: vaults,
+    sharedVaults,
     sharedVaultRoles,
     onAddPublicationsToVault: handleDropPublicationsOnVault,
   });
@@ -1788,7 +1790,8 @@ export default function VaultDetail() {
                   }
                 }}
                 disabled={hasPendingRequest}
-                className={`w-full font-mono ${hasPendingRequest ? 'bg-muted text-muted-foreground' : 'bg-gradient-primary text-white shadow-lg hover:shadow-xl'} transition-all`}
+                variant={hasPendingRequest ? 'secondary' : 'glow'}
+                className="w-full font-mono transition-all"
               >
                 {!user ? 'sign_in_to_request_access' : hasPendingRequest ? 'request_pending' : 'request_access'}
               </Button>
@@ -1846,8 +1849,9 @@ export default function VaultDetail() {
     <div className="min-h-screen bg-background flex">
       <Sidebar
         vaults={vaultDnd.orderedOwnedVaults}
-        sharedVaults={sharedVaults}
+        sharedVaults={vaultDnd.orderedSharedVaults}
         droppableVaultIds={vaultDnd.droppableVaultIds}
+        isDraggingPublication={vaultDnd.activeDrag?.type === 'publication'}
         selectedVaultId={currentVault?.id || null}
         onSelectVault={() => {}}
         onCreateVault={() => {
@@ -1864,14 +1868,14 @@ export default function VaultDetail() {
         onEditProfile={() => setIsProfileDialogOpen(true)}
       />
 
-      <div className="flex-1 lg:pl-72 min-w-0 flex flex-col min-h-screen">
-        <div className="px-3 pt-3 sm:px-4 sm:pt-4">
-          <div ref={vaultPageRef} />
-        </div>
+      <div className="flex-1 lg:pl-72 min-w-0 flex flex-col min-h-screen relative">
+        {/* Positioning anchor only, for inline feedback toasts — absolute so it
+            doesn't reserve layout space (it has no visible content of its own). */}
+        <div ref={vaultPageRef} className="absolute left-3 top-3 sm:left-4 sm:top-4" />
         {/* Vault Header */}
         <div className="border-b border-border bg-card/50 backdrop-blur-xl sm:sticky sm:top-0 sm:z-30 shrink-0">
           <div className="px-3 sm:px-4 py-3">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0 flex-wrap">
                 {visibilityBadge}
                 {forkInfo?.forkedFrom && (
@@ -1909,17 +1913,28 @@ export default function VaultDetail() {
                 <span className="flex items-center gap-1 text-xs text-muted-foreground font-mono">
                   <Clock className="w-3.5 h-3.5 shrink-0" />
                   <span className="truncate">
-                    {lastActivity 
-                      ? `${lastActivity.userName || 'someone'}.last_update() // ${formatTimeAgo(lastActivity.timestamp)}`
-                      : currentVault?.updated_at 
-                        ? `last_sync() // ${formatTimeAgo(new Date(currentVault.updated_at))}`
-                        : 'last_sync() // unknown'
-                    }
+                    {/* Mobile: just the timeago, dropping the command-style prefix to save space */}
+                    <span className="sm:hidden">
+                      {lastActivity
+                        ? formatTimeAgo(lastActivity.timestamp)
+                        : currentVault?.updated_at
+                          ? formatTimeAgo(new Date(currentVault.updated_at))
+                          : 'unknown'
+                      }
+                    </span>
+                    <span className="hidden sm:inline">
+                      {lastActivity
+                        ? `${lastActivity.userName || 'someone'}.last_update() // ${formatTimeAgo(lastActivity.timestamp)}`
+                        : currentVault?.updated_at
+                          ? `last_sync() // ${formatTimeAgo(new Date(currentVault.updated_at))}`
+                          : 'last_sync() // unknown'
+                      }
+                    </span>
                   </span>
                 </span>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0 overflow-x-auto pb-1 sm:overflow-visible sm:pb-0">
+              <div className="flex items-center gap-2 flex-wrap shrink-0">
                 {/* Stats for owners */}
                 {isOwner && currentVault && (
                   <>
@@ -2175,9 +2190,10 @@ export default function VaultDetail() {
         updatePdfAsset={canEdit ? updatePdfAsset : undefined}
       />
 
-      <div className="px-3 pt-3 sm:px-4 sm:pt-4">
-        <div ref={vaultDialogFeedbackRef} />
-      </div>
+      {/* Positioning anchor only, for inline feedback toasts. Sits outside the
+          flex-col content column here (after dialogs, at the outer flex-row
+          level) — fixed so it doesn't become its own full-height flex item. */}
+      <div ref={vaultDialogFeedbackRef} className="fixed left-3 top-3 sm:left-4 sm:top-4" />
       <VaultDialog
           key={editingVault ? `${editingVault.id}-${editingVault.updated_at}` : 'new-vault'}
           open={isVaultDialogOpen}
@@ -2324,7 +2340,7 @@ export default function VaultDetail() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <DragOverlay>
+      <DragOverlay modifiers={[snapCenterToCursor]} style={{ width: 'fit-content' }}>
         <VaultDragOverlayContent activeDrag={vaultDnd.activeDrag} />
       </DragOverlay>
     </div>
