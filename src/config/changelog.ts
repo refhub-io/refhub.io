@@ -21,19 +21,6 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
-    id: 20,
-    date: '2026-08-29',
-    title: 'sidebar click fix',
-    features: [
-      {
-        tag: 'fix',
-        title: 'sidebar unresponsive on wide screens',
-        description:
-          'the sidebar briefly stopped responding to clicks on desktop-width screens after the last update — vault links and drag handles are working again.',
-      },
-    ],
-  },
-  {
     id: 19,
     date: '2026-08-29',
     title: 'drag papers straight into a vault',
