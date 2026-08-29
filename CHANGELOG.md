@@ -6,6 +6,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.9.1] - 2026-08-29
+
+### Fixed
+- The main content column picked up `position: relative` in the previous release (to anchor inline feedback toasts without reserving layout space). Since the sidebar is `position: fixed` and the content column's own box has always physically overlapped it under the `lg:pl-72` padding, making the column a positioned element caused it to stack above the sidebar and swallow every click meant for it — sidebar links and drag handles stopped responding on screens >= 1024px wide. The positioning anchor now lives on a small dedicated wrapper instead of the whole column.
+
+## [1.9.0] - 2026-08-29
+
+### Added
+- Drag a paper card or table row from any list onto a vault in the sidebar to add it there, without opening a dialog. Only vaults you can edit accept the drop, and papers already in a vault are skipped automatically (#128).
+- Drag-to-reorder for owned vaults, favorited vaults, and shared-with-me vaults in the sidebar, each with its own persisted order.
+- Sidebar vault lists cap at 9 with a show-more toggle instead of growing unbounded.
+
+### Fixed
+- Owned-vault drag reordering silently did nothing on the Codex, researcher profile, and public vault pages — those pages never wrapped the sidebar in a DnD context.
+- Shared-vault reordering was blocked for viewer-role vaults — dnd-kit's disabled-droppable flag removed them from collision detection entirely rather than just refusing paper drops.
+- The drag preview stretched to the width of the dragged row instead of following the cursor, and lit up unrelated vaults while reordering.
+- Consistency pass on primary (gradient) vs. destructive (red) button styling app-wide.
+- Various mobile layout fixes: stray margins on vault pages, the publication toolbar wrapping when the export button appeared, and vault header controls wrapping onto their own line.
+
 ## [1.8.7] - 2026-08-21
 
 ### Added

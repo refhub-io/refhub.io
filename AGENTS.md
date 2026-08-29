@@ -31,11 +31,13 @@ Update `CHANGELOG.md` (Keep a Changelog format, already in use in this repo) in 
 
 ## 6. Versioning policy
 
-Bump `package.json`'s version for every shipped change (and run `npm install --package-lock-only` afterward so `package-lock.json` stays in sync):
+Bump `package.json`'s version for every shipped change (and run `npm install --package-lock-only` afterward so `package-lock.json` stays in sync), following semver. `CHANGELOG.md` (Keep a Changelog format) is the durable, always-updated record — every shipped change gets an entry there, full stop. `src/config/changelog.ts` is a different thing: it drives the in-app "What's New" popup/notification badge for every signed-in user, so only put something there when it's actually worth interrupting users for.
 
-- **Patch** (`1.4.X`): version bump + `CHANGELOG.md` entry. Nothing else — this is for fixes and small tweaks that don't need to interrupt users.
-- **Minor** (`1.X.0`): version bump + `CHANGELOG.md` entry + a new entry at the top of `src/config/changelog.ts` (increment its `id`) so signed-in users see a "What's New" notification. Use this tier for new user-facing features.
-- **Major** (`X.0.0`): all of the above, plus a real GitHub Release (tag + release notes). Reserved for breaking changes or a genuinely new chapter for the product — not routine feature work.
+- **Patch** (`1.4.X`) — small errors, fixes, quiet tweaks: version bump + `CHANGELOG.md` entry. Do **not** touch `src/config/changelog.ts` — a patch fix isn't worth a "What's New" popup.
+- **Minor** (`1.X.0`) — new user-facing functionality or a meaningful improvement: version bump + `CHANGELOG.md` entry always. Add a `src/config/changelog.ts` entry (increment its `id`) *sometimes* — only when the minor bump is a genuinely new feature or a major improvement someone would want to know about, not for every minor release (a minor version can just be a bundle of smaller things that don't individually deserve a popup — use judgment, and ask if it's unclear which side of the line a change falls on).
+- **Major** (`X.0.0`) — huge changes and additions, breaking changes, or a genuinely new chapter for the product: version bump + `CHANGELOG.md` entry + `src/config/changelog.ts` entry, always, plus a real GitHub Release (tag + release notes).
+
+When in doubt about which tier a change is, or whether a minor bump clears the "What's New"-worthy bar, ask rather than guess — silently over- or under-notifying users is worse than a quick check.
 
 ## Anything else worth doing before you start
 
