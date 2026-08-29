@@ -4,6 +4,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
 import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag, PublicationRelation, VaultShare } from '@/types/database';
+import { VaultRole } from '@/types/vault-extensions';
+import { DndContext, DragOverlay } from '@dnd-kit/core';
+import { useVaultDragAndDrop } from '@/hooks/useVaultDragAndDrop';
+import { VaultDragOverlayContent } from '@/components/dnd/VaultDragOverlayContent';
 import { generateBibtexKey } from '@/lib/bibtex';
 import { formatTimeAgo } from '@/lib/utils';
 import { logger } from '@/lib/logger';
@@ -120,6 +124,7 @@ export default function VaultDetail() {
   const [vaultPapers, setVaultPapers] = useState<{[key: string]: string[]}>({});
   const [vaults, setVaults] = useState<Vault[]>([]);
   const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
+  const [sharedVaultRoles, setSharedVaultRoles] = useState<Record<string, VaultRole>>({});
   const [allPublications, setAllPublications] = useState<Publication[]>([]);
   const [publicationVaultsMap, setPublicationVaultsMap] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
@@ -310,9 +315,15 @@ export default function VaultDetail() {
         supabase.from('vaults').select('*').eq('user_id', user.id).order('name'),
         supabase
           .from('vault_shares')
-          .select('vault_id')
+          .select('vault_id, role')
           .or(`shared_with_email.eq.${user.email},shared_with_user_id.eq.${user.id}`)
       ]);
+
+      const rolesByVaultId: Record<string, VaultRole> = {};
+      for (const share of sharedVaultsRes.data || []) {
+        if (share.role) rolesByVaultId[share.vault_id] = share.role as VaultRole;
+      }
+      setSharedVaultRoles(rolesByVaultId);
 
       // Process shared vaults
       let processedSharedVaults: Vault[] = [];
@@ -1087,6 +1098,20 @@ export default function VaultDetail() {
     }
   };
 
+  // Drag-and-drop drops a set of papers onto a single sidebar vault;
+  // handleAddToVaults is shaped the other way (one paper, many vaults), so
+  // fan out across the dragged selection.
+  const handleDropPublicationsOnVault = (publicationIds: string[], targetVaultId: string) => (
+    Promise.all(publicationIds.map((id) => handleAddToVaults(id, [targetVaultId]))).then(() => {})
+  );
+
+  const vaultDnd = useVaultDragAndDrop({
+    userId: user?.id ?? null,
+    ownedVaults: vaults,
+    sharedVaultRoles,
+    onAddPublicationsToVault: handleDropPublicationsOnVault,
+  });
+
   const handleDeletePublication = async () => {
     if (!deleteConfirmation || !vaultId || !canEdit) {
       logger.debug('[handleDeletePublication] Early return - missing required data', { 
@@ -1812,10 +1837,17 @@ export default function VaultDetail() {
   })();
 
   return (
+    <DndContext
+      sensors={vaultDnd.sensors}
+      onDragStart={vaultDnd.handleDragStart}
+      onDragEnd={vaultDnd.handleDragEnd}
+      onDragCancel={vaultDnd.handleDragCancel}
+    >
     <div className="min-h-screen bg-background flex">
       <Sidebar
-        vaults={vaults}
+        vaults={vaultDnd.orderedOwnedVaults}
         sharedVaults={sharedVaults}
+        droppableVaultIds={vaultDnd.droppableVaultIds}
         selectedVaultId={currentVault?.id || null}
         onSelectVault={() => {}}
         onCreateVault={() => {
@@ -2026,6 +2058,7 @@ export default function VaultDetail() {
           relationsCountMap={relationsCountMap}
           selectedVault={currentVault}
           isVaultContext={true}
+          dragDisabled={!canEdit}
           onAddPublication={canEdit ? () => setIsImportDialogOpen(true) : undefined}
           onOpenPublication={!canEdit ? (pub) => {
             setViewingPublication(pub);
@@ -2290,6 +2323,11 @@ export default function VaultDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <DragOverlay>
+        <VaultDragOverlayContent activeDrag={vaultDnd.activeDrag} />
+      </DragOverlay>
     </div>
+    </DndContext>
   );
 }

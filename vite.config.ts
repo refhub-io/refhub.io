@@ -41,7 +41,6 @@ export default defineConfig(({ mode }) => ({
             '@radix-ui/react-select',
             '@radix-ui/react-tabs',
             '@radix-ui/react-popover',
-            '@radix-ui/react-accordion',
           ],
           'chart-libs': ['recharts'],
           'tanstack': ['@tanstack/react-query'],

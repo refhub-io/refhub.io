@@ -21,6 +21,25 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    id: 19,
+    date: '2026-08-29',
+    title: 'drag papers straight into a vault',
+    features: [
+      {
+        tag: 'feature',
+        title: 'drag & drop into vaults',
+        description:
+          'drag a paper card or table row from any list onto a vault in the sidebar to add it there, without opening a dialog. only vaults you can edit accept the drop, and papers already in a vault are skipped automatically.',
+      },
+      {
+        tag: 'feature',
+        title: 'reorder your vaults',
+        description:
+          'drag the grip handle on your owned vaults in the sidebar to reorder them to your liking. the order is remembered per account on this device.',
+      },
+    ],
+  },
+  {
     id: 18,
     date: '2026-07-31',
     title: 'csv export, public landing page & vault health check',

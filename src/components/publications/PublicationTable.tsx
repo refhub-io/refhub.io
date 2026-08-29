@@ -1,4 +1,5 @@
 import { Publication, Tag, Vault } from '@/types/database';
+import { DraggablePublication } from '@/components/dnd/DraggablePublication';
 import {
   TableBody,
   TableCell,
@@ -47,6 +48,7 @@ interface PublicationTableProps {
   selectedIds: Set<string>;
   visibleColumns: VisibleColumns;
   isVaultContext?: boolean; // If true, shows "remove from vault" instead of "delete"
+  dragDisabled?: boolean;
   onToggleSelect: (id: string) => void;
   onOpen?: (pub: Publication) => void;
   primaryActionLabel?: string;
@@ -78,6 +80,7 @@ export function PublicationTable({
   selectedIds,
   visibleColumns,
   isVaultContext = false,
+  dragDisabled = false,
   onToggleSelect,
   onOpen,
   primaryActionLabel = 'edit',
@@ -208,15 +211,23 @@ export function PublicationTable({
               onDoubleClick: kbOnDoubleClick,
               ...rowKbProps
             } = kbProps;
+            const dragPublicationIds = isSelected && selectedIds.size > 1
+              ? Array.from(selectedIds)
+              : [pub.id];
 
             return (
+              <DraggablePublication key={pub.id} publicationId={pub.id} dragPublicationIds={dragPublicationIds} disabled={dragDisabled}>
+                {({ ref, listeners, attributes, isDragging }) => (
               <TableRow
-                key={pub.id}
+                ref={ref}
+                {...listeners}
+                {...attributes}
                 className={cn(
                   'transition-colors',
                   onOpen && 'cursor-pointer',
                   isSelected && 'bg-primary/5',
-                  isFocused && 'ring-2 ring-inset ring-[hsl(var(--cyber-blue))]/50'
+                  isFocused && 'ring-2 ring-inset ring-[hsl(var(--cyber-blue))]/50',
+                  isDragging && 'opacity-40'
                 )}
                 onClick={(e) => {
                   kbOnClick?.(e);
@@ -470,6 +481,8 @@ export function PublicationTable({
                   </DropdownMenu>
                 </TableCell>
               </TableRow>
+                )}
+              </DraggablePublication>
             );
           })}
         </TableBody>

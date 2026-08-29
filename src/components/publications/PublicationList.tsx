@@ -25,6 +25,7 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
+import { DraggablePublication } from '@/components/dnd/DraggablePublication';
 import {
   Plus,
   Search,
@@ -89,6 +90,9 @@ interface PublicationListProps {
   onUpdateReadingState?: (pub: Publication, patch: Partial<Pick<Publication, 'reading_state' | 'important'>>) => void;
   isLoadingPublications?: boolean;
   loadingMessage?: string;
+  /** Disables dragging papers onto sidebar vaults — set when the viewer
+   * can't add content here (e.g. a read-only shared vault). */
+  dragDisabled?: boolean;
 }
 
 export function PublicationList({
@@ -128,6 +132,7 @@ export function PublicationList({
   onUpdateReadingState,
   isLoadingPublications = false,
   loadingMessage = 'hang_on_getting_your_papers',
+  dragDisabled = false,
 }: PublicationListProps) {
   const openPublication = onOpenPublication || onEditPublication;
   const [searchQuery, setSearchQuery] = useState('');
@@ -822,6 +827,7 @@ export function PublicationList({
             selectedIds={selectedIds}
             visibleColumns={visibleColumns}
             isVaultContext={isVaultContext}
+            dragDisabled={dragDisabled}
             onToggleSelect={toggleSelection}
             onOpen={openPublication}
             primaryActionLabel={publicationActionLabel}
@@ -842,10 +848,20 @@ export function PublicationList({
           />
         ) : (
           <div className="space-y-3 sm:space-y-4 max-w-4xl mx-auto">
-            {filteredPublications.map((pub, index) => (
+            {filteredPublications.map((pub, index) => {
+              const isSelected = selectedIds.has(pub.id);
+              const dragPublicationIds = isSelected && selectedIds.size > 1
+                ? Array.from(selectedIds)
+                : [pub.id];
+
+              return (
+              <DraggablePublication key={pub.id} publicationId={pub.id} dragPublicationIds={dragPublicationIds} disabled={dragDisabled}>
+                {({ ref, listeners, attributes, isDragging }) => (
               <div
-                key={pub.id}
-                className="animate-slide-up"
+                ref={ref}
+                {...listeners}
+                {...attributes}
+                className={cn("animate-slide-up", isDragging && "opacity-40")}
                 style={{ animationDelay: `${index * 50}ms` }}
                 {...kbNav.itemProps(index, pub.id)}
               >
@@ -874,7 +890,10 @@ export function PublicationList({
                   onUpdateReadingState={onUpdateReadingState ? (patch) => onUpdateReadingState(pub, patch) : undefined}
                 />
               </div>
-            ))}
+                )}
+              </DraggablePublication>
+              );
+            })}
           </div>
         )}
       </div>
