@@ -431,7 +431,8 @@ export function FilterBuilder({ filters, onFiltersChange, tags, vaults, open: co
 export function applyFilters(
   publications: Publication[],
   filters: PublicationFilter[],
-  publicationTagsMap: Record<string, string[]>
+  publicationTagsMap: Record<string, string[]>,
+  publicationVaultsMap: Record<string, string[]> = {},
 ): Publication[] {
   if (filters.length === 0) return publications;
 
@@ -457,7 +458,7 @@ export function applyFilters(
           fieldValue = publicationTagsMap[pub.id] || [];
           break;
         case 'vault':
-          fieldValue = ''; // TODO: Implement vault lookup
+          fieldValue = publicationVaultsMap[pub.id] || [];
           break;
         case 'doi':
           fieldValue = pub.doi || '';
@@ -480,17 +481,17 @@ export function applyFilters(
 
       switch (operator) {
         case 'contains':
-          if (field === 'tags') {
+          if (field === 'tags' || field === 'vault') {
             return fieldValue.includes(value);
           }
           return String(fieldValue).toLowerCase().includes(value.toLowerCase());
         case 'not_contains':
-          if (field === 'tags') {
+          if (field === 'tags' || field === 'vault') {
             return !fieldValue.includes(value);
           }
           return !String(fieldValue).toLowerCase().includes(value.toLowerCase());
         case 'equals':
-          if (field === 'tags') {
+          if (field === 'tags' || field === 'vault') {
             return fieldValue.includes(value);
           }
           if (field === 'year') {
@@ -498,7 +499,7 @@ export function applyFilters(
           }
           return String(fieldValue).toLowerCase() === value.toLowerCase();
         case 'not_equals':
-          if (field === 'tags') {
+          if (field === 'tags' || field === 'vault') {
             return !fieldValue.includes(value);
           }
           if (field === 'year') {
@@ -506,12 +507,12 @@ export function applyFilters(
           }
           return String(fieldValue).toLowerCase() !== value.toLowerCase();
         case 'is_empty':
-          if (field === 'tags') {
+          if (field === 'tags' || field === 'vault') {
             return fieldValue.length === 0;
           }
           return !fieldValue || String(fieldValue).trim() === '';
         case 'is_not_empty':
-          if (field === 'tags') {
+          if (field === 'tags' || field === 'vault') {
             return fieldValue.length > 0;
           }
           return fieldValue && String(fieldValue).trim() !== '';

@@ -226,7 +226,7 @@ export function PublicationList({
   });
 
   // Apply custom filters
-  const customFiltered = applyFilters(searchFiltered, persistedFilters, publicationTagsMap);
+  const customFiltered = applyFilters(searchFiltered, persistedFilters, publicationTagsMap, publicationVaultsMap || {});
 
   // Apply sorting
   const filteredPublications = customFiltered.sort((a, b) => comparePublications(a, b, sortBy, sortDirection));
