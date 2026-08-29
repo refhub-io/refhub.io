@@ -58,9 +58,12 @@ export function SmartCollectionDialog({
   const handleSave = async () => {
     if (!name.trim()) return;
     setSaving(true);
-    await onSave({ name: name.trim(), color, filters });
-    setSaving(false);
-    onOpenChange(false);
+    try {
+      await onSave({ name: name.trim(), color, filters });
+      onOpenChange(false);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
