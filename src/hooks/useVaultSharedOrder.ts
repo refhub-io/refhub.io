@@ -1,0 +1,59 @@
+import { useCallback, useState } from 'react';
+import { arrayMove } from '@dnd-kit/sortable';
+import { logger } from '@/lib/logger';
+import { Vault } from '@/types/database';
+import { applyVaultOrder } from '@/lib/vaultSidebarDnd';
+
+const STORAGE_KEY_PREFIX = 'refhub_vault_shared_order_v1';
+
+export function getVaultSharedOrderStorageKey(userId: string): string {
+  return `${STORAGE_KEY_PREFIX}:${userId}`;
+}
+
+function readStoredOrder(userId: string | null | undefined): string[] {
+  if (!userId || typeof window === 'undefined') return [];
+
+  try {
+    const raw = localStorage.getItem(getVaultSharedOrderStorageKey(userId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
+  } catch (error) {
+    logger.error('useVaultSharedOrder', 'Error loading shared vault order from localStorage:', error);
+    return [];
+  }
+}
+
+function persistOrder(userId: string, orderedIds: string[]) {
+  try {
+    localStorage.setItem(getVaultSharedOrderStorageKey(userId), JSON.stringify(orderedIds));
+  } catch (error) {
+    logger.error('useVaultSharedOrder', 'Error saving shared vault order to localStorage:', error);
+  }
+}
+
+/**
+ * Persists a user-local custom order for the sidebar's "shared with me" list.
+ * Mirrors useVaultSidebarOrder but under its own storage key, so reordering
+ * shared vaults never touches the separate "my vaults" or favorites order.
+ */
+export function useVaultSharedOrder(userId: string | null | undefined) {
+  const [orderedIds, setOrderedIds] = useState<string[]>(() => readStoredOrder(userId));
+
+  const orderShared = useCallback((vaults: Vault[]) => applyVaultOrder(vaults, orderedIds), [orderedIds]);
+
+  const reorder = useCallback((vaults: Vault[], activeId: string, overId: string) => {
+    if (!userId || activeId === overId) return;
+
+    const currentOrder = applyVaultOrder(vaults, orderedIds).map((vault) => vault.id);
+    const from = currentOrder.indexOf(activeId);
+    const to = currentOrder.indexOf(overId);
+    if (from === -1 || to === -1) return;
+
+    const next = arrayMove(currentOrder, from, to);
+    setOrderedIds(next);
+    persistOrder(userId, next);
+  }, [orderedIds, userId]);
+
+  return { orderShared, reorder };
+}

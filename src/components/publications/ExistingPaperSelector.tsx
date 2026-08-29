@@ -29,28 +29,32 @@ export function ExistingPaperSelector({
   const [isAdding, setIsAdding] = useState(false);
   const [publicationVaults, setPublicationVaults] = useState<Map<string, Set<string>>>(new Map());
 
-  // Load which vaults each publication belongs to
+  // Load which vaults each publication already has a copy in. Vault content
+  // lives in vault_publications (one row per vault, copied from the
+  // canonical publications row), not a vault_papers join table — each copy
+  // points back to its source via original_publication_id.
   useEffect(() => {
     const loadPublicationVaults = async () => {
       if (publications.length === 0) return;
-      
+
       const { data, error } = await supabase
-        .from('vault_papers')
-        .select('vault_id, publication_id')
-        .in('publication_id', publications.map(p => p.id));
-      
+        .from('vault_publications')
+        .select('vault_id, original_publication_id')
+        .in('original_publication_id', publications.map(p => p.id));
+
       if (!error && data) {
         const vaultMap = new Map<string, Set<string>>();
         data.forEach(item => {
-          if (!vaultMap.has(item.publication_id)) {
-            vaultMap.set(item.publication_id, new Set());
+          if (!item.original_publication_id) return;
+          if (!vaultMap.has(item.original_publication_id)) {
+            vaultMap.set(item.original_publication_id, new Set());
           }
-          vaultMap.get(item.publication_id)!.add(item.vault_id);
+          vaultMap.get(item.original_publication_id)!.add(item.vault_id);
         });
         setPublicationVaults(vaultMap);
       }
     };
-    
+
     loadPublicationVaults();
   }, [publications]);
 

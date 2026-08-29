@@ -183,7 +183,7 @@ export function ViewSettings({
             <Settings2 className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Properties</span>
             <span className={cn(
-              "bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px]",
+              "hidden sm:inline bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px]",
               isVisibleColumnsChanged && "bg-white text-primary font-bold"
             )}>
               {activeColumnCount}

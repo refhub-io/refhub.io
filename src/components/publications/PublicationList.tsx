@@ -1,5 +1,5 @@
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, memo, forwardRef } from 'react';
 import { Publication, Tag, Vault } from '@/types/database';
 import { PublicationCard } from './PublicationCard';
 import { PublicationTable } from './PublicationTable';
@@ -25,6 +25,7 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
+import { DraggablePublication, PublicationDragHandle } from '@/components/dnd/DraggablePublication';
 import {
   Plus,
   Search,
@@ -50,6 +51,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+
+const EMPTY_STRING_ARRAY: string[] = [];
 
 interface PublicationListProps {
   publications: Publication[];
@@ -89,6 +92,9 @@ interface PublicationListProps {
   onUpdateReadingState?: (pub: Publication, patch: Partial<Pick<Publication, 'reading_state' | 'important'>>) => void;
   isLoadingPublications?: boolean;
   loadingMessage?: string;
+  /** Disables dragging papers onto sidebar vaults — set when the viewer
+   * can't add content here (e.g. a read-only shared vault). */
+  dragDisabled?: boolean;
 }
 
 export function PublicationList({
@@ -128,6 +134,7 @@ export function PublicationList({
   onUpdateReadingState,
   isLoadingPublications = false,
   loadingMessage = 'hang_on_getting_your_papers',
+  dragDisabled = false,
 }: PublicationListProps) {
   const openPublication = onOpenPublication || onEditPublication;
   const [searchQuery, setSearchQuery] = useState('');
@@ -279,6 +286,14 @@ export function PublicationList({
     [publications, onExportBibtex],
   );
 
+  // Stable single-publication export handlers — an inline `(pub) => onExportBibtex([pub])`
+  // here would get a new identity every render, defeating PublicationTableRow/
+  // PublicationCard's memoization on every dnd-kit drag-frame re-render.
+  const handleExportSingleBibtex = useCallback(
+    (pub: Publication) => onExportBibtex([pub]),
+    [onExportBibtex],
+  );
+
   const kbNav = useKeyboardNavigation({
     context: kbContext,
     itemIds,
@@ -318,11 +333,6 @@ export function PublicationList({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredPublications, kbNav.selectedIds, kbNav.clearSelection, kbNav.setSelectedIds]);
-
-  const getPublicationTags = (pubId: string): Tag[] => {
-    const tagIds = publicationTagsMap[pubId] || [];
-    return tags.filter((t) => tagIds.includes(t.id));
-  };
 
   const selectedPublications = filteredPublications.filter((p) => selectedIds.has(p.id));
 
@@ -543,11 +553,11 @@ export function PublicationList({
               </Sheet>
             )}
 
-            {/* Mobile dropdown with gradient styling */}
+            {/* Mobile dropdown — secondary action, not the primary CTA, so it stays outline like manage_tags */}
             {(onOpenGraph || (selectedVault && onEditVault) || (canEditTags && onUpdateTag && onDeleteTag) || onFindDuplicates) && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="glow" size="icon" className="h-9 w-9 lg:hidden" title="More actions">
+                  <Button variant="outline" size="icon" className="h-9 w-9 lg:hidden" title="More actions">
                     <MoreVertical className="w-4 h-4" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -617,6 +627,12 @@ export function PublicationList({
               />
             )}
           </div>
+
+          {/* Below sm, the search input takes the full row width and pushes every
+              control here onto its own line; keep them on one scrollable line
+              instead of wrapping. sm:contents drops this wrapper from the box
+              model so the controls rejoin the outer flex-wrap row as before. */}
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin pb-1 sm:contents">
 
           {/* Filter button with shortcut hint */}
           <div className="flex items-center">
@@ -745,13 +761,16 @@ export function PublicationList({
               <KbdHint shortcut="Ctrl+E" size="xs" className="hidden md:inline-flex !px-1 !py-0.5 !text-[10px] !leading-none !h-4 mr-1" />
               <Button
                 variant="accent"
+                size="icon"
                 onClick={() => onExportBibtex(selectedPublications)}
+                className="h-9 w-9 lg:w-auto lg:px-3 font-mono"
               >
                 <Download className="w-4 h-4 lg:mr-2" />
                 <span className="hidden lg:inline font-mono">export({selectedIds.size})</span>
               </Button>
             </div>
           )}
+          </div>
         </div>
       </header>
 
@@ -822,11 +841,12 @@ export function PublicationList({
             selectedIds={selectedIds}
             visibleColumns={visibleColumns}
             isVaultContext={isVaultContext}
+            dragDisabled={dragDisabled}
             onToggleSelect={toggleSelection}
             onOpen={openPublication}
             primaryActionLabel={publicationActionLabel}
             onDelete={onDeletePublication}
-            onExportBibtex={(pub) => onExportBibtex([pub])}
+            onExportBibtex={handleExportSingleBibtex}
             sortBy={sortBy}
             sortDirection={sortDirection}
             onSort={handleTableSort}
@@ -842,39 +862,50 @@ export function PublicationList({
           />
         ) : (
           <div className="space-y-3 sm:space-y-4 max-w-4xl mx-auto">
-            {filteredPublications.map((pub, index) => (
-              <div
-                key={pub.id}
-                className="animate-slide-up"
-                style={{ animationDelay: `${index * 50}ms` }}
-                {...kbNav.itemProps(index, pub.id)}
-              >
-                <PublicationCard
-                  publication={pub}
-                  tags={getPublicationTags(pub.id)}
-                  allTags={tags}
-                  vaults={vaults}
-                  publicationVaults={publicationVaultsMap ? publicationVaultsMap[pub.id] || [] : []}
-                  relationsCount={relationsCountMap[pub.id] || 0}
-                  isSelected={selectedIds.has(pub.id)}
-                  isFocused={kbNav.isFocused(index)}
-                  visibleColumns={visibleColumns}
-                  isVaultContext={isVaultContext}
-                  onToggleSelect={() => toggleSelection(pub.id)}
-                  onOpen={openPublication ? () => openPublication(pub) : undefined}
-                  primaryActionLabel={publicationActionLabel}
-                  onDelete={onDeletePublication ? () => onDeletePublication(pub) : undefined}
-                  onExportBibtex={() => onExportBibtex([pub])}
-                  driveUrl={driveUrlsMap ? (driveUrlsMap[pub.id] ?? null) : null}
-                  driveLoading={driveLoading}
-                  syncDiffCount={syncDiffCounts[pub.id]}
-                  syncLoading={syncLoadingIds.has(pub.id)}
-                  syncCooldownSeconds={syncCooldowns[pub.id] || 0}
-                  onCheckSync={onCheckPublicationSync ? () => onCheckPublicationSync(pub) : undefined}
-                  onUpdateReadingState={onUpdateReadingState ? (patch) => onUpdateReadingState(pub, patch) : undefined}
-                />
-              </div>
-            ))}
+            {filteredPublications.map((pub, index) => {
+              const isSelected = selectedIds.has(pub.id);
+              const dragPublicationIds = isSelected && selectedIds.size > 1
+                ? Array.from(selectedIds)
+                : [pub.id];
+
+              return (
+                <DraggablePublication key={pub.id} publicationId={pub.id} dragPublicationIds={dragPublicationIds} disabled={dragDisabled}>
+                  {({ ref, listeners, attributes, isDragging }) => (
+                    <PublicationCardRow
+                      pub={pub}
+                      index={index}
+                      tags={tags}
+                      tagIds={publicationTagsMap[pub.id] || EMPTY_STRING_ARRAY}
+                      allTags={tags}
+                      vaults={vaults}
+                      publicationVaultIds={publicationVaultsMap?.[pub.id]}
+                      relCount={relationsCountMap[pub.id] || 0}
+                      isSelected={isSelected}
+                      isFocused={kbNav.isFocused(index)}
+                      visibleColumns={visibleColumns}
+                      isVaultContext={isVaultContext}
+                      toggleSelection={toggleSelection}
+                      openPublication={openPublication}
+                      primaryActionLabel={publicationActionLabel}
+                      onDeletePublication={onDeletePublication}
+                      onExportBibtex={handleExportSingleBibtex}
+                      driveUrl={driveUrlsMap ? (driveUrlsMap[pub.id] ?? null) : null}
+                      driveLoading={driveLoading}
+                      syncDiffCount={syncDiffCounts[pub.id]}
+                      syncLoading={syncLoadingIds.has(pub.id)}
+                      syncCooldownSeconds={syncCooldowns[pub.id] || 0}
+                      onCheckPublicationSync={onCheckPublicationSync}
+                      onUpdateReadingState={onUpdateReadingState}
+                      kbItemProps={kbNav.itemProps}
+                      ref={ref}
+                      listeners={listeners}
+                      attributes={attributes}
+                      isDragging={isDragging}
+                    />
+                  )}
+                </DraggablePublication>
+              );
+            })}
           </div>
         )}
       </div>
@@ -886,3 +917,104 @@ export function PublicationList({
     </div>
   );
 }
+
+interface PublicationCardRowProps extends Omit<PublicationDragHandle, 'ref'> {
+  pub: Publication;
+  index: number;
+  tags: Tag[];
+  tagIds: string[];
+  allTags: Tag[];
+  vaults: Vault[];
+  publicationVaultIds?: string[];
+  relCount: number;
+  isSelected: boolean;
+  isFocused: boolean;
+  visibleColumns: VisibleColumns;
+  isVaultContext: boolean;
+  toggleSelection: (id: string) => void;
+  openPublication?: (pub: Publication) => void;
+  primaryActionLabel: string;
+  onDeletePublication?: (pub: Publication) => void;
+  onExportBibtex: (pub: Publication) => void;
+  driveUrl: string | null;
+  driveLoading?: boolean;
+  syncDiffCount?: number;
+  syncLoading?: boolean;
+  syncCooldownSeconds: number;
+  onCheckPublicationSync?: (pub: Publication) => void;
+  onUpdateReadingState?: (pub: Publication, patch: Partial<Pick<Publication, 'reading_state' | 'important'>>) => void;
+  kbItemProps: (index: number, id: string) => Record<string, unknown>;
+}
+
+// Memoized for the same reason as PublicationTableRow — dnd-kit re-renders
+// every draggable/droppable consumer on the page on every pointer-move frame
+// of any drag, so this boundary keeps that cheap for the card grid too.
+const PublicationCardRow = memo(forwardRef<HTMLDivElement, PublicationCardRowProps>(function PublicationCardRow({
+  pub,
+  index,
+  tags,
+  tagIds,
+  allTags,
+  vaults,
+  publicationVaultIds,
+  relCount,
+  isSelected,
+  isFocused,
+  visibleColumns,
+  isVaultContext,
+  toggleSelection,
+  openPublication,
+  primaryActionLabel,
+  onDeletePublication,
+  onExportBibtex,
+  driveUrl,
+  driveLoading,
+  syncDiffCount,
+  syncLoading,
+  syncCooldownSeconds,
+  onCheckPublicationSync,
+  onUpdateReadingState,
+  kbItemProps,
+  listeners,
+  attributes,
+  isDragging,
+}, ref) {
+  const pubTags = tags.filter((t) => tagIds.includes(t.id));
+
+  return (
+    <div
+      ref={ref}
+      {...listeners}
+      {...attributes}
+      className={cn("animate-slide-up", isDragging && "opacity-40")}
+      style={{ animationDelay: `${index * 50}ms` }}
+      {...kbItemProps(index, pub.id)}
+    >
+      <PublicationCard
+        publication={pub}
+        tags={pubTags}
+        allTags={allTags}
+        vaults={vaults}
+        publicationVaults={publicationVaultIds || EMPTY_STRING_ARRAY}
+        relationsCount={relCount}
+        isSelected={isSelected}
+        isFocused={isFocused}
+        visibleColumns={visibleColumns}
+        isVaultContext={isVaultContext}
+        onToggleSelect={() => toggleSelection(pub.id)}
+        onOpen={openPublication ? () => openPublication(pub) : undefined}
+        primaryActionLabel={primaryActionLabel}
+        onDelete={onDeletePublication ? () => onDeletePublication(pub) : undefined}
+        onExportBibtex={() => onExportBibtex(pub)}
+        driveUrl={driveUrl}
+        driveLoading={driveLoading}
+        syncDiffCount={syncDiffCount}
+        syncLoading={syncLoading}
+        syncCooldownSeconds={syncCooldownSeconds}
+        onCheckSync={onCheckPublicationSync ? () => onCheckPublicationSync(pub) : undefined}
+        onUpdateReadingState={onUpdateReadingState ? (patch) => onUpdateReadingState(pub, patch) : undefined}
+      />
+    </div>
+  );
+}));
+PublicationCardRow.displayName = 'PublicationCardRow';

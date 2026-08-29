@@ -214,7 +214,8 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
           <div ref={driveFeedbackRef} data-quoterm-anchor="account-storage" className="flex flex-col gap-3 sm:flex-row">
             <Button
               type="button"
-              className="bg-gradient-primary font-mono text-white shadow-lg shadow-fuchsia-950/40 hover:opacity-90 hover:shadow-fuchsia-900/50"
+              variant="glow"
+              className="font-mono"
               onClick={() => void handleConnect()}
               disabled={action !== null}
             >
@@ -240,8 +241,8 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
             )}
             <Button
               type="button"
-              variant="ghost"
-              className="font-mono text-cyan-900 hover:bg-cyan-500/10 hover:text-cyan-950 dark:text-cyan-100 dark:hover:text-cyan-50"
+              variant="destructive"
+              className="font-mono"
               onClick={() => void handleDisconnect()}
               disabled={!currentStatus.linked || action !== null}
             >

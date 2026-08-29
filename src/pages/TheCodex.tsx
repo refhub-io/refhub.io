@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { LoadingSpinner } from '@/components/ui/loading';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { NotificationDropdown } from '@/components/notifications/NotificationDropdown';
-import { Sidebar } from '@/components/layout/Sidebar';
+import { SidebarDndBoundary } from '@/components/layout/SidebarDndBoundary';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { VaultDialog } from '@/components/vaults/VaultDialog';
 import { getPageCache, setPageCache, hasPageCache } from '@/lib/pageCache';
@@ -360,7 +360,7 @@ export default function TheCodex() {
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
       {user && (
-        <Sidebar
+        <SidebarDndBoundary
           vaults={userVaults}
           sharedVaults={sharedVaults}
           selectedVaultId={null}

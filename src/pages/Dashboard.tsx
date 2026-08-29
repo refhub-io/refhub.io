@@ -5,6 +5,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
 import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag, PublicationRelation } from '@/types/database';
+import { VaultRole } from '@/types/vault-extensions';
+import { DndContext, DragOverlay } from '@dnd-kit/core';
+import { snapCenterToCursor } from '@dnd-kit/modifiers';
+import { useVaultDragAndDrop } from '@/hooks/useVaultDragAndDrop';
+import { VaultDragOverlayContent } from '@/components/dnd/VaultDragOverlayContent';
 import { generateBibtexKey } from '@/lib/bibtex';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { PublicationList } from '@/components/publications/PublicationList';
@@ -165,6 +170,7 @@ export default function Dashboard() {
   const [publicationRelations, setPublicationRelations] = useState<PublicationRelation[]>([]);
   const [vaultPublicationLinks, setVaultPublicationLinks] = useState<VaultPublicationLink[]>([]);
   const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
+  const [sharedVaultRoles, setSharedVaultRoles] = useState<Record<string, VaultRole>>({});
   const [loading, setLoading] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   // Only show loader if we don't have cached data (true first visit)
@@ -404,7 +410,7 @@ export default function Dashboard() {
         // Fetch vaults shared with current user (via email or user_id)
         supabase
           .from('vault_shares')
-          .select('vault_id')
+          .select('vault_id, role')
           .or(`shared_with_email.eq.${user.email},shared_with_user_id.eq.${user.id}`),
         supabase.from('vault_publications').select('*').order('created_at', { ascending: false }),
         supabase.from('publication_tags').select('*'),
@@ -572,6 +578,12 @@ export default function Dashboard() {
 
       // Fetch shared vault details
       let processedSharedVaults: Vault[] = [];
+      const rolesByVaultId: Record<string, VaultRole> = {};
+      for (const share of sharedVaultsRes.data || []) {
+        if (share.role) rolesByVaultId[share.vault_id] = share.role as VaultRole;
+      }
+      setSharedVaultRoles(rolesByVaultId);
+
       if (sharedVaultsRes.data && sharedVaultsRes.data.length > 0) {
         const sharedVaultIds = sharedVaultsRes.data.map(s => s.vault_id);
         const { data: sharedVaultDetails } = await supabase
@@ -1165,6 +1177,21 @@ export default function Dashboard() {
     }
   };
 
+  // Drag-and-drop drops a set of papers onto a single sidebar vault;
+  // handleAddToVaults is shaped the other way (one paper, many vaults), so
+  // fan out across the dragged selection.
+  const handleDropPublicationsOnVault = (publicationIds: string[], vaultId: string) => (
+    Promise.all(publicationIds.map((id) => handleAddToVaults(id, [vaultId]))).then(() => {})
+  );
+
+  const vaultDnd = useVaultDragAndDrop({
+    userId: user?.id ?? null,
+    ownedVaults: vaults,
+    sharedVaults,
+    sharedVaultRoles,
+    onAddPublicationsToVault: handleDropPublicationsOnVault,
+  });
+
   const startSyncCooldown = useCallback((publicationId: string) => {
     setSyncCooldowns(prev => ({ ...prev, [publicationId]: 10 }));
   }, []);
@@ -1664,10 +1691,18 @@ export default function Dashboard() {
   }
 
   return (
+    <DndContext
+      sensors={vaultDnd.sensors}
+      onDragStart={vaultDnd.handleDragStart}
+      onDragEnd={vaultDnd.handleDragEnd}
+      onDragCancel={vaultDnd.handleDragCancel}
+    >
     <div className="min-h-screen bg-background flex">
       <Sidebar
-        vaults={vaults}
-        sharedVaults={sharedVaults}
+        vaults={vaultDnd.orderedOwnedVaults}
+        sharedVaults={vaultDnd.orderedSharedVaults}
+        droppableVaultIds={vaultDnd.droppableVaultIds}
+        isDraggingPublication={vaultDnd.activeDrag?.type === 'publication'}
         selectedVaultId={null}
         onSelectVault={() => {}}
         onCreateVault={() => {
@@ -1684,10 +1719,10 @@ export default function Dashboard() {
         onEditProfile={() => setIsProfileDialogOpen(true)}
       />
 
-      <div className="flex-1 lg:pl-72 min-w-0 flex flex-col min-h-screen">
-        <div className="px-3 pt-3 sm:px-4 sm:pt-4">
-          <div ref={dashboardFeedbackRef} />
-        </div>
+      <div className="flex-1 lg:pl-72 min-w-0 flex flex-col min-h-screen relative">
+        {/* Positioning anchor only, for inline feedback toasts — absolute so it
+            doesn't reserve layout space (it has no visible content of its own). */}
+        <div ref={dashboardFeedbackRef} className="absolute left-3 top-3 sm:left-4 sm:top-4" />
         <PublicationList
         publications={publications}
         tags={tags}
@@ -1907,6 +1942,11 @@ export default function Dashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <DragOverlay modifiers={[snapCenterToCursor]} style={{ width: 'fit-content' }}>
+        <VaultDragOverlayContent activeDrag={vaultDnd.activeDrag} />
+      </DragOverlay>
     </div>
+    </DndContext>
   );
 }

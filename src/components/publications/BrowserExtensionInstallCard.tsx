@@ -32,8 +32,8 @@ export function BrowserExtensionInstallCard() {
     <Card className="border border-primary/20 bg-primary/5 overflow-hidden">
       <CardContent className="p-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <Puzzle className="h-4 w-4 text-primary shrink-0" />
+          <div className="flex items-start gap-3 min-w-0">
+            <Puzzle className="h-4 w-4 mt-0.5 text-primary shrink-0" />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
                 <Badge variant="outline" className="font-mono text-[10px] tracking-wide text-primary/90 py-0">
@@ -43,7 +43,7 @@ export function BrowserExtensionInstallCard() {
                   current_tab → refhub
                 </Badge>
               </div>
-              <p className="text-xs text-muted-foreground font-mono line-clamp-1">
+              <p className="text-xs text-muted-foreground font-mono">
                 save papers from the page you are{' '}
                 <span className="text-gradient-green">already reading</span>
                 {' '}— install from the browser store or view the extension repo

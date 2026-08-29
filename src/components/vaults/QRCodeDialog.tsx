@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -419,7 +419,7 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
               <AlertDialogAction
                 onClick={handleUpgradeToProtected}
                 disabled={upgrading}
-                className="font-mono bg-gradient-primary hover:opacity-90 gap-2"
+                className={cn(buttonVariants({ variant: 'glow' }), "font-mono gap-2")}
               >
                 {upgrading && (
                   <LoadingSpinner size="xs" variant="inverted" />
