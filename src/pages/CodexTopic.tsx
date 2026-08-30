@@ -6,10 +6,13 @@ import {
   fetchPublicCodexPublications,
   matchPublicationsForTopic,
   slugToTopic,
+  deriveRelatedTopics,
+  countNewInLastDays,
   type TopicMatch,
 } from '@/lib/codexDiscovery';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { LoadingSpinner } from '@/components/ui/loading';
+import TopicSummaryPanel from '@/components/codex/TopicSummaryPanel';
 import { ArrowLeft } from 'lucide-react';
 import type { Vault, Tag } from '@/types/database';
 
@@ -20,6 +23,7 @@ export default function CodexTopic() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [matches, setMatches] = useState<TopicMatch[]>([]);
+  const [curators, setCurators] = useState<{ display_name: string | null; username: string | null }[]>([]);
 
   useEffect(() => {
     if (!topic) return;
@@ -31,7 +35,22 @@ export default function CodexTopic() {
       try {
         const { corpus, relations } = await fetchPublicCodexPublications(supabase);
         if (cancelled) return;
-        setMatches(matchPublicationsForTopic(topic, corpus, relations));
+        const computedMatches = matchPublicationsForTopic(topic, corpus, relations);
+        if (cancelled) return;
+        setMatches(computedMatches);
+
+        const ownerIds = [...new Set(
+          computedMatches
+            .filter((m) => m.signals.some((s) => s.type !== 'citation'))
+            .map((m) => m.vault.user_id),
+        )];
+        if (ownerIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('user_id, display_name, username')
+            .in('user_id', ownerIds);
+          if (!cancelled) setCurators((profiles || []).map((p) => ({ display_name: p.display_name, username: p.username })));
+        }
       } catch (err) {
         logger.error('CodexTopic', 'Error fetching discovery data:', err);
         if (!cancelled) setError(true);
@@ -79,6 +98,9 @@ export default function CodexTopic() {
     return map;
   }, [citationOnlyMatches]);
 
+  const relatedTopics = useMemo(() => deriveRelatedTopics(topic, directMatches), [topic, directMatches]);
+  const newInLast30Days = useMemo(() => countNewInLastDays(directMatches, 30), [directMatches]);
+
   // Tag badges on this page come from each match's `signals`, not FilterBuilder's tag picker.
   const tagsForList: Tag[] = [];
 
@@ -109,6 +131,7 @@ export default function CodexTopic() {
         <p className="text-xs text-muted-foreground font-mono mt-1">
           {matchedVaults.length}_vault{matchedVaults.length !== 1 ? 's' : ''} // {directMatches.length}_paper{directMatches.length !== 1 ? 's' : ''}
         </p>
+        <TopicSummaryPanel relatedTopics={relatedTopics} curators={curators} newInLast30Days={newInLast30Days} />
       </div>
 
       {directMatches.length === 0 ? (
