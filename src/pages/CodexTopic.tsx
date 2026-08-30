@@ -62,6 +62,23 @@ export default function CodexTopic() {
     return map;
   }, [directMatches]);
 
+  const citationOnlyMatches = useMemo(
+    () => matches.filter((m) => m.signals.length > 0 && m.signals.every((s) => s.type === 'citation')),
+    [matches],
+  );
+
+  const citationOnlyVaults = useMemo(() => {
+    const byId = new Map<string, Vault>();
+    citationOnlyMatches.forEach((m) => byId.set(m.vault.id, m.vault));
+    return Array.from(byId.values());
+  }, [citationOnlyMatches]);
+
+  const citationOnlyVaultsMap = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    citationOnlyMatches.forEach((m) => { map[m.publication.id] = [m.vault.id]; });
+    return map;
+  }, [citationOnlyMatches]);
+
   // Tag badges on this page come from each match's `signals`, not FilterBuilder's tag picker.
   const tagsForList: Tag[] = [];
 
@@ -111,6 +128,29 @@ export default function CodexTopic() {
           onExportBibtex={() => {}}
           onMobileMenuOpen={() => {}}
         />
+      )}
+
+      {citationOnlyMatches.length > 0 && (
+        <div className="border-t border-border">
+          <div className="px-4 pt-6 pb-2">
+            <h2 className="text-sm font-mono text-muted-foreground">// related_via_citation</h2>
+            <p className="text-xs text-muted-foreground/70 font-mono">
+              cited by a direct match — not tagged or keyworded with "{topic}" itself
+            </p>
+          </div>
+          <PublicationList
+            publications={citationOnlyMatches.map((m) => m.publication)}
+            tags={tagsForList}
+            vaults={citationOnlyVaults}
+            publicationVaultsMap={citationOnlyVaultsMap}
+            publicationTagsMap={{}}
+            relationsCountMap={{}}
+            selectedVault={null}
+            listTitle={`related to ${topic}`}
+            onExportBibtex={() => {}}
+            onMobileMenuOpen={() => {}}
+          />
+        </div>
       )}
     </div>
   );
