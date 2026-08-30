@@ -1,4 +1,7 @@
 import type { Publication, Vault, Tag, PublicationRelation } from '@/types/database';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { RawVaultPublicationRow } from './publicationAggregate';
+import type { PublicationTag } from '@/types/database';
 
 export function normalizeTopic(raw: string): string {
   return raw.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -180,4 +183,113 @@ export function sortTopicMatches(
 export function countNewInLastDays(matches: TopicMatch[], days: number, now: Date = new Date()): number {
   const cutoff = now.getTime() - days * 24 * 60 * 60 * 1000;
   return matches.filter((m) => new Date(m.publication.created_at).getTime() >= cutoff).length;
+}
+
+function throwOnAnyError(results: { error: { message?: string } | null }[]): void {
+  const failed = results.find((result) => result.error);
+  if (failed?.error) throw failed.error;
+}
+
+function rawRowToPublication(row: RawVaultPublicationRow): Publication {
+  return {
+    id: row.id,
+    user_id: row.created_by,
+    title: row.title,
+    authors: row.authors,
+    year: row.year,
+    journal: row.journal,
+    volume: row.volume,
+    issue: row.issue,
+    pages: row.pages,
+    doi: row.doi,
+    url: row.url,
+    abstract: row.abstract,
+    pdf_url: row.pdf_url,
+    bibtex_key: row.bibtex_key,
+    publication_type: row.publication_type,
+    notes: row.notes,
+    booktitle: row.booktitle,
+    chapter: row.chapter,
+    edition: row.edition,
+    editor: row.editor ? [row.editor] : null,
+    howpublished: row.howpublished,
+    institution: row.institution,
+    number: row.number,
+    organization: row.organization,
+    publisher: row.publisher,
+    school: row.school,
+    series: row.series,
+    type: row.type,
+    eid: row.eid,
+    isbn: row.isbn,
+    issn: row.issn,
+    keywords: row.keywords,
+    reading_state: 'unread',
+    important: false,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+export interface PublicCodexData {
+  corpus: PublicCodexPublication[];
+  relations: PublicationRelation[];
+}
+
+export async function fetchPublicCodexPublications(supabase: SupabaseClient): Promise<PublicCodexData> {
+  const vaultsRes = await supabase.from('vaults').select('*').eq('visibility', 'public');
+  throwOnAnyError([vaultsRes]);
+  const publicVaults = (vaultsRes.data as Vault[]) || [];
+  if (publicVaults.length === 0) return { corpus: [], relations: [] };
+
+  const vaultIds = publicVaults.map((v) => v.id);
+  const vaultsById = new Map(publicVaults.map((v) => [v.id, v]));
+
+  const vaultPubsRes = await supabase.from('vault_publications').select('*').in('vault_id', vaultIds);
+  throwOnAnyError([vaultPubsRes]);
+  const rawRows = (vaultPubsRes.data as RawVaultPublicationRow[]) || [];
+  if (rawRows.length === 0) return { corpus: [], relations: [] };
+
+  const pubIds = rawRows.map((r) => r.id);
+  const [pubTagsRes, relationsRes] = await Promise.all([
+    supabase.from('publication_tags').select('*').in('vault_publication_id', pubIds),
+    // Matches the existing anonymous-read pattern in PublicVaultSimple.tsx:
+    // relations aren't filtered server-side, filtered against our id set below.
+    supabase.from('publication_relations').select('*'),
+  ]);
+  throwOnAnyError([pubTagsRes, relationsRes]);
+
+  const pubTags = (pubTagsRes.data as PublicationTag[]) || [];
+  const tagIds = [...new Set(pubTags.map((pt) => pt.tag_id))];
+
+  let tags: Tag[] = [];
+  if (tagIds.length > 0) {
+    const tagsRes = await supabase.from('tags').select('*').in('id', tagIds);
+    throwOnAnyError([tagsRes]);
+    tags = (tagsRes.data as Tag[]) || [];
+  }
+  const tagsById = new Map(tags.map((t) => [t.id, t]));
+
+  const tagsByPubId = new Map<string, Tag[]>();
+  pubTags.forEach((pt) => {
+    if (!pt.vault_publication_id) return;
+    const tag = tagsById.get(pt.tag_id);
+    if (!tag) return;
+    const list = tagsByPubId.get(pt.vault_publication_id) || [];
+    list.push(tag);
+    tagsByPubId.set(pt.vault_publication_id, list);
+  });
+
+  const corpus: PublicCodexPublication[] = rawRows.map((row) => ({
+    publication: rawRowToPublication(row),
+    vault: vaultsById.get(row.vault_id)!,
+    tags: tagsByPubId.get(row.id) || [],
+  }));
+
+  const pubIdSet = new Set(pubIds);
+  const relations = ((relationsRes.data as PublicationRelation[]) || []).filter(
+    (rel) => pubIdSet.has(rel.publication_id) || pubIdSet.has(rel.related_publication_id),
+  );
+
+  return { corpus, relations };
 }

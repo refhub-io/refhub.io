@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { normalizeTopic, topicToSlug, slugToTopic, matchPublicationsForTopic, type PublicCodexPublication } from './codexDiscovery';
 import type { Publication, Vault, Tag, PublicationRelation } from '@/types/database';
 
@@ -252,5 +252,126 @@ describe('countNewInLastDays', () => {
     const recent = makeMatch('p1', { created_at: '2026-08-20T00:00:00Z' });
     const old = makeMatch('p2', { created_at: '2026-01-01T00:00:00Z' });
     expect(countNewInLastDays([recent, old], 30, now)).toBe(1);
+  });
+});
+
+import { fetchPublicCodexPublications } from './codexDiscovery';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { RawVaultPublicationRow } from './publicationAggregate';
+import type { PublicationTag } from '@/types/database';
+
+type MockError = { message: string };
+
+function resolveOrError<T>(rows: T[] | undefined, error: MockError | undefined) {
+  if (error) return Promise.resolve({ data: null, error });
+  return Promise.resolve({ data: rows ?? [], error: null });
+}
+
+function makeCodexClient(data: {
+  publicVaults?: Vault[];
+  vaultPublications?: RawVaultPublicationRow[];
+  publicationTags?: PublicationTag[];
+  tags?: Tag[];
+  relations?: PublicationRelation[];
+  errors?: {
+    publicVaults?: MockError;
+    vaultPublications?: MockError;
+    publicationTags?: MockError;
+    tags?: MockError;
+    relations?: MockError;
+  };
+}): SupabaseClient {
+  const errors = data.errors ?? {};
+  const from = vi.fn((table: string) => {
+    switch (table) {
+      case 'vaults':
+        return { select: () => ({ eq: () => resolveOrError(data.publicVaults, errors.publicVaults) }) };
+      case 'vault_publications':
+        return { select: () => ({ in: () => resolveOrError(data.vaultPublications, errors.vaultPublications) }) };
+      case 'publication_tags':
+        return { select: () => ({ in: () => resolveOrError(data.publicationTags, errors.publicationTags) }) };
+      case 'tags':
+        return { select: () => ({ in: () => resolveOrError(data.tags, errors.tags) }) };
+      case 'publication_relations':
+        return { select: () => resolveOrError(data.relations, errors.relations) };
+      default:
+        throw new Error(`Unexpected table in test mock: ${table}`);
+    }
+  });
+  return { from } as unknown as SupabaseClient;
+}
+
+const rawVaultPub = (id: string, vault_id: string, overrides: Partial<RawVaultPublicationRow> = {}): RawVaultPublicationRow => ({
+  id,
+  vault_id,
+  created_by: 'owner-1',
+  title: `Paper ${id}`,
+  authors: ['A. Author'],
+  year: 2026,
+  journal: null,
+  volume: null,
+  issue: null,
+  pages: null,
+  doi: null,
+  url: null,
+  abstract: null,
+  pdf_url: null,
+  bibtex_key: null,
+  publication_type: 'article',
+  notes: null,
+  booktitle: null,
+  chapter: null,
+  edition: null,
+  editor: null,
+  howpublished: null,
+  institution: null,
+  number: null,
+  organization: null,
+  publisher: null,
+  school: null,
+  series: null,
+  type: null,
+  eid: null,
+  isbn: null,
+  issn: null,
+  keywords: null,
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z',
+  original_publication_id: null,
+  ...overrides,
+});
+
+describe('fetchPublicCodexPublications', () => {
+  it('builds the corpus from public vaults, their publications, and tags', async () => {
+    const vault = makeVault('v1');
+    const client = makeCodexClient({
+      publicVaults: [vault],
+      vaultPublications: [rawVaultPub('p1', 'v1')],
+      publicationTags: [{ id: 'pt1', publication_id: null, vault_publication_id: 'p1', tag_id: 't1' }],
+      tags: [makeTag('t1', 'graph drawing')],
+      relations: [],
+    });
+
+    const result = await fetchPublicCodexPublications(client);
+    expect(result.corpus).toHaveLength(1);
+    expect(result.corpus[0].publication.id).toBe('p1');
+    expect(result.corpus[0].vault.id).toBe('v1');
+    expect(result.corpus[0].tags.map((t) => t.name)).toEqual(['graph drawing']);
+  });
+
+  it('returns an empty corpus (not an error) when there are no public vaults', async () => {
+    const client = makeCodexClient({ publicVaults: [] });
+    const result = await fetchPublicCodexPublications(client);
+    expect(result.corpus).toEqual([]);
+    expect(result.relations).toEqual([]);
+  });
+
+  it('throws if any underlying query errors, instead of returning a partial corpus', async () => {
+    const client = makeCodexClient({
+      publicVaults: [makeVault('v1')],
+      vaultPublications: [rawVaultPub('p1', 'v1')],
+      errors: { publicationTags: { message: 'boom' } },
+    });
+    await expect(fetchPublicCodexPublications(client)).rejects.toEqual({ message: 'boom' });
   });
 });
