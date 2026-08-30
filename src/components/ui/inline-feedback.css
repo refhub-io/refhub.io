@@ -1,0 +1,67 @@
+/*
+ * Overrides for the `quoterm` package's default terminal-styled theme so
+ * toasts read as a native RefHub element (app font, app color tokens)
+ * instead of a separate widget. Everything here targets classes quoterm
+ * renders — see node_modules/quoterm/dist or the sibling quoterm repo for
+ * the base rules being overridden. `!important` is used only where quoterm
+ * sets the same property inline (JS-computed position) or at equal
+ * selector specificity, so this file's load order relative to
+ * "quoterm/style.css" doesn't matter.
+ */
+
+.quoterm-inline-root .quoterm,
+.quoterm-fallback-root .quoterm {
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-size: 0.875rem;
+  background: hsl(var(--popover)) !important;
+  color: hsl(var(--popover-foreground)) !important;
+  border-color: hsl(var(--border)) !important;
+  box-shadow: 0 8px 24px hsl(240 6% 6% / 0.16), 0 2px 6px hsl(240 6% 6% / 0.08) !important;
+}
+
+.quoterm-inline-root .quoterm[data-theme="dark"],
+.quoterm-fallback-root .quoterm[data-theme="dark"] {
+  background: hsl(var(--popover)) !important;
+  color: hsl(var(--popover-foreground)) !important;
+  border-color: hsl(var(--border)) !important;
+  box-shadow: 0 8px 24px hsl(0 0% 0% / 0.4) !important;
+}
+
+.quoterm__detail {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+/* Variant accent colors — RefHub's actual palette tokens (theme-aware via
+   the light/dark CSS variable definitions in index.css) instead of
+   quoterm's hardcoded hex/hsl values, which only matched the dark palette. */
+.quoterm.quoterm--success {
+  --quoterm-muted: hsl(var(--neon-green));
+  --quoterm-border: hsl(var(--neon-green));
+}
+
+.quoterm.quoterm--warning {
+  --quoterm-muted: hsl(var(--sunset-orange));
+  --quoterm-border: hsl(var(--sunset-orange));
+}
+
+.quoterm.quoterm--error {
+  --quoterm-muted: hsl(var(--destructive));
+  --quoterm-border: hsl(var(--destructive));
+}
+
+.quoterm.quoterm--info {
+  --quoterm-muted: hsl(var(--cyber-blue));
+  --quoterm-border: hsl(var(--cyber-blue));
+}
+
+/* No-anchor toasts (source: null, e.g. bulk actions with no single relevant
+   control to point at): hover, centered under the top edge, and always
+   `position: fixed` relative to the viewport — never inserted into document
+   flow, so they can't shift layout or trigger a page scroll. quoterm computes
+   `top`/`left` inline from JS assuming a corner-anchored, scroll-following
+   layout; override both here. */
+.quoterm-fallback-root {
+  top: 1rem !important;
+  left: 50% !important;
+  transform: translateX(-50%);
+}

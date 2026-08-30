@@ -139,7 +139,7 @@ describe('VaultHealthCheckDialog', () => {
         { field: 'title', label: 'title', current: healthyPub.title, incoming: 'An Updated Title' },
       ],
     };
-    mockedRunVaultHealthEnrichment.mockResolvedValue([enrichmentResult]);
+    mockedRunVaultHealthEnrichment.mockResolvedValue({ results: [enrichmentResult], skippedCount: 0 });
 
     const onApplyDiffs = vi.fn().mockResolvedValue(undefined);
 
@@ -175,7 +175,7 @@ describe('VaultHealthCheckDialog', () => {
       { publication: healthyPub, diffs: [{ field: 'title', label: 'title', current: healthyPub.title, incoming: 'Title A Updated' }] },
       { publication: pubTwo, diffs: [{ field: 'title', label: 'title', current: pubTwo.title, incoming: 'Title B Updated' }] },
     ];
-    mockedRunVaultHealthEnrichment.mockResolvedValue(results);
+    mockedRunVaultHealthEnrichment.mockResolvedValue({ results, skippedCount: 0 });
 
     const onApplyDiffs = vi.fn().mockResolvedValue(undefined);
 
@@ -214,9 +214,10 @@ describe('VaultHealthCheckDialog', () => {
   });
 
   it('returns to the review phase (not stuck) if onApplyDiffs rejects', async () => {
-    mockedRunVaultHealthEnrichment.mockResolvedValue([
-      { publication: healthyPub, diffs: [{ field: 'title', label: 'title', current: healthyPub.title, incoming: 'Updated' }] },
-    ]);
+    mockedRunVaultHealthEnrichment.mockResolvedValue({
+      results: [{ publication: healthyPub, diffs: [{ field: 'title', label: 'title', current: healthyPub.title, incoming: 'Updated' }] }],
+      skippedCount: 0,
+    });
     const onApplyDiffs = vi.fn().mockRejectedValue(new Error('save failed'));
 
     render(
@@ -245,9 +246,10 @@ describe('VaultHealthCheckDialog', () => {
   });
 
   it('surfaces failed lookups instead of silently reporting "no changes found"', async () => {
-    mockedRunVaultHealthEnrichment.mockResolvedValue([
-      { publication: healthyPub, diffs: [], error: 'Semantic Scholar is rate limiting requests. Try again shortly.' },
-    ]);
+    mockedRunVaultHealthEnrichment.mockResolvedValue({
+      results: [{ publication: healthyPub, diffs: [], error: 'Semantic Scholar is rate limiting requests. Try again shortly.' }],
+      skippedCount: 0,
+    });
 
     render(
       <VaultHealthCheckDialog
@@ -275,11 +277,14 @@ describe('VaultHealthCheckDialog', () => {
   it('counts every failed lookup and shows only the first error message', async () => {
     const pubTwo = makePublication({ id: 'healthy-2', doi: '10.1000/second', bibtex_key: 'Second2021' });
     const pubThree = makePublication({ id: 'healthy-3', doi: '10.1000/third', bibtex_key: 'Third2021' });
-    mockedRunVaultHealthEnrichment.mockResolvedValue([
-      { publication: healthyPub, diffs: [], error: 'first failure' },
-      { publication: pubTwo, diffs: [{ field: 'title', label: 'title', current: pubTwo.title, incoming: 'Updated' }] },
-      { publication: pubThree, diffs: [], error: 'second failure' },
-    ]);
+    mockedRunVaultHealthEnrichment.mockResolvedValue({
+      results: [
+        { publication: healthyPub, diffs: [], error: 'first failure' },
+        { publication: pubTwo, diffs: [{ field: 'title', label: 'title', current: pubTwo.title, incoming: 'Updated' }] },
+        { publication: pubThree, diffs: [], error: 'second failure' },
+      ],
+      skippedCount: 0,
+    });
 
     render(
       <VaultHealthCheckDialog
@@ -303,7 +308,7 @@ describe('VaultHealthCheckDialog', () => {
   });
 
   it('does not render a failure banner when every lookup succeeded', async () => {
-    mockedRunVaultHealthEnrichment.mockResolvedValue([{ publication: healthyPub, diffs: [] }]);
+    mockedRunVaultHealthEnrichment.mockResolvedValue({ results: [{ publication: healthyPub, diffs: [] }], skippedCount: 0 });
 
     render(
       <VaultHealthCheckDialog
@@ -323,9 +328,10 @@ describe('VaultHealthCheckDialog', () => {
   });
 
   it('keeps apply disabled when disabled=true regardless of phase, even with checked diffs', async () => {
-    mockedRunVaultHealthEnrichment.mockResolvedValue([
-      { publication: healthyPub, diffs: [{ field: 'title', label: 'title', current: healthyPub.title, incoming: 'Updated' }] },
-    ]);
+    mockedRunVaultHealthEnrichment.mockResolvedValue({
+      results: [{ publication: healthyPub, diffs: [{ field: 'title', label: 'title', current: healthyPub.title, incoming: 'Updated' }] }],
+      skippedCount: 0,
+    });
 
     render(
       <VaultHealthCheckDialog

@@ -14,6 +14,21 @@ project uses [Semantic Versioning](https://semver.org/). History prior to
 ### Fixed
 - `FilterBuilder`'s "Vault" filter field, which previously matched nothing (or everything, for "is empty") regardless of the vault selected.
 
+## [1.9.3] - 2026-08-30
+
+### Fixed
+- Quoterm (toast) confirmations for page-level bulk actions — vault health check, vault fork, add-to-vaults, and other Dashboard/vault actions with no single relevant control to point at — were anchored to an invisible positioning marker at the top of the page. In `renderMode="inline"` that marker is a real DOM insertion point, so the toast pushed real layout into the page and caused it to jump/scroll on every health check, delete, or bulk update. These now pass an explicit `source: null` and render through Quoterm's no-anchor fallback instead, which is `position: fixed` and never touches document flow.
+- That no-anchor fallback itself computed `top` by adding the page's scroll offset to a fixed-position element (a leftover from when it doubled as an absolutely-positioned marker), so it drifted downward out of view as the page was scrolled, and it hugged the top-right corner instead of being centered. It's now pinned `1rem` from the viewport top and horizontally centered, regardless of scroll position.
+- Toasts anchored to a real control (a save button, a form, a dialog footer) kept the correct inline placement — this pass audited every anchored call site and left them as-is.
+- About a third of all `toast(...)` calls app-wide (link/unlink actions, vault forking, keyboard-shortcut copy actions, and others) pass no `source` at all, so Quoterm anchored them to `document.activeElement`. That's a reasonable free anchor right after a click, but whenever nothing was actually focused — a background operation, a keyboard-only flow, focus lost after a dialog closed — `document.activeElement` is `document.body` itself, and Quoterm's inline mode inserted the toast as a DOM sibling of `<body>` inside `<html>`. RefHub's `toast()` wrapper now treats a `document.body` fallback as "no anchor" so it renders through the same centered hover treatment instead.
+- Quoterm's default terminal theme (monospace font, hardcoded hex/hsl colors) didn't match the rest of the app and didn't adapt to the light/dark theme toggle for variant accent colors. Both anchored and no-anchor toasts now use RefHub's own font and `--popover`/`--border`/`--destructive`-etc. design tokens, so they read as a native part of the UI and switch instantly with the theme toggle.
+- Vault health check's `apply_selected` button gave no feedback while applying changes beyond the standard disabled dimming — it kept showing the same label the whole time. It now shows `applying...`, matching the in-flight text swap the publication save button already uses.
+
+## [1.9.2] - 2026-08-30
+
+### Fixed
+- The vault health check dialog's test suite (`VaultHealthCheckDialog.test.tsx`) was crashing on 7 of its 10 tests with `TypeError: Cannot read properties of undefined (reading 'filter')`. `runVaultHealthEnrichment` returns `{ results, skippedCount }`, but the tests' mocks were still resolving a bare `results` array — stale since an earlier release changed the function's return shape to also report a skipped-lookups count. The component's own behavior was correct throughout; only the test mocks needed updating to match the real function's contract.
+
 ## [1.9.1] - 2026-08-29
 
 ### Fixed
