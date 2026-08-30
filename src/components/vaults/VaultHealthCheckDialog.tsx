@@ -449,10 +449,10 @@ export function VaultHealthCheckDialog({
               variant="glow"
               onClick={() => void handleApply()}
               disabled={!canApply}
-              className="font-mono"
+              className={`font-mono${phase === 'applying' ? ' !opacity-100' : ''}`}
             >
               {phase === 'applying' ? <SpinnerLoader className="w-4 h-4 mr-1.5" /> : <Check className="w-4 h-4 mr-1.5" />}
-              apply_selected ({checkedCount})
+              {phase === 'applying' ? 'applying...' : `apply_selected (${checkedCount})`}
             </Button>
           )}
         </DialogFooter>
