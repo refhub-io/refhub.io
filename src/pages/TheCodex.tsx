@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Vault, VaultStats, VAULT_CATEGORIES } from '@/types/database';
+import { normalizeTopic, topicToSlug } from '@/lib/codexDiscovery';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
 import { useVaultFavorites } from '@/hooks/useVaultFavorites';
@@ -85,6 +86,7 @@ export default function TheCodex() {
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
   const [editingVault, setEditingVault] = useState<Vault | null>(null);
+  const [topicSuggestions, setTopicSuggestions] = useState<string[]>([]);
 
   const fetchPublicVaults = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -158,10 +160,41 @@ export default function TheCodex() {
       );
 
       setVaults(vaultsWithData);
+      fetchTopicSuggestions(vaultIds);
     } catch (error) {
       logger.error('TheCodex', 'Error fetching public vaults:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchTopicSuggestions = async (publicVaultIds: string[]) => {
+    if (publicVaultIds.length === 0) {
+      setTopicSuggestions([]);
+      return;
+    }
+    try {
+      const { data: vaultPubs } = await supabase
+        .from('vault_publications')
+        .select('id, keywords')
+        .in('vault_id', publicVaultIds);
+      const pubIds = (vaultPubs || []).map((p) => p.id);
+
+      const topics = new Set<string>();
+      (vaultPubs || []).forEach((p) => (p.keywords || []).forEach((k: string) => topics.add(normalizeTopic(k))));
+
+      if (pubIds.length > 0) {
+        const { data: pubTags } = await supabase.from('publication_tags').select('tag_id').in('vault_publication_id', pubIds);
+        const tagIds = [...new Set((pubTags || []).map((pt) => pt.tag_id))];
+        if (tagIds.length > 0) {
+          const { data: tagRows } = await supabase.from('tags').select('name').in('id', tagIds);
+          (tagRows || []).forEach((t) => topics.add(normalizeTopic(t.name)));
+        }
+      }
+
+      setTopicSuggestions(Array.from(topics).sort().slice(0, 24));
+    } catch (error) {
+      logger.error('TheCodex', 'Error fetching topic suggestions:', error);
     }
   };
 
@@ -439,6 +472,18 @@ export default function TheCodex() {
                   </Select>
                 </div>
               </div>
+              {topicSuggestions.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-3 w-full justify-center">
+                  {topicSuggestions
+                    .filter((t) => !searchQuery || t.includes(searchQuery.toLowerCase()))
+                    .slice(0, 12)
+                    .map((topic) => (
+                      <Link key={topic} to={`/codex/topic/${topicToSlug(topic)}`}>
+                        <Badge variant="secondary" className="font-mono text-xs hover:opacity-80">{topic}</Badge>
+                      </Link>
+                    ))}
+                </div>
+              )}
             </div>
           </div>
 
