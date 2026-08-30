@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.11.0] - 2026-08-30
+
+### Added
+- Codex discovery mode: browse topics and tags directly at `/codex/topic/:topicSlug`, with transparent matching across tag names, keyword indices, notes, and citations. Each topic page shows related topics, topic curators, filterable results with facets and sort modes, and topic-chip suggestions on The Codex search bar.
+
 ## [1.10.2] - 2026-08-30
 
 ### Changed
