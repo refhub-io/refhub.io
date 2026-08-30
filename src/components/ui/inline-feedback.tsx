@@ -6,6 +6,7 @@ import {
   type QuotermVariant,
 } from "quoterm";
 import "quoterm/style.css";
+import "./inline-feedback.css";
 
 export type InlineFeedbackHostProps = QuotermHostProps & {
   /** Compatibility with RefHub's previous local Quoterm host API. */

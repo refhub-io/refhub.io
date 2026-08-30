@@ -92,6 +92,38 @@ describe('RefHub toast to Quoterm adapter', () => {
     }
   });
 
+  it('does not anchor to document.body when source is omitted and nothing is focused', async () => {
+    (document.activeElement as HTMLElement | null)?.blur?.();
+
+    await act(async () => {
+      toast({ title: 'Background sync finished', duration: 0 });
+    });
+
+    expect(getQuotermsSnapshot().items[0]).toMatchObject({
+      title: 'Background sync finished',
+      sourceElement: null,
+    });
+  });
+
+  it('anchors to document.activeElement when source is omitted and a control is focused', async () => {
+    const clickedButton = document.createElement('button');
+    document.body.append(clickedButton);
+    clickedButton.focus();
+
+    try {
+      await act(async () => {
+        toast({ title: 'Link removed', duration: 0 });
+      });
+
+      expect(getQuotermsSnapshot().items[0]).toMatchObject({
+        title: 'Link removed',
+        sourceElement: clickedButton,
+      });
+    } finally {
+      clickedButton.remove();
+    }
+  });
+
   it('returns handles that update and dismiss package feedback', async () => {
     let handle: ReturnType<typeof toast>;
 
