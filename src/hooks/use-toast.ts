@@ -67,13 +67,29 @@ function humanizeFeedbackTitle(title: React.ReactNode): React.ReactNode {
   return `${humanized}${emojiSuffix}`;
 }
 
+/**
+ * When `source` is omitted, quoterm falls back to `document.activeElement` — a useful
+ * free anchor right after a click (the clicked control is usually still focused), but
+ * when nothing is focused `document.activeElement` is `document.body` itself, and
+ * quoterm's inline render mode inserts the toast as a DOM sibling of `<body>` inside
+ * `<html>`. Treat that specific case as "no anchor" so it renders through quoterm's
+ * centered fallback instead of corrupting page structure. Explicit `source` values
+ * (including an explicit `null` for "no anchor") pass through unchanged.
+ */
+function resolveImplicitSource(source: ToastInput["source"]): ToastInput["source"] {
+  if (source !== undefined) return source;
+  if (typeof document === "undefined") return null;
+  const active = document.activeElement;
+  return active && active !== document.body ? active : null;
+}
+
 function toast({ source, feedbackSeverity, variant, action, ...props }: ToastInput) {
   const normalizedProps = { ...props, title: props.title ? humanizeFeedbackTitle(props.title) : props.title };
   const severity = inferFeedbackSeverity({ ...normalizedProps, feedbackSeverity, variant, action });
 
   const handle = quoterm({
     ...normalizedProps,
-    source,
+    source: resolveImplicitSource(source),
     variant: severity,
     role: severity === "error" || severity === "warning" ? "alert" : "status",
   });

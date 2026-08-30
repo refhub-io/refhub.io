@@ -451,8 +451,11 @@ export function VaultHealthCheckDialog({
               disabled={!canApply}
               className="font-mono"
             >
-              {phase === 'applying' ? <SpinnerLoader className="w-4 h-4 mr-1.5" /> : <Check className="w-4 h-4 mr-1.5" />}
-              apply_selected ({checkedCount})
+              {phase === 'applying' ? (
+                'applying...'
+              ) : (
+                <><Check className="w-4 h-4 mr-1.5" />apply_selected ({checkedCount})</>
+              )}
             </Button>
           )}
         </DialogFooter>
