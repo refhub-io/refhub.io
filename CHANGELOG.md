@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.10.2] - 2026-08-30
+
+### Changed
+- `AGENTS.md`: added two process items for coding agents working in this repo — always report stale/dead code, placeholders, and unrelated test failures encountered while working (without silently expanding scope to fix them), and always reference the GitHub issue(s) a PR relates to in its description, using closing keywords only when the PR fully resolves the issue.
+
 ## [1.10.1] - 2026-08-30
 
 ### Fixed
