@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Sidebar } from '@/components/layout/Sidebar';
+import { SidebarDndBoundary } from '@/components/layout/SidebarDndBoundary';
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Pencil, Sparkles } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 import { useAllPublications } from '@/hooks/useAllPublications';
 import { useSmartCollections } from '@/hooks/useSmartCollections';
 import { applyFilters } from '@/components/publications/FilterBuilder';
@@ -22,6 +23,7 @@ const RULE_HINTS: Record<string, string> = {
 export default function SmartCollectionDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { publications, tags, vaults, publicationTagsMap, publicationVaultsMap, loading: publicationsLoading } =
     useAllPublications();
   const { collections, loading: collectionsLoading, updateCollection } = useSmartCollections();
@@ -29,6 +31,12 @@ export default function SmartCollectionDetail() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   const collection = collections.find((c) => c.id === id) ?? null;
+
+  // useAllPublications() merges owned + shared vaults into one array; split
+  // them back out here (rather than changing that hook's return shape) so
+  // the sidebar can show "my vaults" vs "shared with me" correctly.
+  const ownedVaults = useMemo(() => vaults.filter((v) => v.user_id === user?.id), [vaults, user?.id]);
+  const sharedVaults = useMemo(() => vaults.filter((v) => v.user_id !== user?.id), [vaults, user?.id]);
 
   const handleExportBibtex = (pubs: Publication[]) => {
     if (pubs.length === 0) return;
@@ -54,10 +62,11 @@ export default function SmartCollectionDetail() {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <Sidebar
-        vaults={[]}
+      <SidebarDndBoundary
+        vaults={ownedVaults}
+        sharedVaults={sharedVaults}
         selectedVaultId={null}
-        onSelectVault={() => navigate('/dashboard')}
+        onSelectVault={(vaultId) => (vaultId ? navigate(`/vault/${vaultId}`) : navigate('/dashboard'))}
         onCreateVault={() => navigate('/dashboard')}
         isMobileOpen={isMobileSidebarOpen}
         onMobileClose={() => setIsMobileSidebarOpen(false)}
@@ -96,6 +105,8 @@ export default function SmartCollectionDetail() {
             publicationVaultsMap={publicationVaultsMap}
             relationsCountMap={{}}
             selectedVault={null}
+            listTitle={collection?.name}
+            dragDisabled
             onExportBibtex={handleExportBibtex}
             onMobileMenuOpen={() => setIsMobileSidebarOpen(true)}
           />
@@ -111,7 +122,10 @@ export default function SmartCollectionDetail() {
             vaults={vaults}
             publicationTagsMap={publicationTagsMap}
             publicationVaultsMap={publicationVaultsMap}
-            onSave={(input) => updateCollection(collection.id, input)}
+            onSave={async (input) => {
+              const result = await updateCollection(collection.id, input);
+              if (!result) throw new Error('Failed to save smart collection');
+            }}
           />
         )}
       </main>

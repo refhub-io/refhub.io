@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sidebar } from '@/components/layout/Sidebar';
+import { SidebarDndBoundary } from '@/components/layout/SidebarDndBoundary';
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Sparkles, Plus, Pencil, Trash2 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 import { useAllPublications } from '@/hooks/useAllPublications';
 import { useSmartCollections } from '@/hooks/useSmartCollections';
 import { SmartCollectionDialog } from '@/components/collections/SmartCollectionDialog';
@@ -30,12 +31,19 @@ function summarizeFilters(collection: SmartCollection): string {
 
 export default function SmartCollections() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { publications, tags, vaults, publicationTagsMap, publicationVaultsMap } = useAllPublications();
   const { collections, loading, createCollection, updateCollection, deleteCollection } = useSmartCollections();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCollection, setEditingCollection] = useState<SmartCollection | null>(null);
   const [deletingCollection, setDeletingCollection] = useState<SmartCollection | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  // useAllPublications() merges owned + shared vaults into one array; split
+  // them back out here (rather than changing that hook's return shape) so
+  // the sidebar can show "my vaults" vs "shared with me" correctly.
+  const ownedVaults = useMemo(() => vaults.filter((v) => v.user_id === user?.id), [vaults, user?.id]);
+  const sharedVaults = useMemo(() => vaults.filter((v) => v.user_id !== user?.id), [vaults, user?.id]);
 
   const openCreateDialog = () => {
     setEditingCollection(null);
@@ -48,11 +56,10 @@ export default function SmartCollections() {
   };
 
   const handleSave = async (input: Parameters<typeof createCollection>[0]) => {
-    if (editingCollection) {
-      await updateCollection(editingCollection.id, input);
-    } else {
-      await createCollection(input);
-    }
+    const result = editingCollection
+      ? await updateCollection(editingCollection.id, input)
+      : await createCollection(input);
+    if (!result) throw new Error('Failed to save smart collection');
   };
 
   const handleConfirmDelete = async () => {
@@ -64,10 +71,11 @@ export default function SmartCollections() {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <Sidebar
-        vaults={[]}
+      <SidebarDndBoundary
+        vaults={ownedVaults}
+        sharedVaults={sharedVaults}
         selectedVaultId={null}
-        onSelectVault={() => navigate('/dashboard')}
+        onSelectVault={(vaultId) => (vaultId ? navigate(`/vault/${vaultId}`) : navigate('/dashboard'))}
         onCreateVault={() => navigate('/dashboard')}
         isMobileOpen={isMobileSidebarOpen}
         onMobileClose={() => setIsMobileSidebarOpen(false)}
