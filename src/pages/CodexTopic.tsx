@@ -8,7 +8,12 @@ import {
   slugToTopic,
   deriveRelatedTopics,
   countNewInLastDays,
+  applyTopicFacets,
+  sortTopicMatches,
   type TopicMatch,
+  type TopicFacets,
+  type TopicSortMode,
+  type VaultPopularity,
 } from '@/lib/codexDiscovery';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { LoadingSpinner } from '@/components/ui/loading';
@@ -24,6 +29,9 @@ export default function CodexTopic() {
   const [error, setError] = useState(false);
   const [matches, setMatches] = useState<TopicMatch[]>([]);
   const [curators, setCurators] = useState<{ display_name: string | null; username: string | null }[]>([]);
+  const [facets, setFacets] = useState<TopicFacets>({});
+  const [sortMode, setSortMode] = useState<TopicSortMode>('relevance');
+  const [vaultPopularity, setVaultPopularity] = useState<Record<string, VaultPopularity>>({});
 
   useEffect(() => {
     if (!topic) return;
@@ -51,6 +59,19 @@ export default function CodexTopic() {
             .in('user_id', ownerIds);
           if (!cancelled) setCurators((profiles || []).map((p) => ({ display_name: p.display_name, username: p.username })));
         }
+
+        const matchedVaultIds = [...new Set(computedMatches.map((m) => m.vault.id))];
+        if (matchedVaultIds.length > 0) {
+          const popularity: Record<string, VaultPopularity> = {};
+          await Promise.all(matchedVaultIds.map(async (vaultId) => {
+            const [{ count: favorites }, { count: forks }] = await Promise.all([
+              supabase.from('vault_favorites').select('*', { count: 'exact', head: true }).eq('vault_id', vaultId),
+              supabase.from('vault_forks').select('*', { count: 'exact', head: true }).eq('original_vault_id', vaultId),
+            ]);
+            popularity[vaultId] = { favorites: favorites || 0, forks: forks || 0 };
+          }));
+          if (!cancelled) setVaultPopularity(popularity);
+        }
       } catch (err) {
         logger.error('CodexTopic', 'Error fetching discovery data:', err);
         if (!cancelled) setError(true);
@@ -67,6 +88,21 @@ export default function CodexTopic() {
   const directMatches = useMemo(
     () => matches.filter((m) => m.signals.some((s) => s.type !== 'citation')),
     [matches],
+  );
+
+  const relationCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    matches.forEach((m) => {
+      m.signals.forEach((s) => {
+        if (s.type === 'citation') counts[s.viaPublicationId] = (counts[s.viaPublicationId] || 0) + 1;
+      });
+    });
+    return counts;
+  }, [matches]);
+
+  const facetedDirectMatches = useMemo(
+    () => sortTopicMatches(applyTopicFacets(directMatches, facets), sortMode, vaultPopularity, relationCounts),
+    [directMatches, facets, sortMode, vaultPopularity, relationCounts],
   );
 
   const matchedVaults = useMemo(() => {
@@ -139,18 +175,51 @@ export default function CodexTopic() {
           <p className="text-muted-foreground font-mono text-sm">// no_public_papers_match_this_topic_yet</p>
         </div>
       ) : (
-        <PublicationList
-          publications={directMatches.map((m) => m.publication)}
-          tags={tagsForList}
-          vaults={matchedVaults}
-          publicationVaultsMap={publicationVaultsMap}
-          publicationTagsMap={{}}
-          relationsCountMap={{}}
-          selectedVault={null}
-          listTitle={topic}
-          onExportBibtex={() => {}}
-          onMobileMenuOpen={() => {}}
-        />
+        <>
+          <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-border">
+            <select
+              className="text-xs font-mono border border-input rounded-md h-8 px-2 bg-background"
+              value={sortMode}
+              onChange={(e) => setSortMode(e.target.value as TopicSortMode)}
+            >
+              <option value="relevance">sort: relevance</option>
+              <option value="recent">sort: recent</option>
+              <option value="popular">sort: most forked/favorited</option>
+              <option value="connected">sort: most connected</option>
+            </select>
+            <input
+              className="text-xs font-mono border border-input rounded-md h-8 px-2 bg-background"
+              placeholder="filter: author"
+              value={facets.author || ''}
+              onChange={(e) => setFacets((f) => ({ ...f, author: e.target.value || undefined }))}
+            />
+            <input
+              className="text-xs font-mono border border-input rounded-md h-8 px-2 bg-background"
+              placeholder="filter: venue"
+              value={facets.venue || ''}
+              onChange={(e) => setFacets((f) => ({ ...f, venue: e.target.value || undefined }))}
+            />
+            <input
+              className="text-xs font-mono border border-input rounded-md h-8 px-2 bg-background w-24"
+              placeholder="filter: year"
+              type="number"
+              value={facets.year ?? ''}
+              onChange={(e) => setFacets((f) => ({ ...f, year: e.target.value ? Number(e.target.value) : undefined }))}
+            />
+          </div>
+          <PublicationList
+            publications={facetedDirectMatches.map((m) => m.publication)}
+            tags={tagsForList}
+            vaults={matchedVaults}
+            publicationVaultsMap={publicationVaultsMap}
+            publicationTagsMap={{}}
+            relationsCountMap={{}}
+            selectedVault={null}
+            listTitle={topic}
+            onExportBibtex={() => {}}
+            onMobileMenuOpen={() => {}}
+          />
+        </>
       )}
 
       {citationOnlyMatches.length > 0 && (
