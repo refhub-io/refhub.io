@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.9.2] - 2026-08-30
+
+### Fixed
+- The vault health check dialog's test suite (`VaultHealthCheckDialog.test.tsx`) was crashing on 7 of its 10 tests with `TypeError: Cannot read properties of undefined (reading 'filter')`. `runVaultHealthEnrichment` returns `{ results, skippedCount }`, but the tests' mocks were still resolving a bare `results` array — stale since an earlier release changed the function's return shape to also report a skipped-lookups count. The component's own behavior was correct throughout; only the test mocks needed updating to match the real function's contract.
+
 ## [1.9.1] - 2026-08-29
 
 ### Fixed
