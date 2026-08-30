@@ -163,3 +163,94 @@ describe('matchPublicationsForTopic', () => {
     expect(p2Match?.signals).toEqual([{ type: 'keyword', value: 'Graph Drawing' }]);
   });
 });
+
+import {
+  deriveRelatedTopics,
+  applyTopicFacets,
+  sortTopicMatches,
+  countNewInLastDays,
+  type TopicMatch,
+} from './codexDiscovery';
+
+const makeMatch = (id: string, overrides: Partial<Publication> = {}, tags: Tag[] = []): TopicMatch => ({
+  publication: makePublication(id, overrides),
+  vault: makeVault('v1'),
+  signals: [{ type: 'tag', value: 'graph drawing' }],
+});
+
+describe('deriveRelatedTopics', () => {
+  it('surfaces other tags/keywords co-occurring on matched papers, excluding the topic itself', () => {
+    const pub = makePublication('p1', { keywords: ['Graph Drawing', 'Network Visualization'] });
+    const matches: TopicMatch[] = [{ publication: pub, vault: makeVault('v1'), signals: [{ type: 'keyword', value: 'Graph Drawing' }] }];
+    expect(deriveRelatedTopics('graph drawing', matches)).toEqual(['network visualization']);
+  });
+
+  it('returns an empty list when there is no co-occurring topic', () => {
+    const pub = makePublication('p1', { keywords: ['Graph Drawing'] });
+    const matches: TopicMatch[] = [{ publication: pub, vault: makeVault('v1'), signals: [{ type: 'keyword', value: 'Graph Drawing' }] }];
+    expect(deriveRelatedTopics('graph drawing', matches)).toEqual([]);
+  });
+});
+
+describe('applyTopicFacets', () => {
+  it('filters by year', () => {
+    const matches = [makeMatch('p1', { year: 2024 }), makeMatch('p2', { year: 2026 })];
+    expect(applyTopicFacets(matches, { year: 2026 }).map((m) => m.publication.id)).toEqual(['p2']);
+  });
+
+  it('filters by author (case-insensitive substring)', () => {
+    const matches = [makeMatch('p1', { authors: ['Jane Doe'] }), makeMatch('p2', { authors: ['John Smith'] })];
+    expect(applyTopicFacets(matches, { author: 'doe' }).map((m) => m.publication.id)).toEqual(['p1']);
+  });
+
+  it('filters by venue (journal, case-insensitive substring)', () => {
+    const matches = [makeMatch('p1', { journal: 'IEEE VIS' }), makeMatch('p2', { journal: 'CHI' })];
+    expect(applyTopicFacets(matches, { venue: 'vis' }).map((m) => m.publication.id)).toEqual(['p1']);
+  });
+
+  it('combines multiple facets with AND semantics', () => {
+    const matches = [
+      makeMatch('p1', { year: 2026, journal: 'IEEE VIS' }),
+      makeMatch('p2', { year: 2026, journal: 'CHI' }),
+    ];
+    expect(applyTopicFacets(matches, { year: 2026, venue: 'vis' }).map((m) => m.publication.id)).toEqual(['p1']);
+  });
+});
+
+describe('sortTopicMatches', () => {
+  it('ranks direct matches above citation-only matches under relevance', () => {
+    const direct = makeMatch('p1');
+    const citationOnly: TopicMatch = { ...makeMatch('p2'), signals: [{ type: 'citation', viaPublicationId: 'p1' }] };
+    const sorted = sortTopicMatches([citationOnly, direct], 'relevance', {}, {});
+    expect(sorted.map((m) => m.publication.id)).toEqual(['p1', 'p2']);
+  });
+
+  it('sorts by most recent created_at', () => {
+    const older = makeMatch('p1', { created_at: '2026-01-01T00:00:00Z' });
+    const newer = makeMatch('p2', { created_at: '2026-06-01T00:00:00Z' });
+    expect(sortTopicMatches([older, newer], 'recent', {}, {}).map((m) => m.publication.id)).toEqual(['p2', 'p1']);
+  });
+
+  it('sorts by vault popularity (favorites + forks)', () => {
+    const inQuiet = makeMatch('p1');
+    const inPopular: TopicMatch = { ...makeMatch('p2'), vault: makeVault('v2') };
+    const popularity = { v1: { favorites: 0, forks: 0 }, v2: { favorites: 10, forks: 5 } };
+    expect(sortTopicMatches([inQuiet, inPopular], 'popular', popularity, {}).map((m) => m.publication.id)).toEqual(['p2', 'p1']);
+  });
+
+  it('sorts by citation connection count', () => {
+    const lessConnected = makeMatch('p1');
+    const moreConnected = makeMatch('p2');
+    const relationCounts = { p1: 1, p2: 4 };
+    expect(sortTopicMatches([lessConnected, moreConnected], 'connected', {}, relationCounts).map((m) => m.publication.id)).toEqual(['p2', 'p1']);
+  });
+});
+
+describe('countNewInLastDays', () => {
+  it('counts only matches created within the window', () => {
+    const now = new Date('2026-08-30T00:00:00Z');
+    const recent = makeMatch('p1', { created_at: '2026-08-20T00:00:00Z' });
+    const old = makeMatch('p2', { created_at: '2026-01-01T00:00:00Z' });
+    expect(countNewInLastDays([recent, old], 30, now)).toBe(1);
+  });
+});

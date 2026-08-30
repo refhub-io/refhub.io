@@ -86,3 +86,98 @@ export function matchPublicationsForTopic(
     return { publication: entry.publication, vault: entry.vault, signals };
   });
 }
+
+export function deriveRelatedTopics(topic: string, matches: TopicMatch[]): string[] {
+  const counts = new Map<string, number>();
+
+  matches.forEach((match) => {
+    const candidates = new Set<string>();
+    match.signals.forEach((signal) => {
+      if (signal.type === 'tag' || signal.type === 'keyword') candidates.add(normalizeTopic(signal.value));
+    });
+    // Also pull in every keyword on the publication, not just the ones that
+    // directly signaled this match, so co-occurrence surfaces topics the
+    // paper didn't match on but is still tagged/keyworded with.
+    (match.publication.keywords || []).forEach((k) => candidates.add(normalizeTopic(k)));
+
+    candidates.forEach((candidate) => {
+      if (candidate === topic) return;
+      counts.set(candidate, (counts.get(candidate) || 0) + 1);
+    });
+  });
+
+  return Array.from(counts.entries())
+    .sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]))
+    .map(([name]) => name);
+}
+
+export interface TopicFacets {
+  tag?: string;
+  author?: string;
+  venue?: string;
+  year?: number;
+}
+
+export function applyTopicFacets(matches: TopicMatch[], facets: TopicFacets): TopicMatch[] {
+  return matches.filter((match) => {
+    if (facets.year !== undefined && match.publication.year !== facets.year) return false;
+    if (facets.author) {
+      const needle = facets.author.toLowerCase();
+      if (!match.publication.authors.some((a) => a.toLowerCase().includes(needle))) return false;
+    }
+    if (facets.venue) {
+      const journal = match.publication.journal || '';
+      if (!journal.toLowerCase().includes(facets.venue.toLowerCase())) return false;
+    }
+    if (facets.tag) {
+      const needle = normalizeTopic(facets.tag);
+      const hasTag = match.signals.some((s) => s.type === 'tag' && normalizeTopic(s.value) === needle);
+      if (!hasTag) return false;
+    }
+    return true;
+  });
+}
+
+export type TopicSortMode = 'relevance' | 'recent' | 'popular' | 'connected';
+
+export interface VaultPopularity {
+  favorites: number;
+  forks: number;
+}
+
+function isDirectMatch(match: TopicMatch): boolean {
+  return match.signals.some((s) => s.type !== 'citation');
+}
+
+export function sortTopicMatches(
+  matches: TopicMatch[],
+  mode: TopicSortMode,
+  vaultPopularity: Record<string, VaultPopularity>,
+  relationCounts: Record<string, number>,
+): TopicMatch[] {
+  const copy = [...matches];
+  switch (mode) {
+    case 'recent':
+      return copy.sort((a, b) => b.publication.created_at.localeCompare(a.publication.created_at));
+    case 'popular':
+      return copy.sort((a, b) => {
+        const pa = vaultPopularity[a.vault.id] || { favorites: 0, forks: 0 };
+        const pb = vaultPopularity[b.vault.id] || { favorites: 0, forks: 0 };
+        return (pb.favorites + pb.forks) - (pa.favorites + pa.forks);
+      });
+    case 'connected':
+      return copy.sort((a, b) => (relationCounts[b.publication.id] || 0) - (relationCounts[a.publication.id] || 0));
+    case 'relevance':
+    default:
+      return copy.sort((a, b) => {
+        const directDiff = Number(isDirectMatch(b)) - Number(isDirectMatch(a));
+        if (directDiff !== 0) return directDiff;
+        return b.signals.length - a.signals.length;
+      });
+  }
+}
+
+export function countNewInLastDays(matches: TopicMatch[], days: number, now: Date = new Date()): number {
+  const cutoff = now.getTime() - days * 24 * 60 * 60 * 1000;
+  return matches.filter((m) => new Date(m.publication.created_at).getTime() >= cutoff).length;
+}
