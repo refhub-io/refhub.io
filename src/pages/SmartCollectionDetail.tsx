@@ -127,7 +127,7 @@ export default function SmartCollectionDetail() {
         isMobileOpen={isMobileSidebarOpen}
         onMobileClose={() => setIsMobileSidebarOpen(false)}
       />
-      <main className="flex-1 lg:pl-72 flex flex-col min-h-screen">
+      <main className="flex-1 lg:pl-72 min-w-0 flex flex-col min-h-screen">
         {/* Slim back-nav + edit-rules bar. The title/item-count itself comes
             from PublicationList's own header below (via listTitle) — matching
             vault pages, which never duplicate the title above PublicationList
