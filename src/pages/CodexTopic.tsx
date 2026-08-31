@@ -8,17 +8,14 @@ import {
   slugToTopic,
   deriveRelatedTopics,
   countNewInLastDays,
-  applyTopicFacets,
   sortTopicMatches,
   type TopicMatch,
-  type TopicFacets,
   type TopicSortMode,
   type VaultPopularity,
 } from '@/lib/codexDiscovery';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationViewDialog } from '@/components/publications/PublicationViewDialog';
 import { LoadingSpinner } from '@/components/ui/loading';
-import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -39,7 +36,6 @@ export default function CodexTopic() {
   const [error, setError] = useState(false);
   const [matches, setMatches] = useState<TopicMatch[]>([]);
   const [curators, setCurators] = useState<{ display_name: string | null; username: string | null }[]>([]);
-  const [facets, setFacets] = useState<TopicFacets>({});
   const [sortMode, setSortMode] = useState<TopicSortMode>('relevance');
   const [vaultPopularity, setVaultPopularity] = useState<Record<string, VaultPopularity>>({});
   const [viewingPublication, setViewingPublication] = useState<Publication | null>(null);
@@ -119,9 +115,9 @@ export default function CodexTopic() {
     return counts;
   }, [matches]);
 
-  const facetedDirectMatches = useMemo(
-    () => sortTopicMatches(applyTopicFacets(directMatches, facets), sortMode, vaultPopularity, relationCounts),
-    [directMatches, facets, sortMode, vaultPopularity, relationCounts],
+  const sortedDirectMatches = useMemo(
+    () => sortTopicMatches(directMatches, sortMode, vaultPopularity, relationCounts),
+    [directMatches, sortMode, vaultPopularity, relationCounts],
   );
 
   const matchedVaults = useMemo(() => {
@@ -189,18 +185,34 @@ export default function CodexTopic() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="border-b border-border bg-card/50 backdrop-blur-xl px-4 py-4 space-y-3">
-        <Link to="/codex" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground font-mono">
-          <ArrowLeft className="w-4 h-4" /> back_to_codex
-        </Link>
-
-        <div>
-          <h1 className="text-2xl font-bold font-mono leading-none">
-            // <span className="text-gradient">{topic}</span>
-          </h1>
-          <p className="text-xs text-muted-foreground font-mono mt-1.5">
-            {matchedVaults.length}_vault{matchedVaults.length !== 1 ? 's' : ''} • {facetedDirectMatches.length}_paper{facetedDirectMatches.length !== 1 ? 's' : ''}
-          </p>
+      <div className="border-b border-border bg-card/50 backdrop-blur-xl px-4 py-3 space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+          <div className="flex items-center gap-3 min-w-0">
+            <Link to="/codex" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground font-mono shrink-0">
+              <ArrowLeft className="w-4 h-4" /> back
+            </Link>
+            <h1 className="text-xl font-bold font-mono leading-none truncate">
+              // <span className="text-gradient">{topic}</span>
+            </h1>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <p className="text-xs text-muted-foreground font-mono">
+              {matchedVaults.length}_vault{matchedVaults.length !== 1 ? 's' : ''} • {sortedDirectMatches.length}_paper{sortedDirectMatches.length !== 1 ? 's' : ''}
+            </p>
+            {directMatches.length > 0 && (
+              <Select value={sortMode} onValueChange={(value) => setSortMode(value as TopicSortMode)}>
+                <SelectTrigger className="h-7 w-auto rounded-full text-xs font-mono">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="relevance" className="text-xs font-mono">sort: relevance</SelectItem>
+                  <SelectItem value="recent" className="text-xs font-mono">sort: recent</SelectItem>
+                  <SelectItem value="popular" className="text-xs font-mono">sort: most forked/favorited</SelectItem>
+                  <SelectItem value="connected" className="text-xs font-mono">sort: most connected</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          </div>
         </div>
 
         <TopicSummaryPanel
@@ -211,60 +223,15 @@ export default function CodexTopic() {
         />
       </div>
 
-      {directMatches.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-border">
-          <Select value={sortMode} onValueChange={(value) => setSortMode(value as TopicSortMode)}>
-            <SelectTrigger className="h-8 w-auto rounded-full text-xs font-mono">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="relevance" className="text-xs font-mono">sort: relevance</SelectItem>
-              <SelectItem value="recent" className="text-xs font-mono">sort: recent</SelectItem>
-              <SelectItem value="popular" className="text-xs font-mono">sort: most forked/favorited</SelectItem>
-              <SelectItem value="connected" className="text-xs font-mono">sort: most connected</SelectItem>
-            </SelectContent>
-          </Select>
-          <Input
-            className="h-8 w-32 rounded-full text-xs font-mono"
-            placeholder="filter: tag"
-            value={facets.tag || ''}
-            onChange={(e) => setFacets((f) => ({ ...f, tag: e.target.value || undefined }))}
-          />
-          <Input
-            className="h-8 w-32 rounded-full text-xs font-mono"
-            placeholder="filter: author"
-            value={facets.author || ''}
-            onChange={(e) => setFacets((f) => ({ ...f, author: e.target.value || undefined }))}
-          />
-          <Input
-            className="h-8 w-32 rounded-full text-xs font-mono"
-            placeholder="filter: venue"
-            value={facets.venue || ''}
-            onChange={(e) => setFacets((f) => ({ ...f, venue: e.target.value || undefined }))}
-          />
-          <Input
-            className="h-8 w-20 rounded-full text-xs font-mono text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-            placeholder="year"
-            type="number"
-            value={facets.year ?? ''}
-            onChange={(e) => setFacets((f) => ({ ...f, year: e.target.value ? Number(e.target.value) : undefined }))}
-          />
-        </div>
-      )}
-
-      {facetedDirectMatches.length === 0 ? (
+      {sortedDirectMatches.length === 0 ? (
         <div className="p-8 text-center">
-          <p className="text-muted-foreground font-mono text-sm">
-            {directMatches.length === 0
-              ? '// no_public_papers_match_this_topic_yet'
-              : '// no_results_match_your_filters'}
-          </p>
+          <p className="text-muted-foreground font-mono text-sm">// no_public_papers_match_this_topic_yet</p>
         </div>
       ) : (
         <>
-          <MatchProvenanceList matches={facetedDirectMatches} onOpenPublication={(pub) => setViewingPublication(pub)} />
+          <MatchProvenanceList matches={sortedDirectMatches} onOpenPublication={(pub) => setViewingPublication(pub)} />
           <PublicationList
-            publications={facetedDirectMatches.map((m) => m.publication)}
+            publications={sortedDirectMatches.map((m) => m.publication)}
             tags={tagsForList}
             vaults={matchedVaults}
             publicationVaultsMap={publicationVaultsMap}
