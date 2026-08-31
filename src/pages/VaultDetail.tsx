@@ -1084,8 +1084,13 @@ export default function VaultDetail() {
         source: null,
       });
 
-      // Refresh the data in background (toast provides feedback)
+      // silentRefresh() only re-checks vault access/metadata — it never
+      // touches publicationVaultsMap, which is built once from a separate
+      // fetch and otherwise only updates on full page load. Without also
+      // refetching it here, the publication's own edit dialog kept showing
+      // "not_in_any_vault" for the vault just added until a manual reload.
       silentRefresh();
+      fetchAllPublications();
     } catch (error) {
       toast({
         title: 'Error adding paper',
