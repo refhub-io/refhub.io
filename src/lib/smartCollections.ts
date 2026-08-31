@@ -4,6 +4,7 @@ import type { PublicationFilter } from '@/components/publications/FilterBuilder'
 
 export interface SmartCollectionInput {
   name: string;
+  description?: string | null;
   color: string | null;
   filters: PublicationFilter[];
 }

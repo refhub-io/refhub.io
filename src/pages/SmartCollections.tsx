@@ -99,16 +99,16 @@ export default function SmartCollections() {
             <MobileMenuButton onClick={() => setIsMobileSidebarOpen(true)} className="shrink-0" />
             <div className="flex-1 min-w-0">
               <h1 className="text-lg sm:text-xl lg:text-2xl font-bold truncate font-mono leading-none flex items-center gap-2">
-                <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-accent shrink-0" />
+                <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-primary shrink-0" />
                 smart_<span className="text-gradient">collections</span>
               </h1>
               <p className="text-xs text-muted-foreground mt-1 font-mono truncate leading-none">
-                saved filter rules that stay current automatically — {collections.length} collection{collections.length !== 1 ? 's' : ''}
+                // saved_filter_rules_that_stay_current_automatically • {collections.length}_collection{collections.length !== 1 ? 's' : ''}
               </p>
             </div>
-            <Button onClick={openCreateDialog} variant="glow" className="shrink-0">
+            <Button onClick={openCreateDialog} variant="glow" className="shrink-0 font-mono">
               <Plus className="w-4 h-4 mr-2" />
-              New
+              new_collection
             </Button>
           </div>
 
@@ -128,8 +128,8 @@ export default function SmartCollections() {
         <div className="flex-1 p-6 md:p-10">
           {!loading && collections.length === 0 && (
             <div className="text-center py-16 text-muted-foreground font-mono">
-              <p>No smart collections yet.</p>
-              <p className="text-sm mt-1">Create one to save a filter rule set that stays current automatically.</p>
+              <p>// no_smart_collections_yet</p>
+              <p className="text-sm mt-1">create one to save a filter rule set that stays current automatically</p>
             </div>
           )}
 
@@ -158,14 +158,17 @@ export default function SmartCollections() {
                     <div className="flex items-center gap-2">
                       <div
                         className="w-3 h-3 rounded-full shrink-0"
-                        style={{ backgroundColor: collection.color ?? 'hsl(var(--accent))' }}
+                        style={{ backgroundColor: collection.color ?? 'hsl(var(--electric-purple))' }}
                       />
                       <h2 className="font-bold font-mono">{collection.name}</h2>
                     </div>
                     <Badge variant="secondary" className="text-xs font-mono">
-                      {matchCount} {matchCount === 1 ? 'paper' : 'papers'}
+                      {matchCount}_paper{matchCount !== 1 ? 's' : ''}
                     </Badge>
                   </div>
+                  {collection.description && (
+                    <p className="text-sm text-foreground/80 line-clamp-2 mb-2">{collection.description}</p>
+                  )}
                   <p className="text-xs text-muted-foreground font-mono line-clamp-2 mb-4">
                     {summarizeFilters(collection, tags, vaults)}
                   </p>
@@ -201,17 +204,21 @@ export default function SmartCollections() {
         />
 
         <AlertDialog open={!!deletingCollection} onOpenChange={(open) => !open && setDeletingCollection(null)}>
-          <AlertDialogContent>
+          <AlertDialogContent className="border-2 bg-card/95 backdrop-blur-xl">
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete smart collection?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This deletes the saved rules for "{deletingCollection?.name}". The publications themselves are
-                never affected.
+              <AlertDialogTitle className="text-xl font-bold font-mono">delete_smart_collection?</AlertDialogTitle>
+              <AlertDialogDescription className="font-mono text-sm">
+                // this_deletes_the_saved_rules_for "{deletingCollection?.name}" — the publications themselves are never affected
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleConfirmDelete}>Delete</AlertDialogAction>
+              <AlertDialogCancel className="font-mono">cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleConfirmDelete}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono"
+              >
+                delete
+              </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

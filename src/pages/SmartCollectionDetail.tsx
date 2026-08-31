@@ -100,7 +100,7 @@ export default function SmartCollectionDetail() {
       reading_state: 'unread',
     });
     if (error) throw error;
-    toast({ title: 'Paper added ✨' });
+    toast({ title: 'paper_added ✨' });
     refetch();
   };
 
@@ -109,7 +109,7 @@ export default function SmartCollectionDetail() {
   if (!loading && !collection) {
     return (
       <div className="flex min-h-screen bg-background items-center justify-center">
-        <p className="font-mono text-muted-foreground">Smart collection not found.</p>
+        <p className="font-mono text-muted-foreground">// smart_collection_not_found</p>
       </div>
     );
   }
@@ -138,13 +138,19 @@ export default function SmartCollectionDetail() {
             <Button variant="ghost" size="icon" onClick={() => navigate('/collections')} aria-label="Back to collections">
               <ArrowLeft className="w-4 h-4" />
             </Button>
-            <Sparkles className="w-4 h-4 text-accent" />
+            <Sparkles className="w-4 h-4 text-primary" />
           </div>
-          <Button variant="outline" size="sm" onClick={() => setDialogOpen(true)}>
+          <Button variant="outline" size="sm" onClick={() => setDialogOpen(true)} className="font-mono">
             <Pencil className="w-4 h-4 mr-2" />
-            Edit rules
+            edit_rules
           </Button>
         </div>
+
+        {!loading && collection?.description && (
+          <div className="px-4 lg:px-8 py-3 border-b border-border">
+            <p className="text-sm text-foreground/80">{collection.description}</p>
+          </div>
+        )}
 
         {loading && (
           <div className="flex-1 flex items-center justify-center">
@@ -154,7 +160,7 @@ export default function SmartCollectionDetail() {
 
         {!loading && collection && filtered.length === 0 && (
           <div className="text-center py-16 text-muted-foreground font-mono">
-            <p>No papers match this collection's rules.</p>
+            <p>// no_papers_match_this_collections_rules</p>
             {emptyRuleHint && <p className="text-sm mt-1">{emptyRuleHint}</p>}
           </div>
         )}
@@ -190,12 +196,11 @@ export default function SmartCollectionDetail() {
             <DialogHeader>
               <DialogTitle className="font-mono">discover_related_papers</DialogTitle>
             </DialogHeader>
-            <p className="text-sm text-muted-foreground font-mono">
-              // a_smart_collection_has_no_papers_of_its_own — pick a vault to add anything you find to
-            </p>
+            <p className="text-xs text-muted-foreground/60 font-mono">// a_smart_collection_has_no_papers_of_its_own</p>
+            <p className="text-sm text-muted-foreground">pick a vault to add anything you find to.</p>
             <Select value={targetVaultId ?? undefined} onValueChange={setTargetVaultId}>
               <SelectTrigger className="font-mono text-sm">
-                <SelectValue placeholder="choose a vault..." />
+                <SelectValue placeholder="choose_a_vault..." />
               </SelectTrigger>
               <SelectContent>
                 {ownedVaults.map((v) => (

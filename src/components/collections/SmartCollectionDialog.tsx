@@ -8,6 +8,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Save, Plus, X } from 'lucide-react';
 import { FilterBuilder, applyFilters, type PublicationFilter } from '@/components/publications/FilterBuilder';
 import type { Publication, Tag, Vault, SmartCollection } from '@/types/database';
@@ -52,6 +53,7 @@ export function SmartCollectionDialog({
   onSave,
 }: SmartCollectionDialogProps) {
   const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
   const [color, setColor] = useState<string>(COLLECTION_COLORS[0]);
   const [filters, setFilters] = useState<PublicationFilter[]>([]);
   const [saving, setSaving] = useState(false);
@@ -59,6 +61,7 @@ export function SmartCollectionDialog({
   useEffect(() => {
     if (open) {
       setName(editingCollection?.name ?? '');
+      setDescription(editingCollection?.description ?? '');
       setColor(editingCollection?.color ?? COLLECTION_COLORS[0]);
       setFilters(editingCollection?.filters ?? []);
     }
@@ -73,7 +76,7 @@ export function SmartCollectionDialog({
     if (!name.trim()) return;
     setSaving(true);
     try {
-      await onSave({ name: name.trim(), color, filters });
+      await onSave({ name: name.trim(), description: description.trim() || null, color, filters });
       onOpenChange(false);
     } finally {
       setSaving(false);
@@ -102,6 +105,18 @@ export function SmartCollectionDialog({
           </div>
 
           <div className="space-y-2">
+            <Label htmlFor="smart-collection-description" className="font-semibold font-mono">description</Label>
+            <Textarea
+              id="smart-collection-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="what_is_this_collection_for..."
+              rows={2}
+              className="font-mono text-sm"
+            />
+          </div>
+
+          <div className="space-y-2">
             <Label className="font-semibold font-mono">color</Label>
             <div className="flex gap-2">
               {COLLECTION_COLORS.map((c) => (
@@ -125,7 +140,7 @@ export function SmartCollectionDialog({
           </div>
 
           <p className="text-sm text-muted-foreground font-mono">
-            {matchCount} {matchCount === 1 ? 'paper matches' : 'papers match'}
+            // {matchCount}_matching_paper{matchCount !== 1 ? 's' : ''}
           </p>
         </div>
 
