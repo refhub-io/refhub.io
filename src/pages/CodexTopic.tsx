@@ -221,6 +221,46 @@ export default function CodexTopic() {
         </div>
       )}
 
+      {directMatches.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-border">
+          <select
+            className="text-xs font-mono border border-input rounded-md h-8 px-2 bg-background"
+            value={sortMode}
+            onChange={(e) => setSortMode(e.target.value as TopicSortMode)}
+          >
+            <option value="relevance">sort: relevance</option>
+            <option value="recent">sort: recent</option>
+            <option value="popular">sort: most forked/favorited</option>
+            <option value="connected">sort: most connected</option>
+          </select>
+          <input
+            className="text-xs font-mono border border-input rounded-md h-8 px-2 bg-background"
+            placeholder="filter: tag"
+            value={facets.tag || ''}
+            onChange={(e) => setFacets((f) => ({ ...f, tag: e.target.value || undefined }))}
+          />
+          <input
+            className="text-xs font-mono border border-input rounded-md h-8 px-2 bg-background"
+            placeholder="filter: author"
+            value={facets.author || ''}
+            onChange={(e) => setFacets((f) => ({ ...f, author: e.target.value || undefined }))}
+          />
+          <input
+            className="text-xs font-mono border border-input rounded-md h-8 px-2 bg-background"
+            placeholder="filter: venue"
+            value={facets.venue || ''}
+            onChange={(e) => setFacets((f) => ({ ...f, venue: e.target.value || undefined }))}
+          />
+          <input
+            className="text-xs font-mono border border-input rounded-md h-8 px-2 bg-background w-24"
+            placeholder="filter: year"
+            type="number"
+            value={facets.year ?? ''}
+            onChange={(e) => setFacets((f) => ({ ...f, year: e.target.value ? Number(e.target.value) : undefined }))}
+          />
+        </div>
+      )}
+
       {facetedDirectMatches.length === 0 ? (
         <div className="p-8 text-center">
           <p className="text-muted-foreground font-mono text-sm">
@@ -231,43 +271,6 @@ export default function CodexTopic() {
         </div>
       ) : (
         <>
-          <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-border">
-            <select
-              className="text-xs font-mono border border-input rounded-md h-8 px-2 bg-background"
-              value={sortMode}
-              onChange={(e) => setSortMode(e.target.value as TopicSortMode)}
-            >
-              <option value="relevance">sort: relevance</option>
-              <option value="recent">sort: recent</option>
-              <option value="popular">sort: most forked/favorited</option>
-              <option value="connected">sort: most connected</option>
-            </select>
-            <input
-              className="text-xs font-mono border border-input rounded-md h-8 px-2 bg-background"
-              placeholder="filter: tag"
-              value={facets.tag || ''}
-              onChange={(e) => setFacets((f) => ({ ...f, tag: e.target.value || undefined }))}
-            />
-            <input
-              className="text-xs font-mono border border-input rounded-md h-8 px-2 bg-background"
-              placeholder="filter: author"
-              value={facets.author || ''}
-              onChange={(e) => setFacets((f) => ({ ...f, author: e.target.value || undefined }))}
-            />
-            <input
-              className="text-xs font-mono border border-input rounded-md h-8 px-2 bg-background"
-              placeholder="filter: venue"
-              value={facets.venue || ''}
-              onChange={(e) => setFacets((f) => ({ ...f, venue: e.target.value || undefined }))}
-            />
-            <input
-              className="text-xs font-mono border border-input rounded-md h-8 px-2 bg-background w-24"
-              placeholder="filter: year"
-              type="number"
-              value={facets.year ?? ''}
-              onChange={(e) => setFacets((f) => ({ ...f, year: e.target.value ? Number(e.target.value) : undefined }))}
-            />
-          </div>
           <MatchProvenanceList matches={facetedDirectMatches} onOpenPublication={(pub) => setViewingPublication(pub)} />
           <PublicationList
             publications={facetedDirectMatches.map((m) => m.publication)}
