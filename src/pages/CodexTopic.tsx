@@ -186,33 +186,27 @@ export default function CodexTopic() {
   return (
     <div className="min-h-screen bg-background">
       <div className="border-b border-border bg-card/50 backdrop-blur-xl px-4 py-3 space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-          <div className="flex items-center gap-3 min-w-0">
-            <Link to="/codex" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground font-mono shrink-0">
-              <ArrowLeft className="w-4 h-4" /> back
-            </Link>
-            <h1 className="text-xl font-bold font-mono leading-none truncate">
-              // <span className="text-gradient">{topic}</span>
-            </h1>
-          </div>
-          <div className="flex items-center gap-3 shrink-0">
-            <p className="text-xs text-muted-foreground font-mono">
-              {matchedVaults.length}_vault{matchedVaults.length !== 1 ? 's' : ''} • {sortedDirectMatches.length}_paper{sortedDirectMatches.length !== 1 ? 's' : ''}
-            </p>
-            {directMatches.length > 0 && (
-              <Select value={sortMode} onValueChange={(value) => setSortMode(value as TopicSortMode)}>
-                <SelectTrigger className="h-7 w-auto rounded-full text-xs font-mono">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="relevance" className="text-xs font-mono">sort: relevance</SelectItem>
-                  <SelectItem value="recent" className="text-xs font-mono">sort: recent</SelectItem>
-                  <SelectItem value="popular" className="text-xs font-mono">sort: most forked/favorited</SelectItem>
-                  <SelectItem value="connected" className="text-xs font-mono">sort: most connected</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-          </div>
+        <div className="flex items-center justify-between gap-3">
+          <Link
+            to="/codex"
+            aria-label="Back to codex"
+            className="inline-flex items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Link>
+          {directMatches.length > 0 && (
+            <Select value={sortMode} onValueChange={(value) => setSortMode(value as TopicSortMode)}>
+              <SelectTrigger className="h-7 w-auto rounded-full text-xs font-mono">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="relevance" className="text-xs font-mono">sort: relevance</SelectItem>
+                <SelectItem value="recent" className="text-xs font-mono">sort: recent</SelectItem>
+                <SelectItem value="popular" className="text-xs font-mono">sort: most forked/favorited</SelectItem>
+                <SelectItem value="connected" className="text-xs font-mono">sort: most connected</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
         <TopicSummaryPanel
