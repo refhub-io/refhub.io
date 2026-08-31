@@ -22,7 +22,7 @@ interface TopicSummaryPanelProps {
 
 export default function TopicSummaryPanel({ relatedTopics, curators, newInLast30Days, matchingVaults = [] }: TopicSummaryPanelProps) {
   return (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+    <>
       {newInLast30Days > 0 && (
         <span className="text-xs font-mono text-primary px-2 py-0.5 rounded-full bg-primary/10 shrink-0">
           {newInLast30Days}_new_in_last_30_days
@@ -85,6 +85,6 @@ export default function TopicSummaryPanel({ relatedTopics, curators, newInLast30
           <span className="text-sm text-muted-foreground font-mono">// no_curators_yet</span>
         )}
       </div>
-    </div>
+    </>
   );
 }

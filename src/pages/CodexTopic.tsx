@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { logger } from '@/lib/logger';
 import {
@@ -13,6 +13,10 @@ import {
   type TopicSortMode,
   type VaultPopularity,
 } from '@/lib/codexDiscovery';
+import { useAuth } from '@/hooks/useAuth';
+import { useAllPublications } from '@/hooks/useAllPublications';
+import { SidebarDndBoundary } from '@/components/layout/SidebarDndBoundary';
+import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationViewDialog } from '@/components/publications/PublicationViewDialog';
 import { LoadingSpinner } from '@/components/ui/loading';
@@ -25,12 +29,17 @@ import {
 } from '@/components/ui/select';
 import TopicSummaryPanel from '@/components/codex/TopicSummaryPanel';
 import MatchProvenanceList from '@/components/codex/MatchProvenanceList';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Scroll } from 'lucide-react';
 import type { Publication, Vault, Tag } from '@/types/database';
 
 export default function CodexTopic() {
   const { topicSlug } = useParams();
+  const navigate = useNavigate();
   const topic = topicSlug ? slugToTopic(topicSlug) : '';
+
+  const { user } = useAuth();
+  const { vaults: myVaults } = useAllPublications();
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -166,6 +175,11 @@ export default function CodexTopic() {
   // Tag badges on this page come from each match's `signals`, not FilterBuilder's tag picker.
   const tagsForList: Tag[] = [];
 
+  // Sidebar nav needs the signed-in user's OWN vaults, distinct from
+  // matchedVaults (the vaults that happen to match this topic).
+  const ownedVaults = useMemo(() => myVaults.filter((v) => v.user_id === user?.id), [myVaults, user?.id]);
+  const sharedVaults = useMemo(() => myVaults.filter((v) => v.user_id !== user?.id), [myVaults, user?.id]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -184,86 +198,109 @@ export default function CodexTopic() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="border-b border-border bg-card/50 backdrop-blur-xl px-4 py-3 space-y-2">
-        <div className="flex items-center justify-between gap-3">
-          <Link
-            to="/codex"
-            aria-label="Back to codex"
-            className="inline-flex items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
-          {directMatches.length > 0 && (
-            <Select value={sortMode} onValueChange={(value) => setSortMode(value as TopicSortMode)}>
-              <SelectTrigger className="h-7 w-auto rounded-full text-xs font-mono">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="relevance" className="text-xs font-mono">sort: relevance</SelectItem>
-                <SelectItem value="recent" className="text-xs font-mono">sort: recent</SelectItem>
-                <SelectItem value="popular" className="text-xs font-mono">sort: most forked/favorited</SelectItem>
-                <SelectItem value="connected" className="text-xs font-mono">sort: most connected</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
-        </div>
-
-        <TopicSummaryPanel
-          relatedTopics={relatedTopics}
-          curators={curators}
-          newInLast30Days={newInLast30Days}
-          matchingVaults={matchingVaultsForPanel}
+    <div className="min-h-screen bg-background flex">
+      {user && (
+        <SidebarDndBoundary
+          vaults={ownedVaults}
+          sharedVaults={sharedVaults}
+          selectedVaultId={null}
+          onSelectVault={(vaultId) => (vaultId ? navigate(`/vault/${vaultId}`) : navigate('/dashboard'))}
+          onCreateVault={() => navigate('/dashboard?createVault=1')}
+          isMobileOpen={isMobileSidebarOpen}
+          onMobileClose={() => setIsMobileSidebarOpen(false)}
         />
-      </div>
-
-      {sortedDirectMatches.length === 0 ? (
-        <div className="p-8 text-center">
-          <p className="text-muted-foreground font-mono text-sm">// no_public_papers_match_this_topic_yet</p>
-        </div>
-      ) : (
-        <>
-          <MatchProvenanceList matches={sortedDirectMatches} onOpenPublication={(pub) => setViewingPublication(pub)} />
-          <PublicationList
-            publications={sortedDirectMatches.map((m) => m.publication)}
-            tags={tagsForList}
-            vaults={matchedVaults}
-            publicationVaultsMap={publicationVaultsMap}
-            publicationTagsMap={{}}
-            relationsCountMap={{}}
-            selectedVault={null}
-            listTitle={topic}
-            onOpenPublication={(pub) => setViewingPublication(pub)}
-            onExportBibtex={() => {}}
-            onMobileMenuOpen={() => {}}
-          />
-        </>
       )}
+      <div className={`flex-1 min-w-0 flex flex-col min-h-screen ${user ? 'lg:pl-72' : ''}`}>
+        {user && !isMobileSidebarOpen && (
+          <MobileMenuButton onClick={() => setIsMobileSidebarOpen(true)} className="fixed top-4 left-4 z-50" />
+        )}
 
-      {citationOnlyMatches.length > 0 && (
-        <div className="border-t border-border">
-          <div className="px-4 pt-6 pb-2">
-            <h2 className="text-sm font-mono text-muted-foreground">// related_via_citation</h2>
-            <p className="text-xs text-muted-foreground/70">
-              cited by a direct match — not tagged or keyworded with "{topic}" itself
-            </p>
+        <div className="border-b border-border bg-card/50 backdrop-blur-xl px-4 py-3">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <div className="flex items-center gap-2 shrink-0">
+              <Link
+                to="/codex"
+                aria-label="Back to codex"
+                className="inline-flex items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </Link>
+              <div className="w-6 h-6 rounded-md flex items-center justify-center bg-gradient-to-br from-amber-500/20 to-orange-500/20 shrink-0">
+                <Scroll className="w-3.5 h-3.5 text-amber-500" />
+              </div>
+            </div>
+
+            <TopicSummaryPanel
+              relatedTopics={relatedTopics}
+              curators={curators}
+              newInLast30Days={newInLast30Days}
+              matchingVaults={matchingVaultsForPanel}
+            />
+
+            {directMatches.length > 0 && (
+              <Select value={sortMode} onValueChange={(value) => setSortMode(value as TopicSortMode)}>
+                <SelectTrigger className="h-7 w-auto rounded-full text-xs font-mono shrink-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="relevance" className="text-xs font-mono">sort: relevance</SelectItem>
+                  <SelectItem value="recent" className="text-xs font-mono">sort: recent</SelectItem>
+                  <SelectItem value="popular" className="text-xs font-mono">sort: most forked/favorited</SelectItem>
+                  <SelectItem value="connected" className="text-xs font-mono">sort: most connected</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
           </div>
-          <MatchProvenanceList matches={citationOnlyMatches} onOpenPublication={(pub) => setViewingPublication(pub)} />
-          <PublicationList
-            publications={citationOnlyMatches.map((m) => m.publication)}
-            tags={tagsForList}
-            vaults={citationOnlyVaults}
-            publicationVaultsMap={citationOnlyVaultsMap}
-            publicationTagsMap={{}}
-            relationsCountMap={{}}
-            selectedVault={null}
-            listTitle={`related to ${topic}`}
-            onOpenPublication={(pub) => setViewingPublication(pub)}
-            onExportBibtex={() => {}}
-            onMobileMenuOpen={() => {}}
-          />
         </div>
-      )}
+
+        {sortedDirectMatches.length === 0 ? (
+          <div className="p-8 text-center">
+            <p className="text-muted-foreground font-mono text-sm">// no_public_papers_match_this_topic_yet</p>
+          </div>
+        ) : (
+          <>
+            <MatchProvenanceList matches={sortedDirectMatches} onOpenPublication={(pub) => setViewingPublication(pub)} />
+            <PublicationList
+              publications={sortedDirectMatches.map((m) => m.publication)}
+              tags={tagsForList}
+              vaults={matchedVaults}
+              publicationVaultsMap={publicationVaultsMap}
+              publicationTagsMap={{}}
+              relationsCountMap={{}}
+              selectedVault={null}
+              listTitle={topic}
+              onOpenPublication={(pub) => setViewingPublication(pub)}
+              onExportBibtex={() => {}}
+              onMobileMenuOpen={() => setIsMobileSidebarOpen(true)}
+            />
+          </>
+        )}
+
+        {citationOnlyMatches.length > 0 && (
+          <div className="border-t border-border">
+            <div className="px-4 pt-6 pb-2">
+              <h2 className="text-sm font-mono text-muted-foreground">// related_via_citation</h2>
+              <p className="text-xs text-muted-foreground/70">
+                cited by a direct match — not tagged or keyworded with "{topic}" itself
+              </p>
+            </div>
+            <MatchProvenanceList matches={citationOnlyMatches} onOpenPublication={(pub) => setViewingPublication(pub)} />
+            <PublicationList
+              publications={citationOnlyMatches.map((m) => m.publication)}
+              tags={tagsForList}
+              vaults={citationOnlyVaults}
+              publicationVaultsMap={citationOnlyVaultsMap}
+              publicationTagsMap={{}}
+              relationsCountMap={{}}
+              selectedVault={null}
+              listTitle={`related to ${topic}`}
+              onOpenPublication={(pub) => setViewingPublication(pub)}
+              onExportBibtex={() => {}}
+              onMobileMenuOpen={() => setIsMobileSidebarOpen(true)}
+            />
+          </div>
+        )}
+      </div>
 
       <PublicationViewDialog
         open={!!viewingPublication}
