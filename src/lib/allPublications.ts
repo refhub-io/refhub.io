@@ -6,7 +6,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Publication, Vault, Tag, PublicationTag } from '@/types/database';
 import { buildAllPublications, buildPublicationVaultsMap, buildPublicationTagsMap, type RawVaultPublicationRow } from './publicationAggregate';
-import { getDashboardAccessibleVaultIds, filterDashboardTags } from './dashboardTagScope';
+import { filterDashboardTags } from './dashboardTagScope';
+import { fetchUserVaults } from './vaults';
 
 export interface AllPublicationsData {
   publications: Publication[];
@@ -41,41 +42,29 @@ export async function fetchAllPublicationsData(
   userId: string,
   userEmail: string | null,
 ): Promise<AllPublicationsData> {
-  const [pubsRes, ownedVaultsRes, sharedVaultsRes, vaultPubsRes, pubTagsRes] = await Promise.all([
+  const [vaultsData, pubsRes, vaultPubsRes, pubTagsRes] = await Promise.all([
+    fetchUserVaults(supabase, userId, userEmail),
     supabase.from('publications').select('*').order('created_at', { ascending: false }),
-    supabase.from('vaults').select('*').eq('user_id', userId).order('name'),
-    supabase
-      .from('vault_shares')
-      .select('vault_id, role')
-      .or(`shared_with_email.eq.${userEmail ?? ''},shared_with_user_id.eq.${userId}`),
     supabase.from('vault_publications').select('*').order('created_at', { ascending: false }),
     // Only these three columns feed buildPublicationTagsMap() below —
     // narrower than select('*') to cut payload size on what's shown to be
     // this hook's slowest query.
     supabase.from('publication_tags').select('id, publication_id, vault_publication_id, tag_id'),
   ]);
-  // publication_tags is queried separately from the other four: it's the
+  // publication_tags is queried separately from the rest: it's the
   // slowest/most failure-prone query here (unscoped select across the whole
   // table, relying entirely on RLS), and it only feeds tag badges/matching —
   // it must not be able to wipe out vaults/publications too. A single
   // combined throwOnAnyError() used to do exactly that: any one query
   // failing discarded the whole Promise.all's results, including the
-  // sidebar's own vault list, on every page built on this hook.
-  throwOnAnyError([pubsRes, ownedVaultsRes, sharedVaultsRes, vaultPubsRes]);
+  // sidebar's own vault list, on every page built on this hook. (fetchUserVaults
+  // throws its own errors, which reject this Promise.all same as before.)
+  throwOnAnyError([pubsRes, vaultPubsRes]);
   if (pubTagsRes.error) {
     console.error('Failed to fetch publication_tags (tag data will be incomplete):', pubTagsRes.error);
   }
 
-  const ownedVaults = (ownedVaultsRes.data as Vault[]) || [];
-  const sharedVaultIds = (sharedVaultsRes.data || []).map((share: { vault_id: string }) => share.vault_id);
-  const scopedVaultIds = getDashboardAccessibleVaultIds({ ownedVaults, sharedVaultIds });
-
-  let sharedVaults: Vault[] = [];
-  if (sharedVaultIds.length > 0) {
-    const sharedVaultsDetailRes = await supabase.from('vaults').select('*').in('id', sharedVaultIds);
-    throwOnAnyError([sharedVaultsDetailRes]);
-    sharedVaults = (sharedVaultsDetailRes.data as Vault[]) || [];
-  }
+  const { ownedVaults, sharedVaults, sharedVaultIds, scopedVaultIds } = vaultsData;
 
   const tagQueries = [
     supabase.from('tags').select('*').eq('user_id', userId).is('vault_id', null).order('name'),

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { logger } from '@/lib/logger';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -14,42 +14,33 @@ interface UpdateProfileOptions {
   source?: ProfileFeedbackSource;
 }
 
+export function profileQueryKey(userId: string | undefined) {
+  return ['profile', userId] as const;
+}
+
+// react-query-backed so every page sharing this hook (all of them) reads the
+// same cached profile instead of independently fetching it from empty state
+// on every mount — that's what caused the sidebar avatar to reset to its
+// placeholder on every page navigation before this.
 export function useProfile() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  
+  const query = useQuery({
+    queryKey: profileQueryKey(user?.id),
+    queryFn: async () => {
+      try {
+        return await ensureProfileExists(user!);
+      } catch (error) {
+        logger.error('useProfile', 'Error fetching profile:', error);
+        return null;
+      }
+    },
+    enabled: !!user,
+  });
 
-  const fetchProfile = useCallback(async () => {
-    if (!user) {
-      setProfile(null);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const profileData = await ensureProfileExists(user);
-      setProfile(profileData);
-    } catch (error) {
-      logger.error('useProfile', 'Error fetching profile:', error);
-      setProfile(null);
-    } finally {
-      setLoading(false);
-    }
-  // Use user?.id so Supabase token refreshes (which create new user object
-  // references without changing the user) don't trigger a re-fetch.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
-
-  // Refetch only when the user ID changes (login / logout), not on every
-  // token refresh that produces a new user object reference.
-  useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
+  const profile = query.data ?? null;
 
   const updateProfile = async (updates: Partial<Profile>, options: UpdateProfileOptions = {}) => {
     if (!user || !profile) return { error: new Error('Not authenticated or no profile') };
@@ -67,7 +58,9 @@ export function useProfile() {
 
       if (error) throw error;
 
-      setProfile(updatedProfile as Profile);
+      // Written straight into the shared cache (not just a local refetch) so
+      // every other mounted page's useProfile() picks up the change immediately.
+      queryClient.setQueryData(profileQueryKey(user.id), updatedProfile as Profile);
       if (!options.silent) {
         toast({ title: 'Profile updated ✨', source: options.source });
       }
@@ -104,9 +97,9 @@ export function useProfile() {
 
   return {
     profile,
-    loading,
+    loading: query.isLoading,
     updateProfile,
     checkUsernameAvailable,
-    refetch: fetchProfile,
+    refetch: query.refetch,
   };
 }
