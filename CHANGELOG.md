@@ -9,6 +9,7 @@ project uses [Semantic Versioning](https://semver.org/). History prior to
 ## [1.11.1] - 2026-08-31
 
 ### Fixed
+- `/collections` and `/collections/:id` had no auth gate at all — an anonymous visitor could browse to the smart collections UI shell. Both pages now redirect to `/` when signed out, matching every other authenticated page's pattern.
 - Smart collections and their detail pages picked up the app's design system: gradient primary buttons, lowercase font-mono labels, and the shared vault color palette in the "new/edit collection" dialog, replacing generic purple accents.
 - Smart collection cards showed raw tag/vault UUIDs (e.g. "tags equals 90f79e1d-...") instead of the tag/vault name.
 - The smart collections list page had no description of what the feature is and no way to search collections by name; both are now present, matching the Codex/researchers-directory pattern.
