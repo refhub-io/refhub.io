@@ -25,6 +25,13 @@ project uses [Semantic Versioning](https://semver.org/). History prior to
 - Codex vault cards now show a subtle border tinted with the vault's own color instead of a generic border.
 - Dropped the "// tagline" / "// abstract" labels from vault description text — bold-vs-muted text hierarchy already conveys which is which.
 - Smart collections list header's subtext no longer has a stray "//" prefix, matching how the researchers/all_papers pages format their subtitle line.
+- The smart collections list page's H1 no longer carries an icon (icons belong on sidebar nav only) and is now prefixed with "// ", matching the all_papers/researchers pages.
+- Both smart-collection pages' content wrapper was missing `min-w-0`, letting `PublicationList`'s table view stretch the whole page instead of scrolling horizontally inside its own container.
+- The Codex topic page duplicated its title above `PublicationList`'s own header, used "//" as a mid-sentence stat separator instead of "•", used raw unstyled `<select>`/`<input>` elements for its facet/sort controls, and rendered paper titles in monospace inside "why these matched" (paper titles use the plain display font everywhere else). All fixed; facet/sort controls now match the app's actual `Select`/`Input` components.
+- The Codex topic page's header, facet bar, and "matching_vaults"/"related_topics"/"curators" panel were stacked across many separately-bordered blocks, each wrapping onto its own line and wasting vertical space. The header now shares one row for the back-link, title, paper/vault counts, and sort control; the summary panel renders its groups as a single flex-wrap row instead of stacked sections.
+- "Why these matched" is now a closed-by-default disclosure with a badge showing the match count, instead of always rendering every match's provenance in full — avoids dumping a wall of rows above the fold when a topic has many matches.
+- Removed the Codex topic page's tag/author/venue/year filter inputs, which duplicated filtering `PublicationList`'s own toolbar already provides; kept the topic-specific sort modes (relevance/recent/popular/connected), which have no `PublicationList` equivalent.
+- Fixed a "Rendered more hooks than during the previous render" crash on `/codex/topic/:topicSlug`, caused by a hook added after the component's early loading/error returns.
 
 ### Added
 - Smart collections can now have an optional description, so a collection can carry its curatorial intent (e.g. "papers I still need to read for the visual storytelling survey") alongside its name and rules. Shown on list cards and the collection detail page. **Requires running the new migration** (`supabase/migrations/20260831000000_smart_collections_description.sql`).
