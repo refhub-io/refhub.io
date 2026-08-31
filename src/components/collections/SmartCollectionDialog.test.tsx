@@ -35,7 +35,7 @@ describe('SmartCollectionDialog', () => {
     expect(screen.getByText(/2 papers match/i)).toBeInTheDocument();
   });
 
-  it('requires a name before Save is enabled', () => {
+  it('requires a name before the submit button is enabled', () => {
     render(
       <SmartCollectionDialog
         open
@@ -49,8 +49,10 @@ describe('SmartCollectionDialog', () => {
         onSave={vi.fn()}
       />,
     );
-    expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
+    // A new (not-yet-editing) collection's submit button reads "create_collection",
+    // matching VaultDialog's create_vault/save_changes distinction.
+    expect(screen.getByRole('button', { name: /create_collection/i })).toBeDisabled();
     fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'Reading list' } });
-    expect(screen.getByRole('button', { name: /save/i })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /create_collection/i })).not.toBeDisabled();
   });
 });

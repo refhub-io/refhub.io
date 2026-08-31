@@ -4,13 +4,14 @@ import { SidebarDndBoundary } from '@/components/layout/SidebarDndBoundary';
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, Plus, Pencil, Trash2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Sparkles, Plus, Pencil, Trash2, Search } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAllPublications } from '@/hooks/useAllPublications';
 import { useSmartCollections } from '@/hooks/useSmartCollections';
 import { SmartCollectionDialog } from '@/components/collections/SmartCollectionDialog';
 import { applyFilters } from '@/components/publications/FilterBuilder';
-import type { SmartCollection } from '@/types/database';
+import type { SmartCollection, Tag, Vault } from '@/types/database';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,10 +23,15 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-function summarizeFilters(collection: SmartCollection): string {
+function summarizeFilters(collection: SmartCollection, tags: Tag[], vaults: Vault[]): string {
   if (collection.filters.length === 0) return 'no rules yet';
   return collection.filters
-    .map((f) => `${f.field} ${f.operator.replace('_', ' ')}${f.value ? ` ${f.value}` : ''}`)
+    .map((f) => {
+      let displayValue = f.value;
+      if (f.field === 'tags') displayValue = tags.find((t) => t.id === f.value)?.name ?? f.value;
+      if (f.field === 'vault') displayValue = vaults.find((v) => v.id === f.value)?.name ?? f.value;
+      return `${f.field} ${f.operator.replace('_', ' ')}${displayValue ? ` ${displayValue}` : ''}`;
+    })
     .join(' · ');
 }
 
@@ -38,6 +44,13 @@ export default function SmartCollections() {
   const [editingCollection, setEditingCollection] = useState<SmartCollection | null>(null);
   const [deletingCollection, setDeletingCollection] = useState<SmartCollection | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredCollections = useMemo(() => {
+    if (!searchQuery.trim()) return collections;
+    const query = searchQuery.toLowerCase();
+    return collections.filter((c) => c.name.toLowerCase().includes(query));
+  }, [collections, searchQuery]);
 
   // useAllPublications() merges owned + shared vaults into one array; split
   // them back out here (rather than changing that hook's return shape) so
@@ -76,78 +89,103 @@ export default function SmartCollections() {
         sharedVaults={sharedVaults}
         selectedVaultId={null}
         onSelectVault={(vaultId) => (vaultId ? navigate(`/vault/${vaultId}`) : navigate('/dashboard'))}
-        onCreateVault={() => navigate('/dashboard')}
+        onCreateVault={() => navigate('/dashboard?createVault=1')}
         isMobileOpen={isMobileSidebarOpen}
         onMobileClose={() => setIsMobileSidebarOpen(false)}
       />
-      <main className="flex-1 lg:pl-72 p-6 md:p-10">
-        <div className="flex items-center justify-between mb-8">
+      <main className="flex-1 lg:pl-72 flex flex-col min-h-screen">
+        <header className="bg-card/50 backdrop-blur-xl border-b-2 border-border px-4 lg:px-8 py-4 shrink-0 sticky top-0 z-10">
           <div className="flex items-center gap-3">
-            <MobileMenuButton onClick={() => setIsMobileSidebarOpen(true)} />
-            <h1 className="text-2xl font-bold font-mono flex items-center gap-2">
-              <Sparkles className="w-6 h-6 text-violet-500" />
-              smart_collections
-            </h1>
+            <MobileMenuButton onClick={() => setIsMobileSidebarOpen(true)} className="shrink-0" />
+            <div className="flex-1 min-w-0">
+              <h1 className="text-lg sm:text-xl lg:text-2xl font-bold truncate font-mono leading-none flex items-center gap-2">
+                <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-accent shrink-0" />
+                smart_<span className="text-gradient">collections</span>
+              </h1>
+              <p className="text-xs text-muted-foreground mt-1 font-mono truncate leading-none">
+                saved filter rules that stay current automatically — {collections.length} collection{collections.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+            <Button onClick={openCreateDialog} variant="glow" className="shrink-0">
+              <Plus className="w-4 h-4 mr-2" />
+              New
+            </Button>
           </div>
-          <Button onClick={openCreateDialog}>
-            <Plus className="w-4 h-4 mr-2" />
-            New
-          </Button>
-        </div>
 
-        {!loading && collections.length === 0 && (
-          <div className="text-center py-16 text-muted-foreground font-mono">
-            <p>No smart collections yet.</p>
-            <p className="text-sm mt-1">Create one to save a filter rule set that stays current automatically.</p>
+          <div className="flex items-center gap-3 mt-5 flex-wrap">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="search_collections..."
+                className="pl-11 font-mono"
+              />
+            </div>
           </div>
-        )}
+        </header>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {collections.map((collection) => {
-            const matchCount = applyFilters(
-              publications,
-              collection.filters,
-              publicationTagsMap,
-              publicationVaultsMap,
-            ).length;
+        <div className="flex-1 p-6 md:p-10">
+          {!loading && collections.length === 0 && (
+            <div className="text-center py-16 text-muted-foreground font-mono">
+              <p>No smart collections yet.</p>
+              <p className="text-sm mt-1">Create one to save a filter rule set that stays current automatically.</p>
+            </div>
+          )}
 
-            return (
-              <article
-                key={collection.id}
-                className="p-5 rounded-2xl border-2 border-border bg-card/50 hover:border-primary/30 transition-all cursor-pointer"
-                onClick={() => navigate(`/collections/${collection.id}`)}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="w-3 h-3 rounded-full shrink-0"
-                      style={{ backgroundColor: collection.color ?? '#8b5cf6' }}
-                    />
-                    <h2 className="font-bold font-mono">{collection.name}</h2>
+          {!loading && collections.length > 0 && filteredCollections.length === 0 && (
+            <div className="text-center py-16 text-muted-foreground font-mono">
+              <p>// no_collections_match_your_search</p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredCollections.map((collection) => {
+              const matchCount = applyFilters(
+                publications,
+                collection.filters,
+                publicationTagsMap,
+                publicationVaultsMap,
+              ).length;
+
+              return (
+                <article
+                  key={collection.id}
+                  className="p-5 rounded-2xl border-2 border-border bg-card/50 hover:border-primary/30 transition-all cursor-pointer"
+                  onClick={() => navigate(`/collections/${collection.id}`)}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded-full shrink-0"
+                        style={{ backgroundColor: collection.color ?? 'hsl(var(--accent))' }}
+                      />
+                      <h2 className="font-bold font-mono">{collection.name}</h2>
+                    </div>
+                    <Badge variant="secondary" className="text-xs font-mono">
+                      {matchCount} {matchCount === 1 ? 'paper' : 'papers'}
+                    </Badge>
                   </div>
-                  <Badge variant="secondary" className="text-xs font-mono">
-                    {matchCount} {matchCount === 1 ? 'paper' : 'papers'}
-                  </Badge>
-                </div>
-                <p className="text-xs text-muted-foreground font-mono line-clamp-2 mb-4">
-                  {summarizeFilters(collection)}
-                </p>
-                <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                  <Button variant="ghost" size="icon" onClick={() => openEditDialog(collection)} aria-label="Edit">
-                    <Pencil className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setDeletingCollection(collection)}
-                    aria-label="Delete"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </article>
-            );
-          })}
+                  <p className="text-xs text-muted-foreground font-mono line-clamp-2 mb-4">
+                    {summarizeFilters(collection, tags, vaults)}
+                  </p>
+                  <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                    <Button variant="ghost" size="icon" onClick={() => openEditDialog(collection)} aria-label="Edit">
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setDeletingCollection(collection)}
+                      aria-label="Delete"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
         </div>
 
         <SmartCollectionDialog

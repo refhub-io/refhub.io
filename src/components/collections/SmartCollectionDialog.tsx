@@ -8,11 +8,25 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Save, Plus, X } from 'lucide-react';
 import { FilterBuilder, applyFilters, type PublicationFilter } from '@/components/publications/FilterBuilder';
 import type { Publication, Tag, Vault, SmartCollection } from '@/types/database';
 import type { SmartCollectionInput } from '@/lib/smartCollections';
 
-const COLLECTION_COLORS = ['#8b5cf6', '#ec4899', '#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
+// Matches VaultDialog's VAULT_COLORS palette so any "assign a color to this"
+// picker in the app offers the same swatches.
+const COLLECTION_COLORS = [
+  '#a855f7', // Purple
+  '#ec4899', // Pink
+  '#f43f5e', // Rose
+  '#ef4444', // Red
+  '#f97316', // Orange
+  '#eab308', // Yellow
+  '#22c55e', // Green
+  '#14b8a6', // Teal
+  '#06b6d4', // Cyan
+  '#3b82f6', // Blue
+];
 
 interface SmartCollectionDialogProps {
   open: boolean;
@@ -70,32 +84,35 @@ export function SmartCollectionDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle className="font-mono">
+          <DialogTitle className="text-xl sm:text-2xl font-bold font-mono">
             {editingCollection ? 'edit_smart_collection' : 'new_smart_collection'}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="smart-collection-name">Name</Label>
+            <Label htmlFor="smart-collection-name" className="font-semibold font-mono">name</Label>
             <Input
               id="smart-collection-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Unread visual storytelling papers"
+              placeholder="e.g._unread_visual_storytelling_papers"
+              className="font-mono text-sm"
             />
           </div>
 
           <div className="space-y-2">
-            <Label>Color</Label>
+            <Label className="font-semibold font-mono">color</Label>
             <div className="flex gap-2">
               {COLLECTION_COLORS.map((c) => (
                 <button
                   key={c}
                   type="button"
                   aria-label={`Use color ${c}`}
-                  className="w-6 h-6 rounded-full border-2"
-                  style={{ backgroundColor: c, borderColor: c === color ? 'white' : 'transparent' }}
+                  className={`w-8 h-8 rounded-lg transition-all duration-200 shadow-md ${
+                    color === c ? 'ring-2 ring-offset-2 ring-offset-background ring-white scale-110' : 'hover:scale-105'
+                  }`}
+                  style={{ backgroundColor: c, boxShadow: color === c ? `0 0 20px ${c}50` : undefined }}
                   onClick={() => setColor(c)}
                 />
               ))}
@@ -103,7 +120,7 @@ export function SmartCollectionDialog({
           </div>
 
           <div className="space-y-2">
-            <Label>Rules</Label>
+            <Label className="font-semibold font-mono">rules</Label>
             <FilterBuilder filters={filters} onFiltersChange={setFilters} tags={tags} vaults={vaults} />
           </div>
 
@@ -112,12 +129,30 @@ export function SmartCollectionDialog({
           </p>
         </div>
 
-        <div className="flex justify-end gap-2 pt-2">
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
+        <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-3 sm:pt-4 border-t border-border w-full box-border">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="font-mono w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10"
+          >
+            <X className="w-3 h-3 mr-1.5" />
+            cancel
           </Button>
-          <Button onClick={handleSave} disabled={!name.trim() || saving}>
-            Save
+          <Button
+            type="button"
+            variant="glow"
+            onClick={handleSave}
+            disabled={!name.trim() || saving}
+            className="font-mono w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10"
+          >
+            {saving ? (
+              'saving...'
+            ) : editingCollection ? (
+              <><Save className="w-3 h-3 mr-1.5" />save_changes</>
+            ) : (
+              <><Plus className="w-3 h-3 mr-1.5" />create_collection</>
+            )}
           </Button>
         </div>
       </DialogContent>
