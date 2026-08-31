@@ -21,9 +21,14 @@ project uses [Semantic Versioning](https://semver.org/). History prior to
 - Fixed a `ReferenceError` crash on `/codex` (missing import introduced earlier in this same round).
 - The sidebar's smart-collections highlight was a violet→purple (effectively monochrome) gradient, and the page's own icon was accent-green — neither matched the app's actual brand gradient (purple→pink) or each other. Both now use the same tokens as the rest of the app's branding.
 - Brought smart collections' UI copy in line with this app's lowercase snake_case conventions (buttons, empty states, confirmations) — it had drifted to title-case/sentence-case English in a few places.
+- Smart collections' sidebar entry and icon now use the logo's exact colors (`#A855F7` → `#EC4899`, read from the logo asset itself), moved to right after "all_papers" for easier access, and are styled as a flat tinted box like the sidebar's other nav icons (an earlier attempt used the literal glossy logo image, which stood out inconsistently next to the others).
+- Codex vault cards now show a subtle border tinted with the vault's own color instead of a generic border.
+- Dropped the "// tagline" / "// abstract" labels from vault description text — bold-vs-muted text hierarchy already conveys which is which.
+- Smart collections list header's subtext no longer has a stray "//" prefix, matching how the researchers/all_papers pages format their subtitle line.
 
 ### Added
 - Smart collections can now have an optional description, so a collection can carry its curatorial intent (e.g. "papers I still need to read for the visual storytelling survey") alongside its name and rules. Shown on list cards and the collection detail page. **Requires running the new migration** (`supabase/migrations/20260831000000_smart_collections_description.sql`).
+- The smart collection dialog's rules are now a full inline form instead of a compact filter popover, with each rule showing a live, cumulative match count — how many papers match once that rule and every rule above it are applied together — so it's visible how each rule narrows the collection down.
 
 ## [1.11.0] - 2026-08-30
 
