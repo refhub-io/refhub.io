@@ -19,6 +19,7 @@ import { NotificationDropdown } from '@/components/notifications/NotificationDro
 import { SidebarDndBoundary } from '@/components/layout/SidebarDndBoundary';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { VaultDialog } from '@/components/vaults/VaultDialog';
+import VaultAbstractBlock from '@/components/vaults/VaultAbstractBlock';
 import { getPageCache, setPageCache, hasPageCache } from '@/lib/pageCache';
 import { 
   BookOpen,
@@ -404,7 +405,7 @@ export default function TheCodex() {
             if (vaultId) navigate(`/vault/${vaultId}`);
             else navigate('/dashboard');
           }}
-          onCreateVault={() => navigate('/dashboard')}
+          onCreateVault={() => navigate('/dashboard?createVault=1')}
           isMobileOpen={isMobileSidebarOpen}
           onMobileClose={() => setIsMobileSidebarOpen(false)}
           profile={profile}
@@ -577,10 +578,7 @@ export default function TheCodex() {
                     {/* Description/Abstract */}
                     {(vault.abstract || vault.description) && (
                       <div className="mb-4 flex-1">
-                        <p className="text-xs text-muted-foreground/60 font-mono mb-1">// description</p>
-                        <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
-                          {vault.abstract || vault.description}
-                        </p>
+                        <VaultAbstractBlock abstract={vault.abstract} description={vault.description} />
                       </div>
                     )}
 
