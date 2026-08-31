@@ -88,6 +88,7 @@ export default function TheCodex() {
   const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
   const [editingVault, setEditingVault] = useState<Vault | null>(null);
   const [topicSuggestions, setTopicSuggestions] = useState<string[]>([]);
+  const [topicSuggestionsLoading, setTopicSuggestionsLoading] = useState(false);
 
   const fetchPublicVaults = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -174,6 +175,7 @@ export default function TheCodex() {
       setTopicSuggestions([]);
       return;
     }
+    setTopicSuggestionsLoading(true);
     try {
       const { data: vaultPubs } = await supabase
         .from('vault_publications')
@@ -199,6 +201,8 @@ export default function TheCodex() {
       setTopicSuggestions(Array.from(topics).sort());
     } catch (error) {
       logger.error('TheCodex', 'Error fetching topic suggestions:', error);
+    } finally {
+      setTopicSuggestionsLoading(false);
     }
   };
 
@@ -476,6 +480,12 @@ export default function TheCodex() {
                   </Select>
                 </div>
               </div>
+              {topicSuggestionsLoading && topicSuggestions.length === 0 && (
+                <div className="flex items-center justify-center gap-2 mt-3 text-xs text-muted-foreground font-mono">
+                  <LoadingSpinner size="xs" />
+                  loading_topics...
+                </div>
+              )}
               {topicSuggestions.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-3 w-full justify-center">
                   {topicSuggestions
