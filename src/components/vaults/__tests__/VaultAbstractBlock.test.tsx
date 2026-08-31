@@ -12,13 +12,13 @@ describe('VaultAbstractBlock', () => {
   it('renders only the description when there is no abstract', () => {
     render(<VaultAbstractBlock abstract={null} description="Weekly reading list" />);
     expect(screen.getByText('Weekly reading list')).toBeInTheDocument();
-    expect(screen.queryByText('// abstract')).not.toBeInTheDocument();
+    expect(screen.queryByText('// no_description_provided')).not.toBeInTheDocument();
   });
 
   it('renders only the abstract when there is no description', () => {
     render(<VaultAbstractBlock abstract="Contents and purpose." description={null} />);
     expect(screen.getByText('Contents and purpose.')).toBeInTheDocument();
-    expect(screen.queryByText('// tagline')).not.toBeInTheDocument();
+    expect(screen.queryByText('// no_description_provided')).not.toBeInTheDocument();
   });
 
   it('shows a placeholder statement when neither abstract nor description is set', () => {

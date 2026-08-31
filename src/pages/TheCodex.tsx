@@ -527,7 +527,10 @@ export default function TheCodex() {
                   to={`/public/${vault.public_slug}`}
                   className="group"
                 >
-                  <article className={`h-full p-6 rounded-2xl border-2 bg-card/50 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 flex flex-col ${vault.is_fork ? 'border-amber-500/30 bg-amber-500/[0.03]' : 'border-border'}`}>
+                  <article
+                    className={`h-full p-6 rounded-2xl border-2 bg-card/50 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 flex flex-col ${vault.is_fork ? 'bg-amber-500/[0.03]' : ''}`}
+                    style={{ borderColor: `${vault.color}40` }}
+                  >
                     {/* Header with owner info */}
                     <div className="flex items-start gap-3 mb-4">
                       <Avatar className="w-10 h-10 border-2 border-border ring-2 ring-background group-hover:ring-primary/20 transition-all">

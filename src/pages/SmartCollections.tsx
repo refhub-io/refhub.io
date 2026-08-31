@@ -5,7 +5,7 @@ import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Sparkles, Plus, Pencil, Trash2, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Sparkles } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAllPublications } from '@/hooks/useAllPublications';
 import { useSmartCollections } from '@/hooks/useSmartCollections';
@@ -99,11 +99,13 @@ export default function SmartCollections() {
             <MobileMenuButton onClick={() => setIsMobileSidebarOpen(true)} className="shrink-0" />
             <div className="flex-1 min-w-0">
               <h1 className="text-lg sm:text-xl lg:text-2xl font-bold truncate font-mono leading-none flex items-center gap-2">
-                <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-primary shrink-0" />
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center bg-gradient-to-br from-[#A855F7]/20 to-[#EC4899]/20 shrink-0">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                </div>
                 smart_<span className="text-gradient">collections</span>
               </h1>
               <p className="text-xs text-muted-foreground mt-1 font-mono truncate leading-none">
-                // saved_filter_rules_that_stay_current_automatically • {collections.length}_collection{collections.length !== 1 ? 's' : ''}
+                saved_filter_rules_that_stay_current_automatically • {collections.length}_collection{collections.length !== 1 ? 's' : ''}
               </p>
             </div>
             <Button onClick={openCreateDialog} variant="glow" className="shrink-0 font-mono">
@@ -158,7 +160,7 @@ export default function SmartCollections() {
                     <div className="flex items-center gap-2">
                       <div
                         className="w-3 h-3 rounded-full shrink-0"
-                        style={{ backgroundColor: collection.color ?? 'hsl(var(--electric-purple))' }}
+                        style={{ backgroundColor: collection.color ?? '#A855F7' }}
                       />
                       <h2 className="font-bold font-mono">{collection.name}</h2>
                     </div>

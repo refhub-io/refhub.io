@@ -138,7 +138,9 @@ export default function SmartCollectionDetail() {
             <Button variant="ghost" size="icon" onClick={() => navigate('/collections')} aria-label="Back to collections">
               <ArrowLeft className="w-4 h-4" />
             </Button>
-            <Sparkles className="w-4 h-4 text-primary" />
+            <div className="w-6 h-6 rounded-md flex items-center justify-center bg-gradient-to-br from-[#A855F7]/20 to-[#EC4899]/20 shrink-0">
+              <Sparkles className="w-3.5 h-3.5 text-primary" />
+            </div>
           </div>
           <Button variant="outline" size="sm" onClick={() => setDialogOpen(true)} className="font-mono">
             <Pencil className="w-4 h-4 mr-2" />

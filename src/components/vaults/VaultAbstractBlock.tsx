@@ -10,27 +10,14 @@ const VaultAbstractBlock: React.FC<VaultAbstractBlockProps> = ({ abstract, descr
   const hasAbstract = Boolean(abstract);
 
   if (!hasDescription && !hasAbstract) {
-    return (
-      <div className="mb-1">
-        <p className="text-xs text-muted-foreground/60 font-mono mb-1">// description</p>
-        <p className="text-sm text-muted-foreground font-mono">// no_description_provided</p>
-      </div>
-    );
+    return <p className="text-sm text-muted-foreground font-mono mb-1">// no_description_provided</p>;
   }
 
   return (
-    <div className="mb-1 space-y-2">
-      {hasDescription && (
-        <div>
-          <p className="text-xs text-muted-foreground/60 font-mono mb-1">// tagline</p>
-          <p className="text-sm font-semibold text-foreground/90">{description}</p>
-        </div>
-      )}
+    <div className="mb-1 space-y-1">
+      {hasDescription && <p className="text-sm font-semibold text-foreground/90">{description}</p>}
       {hasAbstract && (
-        <div>
-          <p className="text-xs text-muted-foreground/60 font-mono mb-1">// abstract</p>
-          <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">{abstract}</p>
-        </div>
+        <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">{abstract}</p>
       )}
     </div>
   );
