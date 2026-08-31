@@ -18,6 +18,14 @@ import {
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationViewDialog } from '@/components/publications/PublicationViewDialog';
 import { LoadingSpinner } from '@/components/ui/loading';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import TopicSummaryPanel from '@/components/codex/TopicSummaryPanel';
 import MatchProvenanceList from '@/components/codex/MatchProvenanceList';
 import { ArrowLeft } from 'lucide-react';
@@ -180,9 +188,8 @@ export default function CodexTopic() {
         <Link to="/codex" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground font-mono mb-2">
           <ArrowLeft className="w-4 h-4" /> back_to_codex
         </Link>
-        <h1 className="text-2xl font-bold font-mono">{topic}</h1>
         <p className="text-xs text-muted-foreground font-mono mt-1">
-          {matchedVaults.length}_vault{matchedVaults.length !== 1 ? 's' : ''} // {facetedDirectMatches.length}_paper{facetedDirectMatches.length !== 1 ? 's' : ''}
+          {matchedVaults.length}_vault{matchedVaults.length !== 1 ? 's' : ''} • {facetedDirectMatches.length}_paper{facetedDirectMatches.length !== 1 ? 's' : ''}
         </p>
         <TopicSummaryPanel relatedTopics={relatedTopics} curators={curators} newInLast30Days={newInLast30Days} />
       </div>
@@ -223,37 +230,38 @@ export default function CodexTopic() {
 
       {directMatches.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-border">
-          <select
-            className="text-xs font-mono border border-input rounded-md h-8 px-2 bg-background"
-            value={sortMode}
-            onChange={(e) => setSortMode(e.target.value as TopicSortMode)}
-          >
-            <option value="relevance">sort: relevance</option>
-            <option value="recent">sort: recent</option>
-            <option value="popular">sort: most forked/favorited</option>
-            <option value="connected">sort: most connected</option>
-          </select>
-          <input
-            className="text-xs font-mono border border-input rounded-md h-8 px-2 bg-background"
+          <Select value={sortMode} onValueChange={(value) => setSortMode(value as TopicSortMode)}>
+            <SelectTrigger className="h-8 w-auto text-xs font-mono">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="relevance" className="text-xs font-mono">sort: relevance</SelectItem>
+              <SelectItem value="recent" className="text-xs font-mono">sort: recent</SelectItem>
+              <SelectItem value="popular" className="text-xs font-mono">sort: most forked/favorited</SelectItem>
+              <SelectItem value="connected" className="text-xs font-mono">sort: most connected</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input
+            className="h-8 w-32 text-xs font-mono"
             placeholder="filter: tag"
             value={facets.tag || ''}
             onChange={(e) => setFacets((f) => ({ ...f, tag: e.target.value || undefined }))}
           />
-          <input
-            className="text-xs font-mono border border-input rounded-md h-8 px-2 bg-background"
+          <Input
+            className="h-8 w-32 text-xs font-mono"
             placeholder="filter: author"
             value={facets.author || ''}
             onChange={(e) => setFacets((f) => ({ ...f, author: e.target.value || undefined }))}
           />
-          <input
-            className="text-xs font-mono border border-input rounded-md h-8 px-2 bg-background"
+          <Input
+            className="h-8 w-32 text-xs font-mono"
             placeholder="filter: venue"
             value={facets.venue || ''}
             onChange={(e) => setFacets((f) => ({ ...f, venue: e.target.value || undefined }))}
           />
-          <input
-            className="text-xs font-mono border border-input rounded-md h-8 px-2 bg-background w-24"
-            placeholder="filter: year"
+          <Input
+            className="h-8 w-24 text-xs font-mono"
+            placeholder="year"
             type="number"
             value={facets.year ?? ''}
             onChange={(e) => setFacets((f) => ({ ...f, year: e.target.value ? Number(e.target.value) : undefined }))}
@@ -292,7 +300,7 @@ export default function CodexTopic() {
         <div className="border-t border-border">
           <div className="px-4 pt-6 pb-2">
             <h2 className="text-sm font-mono text-muted-foreground">// related_via_citation</h2>
-            <p className="text-xs text-muted-foreground/70 font-mono">
+            <p className="text-xs text-muted-foreground/70">
               cited by a direct match — not tagged or keyworded with "{topic}" itself
             </p>
           </div>

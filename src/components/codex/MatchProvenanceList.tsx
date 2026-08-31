@@ -46,7 +46,7 @@ export default function MatchProvenanceList({ matches, onOpenPublication }: Matc
             <button
               type="button"
               onClick={() => onOpenPublication(match.publication)}
-              className="text-sm font-mono text-left hover:text-primary hover:underline"
+              className="text-sm font-semibold text-left text-foreground hover:text-primary hover:underline"
             >
               {match.publication.title}
             </button>
