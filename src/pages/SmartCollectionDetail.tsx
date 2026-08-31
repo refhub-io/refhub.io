@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { SidebarDndBoundary } from '@/components/layout/SidebarDndBoundary';
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
@@ -41,7 +41,7 @@ const RULE_HINTS: Record<string, string> = {
 export default function SmartCollectionDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const { publications, tags, vaults, publicationTagsMap, publicationVaultsMap, loading: publicationsLoading, refetch } =
     useAllPublications();
@@ -57,6 +57,12 @@ export default function SmartCollectionDetail() {
   const [augmentSeedPublications, setAugmentSeedPublications] = useState<Publication[]>([]);
   const [targetVaultId, setTargetVaultId] = useState<string | null>(null);
   const [isAugmentDialogOpen, setIsAugmentDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/');
+    }
+  }, [user, authLoading, navigate]);
 
   const collection = collections.find((c) => c.id === id) ?? null;
 
@@ -103,6 +109,18 @@ export default function SmartCollectionDetail() {
     toast({ title: 'paper_added ✨' });
     refetch();
   };
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen bg-background items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   const loading = publicationsLoading || collectionsLoading;
 

@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SidebarDndBoundary } from '@/components/layout/SidebarDndBoundary';
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { LoadingSpinner } from '@/components/ui/loading';
 import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAllPublications } from '@/hooks/useAllPublications';
@@ -37,7 +38,7 @@ function summarizeFilters(collection: SmartCollection, tags: Tag[], vaults: Vaul
 
 export default function SmartCollections() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { publications, tags, vaults, publicationTagsMap, publicationVaultsMap } = useAllPublications();
   const { collections, loading, createCollection, updateCollection, deleteCollection } = useSmartCollections();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -45,6 +46,12 @@ export default function SmartCollections() {
   const [deletingCollection, setDeletingCollection] = useState<SmartCollection | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/');
+    }
+  }, [user, authLoading, navigate]);
 
   const filteredCollections = useMemo(() => {
     if (!searchQuery.trim()) return collections;
@@ -81,6 +88,18 @@ export default function SmartCollections() {
       setDeletingCollection(null);
     }
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className="flex min-h-screen bg-background">
