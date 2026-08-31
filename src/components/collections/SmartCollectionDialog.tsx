@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Save, Plus, X } from 'lucide-react';
-import { FilterBuilder, applyFilters, type PublicationFilter } from '@/components/publications/FilterBuilder';
+import { FilterRuleEditor, applyFilters, type PublicationFilter } from '@/components/publications/FilterBuilder';
 import type { Publication, Tag, Vault, SmartCollection } from '@/types/database';
 import type { SmartCollectionInput } from '@/lib/smartCollections';
 
@@ -72,6 +72,16 @@ export function SmartCollectionDialog({
     [allPublications, filters, publicationTagsMap, publicationVaultsMap],
   );
 
+  // Cumulative narrowing: matchCounts[i] is the result of applying
+  // filters[0..i] together, so each row shows how much *that* filter
+  // narrowed things down from the row above it.
+  const cumulativeMatchCounts = useMemo(
+    () => filters.map((_, index) =>
+      applyFilters(allPublications, filters.slice(0, index + 1), publicationTagsMap, publicationVaultsMap).length,
+    ),
+    [allPublications, filters, publicationTagsMap, publicationVaultsMap],
+  );
+
   const handleSave = async () => {
     if (!name.trim()) return;
     setSaving(true);
@@ -85,7 +95,7 @@ export function SmartCollectionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg sm:max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl sm:text-2xl font-bold font-mono">
             {editingCollection ? 'edit_smart_collection' : 'new_smart_collection'}
@@ -134,13 +144,19 @@ export function SmartCollectionDialog({
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 rounded-lg border border-border p-3">
             <Label className="font-semibold font-mono">rules</Label>
-            <FilterBuilder filters={filters} onFiltersChange={setFilters} tags={tags} vaults={vaults} />
+            <FilterRuleEditor
+              filters={filters}
+              onFiltersChange={setFilters}
+              tags={tags}
+              vaults={vaults}
+              matchCounts={cumulativeMatchCounts}
+            />
           </div>
 
           <p className="text-sm text-muted-foreground font-mono">
-            // {matchCount}_matching_paper{matchCount !== 1 ? 's' : ''}
+            // {matchCount}_matching_paper{matchCount !== 1 ? 's' : ''}_total
           </p>
         </div>
 
