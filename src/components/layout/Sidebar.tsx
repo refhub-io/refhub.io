@@ -348,15 +348,17 @@ export function Sidebar({
             className={cn(
               "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border-2",
               isCollectionsActive
-                ? "bg-gradient-to-br from-violet-500/10 to-purple-500/10 text-violet-500 border-violet-500/30"
+                ? "bg-gradient-to-br from-[hsl(var(--electric-purple))]/10 to-[hsl(var(--hot-pink))]/10 text-primary border-primary/30"
                 : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 border-transparent"
             )}
           >
             <div className={cn(
               "w-8 h-8 rounded-lg flex items-center justify-center",
-              isCollectionsActive ? "bg-gradient-to-br from-violet-500/30 to-purple-500/30" : "bg-gradient-to-br from-violet-500/20 to-purple-500/20"
+              isCollectionsActive
+                ? "bg-gradient-to-br from-[hsl(var(--electric-purple))]/30 to-[hsl(var(--hot-pink))]/30"
+                : "bg-gradient-to-br from-[hsl(var(--electric-purple))]/20 to-[hsl(var(--hot-pink))]/20"
             )}>
-              <Sparkles className={cn("w-4 h-4", isCollectionsActive ? "text-violet-400" : "text-violet-500")} />
+              <Sparkles className="w-4 h-4 text-primary" />
             </div>
             <span className="font-mono">smart_collections</span>
           </Link>
