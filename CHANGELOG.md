@@ -6,6 +6,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.11.1] - 2026-08-31
+
+### Fixed
+- Smart collections and their detail pages picked up the app's design system: gradient primary buttons, lowercase font-mono labels, and the shared vault color palette in the "new/edit collection" dialog, replacing generic purple accents.
+- Smart collection cards showed raw tag/vault UUIDs (e.g. "tags equals 90f79e1d-...") instead of the tag/vault name.
+- The smart collections list page had no description of what the feature is and no way to search collections by name; both are now present, matching the Codex/researchers-directory pattern.
+- The smart collection detail page duplicated its title above `PublicationList`'s own header, leaving a large empty gap between the two; the page-level header is now a slim back/edit-rules bar only, matching how vault pages avoid this duplication.
+- The smart collection detail page's content would intermittently vanish when switching away from and back to the browser tab. Root cause: `useAllPublications`/`useSmartCollections` re-fetched (with a brief `loading` flash to blank content) on every Supabase auth token refresh, which fires automatically when a backgrounded tab regains focus — not just on an actual sign-in/sign-out. Fixed by keying those effects off the user's id instead of the whole (frequently-recreated) user object, and added a loading spinner for genuine load transitions.
+- Smart collection detail pages had no "discover related papers" action, unlike vault pages. Since a smart collection has no membership to add newly-found papers into, discovering now asks which of your vaults to add a match to, then reuses the same Semantic Scholar discovery flow vault pages already have.
+- Clicking "new vault" from any page other than the dashboard navigated there without opening the create-vault dialog, requiring a second click once landed. It now opens immediately on arrival.
+- Public vault pages never showed the vault's tagline (`description`) when an abstract was also set — the two fields were combined into one `abstract || description` block, so the tagline silently disappeared whenever an abstract existed. Both now render together (tagline above abstract) wherever a vault's text is shown, and the vault settings dialog's field is relabeled "tagline" to match.
+- Public vault pages now show a subtle glow/border in the vault's own color, for a bit of per-vault visual identity.
+- Fixed a `ReferenceError` crash on `/codex` (missing import introduced earlier in this same round).
+- The sidebar's smart-collections highlight was a violet→purple (effectively monochrome) gradient, and the page's own icon was accent-green — neither matched the app's actual brand gradient (purple→pink) or each other. Both now use the same tokens as the rest of the app's branding.
+- Brought smart collections' UI copy in line with this app's lowercase snake_case conventions (buttons, empty states, confirmations) — it had drifted to title-case/sentence-case English in a few places.
+
+### Added
+- Smart collections can now have an optional description, so a collection can carry its curatorial intent (e.g. "papers I still need to read for the visual storytelling survey") alongside its name and rules. Shown on list cards and the collection detail page. **Requires running the new migration** (`supabase/migrations/20260831000000_smart_collections_description.sql`).
+
 ## [1.11.0] - 2026-08-30
 
 ### Added
