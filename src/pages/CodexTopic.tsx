@@ -16,10 +16,12 @@ import {
   type VaultPopularity,
 } from '@/lib/codexDiscovery';
 import { PublicationList } from '@/components/publications/PublicationList';
+import { PublicationViewDialog } from '@/components/publications/PublicationViewDialog';
 import { LoadingSpinner } from '@/components/ui/loading';
 import TopicSummaryPanel from '@/components/codex/TopicSummaryPanel';
+import MatchProvenanceList from '@/components/codex/MatchProvenanceList';
 import { ArrowLeft } from 'lucide-react';
-import type { Vault, Tag } from '@/types/database';
+import type { Publication, Vault, Tag } from '@/types/database';
 
 export default function CodexTopic() {
   const { topicSlug } = useParams();
@@ -32,6 +34,7 @@ export default function CodexTopic() {
   const [facets, setFacets] = useState<TopicFacets>({});
   const [sortMode, setSortMode] = useState<TopicSortMode>('relevance');
   const [vaultPopularity, setVaultPopularity] = useState<Record<string, VaultPopularity>>({});
+  const [viewingPublication, setViewingPublication] = useState<Publication | null>(null);
 
   useEffect(() => {
     if (!topic) return;
@@ -40,6 +43,13 @@ export default function CodexTopic() {
     (async () => {
       setLoading(true);
       setError(false);
+      // Reset per-topic derived state up front: navigating topic-to-topic
+      // (the primary flow, via related-topic chips / vault links) must not
+      // leave the PREVIOUS topic's curators/popularity rendered under the
+      // new topic's heading while the new topic's fetch is still in flight
+      // or if the new topic simply has none of its own.
+      setCurators([]);
+      setVaultPopularity({});
       try {
         const { corpus, relations } = await fetchPublicCodexPublications(supabase);
         if (cancelled) return;
@@ -53,10 +63,11 @@ export default function CodexTopic() {
             .map((m) => m.vault.user_id),
         )];
         if (ownerIds.length > 0) {
-          const { data: profiles } = await supabase
+          const { data: profiles, error: profilesError } = await supabase
             .from('profiles')
             .select('user_id, display_name, username')
             .in('user_id', ownerIds);
+          if (profilesError) throw profilesError;
           if (!cancelled) setCurators((profiles || []).map((p) => ({ display_name: p.display_name, username: p.username })));
         }
 
@@ -117,6 +128,12 @@ export default function CodexTopic() {
     return map;
   }, [directMatches]);
 
+  const vaultMatchCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    directMatches.forEach((m) => { counts[m.vault.id] = (counts[m.vault.id] || 0) + 1; });
+    return counts;
+  }, [directMatches]);
+
   const citationOnlyMatches = useMemo(
     () => matches.filter((m) => m.signals.length > 0 && m.signals.every((s) => s.type === 'citation')),
     [matches],
@@ -165,14 +182,52 @@ export default function CodexTopic() {
         </Link>
         <h1 className="text-2xl font-bold font-mono">{topic}</h1>
         <p className="text-xs text-muted-foreground font-mono mt-1">
-          {matchedVaults.length}_vault{matchedVaults.length !== 1 ? 's' : ''} // {directMatches.length}_paper{directMatches.length !== 1 ? 's' : ''}
+          {matchedVaults.length}_vault{matchedVaults.length !== 1 ? 's' : ''} // {facetedDirectMatches.length}_paper{facetedDirectMatches.length !== 1 ? 's' : ''}
         </p>
         <TopicSummaryPanel relatedTopics={relatedTopics} curators={curators} newInLast30Days={newInLast30Days} />
       </div>
 
-      {directMatches.length === 0 ? (
+      {matchedVaults.length > 0 && (
+        <div className="px-4 py-3 border-b border-border">
+          <p className="text-xs text-muted-foreground/60 font-mono mb-2">// matching_vaults</p>
+          <div className="flex flex-wrap gap-2">
+            {matchedVaults.map((vault) => {
+              const count = vaultMatchCounts[vault.id] || 0;
+              const content = (
+                <>
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: vault.color }} />
+                  <span>{vault.name}</span>
+                  <span className="text-muted-foreground">{count}_match{count !== 1 ? 'es' : ''}</span>
+                </>
+              );
+              return vault.public_slug ? (
+                <Link
+                  key={vault.id}
+                  to={`/public/${vault.public_slug}`}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-border bg-card/50 hover:border-primary/30 transition-colors text-xs font-mono"
+                >
+                  {content}
+                </Link>
+              ) : (
+                <span
+                  key={vault.id}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-border bg-card/30 text-xs font-mono opacity-70"
+                >
+                  {content}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {facetedDirectMatches.length === 0 ? (
         <div className="p-8 text-center">
-          <p className="text-muted-foreground font-mono text-sm">// no_public_papers_match_this_topic_yet</p>
+          <p className="text-muted-foreground font-mono text-sm">
+            {directMatches.length === 0
+              ? '// no_public_papers_match_this_topic_yet'
+              : '// no_results_match_your_filters'}
+          </p>
         </div>
       ) : (
         <>
@@ -187,6 +242,12 @@ export default function CodexTopic() {
               <option value="popular">sort: most forked/favorited</option>
               <option value="connected">sort: most connected</option>
             </select>
+            <input
+              className="text-xs font-mono border border-input rounded-md h-8 px-2 bg-background"
+              placeholder="filter: tag"
+              value={facets.tag || ''}
+              onChange={(e) => setFacets((f) => ({ ...f, tag: e.target.value || undefined }))}
+            />
             <input
               className="text-xs font-mono border border-input rounded-md h-8 px-2 bg-background"
               placeholder="filter: author"
@@ -207,6 +268,7 @@ export default function CodexTopic() {
               onChange={(e) => setFacets((f) => ({ ...f, year: e.target.value ? Number(e.target.value) : undefined }))}
             />
           </div>
+          <MatchProvenanceList matches={facetedDirectMatches} onOpenPublication={(pub) => setViewingPublication(pub)} />
           <PublicationList
             publications={facetedDirectMatches.map((m) => m.publication)}
             tags={tagsForList}
@@ -216,6 +278,7 @@ export default function CodexTopic() {
             relationsCountMap={{}}
             selectedVault={null}
             listTitle={topic}
+            onOpenPublication={(pub) => setViewingPublication(pub)}
             onExportBibtex={() => {}}
             onMobileMenuOpen={() => {}}
           />
@@ -230,6 +293,7 @@ export default function CodexTopic() {
               cited by a direct match — not tagged or keyworded with "{topic}" itself
             </p>
           </div>
+          <MatchProvenanceList matches={citationOnlyMatches} onOpenPublication={(pub) => setViewingPublication(pub)} />
           <PublicationList
             publications={citationOnlyMatches.map((m) => m.publication)}
             tags={tagsForList}
@@ -239,11 +303,22 @@ export default function CodexTopic() {
             relationsCountMap={{}}
             selectedVault={null}
             listTitle={`related to ${topic}`}
+            onOpenPublication={(pub) => setViewingPublication(pub)}
             onExportBibtex={() => {}}
             onMobileMenuOpen={() => {}}
           />
         </div>
       )}
+
+      <PublicationViewDialog
+        open={!!viewingPublication}
+        onOpenChange={(open) => {
+          if (!open) setViewingPublication(null);
+        }}
+        publication={viewingPublication}
+        tags={[]}
+        allTags={[]}
+      />
     </div>
   );
 }
