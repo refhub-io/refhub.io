@@ -20,6 +20,7 @@ import {
 import { ArrowLeft, Pencil, Sparkles } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
+import { useVaults } from '@/hooks/useVaults';
 import { useToast } from '@/hooks/use-toast';
 import { useAllPublications } from '@/hooks/useAllPublications';
 import { useSmartCollections } from '@/hooks/useSmartCollections';
@@ -45,6 +46,7 @@ export default function SmartCollectionDetail() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const { profile, refetch: refetchProfile } = useProfile();
+  const { ownedVaults, sharedVaults } = useVaults();
   const { toast } = useToast();
   const { publications, tags, vaults, publicationTagsMap, publicationVaultsMap, loading: publicationsLoading, refetch } =
     useAllPublications();
@@ -69,12 +71,6 @@ export default function SmartCollectionDetail() {
   }, [user, authLoading, navigate]);
 
   const collection = collections.find((c) => c.id === id) ?? null;
-
-  // useAllPublications() merges owned + shared vaults into one array; split
-  // them back out here (rather than changing that hook's return shape) so
-  // the sidebar can show "my vaults" vs "shared with me" correctly.
-  const ownedVaults = useMemo(() => vaults.filter((v) => v.user_id === user?.id), [vaults, user?.id]);
-  const sharedVaults = useMemo(() => vaults.filter((v) => v.user_id !== user?.id), [vaults, user?.id]);
 
   const handleExportBibtex = (pubs: Publication[]) => {
     if (pubs.length === 0) return;

@@ -9,6 +9,7 @@ import { LoadingSpinner } from '@/components/ui/loading';
 import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
+import { useVaults } from '@/hooks/useVaults';
 import { useAllPublications } from '@/hooks/useAllPublications';
 import { useSmartCollections } from '@/hooks/useSmartCollections';
 import { SmartCollectionDialog } from '@/components/collections/SmartCollectionDialog';
@@ -42,6 +43,7 @@ export default function SmartCollections() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const { profile, refetch: refetchProfile } = useProfile();
+  const { ownedVaults, sharedVaults } = useVaults();
   const { publications, tags, vaults, publicationTagsMap, publicationVaultsMap } = useAllPublications();
   const { collections, loading, createCollection, updateCollection, deleteCollection } = useSmartCollections();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -63,11 +65,6 @@ export default function SmartCollections() {
     return collections.filter((c) => c.name.toLowerCase().includes(query));
   }, [collections, searchQuery]);
 
-  // useAllPublications() merges owned + shared vaults into one array; split
-  // them back out here (rather than changing that hook's return shape) so
-  // the sidebar can show "my vaults" vs "shared with me" correctly.
-  const ownedVaults = useMemo(() => vaults.filter((v) => v.user_id === user?.id), [vaults, user?.id]);
-  const sharedVaults = useMemo(() => vaults.filter((v) => v.user_id !== user?.id), [vaults, user?.id]);
 
   const openCreateDialog = () => {
     setEditingCollection(null);

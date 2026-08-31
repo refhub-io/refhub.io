@@ -15,7 +15,7 @@ import {
 } from '@/lib/codexDiscovery';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
-import { useAllPublications } from '@/hooks/useAllPublications';
+import { useVaults } from '@/hooks/useVaults';
 import { SidebarDndBoundary } from '@/components/layout/SidebarDndBoundary';
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
 import { PublicationList } from '@/components/publications/PublicationList';
@@ -41,7 +41,7 @@ export default function CodexTopic() {
 
   const { user } = useAuth();
   const { profile, refetch: refetchProfile } = useProfile();
-  const { vaults: myVaults } = useAllPublications();
+  const { ownedVaults, sharedVaults } = useVaults();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
 
@@ -178,11 +178,6 @@ export default function CodexTopic() {
 
   // Tag badges on this page come from each match's `signals`, not FilterBuilder's tag picker.
   const tagsForList: Tag[] = [];
-
-  // Sidebar nav needs the signed-in user's OWN vaults, distinct from
-  // matchedVaults (the vaults that happen to match this topic).
-  const ownedVaults = useMemo(() => myVaults.filter((v) => v.user_id === user?.id), [myVaults, user?.id]);
-  const sharedVaults = useMemo(() => myVaults.filter((v) => v.user_id !== user?.id), [myVaults, user?.id]);
 
   if (loading) {
     return (
