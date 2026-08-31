@@ -192,7 +192,10 @@ export default function TheCodex() {
         }
       }
 
-      setTopicSuggestions(Array.from(topics).sort().slice(0, 24));
+      // Keep the FULL set here — the display cap is applied after filtering
+      // by searchQuery at render time, otherwise search-as-you-type could
+      // never find a topic that happened to sort past this cutoff.
+      setTopicSuggestions(Array.from(topics).sort());
     } catch (error) {
       logger.error('TheCodex', 'Error fetching topic suggestions:', error);
     }
