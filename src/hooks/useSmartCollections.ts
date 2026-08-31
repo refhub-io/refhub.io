@@ -32,7 +32,14 @@ export function useSmartCollections() {
     } finally {
       setLoading(false);
     }
-  }, [user, toast]);
+    // Depend on user.id, not the user object itself: Supabase's
+    // onAuthStateChange fires (with a new `user` object of the same id) on
+    // every token refresh, which happens automatically when a backgrounded
+    // tab regains focus. Depending on the object reference re-triggered a
+    // full reload — flashing this page's content to blank on every tab
+    // switch, not just an actual login change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, toast]);
 
   useEffect(() => {
     load();
@@ -51,7 +58,8 @@ export function useSmartCollections() {
         return null;
       }
     },
-    [user, toast],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user?.id, toast],
   );
 
   const updateCollectionFn = useCallback(

@@ -41,7 +41,14 @@ export function useAllPublications() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+    // Depend on user.id, not the user object itself: Supabase's
+    // onAuthStateChange fires (with a new `user` object of the same id) on
+    // every token refresh, which happens automatically when a backgrounded
+    // tab regains focus. Depending on the object reference re-triggered a
+    // full reload — flashing every page that renders content only when
+    // `!loading` to blank — on every tab switch, not just an actual login change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   useEffect(() => {
     load();
