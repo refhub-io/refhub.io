@@ -182,56 +182,39 @@ export default function CodexTopic() {
     );
   }
 
+  const matchingVaultsForPanel = useMemo(
+    () => matchedVaults.map((vault) => ({ vault, count: vaultMatchCounts[vault.id] || 0 })),
+    [matchedVaults, vaultMatchCounts],
+  );
+
   return (
     <div className="min-h-screen bg-background">
-      <div className="border-b border-border bg-card/50 backdrop-blur-xl px-4 py-4">
-        <Link to="/codex" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground font-mono mb-2">
+      <div className="border-b border-border bg-card/50 backdrop-blur-xl px-4 py-4 space-y-3">
+        <Link to="/codex" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground font-mono">
           <ArrowLeft className="w-4 h-4" /> back_to_codex
         </Link>
-        <p className="text-xs text-muted-foreground font-mono mt-1">
-          {matchedVaults.length}_vault{matchedVaults.length !== 1 ? 's' : ''} • {facetedDirectMatches.length}_paper{facetedDirectMatches.length !== 1 ? 's' : ''}
-        </p>
-        <TopicSummaryPanel relatedTopics={relatedTopics} curators={curators} newInLast30Days={newInLast30Days} />
-      </div>
 
-      {matchedVaults.length > 0 && (
-        <div className="px-4 py-3 border-b border-border">
-          <p className="text-xs text-muted-foreground/60 font-mono mb-2">// matching_vaults</p>
-          <div className="flex flex-wrap gap-2">
-            {matchedVaults.map((vault) => {
-              const count = vaultMatchCounts[vault.id] || 0;
-              const content = (
-                <>
-                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: vault.color }} />
-                  <span>{vault.name}</span>
-                  <span className="text-muted-foreground">{count}_match{count !== 1 ? 'es' : ''}</span>
-                </>
-              );
-              return vault.public_slug ? (
-                <Link
-                  key={vault.id}
-                  to={`/public/${vault.public_slug}`}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-border bg-card/50 hover:border-primary/30 transition-colors text-xs font-mono"
-                >
-                  {content}
-                </Link>
-              ) : (
-                <span
-                  key={vault.id}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-border bg-card/30 text-xs font-mono opacity-70"
-                >
-                  {content}
-                </span>
-              );
-            })}
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold font-mono leading-none">
+            // <span className="text-gradient">{topic}</span>
+          </h1>
+          <p className="text-xs text-muted-foreground font-mono mt-1.5">
+            {matchedVaults.length}_vault{matchedVaults.length !== 1 ? 's' : ''} • {facetedDirectMatches.length}_paper{facetedDirectMatches.length !== 1 ? 's' : ''}
+          </p>
         </div>
-      )}
+
+        <TopicSummaryPanel
+          relatedTopics={relatedTopics}
+          curators={curators}
+          newInLast30Days={newInLast30Days}
+          matchingVaults={matchingVaultsForPanel}
+        />
+      </div>
 
       {directMatches.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-border">
           <Select value={sortMode} onValueChange={(value) => setSortMode(value as TopicSortMode)}>
-            <SelectTrigger className="h-8 w-auto text-xs font-mono">
+            <SelectTrigger className="h-8 w-auto rounded-full text-xs font-mono">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -242,25 +225,25 @@ export default function CodexTopic() {
             </SelectContent>
           </Select>
           <Input
-            className="h-8 w-32 text-xs font-mono"
+            className="h-8 w-32 rounded-full text-xs font-mono"
             placeholder="filter: tag"
             value={facets.tag || ''}
             onChange={(e) => setFacets((f) => ({ ...f, tag: e.target.value || undefined }))}
           />
           <Input
-            className="h-8 w-32 text-xs font-mono"
+            className="h-8 w-32 rounded-full text-xs font-mono"
             placeholder="filter: author"
             value={facets.author || ''}
             onChange={(e) => setFacets((f) => ({ ...f, author: e.target.value || undefined }))}
           />
           <Input
-            className="h-8 w-32 text-xs font-mono"
+            className="h-8 w-32 rounded-full text-xs font-mono"
             placeholder="filter: venue"
             value={facets.venue || ''}
             onChange={(e) => setFacets((f) => ({ ...f, venue: e.target.value || undefined }))}
           />
           <Input
-            className="h-8 w-24 text-xs font-mono"
+            className="h-8 w-20 rounded-full text-xs font-mono text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             placeholder="year"
             type="number"
             value={facets.year ?? ''}
