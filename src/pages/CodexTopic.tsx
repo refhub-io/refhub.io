@@ -162,6 +162,11 @@ export default function CodexTopic() {
   const relatedTopics = useMemo(() => deriveRelatedTopics(topic, directMatches), [topic, directMatches]);
   const newInLast30Days = useMemo(() => countNewInLastDays(directMatches, 30), [directMatches]);
 
+  const matchingVaultsForPanel = useMemo(
+    () => matchedVaults.map((vault) => ({ vault, count: vaultMatchCounts[vault.id] || 0 })),
+    [matchedVaults, vaultMatchCounts],
+  );
+
   // Tag badges on this page come from each match's `signals`, not FilterBuilder's tag picker.
   const tagsForList: Tag[] = [];
 
@@ -181,11 +186,6 @@ export default function CodexTopic() {
       </div>
     );
   }
-
-  const matchingVaultsForPanel = useMemo(
-    () => matchedVaults.map((vault) => ({ vault, count: vaultMatchCounts[vault.id] || 0 })),
-    [matchedVaults, vaultMatchCounts],
-  );
 
   return (
     <div className="min-h-screen bg-background">
