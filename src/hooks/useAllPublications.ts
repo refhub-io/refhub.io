@@ -11,6 +11,7 @@ export function useAllPublications() {
   const [tags, setTags] = useState<Tag[]>([]);
   const [publicationVaultsMap, setPublicationVaultsMap] = useState<Record<string, string[]>>({});
   const [publicationTagsMap, setPublicationTagsMap] = useState<Record<string, string[]>>({});
+  const [tagsIncomplete, setTagsIncomplete] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -20,6 +21,7 @@ export function useAllPublications() {
       setTags([]);
       setPublicationVaultsMap({});
       setPublicationTagsMap({});
+      setTagsIncomplete(false);
       setLoading(false);
       return;
     }
@@ -32,6 +34,7 @@ export function useAllPublications() {
       setTags(data.tags);
       setPublicationVaultsMap(data.publicationVaultsMap);
       setPublicationTagsMap(data.publicationTagsMap);
+      setTagsIncomplete(data.tagsIncomplete);
     } catch (error) {
       // fetchAllPublicationsData throws on RLS denial, network blip, etc.
       // Log the error but don't crash the component tree; set loading false
@@ -54,5 +57,5 @@ export function useAllPublications() {
     load();
   }, [load]);
 
-  return { publications, vaults, tags, publicationVaultsMap, publicationTagsMap, loading, refetch: load };
+  return { publications, vaults, tags, publicationVaultsMap, publicationTagsMap, tagsIncomplete, loading, refetch: load };
 }

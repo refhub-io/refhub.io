@@ -14,11 +14,13 @@ import {
   type VaultPopularity,
 } from '@/lib/codexDiscovery';
 import { useAuth } from '@/hooks/useAuth';
+import { useProfile } from '@/hooks/useProfile';
 import { useAllPublications } from '@/hooks/useAllPublications';
 import { SidebarDndBoundary } from '@/components/layout/SidebarDndBoundary';
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationViewDialog } from '@/components/publications/PublicationViewDialog';
+import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { LoadingSpinner } from '@/components/ui/loading';
 import {
   Select,
@@ -38,8 +40,10 @@ export default function CodexTopic() {
   const topic = topicSlug ? slugToTopic(topicSlug) : '';
 
   const { user } = useAuth();
+  const { profile, refetch: refetchProfile } = useProfile();
   const { vaults: myVaults } = useAllPublications();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -208,6 +212,8 @@ export default function CodexTopic() {
           onCreateVault={() => navigate('/dashboard?createVault=1')}
           isMobileOpen={isMobileSidebarOpen}
           onMobileClose={() => setIsMobileSidebarOpen(false)}
+          profile={profile}
+          onEditProfile={() => setIsProfileDialogOpen(true)}
         />
       )}
       <div className={`flex-1 min-w-0 flex flex-col min-h-screen ${user ? 'lg:pl-72' : ''}`}>
@@ -310,6 +316,16 @@ export default function CodexTopic() {
         publication={viewingPublication}
         tags={[]}
         allTags={[]}
+      />
+
+      <ProfileDialog
+        open={isProfileDialogOpen}
+        onOpenChange={(open) => {
+          setIsProfileDialogOpen(open);
+          if (!open) {
+            void refetchProfile();
+          }
+        }}
       />
     </div>
   );
