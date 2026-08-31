@@ -4,20 +4,38 @@ import type { RawVaultPublicationRow } from './publicationAggregate';
 import type { PublicationTag } from '@/types/database';
 
 export function normalizeTopic(raw: string): string {
-  return raw.trim().toLowerCase().replace(/\s+/g, ' ');
+  // Hyphens are treated as word separators, same as whitespace, so a tag or
+  // keyword literally spelled with a hyphen (e.g. "covid-19", "eye-tracking")
+  // normalizes identically to the same phrase reached via a slug (where a
+  // space becomes a hyphen). Without this, matching would silently miss
+  // hyphenated terms whenever the topic arrived from a URL slug.
+  return raw.toLowerCase().replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 export function topicToSlug(topic: string): string {
-  return topic.trim().toLowerCase().replace(/\s+/g, '-');
+  // encodeURIComponent keeps the slug safe as a single `/codex/topic/:topicSlug`
+  // path segment even when the topic contains characters like `/`, `#`, `?`,
+  // or `%` (e.g. a keyword such as "HCI/CSCW"). React Router's useParams
+  // decodes this again before slugToTopic sees it.
+  return encodeURIComponent(topic.trim().toLowerCase().replace(/\s+/g, '-'));
 }
 
 export function slugToTopic(slug: string): string {
-  // Slugs collapse spaces to hyphens, so a topic that itself contains a
-  // hyphen is not perfectly reversible — an accepted simplification given
-  // there's no topic registry to disambiguate against (see design spec,
-  // "Topic identity"). Matching re-normalizes anyway, so this only affects
-  // the exact page title casing/spacing shown, never which papers match.
-  return normalizeTopic(slug.replace(/-+/g, ' '));
+  // React Router's useParams already URL-decodes most percent-escapes, but a
+  // slug can also reach here directly (e.g. from a hand-typed URL or a stray
+  // double-encode), so decode defensively here too. normalizeTopic treats
+  // hyphens as separators, so the space-to-hyphen conversion performed by
+  // topicToSlug is undone as part of normalization — this reliably
+  // reconstructs the same normalized topic string that was slugified, so it
+  // affects neither display nor which papers match (both sides of every
+  // comparison go through normalizeTopic).
+  let decoded = slug;
+  try {
+    decoded = decodeURIComponent(slug);
+  } catch {
+    decoded = slug;
+  }
+  return normalizeTopic(decoded);
 }
 
 export interface PublicCodexPublication {
@@ -36,6 +54,10 @@ export interface TopicMatch {
   publication: Publication;
   vault: Vault;
   signals: TopicMatchSignal[];
+  /** The publication's full tag list (not just the ones that produced a
+   * `tag` signal) — optional because many existing tests construct
+   * TopicMatch literals without it; treat a missing value as `[]`. */
+  tags?: Tag[];
 }
 
 function directSignalsFor(topic: string, entry: PublicCodexPublication): TopicMatchSignal[] {
@@ -86,7 +108,7 @@ export function matchPublicationsForTopic(
 
   return Array.from(results.entries()).map(([id, signals]) => {
     const entry = byId.get(id)!;
-    return { publication: entry.publication, vault: entry.vault, signals };
+    return { publication: entry.publication, vault: entry.vault, tags: entry.tags, signals };
   });
 }
 
@@ -98,10 +120,11 @@ export function deriveRelatedTopics(topic: string, matches: TopicMatch[]): strin
     match.signals.forEach((signal) => {
       if (signal.type === 'tag' || signal.type === 'keyword') candidates.add(normalizeTopic(signal.value));
     });
-    // Also pull in every keyword on the publication, not just the ones that
-    // directly signaled this match, so co-occurrence surfaces topics the
-    // paper didn't match on but is still tagged/keyworded with.
+    // Also pull in every keyword and tag on the publication, not just the
+    // ones that directly signaled this match, so co-occurrence surfaces
+    // topics the paper didn't match on but is still tagged/keyworded with.
     (match.publication.keywords || []).forEach((k) => candidates.add(normalizeTopic(k)));
+    (match.tags || []).forEach((t) => candidates.add(normalizeTopic(t.name)));
 
     candidates.forEach((candidate) => {
       if (candidate === topic) return;
@@ -134,7 +157,7 @@ export function applyTopicFacets(matches: TopicMatch[], facets: TopicFacets): To
     }
     if (facets.tag) {
       const needle = normalizeTopic(facets.tag);
-      const hasTag = match.signals.some((s) => s.type === 'tag' && normalizeTopic(s.value) === needle);
+      const hasTag = (match.tags || []).some((t) => normalizeTopic(t.name) === needle);
       if (!hasTag) return false;
     }
     return true;

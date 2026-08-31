@@ -10,6 +10,21 @@ describe('normalizeTopic', () => {
   it('treats different-cased/whitespaced variants as the same topic', () => {
     expect(normalizeTopic('Visual Storytelling')).toBe(normalizeTopic('visual   storytelling'));
   });
+
+  it('treats a hyphen as a word separator, same as whitespace', () => {
+    expect(normalizeTopic('covid-19')).toBe('covid 19');
+    expect(normalizeTopic('Eye-Tracking')).toBe('eye tracking');
+    expect(normalizeTopic('multi-touch')).toBe('multi touch');
+  });
+
+  it('normalizes a hyphenated source term the same as its space-separated slug form', () => {
+    // This is the crux of the bug: a slug is produced from a topic that has
+    // already had its hyphens normalized to spaces, so re-deriving a topic
+    // from a slug (spaces <- hyphens) must land on the exact same string as
+    // normalizing the original hyphenated source text.
+    expect(normalizeTopic('covid-19')).toBe(normalizeTopic('covid 19'));
+    expect(normalizeTopic('eye-tracking')).toBe(normalizeTopic('eye tracking'));
+  });
 });
 
 describe('topicToSlug / slugToTopic', () => {
@@ -22,6 +37,19 @@ describe('topicToSlug / slugToTopic', () => {
 
   it('slugifies a single-word topic without hyphens', () => {
     expect(topicToSlug(normalizeTopic('uncertainty'))).toBe('uncertainty');
+  });
+
+  it('round-trips a hyphenated topic through slug and back', () => {
+    const topic = normalizeTopic('covid-19');
+    const slug = topicToSlug(topic);
+    expect(slugToTopic(slug)).toBe(topic);
+  });
+
+  it('URL-encodes characters that would otherwise break the single-segment route', () => {
+    const topic = normalizeTopic('HCI/CSCW');
+    const slug = topicToSlug(topic);
+    expect(slug).not.toContain('/');
+    expect(slugToTopic(slug)).toBe(topic);
   });
 });
 
@@ -162,6 +190,54 @@ describe('matchPublicationsForTopic', () => {
     const p2Match = matches.find((m) => m.publication.id === 'p2');
     expect(p2Match?.signals).toEqual([{ type: 'keyword', value: 'Graph Drawing' }]);
   });
+
+  it('matches a tag literally spelled with a hyphen when looked up via its generated slug (end-to-end)', () => {
+    // Reproduces the real user flow: a tag/keyword is written with a hyphen,
+    // the topic page is reached via /codex/topic/:slug, and the slug is
+    // turned back into a topic string before matching runs.
+    const pub = makePublication('p1');
+    const corpus: PublicCodexPublication[] = [{ publication: pub, vault, tags: [makeTag('t1', 'covid-19')] }];
+
+    const slug = topicToSlug(normalizeTopic('covid-19'));
+    const topicFromSlug = slugToTopic(slug);
+    const matches = matchPublicationsForTopic(topicFromSlug, corpus, []);
+
+    expect(matches).toHaveLength(1);
+    expect(matches[0].signals).toEqual([{ type: 'tag', value: 'covid-19' }]);
+  });
+
+  it('matches a keyword literally spelled with a hyphen when looked up via its generated slug (end-to-end)', () => {
+    const pub = makePublication('p1', { keywords: ['eye-tracking'] });
+    const corpus: PublicCodexPublication[] = [{ publication: pub, vault, tags: [] }];
+
+    const slug = topicToSlug(normalizeTopic('eye-tracking'));
+    const topicFromSlug = slugToTopic(slug);
+    const matches = matchPublicationsForTopic(topicFromSlug, corpus, []);
+
+    expect(matches).toHaveLength(1);
+    expect(matches[0].signals).toEqual([{ type: 'keyword', value: 'eye-tracking' }]);
+  });
+
+  it('matches a multi-touch tag when looked up via its generated slug (end-to-end)', () => {
+    const pub = makePublication('p1');
+    const corpus: PublicCodexPublication[] = [{ publication: pub, vault, tags: [makeTag('t1', 'multi-touch')] }];
+
+    const slug = topicToSlug(normalizeTopic('multi-touch'));
+    const topicFromSlug = slugToTopic(slug);
+    const matches = matchPublicationsForTopic(topicFromSlug, corpus, []);
+
+    expect(matches).toHaveLength(1);
+    expect(matches[0].signals).toEqual([{ type: 'tag', value: 'multi-touch' }]);
+  });
+
+  it('populates each match with the publication\'s full tag list, not just tag-signal tags', () => {
+    const pub = makePublication('p1', { keywords: ['Graph Drawing'] });
+    const tags = [makeTag('t1', 'Network Visualization')];
+    const corpus: PublicCodexPublication[] = [{ publication: pub, vault, tags }];
+    const matches = matchPublicationsForTopic('graph drawing', corpus, []);
+    expect(matches).toHaveLength(1);
+    expect(matches[0].tags).toEqual(tags);
+  });
 });
 
 import {
@@ -190,6 +266,13 @@ describe('deriveRelatedTopics', () => {
     const matches: TopicMatch[] = [{ publication: pub, vault: makeVault('v1'), signals: [{ type: 'keyword', value: 'Graph Drawing' }] }];
     expect(deriveRelatedTopics('graph drawing', matches)).toEqual([]);
   });
+
+  it('surfaces a co-occurring tag from match.tags, not just publication.keywords', () => {
+    const pub = makePublication('p1');
+    const tags = [makeTag('t1', 'graph drawing'), makeTag('t2', 'Network Visualization')];
+    const matches: TopicMatch[] = [{ publication: pub, vault: makeVault('v1'), signals: [{ type: 'tag', value: 'graph drawing' }], tags }];
+    expect(deriveRelatedTopics('graph drawing', matches)).toEqual(['network visualization']);
+  });
 });
 
 describe('applyTopicFacets', () => {
@@ -214,6 +297,23 @@ describe('applyTopicFacets', () => {
       makeMatch('p2', { year: 2026, journal: 'CHI' }),
     ];
     expect(applyTopicFacets(matches, { year: 2026, venue: 'vis' }).map((m) => m.publication.id)).toEqual(['p1']);
+  });
+
+  it('filters by tag using match.tags, narrowing results a tag-only signal check could never narrow', () => {
+    const matchWithTag: TopicMatch = {
+      publication: makePublication('p1'),
+      vault: makeVault('v1'),
+      signals: [{ type: 'keyword', value: 'graph drawing' }],
+      tags: [makeTag('t1', 'Network Visualization')],
+    };
+    const matchWithoutTag: TopicMatch = {
+      publication: makePublication('p2'),
+      vault: makeVault('v1'),
+      signals: [{ type: 'keyword', value: 'graph drawing' }],
+      tags: [makeTag('t2', 'Something Else')],
+    };
+    const result = applyTopicFacets([matchWithTag, matchWithoutTag], { tag: 'network visualization' });
+    expect(result.map((m) => m.publication.id)).toEqual(['p1']);
   });
 });
 
