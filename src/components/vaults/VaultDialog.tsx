@@ -931,7 +931,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description" className="font-semibold font-mono">description</Label>
+            <Label htmlFor="description" className="font-semibold font-mono">tagline</Label>
             <Input
               id="description"
               value={description}
@@ -952,7 +952,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
               className="font-mono text-sm"
             />
             <p className="text-xs text-muted-foreground font-mono">
-              // shown_on_the_codex_when_published
+              // tagline_and_abstract_both_shown_on_the_codex_when_published
             </p>
           </div>
 
