@@ -36,6 +36,7 @@ export function useVaults() {
     vaults: [...ownedVaults, ...sharedVaults],
     ownedVaults,
     sharedVaults,
+    sharedVaultRoles: query.data?.sharedVaultRoles ?? {},
     // isLoading is true only for the very first fetch with no cached data —
     // a background revalidation on an already-cached navigation reports
     // isFetching, not isLoading, so the sidebar doesn't flash a spinner for

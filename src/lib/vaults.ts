@@ -7,12 +7,16 @@
 // react-query-cached hook built on top of this.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Vault } from '@/types/database';
+import type { VaultRole } from '@/types/vault-extensions';
 import { getDashboardAccessibleVaultIds } from './dashboardTagScope';
 
 export interface UserVaultsData {
   ownedVaults: Vault[];
   sharedVaults: Vault[];
   sharedVaultIds: string[];
+  // This user's role (editor/viewer) on each shared vault, keyed by vault
+  // id — needed for permission checks like drag-and-drop drop targets.
+  sharedVaultRoles: Record<string, VaultRole>;
   // Owned + shared vault ids combined — the set of vaults whose tags are
   // in scope for this user, per getDashboardAccessibleVaultIds.
   scopedVaultIds: string[];
@@ -40,8 +44,14 @@ export async function fetchUserVaults(
   throwOnAnyError([ownedVaultsRes, sharedVaultsRes]);
 
   const ownedVaults = (ownedVaultsRes.data as Vault[]) || [];
-  const sharedVaultIds = (sharedVaultsRes.data || []).map((share: { vault_id: string }) => share.vault_id);
+  const shares = (sharedVaultsRes.data as { vault_id: string; role?: VaultRole }[]) || [];
+  const sharedVaultIds = shares.map((share) => share.vault_id);
   const scopedVaultIds = getDashboardAccessibleVaultIds({ ownedVaults, sharedVaultIds });
+
+  const sharedVaultRoles: Record<string, VaultRole> = {};
+  for (const share of shares) {
+    if (share.role) sharedVaultRoles[share.vault_id] = share.role;
+  }
 
   let sharedVaults: Vault[] = [];
   if (sharedVaultIds.length > 0) {
@@ -50,5 +60,5 @@ export async function fetchUserVaults(
     sharedVaults = (sharedVaultsDetailRes.data as Vault[]) || [];
   }
 
-  return { ownedVaults, sharedVaults, sharedVaultIds, scopedVaultIds };
+  return { ownedVaults, sharedVaults, sharedVaultIds, sharedVaultRoles, scopedVaultIds };
 }

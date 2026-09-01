@@ -83,6 +83,7 @@ describe('fetchUserVaults', () => {
     expect(result.sharedVaults).toEqual([sharedVault]);
     expect(result.sharedVaultIds).toEqual(['vault-2']);
     expect(result.scopedVaultIds.sort()).toEqual(['vault-1', 'vault-2']);
+    expect(result.sharedVaultRoles).toEqual({ 'vault-2': 'viewer' });
   });
 
   it('rejects when the owned-vaults query errors', async () => {
