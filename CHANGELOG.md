@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.11.5] - 2026-09-01
+
+### Fixed
+- Loading spinners could appear visually frozen mid-rotation while the page stayed fully responsive — a CSS `animate-spin` ring can stop getting composited under heavy paint/compositor load (this app uses `backdrop-blur` extensively across headers, sidebars, and buttons, which is one of the more compositor-expensive CSS properties there is) even though nothing on the main thread is actually blocked. Replaced `LoadingSpinner` with a cycling nerdy loading word (`fetching...`, `syncing...`, `indexing...`, etc.), driven by React state on the main thread rather than a CSS keyframe animation, so it can't visually stick the same way. Also removed the now-redundant spinner rings from `FullScreenLoader`/`Loader`'s terminal-style loading screens (they already show their own rotating status message) and switched the small icon-sized `SpinnerLoader` (used inline in buttons/status rows) from a spinning ring to bouncing dots, which read correctly even if briefly paused.
+
 ## [1.11.4] - 2026-09-01
 
 ### Fixed
