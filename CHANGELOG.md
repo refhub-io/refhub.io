@@ -6,6 +6,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.11.3] - 2026-09-01
+
+### Fixed
+- The sidebar's vault list and profile avatar visibly emptied and repopulated on every single page navigation, and pages felt slow to load. Root cause: 6 separate, independently-implemented fetches for "this user's owned+shared vaults" (Dashboard, The Codex, Users, VaultDetail, and `useAllPublications()` shared by 3 more pages) plus a `useProfile()` that refetched from empty state on every mount — nothing persisted across navigations. Introduced a shared, cached `useVaults()` hook (react-query, already installed and configured app-wide but never actually used anywhere) and rewrote `useProfile()` internally to use the same caching, migrating SmartCollections, SmartCollectionDetail, CodexTopic, Users, VaultDetail, and The Codex's sidebars onto them. Every vault create/rename/delete/fork now invalidates the shared cache so a change on one page shows up on another immediately, not after a stale refetch.
+- The Codex's public-vault listing fired 5 separate queries *per public vault* (publication count, stats, favorites, forks, owner profile) — for N public vaults, 5N round trips. Batched into one query per data source across all vaults instead, grouping/counting client-side by vault id afterward — a constant 6 round trips regardless of vault count.
+- Dashboard's own vault grid (a more delicate optimistic-update flow with temp IDs and rollback-on-error) was intentionally left on its own local state rather than migrated onto the shared cache, to avoid risking regressions in the app's most-used page — its mutations now also invalidate the shared cache so other pages stay in sync, even though Dashboard itself doesn't read from it.
+
 ## [1.11.2] - 2026-08-31
 
 ### Fixed
