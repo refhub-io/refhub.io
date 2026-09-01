@@ -436,8 +436,7 @@ export default function TheCodex() {
                 </div>
               </div>
               {topicSuggestionsLoading && topicSuggestions.length === 0 && (
-                <div className="flex items-center justify-center gap-2 mt-3 text-xs text-muted-foreground font-mono">
-                  <LoadingSpinner size="xs" />
+                <div className="flex items-center justify-center mt-3 text-xs text-muted-foreground font-mono">
                   loading_topics...
                 </div>
               )}
