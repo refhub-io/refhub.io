@@ -3,6 +3,7 @@ import { logger } from '@/lib/logger';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
+import { useInvalidateVaults } from '@/hooks/useVaults';
 import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag, PublicationRelation } from '@/types/database';
 import { VaultRole } from '@/types/vault-extensions';
@@ -67,6 +68,7 @@ interface DashboardCache {
 export default function Dashboard() {
   const { user, loading: authLoading } = useAuth();
   const { profile, loading: profileLoading, refetch: refetchProfile } = useProfile();
+  const invalidateVaults = useInvalidateVaults();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -1301,6 +1303,7 @@ export default function Dashboard() {
 
       if (error) throw error;
 
+      void invalidateVaults();
       toast({ title: 'Vault deleted', source: null });
       setIsVaultDialogOpen(false);
     } catch (error) {
@@ -1428,11 +1431,12 @@ export default function Dashboard() {
         if (error) throw error;
         
         // Optimistic update
-        setVaults(prev => prev.map(v => 
+        setVaults(prev => prev.map(v =>
           v.id === editingVault.id ? { ...v, ...updatedVault } as Vault : v
         ));
         setEditingVault(updatedVault as Vault);
-        
+        void invalidateVaults();
+
         toast({ title: 'Vault updated ✨', source: null });
         return updatedVault as Vault;
       } else {
@@ -1465,12 +1469,13 @@ export default function Dashboard() {
           // Replace temporary vault with real one from database and go straight to it.
           if (newVault) {
             const createdVault = newVault as Vault;
-            setVaults(prev => prev.map(v => 
+            setVaults(prev => prev.map(v =>
               v.id === tempId ? createdVault : v
             ).sort((a, b) => a.name.localeCompare(b.name)));
+            void invalidateVaults();
             navigate(`/vault/${createdVault.id}`);
           }
-          
+
           toast({ title: 'Vault created ✨', source: null });
           setEditingVault(null);
           return newVault as Vault;
