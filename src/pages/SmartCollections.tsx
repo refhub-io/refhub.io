@@ -9,11 +9,13 @@ import { LoadingSpinner } from '@/components/ui/loading';
 import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
-import { useVaults } from '@/hooks/useVaults';
+import { useVaults, useInvalidateVaults } from '@/hooks/useVaults';
 import { useAllPublications } from '@/hooks/useAllPublications';
 import { useSmartCollections } from '@/hooks/useSmartCollections';
+import { supabase } from '@/integrations/supabase/client';
 import { SmartCollectionDialog } from '@/components/collections/SmartCollectionDialog';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
+import { VaultDialog } from '@/components/vaults/VaultDialog';
 import { applyFilters } from '@/components/publications/FilterBuilder';
 import type { SmartCollection, Tag, Vault } from '@/types/database';
 import {
@@ -31,9 +33,12 @@ function summarizeFilters(collection: SmartCollection, tags: Tag[], vaults: Vaul
   if (collection.filters.length === 0) return 'no rules yet';
   return collection.filters
     .map((f) => {
+      // Never fall back to the raw id: while tags/vaults are still loading
+      // (or if the referenced one was since deleted) this used to flash the
+      // UUID itself instead of a name.
       let displayValue = f.value;
-      if (f.field === 'tags') displayValue = tags.find((t) => t.id === f.value)?.name ?? f.value;
-      if (f.field === 'vault') displayValue = vaults.find((v) => v.id === f.value)?.name ?? f.value;
+      if (f.field === 'tags') displayValue = tags.find((t) => t.id === f.value)?.name ?? 'unknown_tag';
+      if (f.field === 'vault') displayValue = vaults.find((v) => v.id === f.value)?.name ?? 'unknown_vault';
       return `${f.field} ${f.operator.replace('_', ' ')}${displayValue ? ` ${displayValue}` : ''}`;
     })
     .join(' · ');
@@ -44,6 +49,7 @@ export default function SmartCollections() {
   const { user, loading: authLoading } = useAuth();
   const { profile, refetch: refetchProfile } = useProfile();
   const { ownedVaults, sharedVaults } = useVaults();
+  const invalidateVaults = useInvalidateVaults();
   const { publications, tags, vaults, publicationTagsMap, publicationVaultsMap } = useAllPublications();
   const { collections, loading, createCollection, updateCollection, deleteCollection } = useSmartCollections();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -51,6 +57,8 @@ export default function SmartCollections() {
   const [deletingCollection, setDeletingCollection] = useState<SmartCollection | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
+  const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
+  const [editingVault, setEditingVault] = useState<Vault | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
@@ -90,6 +98,19 @@ export default function SmartCollections() {
     }
   };
 
+  const handleSaveVault = async (data: Partial<Vault>) => {
+    if (!editingVault) return;
+    const { data: updated, error } = await supabase
+      .from('vaults')
+      .update(data)
+      .eq('id', editingVault.id)
+      .select()
+      .single();
+    if (error) throw error;
+    void invalidateVaults();
+    return updated as Vault;
+  };
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -114,6 +135,10 @@ export default function SmartCollections() {
         onMobileClose={() => setIsMobileSidebarOpen(false)}
         profile={profile}
         onEditProfile={() => setIsProfileDialogOpen(true)}
+        onEditVault={(vault) => {
+          setEditingVault(vault);
+          setIsVaultDialogOpen(true);
+        }}
       />
       <main className="flex-1 lg:pl-72 min-w-0 flex flex-col min-h-screen">
         <header className="bg-card/50 backdrop-blur-xl border-b-2 border-border px-4 lg:px-8 py-4 shrink-0 sticky top-0 z-10">
@@ -147,6 +172,12 @@ export default function SmartCollections() {
         </header>
 
         <div className="flex-1 p-6 md:p-10">
+          {loading && (
+            <div className="flex items-center justify-center py-16">
+              <LoadingSpinner />
+            </div>
+          )}
+
           {!loading && collections.length === 0 && (
             <div className="text-center py-16 text-muted-foreground font-mono">
               <p>// no_smart_collections_yet</p>
@@ -232,6 +263,14 @@ export default function SmartCollections() {
               void refetchProfile();
             }
           }}
+        />
+
+        <VaultDialog
+          open={isVaultDialogOpen}
+          onOpenChange={setIsVaultDialogOpen}
+          vault={editingVault}
+          onSave={handleSaveVault}
+          onUpdate={() => {}}
         />
 
         <AlertDialog open={!!deletingCollection} onOpenChange={(open) => !open && setDeletingCollection(null)}>

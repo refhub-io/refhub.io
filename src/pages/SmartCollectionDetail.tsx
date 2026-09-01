@@ -20,7 +20,7 @@ import {
 import { ArrowLeft, Pencil, Sparkles } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
-import { useVaults } from '@/hooks/useVaults';
+import { useVaults, useInvalidateVaults } from '@/hooks/useVaults';
 import { useToast } from '@/hooks/use-toast';
 import { useAllPublications } from '@/hooks/useAllPublications';
 import { useSmartCollections } from '@/hooks/useSmartCollections';
@@ -29,10 +29,11 @@ import { applyFilters } from '@/components/publications/FilterBuilder';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { SmartCollectionDialog } from '@/components/collections/SmartCollectionDialog';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
+import { VaultDialog } from '@/components/vaults/VaultDialog';
 import { VaultAugmentDialog, type AugmentTab } from '@/components/publications/VaultAugmentDialog';
 import { exportMultipleToBibtex, downloadBibtex } from '@/lib/bibtex';
 import type { SSPaper } from '@/lib/semanticScholar';
-import type { Publication } from '@/types/database';
+import type { Publication, Vault } from '@/types/database';
 
 const RULE_HINTS: Record<string, string> = {
   year: 'try loosening the year range',
@@ -47,6 +48,7 @@ export default function SmartCollectionDetail() {
   const { user, loading: authLoading } = useAuth();
   const { profile, refetch: refetchProfile } = useProfile();
   const { ownedVaults, sharedVaults } = useVaults();
+  const invalidateVaults = useInvalidateVaults();
   const { toast } = useToast();
   const { publications, tags, vaults, publicationTagsMap, publicationVaultsMap, loading: publicationsLoading, refetch } =
     useAllPublications();
@@ -54,6 +56,8 @@ export default function SmartCollectionDetail() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
+  const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
+  const [editingVault, setEditingVault] = useState<Vault | null>(null);
 
   // A smart collection has no membership to add newly-discovered papers into
   // (it's filter rules, not a container) — unlike a vault. "Discover" here
@@ -75,6 +79,19 @@ export default function SmartCollectionDetail() {
   const handleExportBibtex = (pubs: Publication[]) => {
     if (pubs.length === 0) return;
     downloadBibtex(exportMultipleToBibtex(pubs), `${collection?.name ?? 'smart-collection'}.bib`);
+  };
+
+  const handleSaveVault = async (data: Partial<Vault>) => {
+    if (!editingVault) return;
+    const { data: updated, error } = await supabase
+      .from('vaults')
+      .update(data)
+      .eq('id', editingVault.id)
+      .select()
+      .single();
+    if (error) throw error;
+    void invalidateVaults();
+    return updated as Vault;
   };
 
   const filtered = useMemo(() => {
@@ -146,6 +163,10 @@ export default function SmartCollectionDetail() {
         onMobileClose={() => setIsMobileSidebarOpen(false)}
         profile={profile}
         onEditProfile={() => setIsProfileDialogOpen(true)}
+        onEditVault={(vault) => {
+          setEditingVault(vault);
+          setIsVaultDialogOpen(true);
+        }}
       />
       <main className="flex-1 lg:pl-72 min-w-0 flex flex-col min-h-screen">
         {/* Slim back-nav + edit-rules bar. The title/item-count itself comes
@@ -284,6 +305,14 @@ export default function SmartCollectionDetail() {
               void refetchProfile();
             }
           }}
+        />
+
+        <VaultDialog
+          open={isVaultDialogOpen}
+          onOpenChange={setIsVaultDialogOpen}
+          vault={editingVault}
+          onSave={handleSaveVault}
+          onUpdate={() => {}}
         />
       </main>
     </div>
