@@ -6,6 +6,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.11.4] - 2026-09-01
+
+### Fixed
+- Dashboard's own initial data fetch had the identical blocking-wait problem fixed elsewhere in 1.11.2/1.11.3, in a third code path that hadn't been touched yet: `publication_tags` was awaited in the same batch as publications/vaults/vault_shares/vault_publications/relations/pdf_assets, so however long that single slowest, most failure-prone query took held up rendering everything else on the page. It's now fetched separately, non-blocking — the rest of the page renders as soon as the other six queries resolve.
+- Vault rows in the sidebar rendered visibly shorter on SmartCollections, the smart collection detail page, and the Codex topic page than on every other page. Root cause: the per-vault settings/gear icon (taller than the row's other elements) only renders when an `onEditVault` handler is passed to the sidebar, and these three pages never wired one up — unlike Dashboard/TheCodex/VaultDetail/Users, which all do. All three now support editing a vault from the sidebar the same way.
+- The sidebar's expanded/collapsed section state (my_vaults / shared_with_me / favorites) reset on every single page navigation — it was local component state with no persistence, and each page mounts a fresh sidebar instance. Now persisted to localStorage.
+- The sidebar's "favorites" section had the exact same uncached-refetch-on-every-navigation problem `useVaults()`/`useProfile()` were built to fix, just never migrated: `useVaultFavorites()` was a plain `useState`/`useEffect` hook, refetching from empty state on every sidebar mount. Rewrote it the same way (react-query, external API unchanged) — its data now also stays cached across pages. It also had its own N+1 (2 queries per favorited vault); batched the same way as TheCodex's public vault listing.
+- Smart collection cards showed a raw tag/vault UUID in their filter summary ("tags equals 90f79e1d-...") whenever `tags`/`vaults` hadn't finished loading yet (or the referenced one had since been deleted) — the fallback now never displays the id itself.
+- The smart collections list page had no loading indicator at all for the collections-data fetch — the list area was simply blank until data arrived, with no spinner.
+
 ## [1.11.3] - 2026-09-01
 
 ### Fixed
