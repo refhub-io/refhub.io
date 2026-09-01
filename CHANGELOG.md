@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.11.7] - 2026-09-01
+
+### Fixed
+- The sidebar's saved custom vault order (drag-to-reorder, for owned vaults, shared vaults, and favorites) would silently stop applying depending on which page you landed on. Root cause: `useVaultSidebarOrder`/`useVaultFavoritesOrder`/`useVaultSharedOrder` read the saved order from localStorage in a `useState` lazy initializer, which only runs once — but the signed-in user's id is frequently still `undefined` on that very first render (auth resolves asynchronously), so the saved order silently never loaded for the rest of that page visit whenever the timing landed that way. All three now re-read the saved order whenever the user id actually becomes available.
+
 ## [1.11.6] - 2026-09-01
 
 ### Fixed
