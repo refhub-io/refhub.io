@@ -6,6 +6,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.11.6] - 2026-09-01
+
+### Fixed
+- Renamed `Loader2` (its actual name in `lucide-react`) to `LoadingIcon` at every one of its 24 usage sites across 9 files, via import aliasing — didn't say what it was for at a glance. Also removed two dead `Loader2` imports found along the way (imported but never referenced).
+- `/public/:slug` had the exact same sidebar bugs already fixed on 6 other pages in 1.11.3/1.11.4, just missed in that pass: its own duplicate vault-fetching code (migrated to `useVaults()`), and none of its three sidebar render states passed `onEditVault`, so the settings icon never rendered and rows came out shorter than everywhere else. Also fixed a dead link found in the same area — its "edit profile" action pointed at `/profile/edit`, which doesn't exist (the real route is `/profile-edit`).
+- The Codex page's "loading_topics..." text now reads redundant next to the cycling-text spinner introduced in 1.11.5 ("fetching... loading_topics...") — dropped the spinner there, kept the more specific text.
+
 ## [1.11.5] - 2026-09-01
 
 ### Fixed
