@@ -285,7 +285,7 @@ export default function Dashboard() {
 
       // Fetch owned vaults, shared vaults, and other data
       setPdfAssetsLoading(true);
-      const [pubsRes, ownedVaultsRes, sharedVaultsRes, vaultPubsRes, pubTagsRes, relationsRes, pdfAssetsRes] = await Promise.all([
+      const [pubsRes, ownedVaultsRes, sharedVaultsRes, vaultPubsRes, relationsRes, pdfAssetsRes] = await Promise.all([
         supabase.from('publications').select('*').order('created_at', { ascending: false }),
         supabase.from('vaults').select('*').eq('user_id', user.id).order('name'),
         // Fetch vaults shared with current user (via email or user_id)
@@ -294,7 +294,6 @@ export default function Dashboard() {
           .select('vault_id, role')
           .or(`shared_with_email.eq.${user.email},shared_with_user_id.eq.${user.id}`),
         supabase.from('vault_publications').select('*').order('created_at', { ascending: false }),
-        supabase.from('publication_tags').select('*'),
         supabase.from('publication_relations').select('*'),
         supabase
           .from('publication_pdf_assets')
@@ -302,6 +301,20 @@ export default function Dashboard() {
           .eq('storage_provider', 'google_drive')
           .eq('status', 'stored'),
       ]);
+
+      // publication_tags is fetched separately and NOT awaited here: it's
+      // shown (see PRs #205/#206) to be the slowest/most failure-prone query
+      // in this whole batch — an unscoped select relying entirely on RLS,
+      // observed timing out for 13-19s in production. Awaiting it inline
+      // used to delay every other piece of this page (vaults, publications,
+      // tags, relations all rendered fine on their own) behind however long
+      // it took to resolve or time out. Its own .then() (attached further
+      // down, once the other pieces it needs to merge into the cache are
+      // computed) updates state whenever it happens to resolve, without
+      // blocking anything else.
+      const pubTagsQuery = supabase
+        .from('publication_tags')
+        .select('id, publication_id, vault_publication_id, tag_id');
 
       // Build PDF assets map (keyed by publication_id for canonical, vault_publication_id for vault copies)
       const assetsMap: Record<string, string | null> = {};
@@ -384,7 +397,6 @@ export default function Dashboard() {
       // Set the state with the processed data
       setPublications(allPublications);
       setTags(dedupedTags);
-      if (pubTagsRes.data) setPublicationTags(pubTagsRes.data as PublicationTag[]);
       if (relationsRes.data) setPublicationRelations(relationsRes.data as PublicationRelation[]);
 
       // Complete relations phase
@@ -413,17 +425,33 @@ export default function Dashboard() {
         setSharedVaults([]);
       }
       
-      // Save to cache for future visits
+      // Save to cache for future visits. publicationTags isn't in yet (it's
+      // fetched separately above, non-blocking) — patched in below once it
+      // resolves, instead of waiting for it here.
       setPageCache<DashboardCache>('dashboard', {
         publications: allPublications,
         vaults: ownedVaults,
         sharedVaults: processedSharedVaults,
         tags: dedupedTags,
-        publicationTags: pubTagsRes.data as PublicationTag[] || [],
+        publicationTags: [],
         publicationRelations: relationsRes.data as PublicationRelation[] || [],
         vaultPublicationLinks: rawVaultPublicationLinks,
       }, user?.id);
-      
+
+      void pubTagsQuery.then((res) => {
+        if (res.error) {
+          console.error('Failed to fetch publication_tags (tag data will be incomplete):', res.error);
+          return;
+        }
+        const freshPublicationTags = (res.data as PublicationTag[]) || [];
+        setPublicationTags(freshPublicationTags);
+
+        const cached = getPageCache<DashboardCache>('dashboard', user?.id);
+        if (cached) {
+          setPageCache<DashboardCache>('dashboard', { ...cached, publicationTags: freshPublicationTags }, user?.id);
+        }
+      });
+
     } catch (error) {
       toast({
         title: 'Could not load dashboard data',
