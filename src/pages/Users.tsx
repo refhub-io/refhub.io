@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { logger } from '@/lib/logger';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile, Profile } from '@/hooks/useProfile';
+import { useVaults, useInvalidateVaults } from '@/hooks/useVaults';
 import { Vault } from '@/types/database';
 import { SidebarDndBoundary } from '@/components/layout/SidebarDndBoundary';
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
@@ -40,21 +41,19 @@ interface UserWithStats extends Profile {
 
 interface UsersCache {
   users: UserWithStats[];
-  vaults: Vault[];
-  sharedVaults: Vault[];
 }
 
 export default function Users() {
   const { user, loading: authLoading } = useAuth();
   const { profile, refetch: refetchProfile } = useProfile();
+  const { ownedVaults: vaults, sharedVaults } = useVaults();
+  const invalidateVaults = useInvalidateVaults();
   const navigate = useNavigate();
-  
+
   // Check for cached data to skip loading screen on return visits
   const hasCachedData = useRef(hasPageCache('users'));
-  
+
   const [users, setUsers] = useState<UserWithStats[]>([]);
-  const [vaults, setVaults] = useState<Vault[]>([]);
-  const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
   const [loading, setLoading] = useState(!hasCachedData.current);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'publications' | 'vaults' | 'joined'>('joined');
@@ -83,43 +82,12 @@ export default function Users() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const fetchVaults = useCallback(async () => {
-    if (!user) return;
-    try {
-      const [ownedVaultsRes, sharedVaultsRes] = await Promise.all([
-        supabase.from('vaults').select('*').eq('user_id', user.id).order('name'),
-        supabase
-          .from('vault_shares')
-          .select('vault_id')
-          .or(`shared_with_email.eq.${user.email},shared_with_user_id.eq.${user.id}`),
-      ]);
-
-      if (ownedVaultsRes.data) setVaults(ownedVaultsRes.data as Vault[]);
-
-      // Fetch shared vault details
-      if (sharedVaultsRes.data && sharedVaultsRes.data.length > 0) {
-        const sharedVaultIds = sharedVaultsRes.data.map(s => s.vault_id);
-        const { data: sharedVaultsData } = await supabase
-          .from('vaults')
-          .select('*')
-          .in('id', sharedVaultIds);
-        if (sharedVaultsData) setSharedVaults(sharedVaultsData as Vault[]);
-      }
-    } catch (error) {
-      logger.error('Users', 'Error fetching vaults:', error);
-    }
-  }, [user]);
-
   // Save to cache whenever data changes
   useEffect(() => {
     if (user && users.length > 0 && !loading) {
-      setPageCache<UsersCache>('users', {
-        users,
-        vaults,
-        sharedVaults,
-      }, user.id);
+      setPageCache<UsersCache>('users', { users }, user.id);
     }
-  }, [user, users, vaults, sharedVaults, loading]);
+  }, [user, users, loading]);
 
   // Restore from cache on mount if available
   useEffect(() => {
@@ -127,8 +95,6 @@ export default function Users() {
       const cached = getPageCache<UsersCache>('users', user.id);
       if (cached) {
         setUsers(cached.users);
-        setVaults(cached.vaults);
-        setSharedVaults(cached.sharedVaults);
       }
     }
   }, [user]);
@@ -138,9 +104,8 @@ export default function Users() {
       // If we have cached data, do a silent refresh in the background
       const isSilent = hasCachedData.current;
       fetchUsers(isSilent);
-      fetchVaults();
     }
-  }, [user, fetchVaults]);
+  }, [user]);
 
   const fetchUsers = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -241,7 +206,7 @@ export default function Users() {
       .select()
       .single();
     if (error) throw error;
-    setVaults(prev => prev.map(v => v.id === editingVault.id ? { ...v, ...updated } as Vault : v));
+    void invalidateVaults();
     setEditingVault(updated as Vault);
     return updated as Vault;
   };
