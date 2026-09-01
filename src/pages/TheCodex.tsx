@@ -1,5 +1,5 @@
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { logger } from '@/lib/logger';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -7,6 +7,7 @@ import { Vault, VaultStats, VAULT_CATEGORIES } from '@/types/database';
 import { normalizeTopic, topicToSlug } from '@/lib/codexDiscovery';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
+import { useVaults, useInvalidateVaults } from '@/hooks/useVaults';
 import { useVaultFavorites } from '@/hooks/useVaultFavorites';
 import { useVaultFork } from '@/hooks/useVaultFork';
 import { useToast } from '@/hooks/use-toast';
@@ -61,8 +62,6 @@ interface CodexVault extends Vault {
 
 interface CodexCache {
   vaults: CodexVault[];
-  userVaults: Vault[];
-  sharedVaults: Vault[];
 }
 
 export default function TheCodex() {
@@ -77,8 +76,8 @@ export default function TheCodex() {
   const hasCachedData = useRef(hasPageCache('codex'));
   
   const [vaults, setVaults] = useState<CodexVault[]>([]);
-  const [userVaults, setUserVaults] = useState<Vault[]>([]);
-  const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
+  const { ownedVaults: userVaults, sharedVaults } = useVaults();
+  const invalidateVaults = useInvalidateVaults();
   const [loading, setLoading] = useState(!hasCachedData.current);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -106,60 +105,61 @@ export default function TheCodex() {
       }
 
       const vaultIds = vaultsData.map((vault) => vault.id);
-      const { data: forkedVaultRows } = vaultIds.length === 0
-        ? { data: [] }
-        : await supabase
-            .from('vault_forks')
-            .select('forked_vault_id')
-            .in('forked_vault_id', vaultIds);
-      const forkedVaultIds = new Set((forkedVaultRows || []).map((row) => row.forked_vault_id));
+      const ownerIds = [...new Set(vaultsData.map((vault) => vault.user_id))];
 
-      // Fetch additional data for each vault
-      const vaultsWithData = await Promise.all(
-        vaultsData.map(async (vault) => {
-          // Count directly from vault_publications so originals and forks stay accurate.
-          const { count } = await supabase
-            .from('vault_publications')
-            .select('*', { count: 'exact', head: true })
-            .eq('vault_id', vault.id);
+      // Batched: one query per data source across ALL public vaults, instead
+      // of the previous 5-queries-PER-vault fan-out (N public vaults meant
+      // 5N round trips). Each result is grouped/counted client-side by
+      // vault_id below.
+      const [
+        forkedVaultRows,
+        vaultPubRows,
+        statsRows,
+        favoriteRows,
+        forkCountRows,
+        profileRows,
+      ] = vaultIds.length === 0
+        ? [[], [], [], [], [], []]
+        : await Promise.all([
+            supabase.from('vault_forks').select('forked_vault_id').in('forked_vault_id', vaultIds)
+              .then((res) => res.data || []),
+            supabase.from('vault_publications').select('vault_id').in('vault_id', vaultIds)
+              .then((res) => res.data || []),
+            supabase.from('vault_stats').select('*').in('vault_id', vaultIds)
+              .then((res) => res.data || []),
+            supabase.from('vault_favorites').select('vault_id').in('vault_id', vaultIds)
+              .then((res) => res.data || []),
+            supabase.from('vault_forks').select('original_vault_id').in('original_vault_id', vaultIds)
+              .then((res) => res.data || []),
+            supabase.from('profiles').select('user_id, display_name, email, avatar_url, username').in('user_id', ownerIds)
+              .then((res) => res.data || []),
+          ]);
 
-          // Get stats
-          const { data: statsData } = await supabase
-            .from('vault_stats')
-            .select('*')
-            .eq('vault_id', vault.id)
-            .maybeSingle();
+      const countBy = (rows: Record<string, unknown>[], key: string): Map<string, number> => {
+        const counts = new Map<string, number>();
+        rows.forEach((row) => {
+          const id = row[key] as string;
+          counts.set(id, (counts.get(id) || 0) + 1);
+        });
+        return counts;
+      };
 
-          // Get favorites count
-          const { count: favoritesCount } = await supabase
-            .from('vault_favorites')
-            .select('*', { count: 'exact', head: true })
-            .eq('vault_id', vault.id);
+      const forkedVaultIds = new Set((forkedVaultRows as { forked_vault_id: string }[]).map((row) => row.forked_vault_id));
+      const publicationCounts = countBy(vaultPubRows as Record<string, unknown>[], 'vault_id');
+      const favoritesCounts = countBy(favoriteRows as Record<string, unknown>[], 'vault_id');
+      const forkCounts = countBy(forkCountRows as Record<string, unknown>[], 'original_vault_id');
+      const statsByVaultId = new Map((statsRows as VaultStats[]).map((s) => [s.vault_id, s]));
+      const profilesByUserId = new Map((profileRows as { user_id: string; display_name: string | null; email: string | null; avatar_url: string | null; username: string | null }[]).map((p) => [p.user_id, p]));
 
-          // Get fork count
-          const { count: forkCount } = await supabase
-            .from('vault_forks')
-            .select('*', { count: 'exact', head: true })
-            .eq('original_vault_id', vault.id);
-
-          // Get owner info
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('display_name, email, avatar_url, username')
-            .eq('user_id', vault.user_id)
-            .maybeSingle();
-
-          return {
-            ...vault,
-            publication_count: count || 0,
-            stats: statsData as VaultStats | undefined,
-            favorites_count: favoritesCount || 0,
-            fork_count: forkCount || 0,
-            is_fork: forkedVaultIds.has(vault.id),
-            owner: profileData || undefined,
-          } as CodexVault;
-        })
-      );
+      const vaultsWithData: CodexVault[] = vaultsData.map((vault) => ({
+        ...vault,
+        publication_count: publicationCounts.get(vault.id) || 0,
+        stats: statsByVaultId.get(vault.id),
+        favorites_count: favoritesCounts.get(vault.id) || 0,
+        fork_count: forkCounts.get(vault.id) || 0,
+        is_fork: forkedVaultIds.has(vault.id),
+        owner: profilesByUserId.get(vault.user_id),
+      }));
 
       setVaults(vaultsWithData);
       fetchTopicSuggestions(vaultIds);
@@ -206,54 +206,12 @@ export default function TheCodex() {
     }
   };
 
-  const fetchUserVaults = useCallback(async () => {
-    if (!user) return;
-    
-    try {
-      // Fetch owned vaults
-      const { data: ownedVaultsData } = await supabase
-        .from('vaults')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('name');
-      
-      if (ownedVaultsData) {
-        setUserVaults(ownedVaultsData as Vault[]);
-      }
-
-      // Fetch shared vaults
-      const { data: sharedVaultsData } = await supabase
-        .from('vault_shares')
-        .select('vault_id')
-        .or(`shared_with_email.eq.${user.email},shared_with_user_id.eq.${user.id}`);
-      
-      if (sharedVaultsData && sharedVaultsData.length > 0) {
-        const sharedVaultIds = sharedVaultsData.map(s => s.vault_id);
-        const { data: sharedVaultDetails } = await supabase
-          .from('vaults')
-          .select('*')
-          .in('id', sharedVaultIds)
-          .neq('user_id', user.id);
-        
-        if (sharedVaultDetails) {
-          setSharedVaults(sharedVaultDetails as Vault[]);
-        }
-      }
-    } catch (error) {
-      logger.error('TheCodex', 'Error fetching user vaults:', error);
-    }
-  }, [user]);
-
   // Save to cache whenever data changes
   useEffect(() => {
     if (user && vaults.length > 0 && !loading) {
-      setPageCache<CodexCache>('codex', {
-        vaults,
-        userVaults,
-        sharedVaults,
-      }, user.id);
+      setPageCache<CodexCache>('codex', { vaults }, user.id);
     }
-  }, [user, vaults, userVaults, sharedVaults, loading]);
+  }, [user, vaults, loading]);
 
   // Restore from cache on mount if available
   useEffect(() => {
@@ -261,8 +219,6 @@ export default function TheCodex() {
       const cached = getPageCache<CodexCache>('codex', user.id);
       if (cached) {
         setVaults(cached.vaults);
-        setUserVaults(cached.userVaults);
-        setSharedVaults(cached.sharedVaults);
       }
     }
   }, [user]);
@@ -271,9 +227,6 @@ export default function TheCodex() {
     // If we have cached data, do a silent refresh in the background
     const isSilent = hasCachedData.current;
     fetchPublicVaults(isSilent);
-    if (user) {
-      fetchUserVaults();
-    }
 
     // Subscribe to realtime changes for vaults table
     // Since we query with visibility='public', any change will naturally filter correctly
@@ -298,7 +251,8 @@ export default function TheCodex() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, fetchUserVaults]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const filteredVaults = vaults.filter((vault) => {
     const query = searchQuery.toLowerCase();
@@ -377,8 +331,9 @@ export default function TheCodex() {
     setForkingId(vault.id);
     const newVault = await forkVault(vault as Vault);
     setForkingId(null);
-    
+
     if (newVault) {
+      void invalidateVaults();
       navigate('/dashboard');
     }
   };
@@ -392,7 +347,7 @@ export default function TheCodex() {
       .select()
       .single();
     if (error) throw error;
-    setUserVaults(prev => prev.map(v => v.id === editingVault.id ? { ...v, ...updated } as Vault : v));
+    void invalidateVaults();
     setEditingVault(updated as Vault);
     return updated as Vault;
   };
