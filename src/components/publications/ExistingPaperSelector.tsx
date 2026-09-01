@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Search, Check, Loader2 } from 'lucide-react';
+import { Search, Check } from 'lucide-react';
 import { LoadingSpinner } from '@/components/ui/loading';
 import { cn } from '@/lib/utils';
 

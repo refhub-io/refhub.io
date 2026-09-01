@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, ExternalLink, FolderSync, HardDrive, Link2, Loader2, Shield, Unplug } from 'lucide-react';
+import { Check, ExternalLink, FolderSync, HardDrive, Link2, Loader2 as LoadingIcon, Shield, Unplug } from 'lucide-react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -125,7 +125,7 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
           </CardDescription>
         </CardHeader>
         <CardContent className="font-mono text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin text-fuchsia-300" />
+          <LoadingIcon className="h-4 w-4 animate-spin text-fuchsia-300" />
         </CardContent>
       </Card>
     );
@@ -219,7 +219,7 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
               onClick={() => void handleConnect()}
               disabled={action !== null}
             >
-              {action === 'connect' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
+              {action === 'connect' ? <LoadingIcon className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
               {currentStatus.linked ? 'reconnect google drive' : 'connect google drive'}
             </Button>
             {currentStatus.folderStatus === 'ready' ? (
@@ -235,7 +235,7 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
                 onClick={() => void handleEnsureFolder()}
                 disabled={!currentStatus.linked || action !== null}
               >
-                {action === 'ensure' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderSync className="h-4 w-4" />}
+                {action === 'ensure' ? <LoadingIcon className="h-4 w-4 animate-spin" /> : <FolderSync className="h-4 w-4" />}
                 prepare refhub folder
               </Button>
             )}
@@ -246,7 +246,7 @@ export function GoogleDriveSettingsPanel({ accessToken }: GoogleDriveSettingsPan
               onClick={() => void handleDisconnect()}
               disabled={!currentStatus.linked || action !== null}
             >
-              {action === 'disconnect' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Unplug className="h-4 w-4" />}
+              {action === 'disconnect' ? <LoadingIcon className="h-4 w-4 animate-spin" /> : <Unplug className="h-4 w-4" />}
               unlink drive
             </Button>
           </div>

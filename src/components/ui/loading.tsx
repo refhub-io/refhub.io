@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { Check, Loader2 } from 'lucide-react';
+import { Check, Loader2 as LoadingIcon } from 'lucide-react';
 
 interface LoadingSpinnerProps {
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
@@ -435,7 +435,7 @@ export function PhaseLoader({ phases, title = 'initializing_refhub', subtitle, c
                     {phase.status === 'loading' && (
                       // Static, not animate-spin: the phase label itself already
                       // carries the "in progress" cue via its own trailing dots.
-                      <Loader2 className="w-4 h-4" />
+                      <LoadingIcon className="w-4 h-4" />
                     )}
                     {phase.status === 'pending' && (
                       <div className="w-2 h-2 rounded-full bg-current" />

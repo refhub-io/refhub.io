@@ -7,7 +7,7 @@ import { useHotkeys } from '@/hooks/useKeyboardNavigation';
 import { useKeyboardContext } from '@/contexts/KeyboardContext';
 import { KbdHint } from '@/components/ui/KbdHint';
 import { formatTimeAgo } from '@/lib/utils';
-import { Maximize, Minimize, Save, X, Plus, Loader2, Upload, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react';
+import { Maximize, Minimize, Save, X, Plus, Loader2 as LoadingIcon, Upload, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -982,7 +982,7 @@ export function PublicationDialog({
                   className="font-mono text-xs h-7 px-2.5"
                   title={publication.doi ? (syncCooldownSeconds > 0 ? `Semantic Scholar sync cooldown: ${syncCooldownSeconds}s` : 'Sync metadata from Semantic Scholar') : 'DOI required for sync'}
                 >
-                  <Loader2 className={`w-3 h-3 mr-1.5 ${syncLoading ? 'animate-spin' : ''}`} />
+                  <LoadingIcon className={`w-3 h-3 mr-1.5 ${syncLoading ? 'animate-spin' : ''}`} />
                   {syncCooldownSeconds > 0 ? `sync_cooldown_${syncCooldownSeconds}s` : 'sync_details'}
                 </Button>
               </div>
@@ -1253,10 +1253,10 @@ export function PublicationDialog({
                     driveUploadStatus === 'error' ? 'border-destructive text-destructive bg-destructive/10' : ''
                   }`}
                 >
-                  {driveUploadStatus === 'uploading' && <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
+                  {driveUploadStatus === 'uploading' && <LoadingIcon className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
                   {driveUploadStatus === 'success' && <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />}
                   {driveUploadStatus === 'error' && <AlertCircle className="w-3.5 h-3.5 mr-1.5" />}
-                  {driveUploadStatus === 'idle' && (driveStatusLoading ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Upload className="w-3.5 h-3.5 mr-1.5" />)}
+                  {driveUploadStatus === 'idle' && (driveStatusLoading ? <LoadingIcon className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Upload className="w-3.5 h-3.5 mr-1.5" />)}
                   {driveUploadStatus === 'uploading' ? 'uploading…' :
                    driveUploadStatus === 'success' ? 'uploaded!' :
                    driveUploadStatus === 'error' ? 'retry' : 'upload_pdf'}
