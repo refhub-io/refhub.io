@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.11.8] - 2026-09-01
+
+### Fixed
+- `/public/:slug`'s sidebar still visibly reordered a second or two after load, even with the 1.11.7 fix. Real cause: its loading and not-found states rendered a bare `<Sidebar>` (no drag-reorder wrapper, so no saved order applied at all — vaults showed in raw alphabetical order), while the main content state rendered `<SidebarDndBoundary>` (which does apply the saved order). Once the vault's own fetch resolved, React swapped between these two different component types at that position in the tree, forcing a full remount at the exact moment the order visibly snapped from raw to correct. All three of this page's states now consistently use `SidebarDndBoundary`.
+
 ## [1.11.7] - 2026-09-01
 
 ### Fixed
