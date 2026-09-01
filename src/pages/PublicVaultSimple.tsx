@@ -13,7 +13,6 @@ import { useVaultFavorites } from '@/hooks/useVaultFavorites';
 import { useVaultFork } from '@/hooks/useVaultFork';
 import { useVaultAccess, requestVaultAccess } from '@/hooks/useVaultAccess';
 import { getForkSourceHref, getForkSourceLabel, getVaultForkInfo, VaultForkInfo } from '@/lib/vaultFork';
-import { Sidebar } from '@/components/layout/Sidebar';
 import { SidebarDndBoundary } from '@/components/layout/SidebarDndBoundary';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationViewDialog } from '@/components/publications/PublicationViewDialog';
@@ -418,7 +417,7 @@ export default function PublicVault() {
     return (
       <div className="min-h-screen bg-background flex">
         {user && (
-          <Sidebar
+          <SidebarDndBoundary
             vaults={userVaults}
             sharedVaults={sharedVaults}
             selectedVaultId={null}
@@ -449,7 +448,7 @@ export default function PublicVault() {
     return (
       <div className="min-h-screen bg-background flex">
         {user && (
-          <Sidebar
+          <SidebarDndBoundary
             vaults={userVaults}
             sharedVaults={sharedVaults}
             selectedVaultId={null}
