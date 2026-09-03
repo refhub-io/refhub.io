@@ -10,7 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess, showToast } from '@/lib/toast';
 import { ApiKeyManagementPanel } from '@/components/profile/ApiKeyManagementPanel';
 import { GoogleDriveSettingsPanel } from '@/components/profile/GoogleDriveSettingsPanel';
-import { Loader2, User, Lock, Mail, ArrowLeft, KeyRound, HardDrive } from 'lucide-react';
+import { Loader2 as LoadingIcon, User, Lock, Mail, ArrowLeft, KeyRound, HardDrive } from 'lucide-react';
 import { resolvePostAuthRedirect } from '@/lib/authRedirect';
 import { getAuthProviderLabel, getLastLoginProvider, hasPasswordIdentity } from '@/lib/authProviders';
 
@@ -357,7 +357,7 @@ export default function ProfileEdit() {
                   onClick={handleSaveProfile}
                   disabled={saving}
                 >
-                  {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  {saving && <LoadingIcon className="w-4 h-4 mr-2 animate-spin" />}
                   save_profile
                 </Button>
               </div>
@@ -417,7 +417,7 @@ export default function ProfileEdit() {
                       onClick={handleChangePassword}
                       disabled={changingPassword}
                     >
-                      {changingPassword && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      {changingPassword && <LoadingIcon className="w-4 h-4 mr-2 animate-spin" />}
                       change_password
                     </Button>
                   </div>
@@ -480,7 +480,7 @@ export default function ProfileEdit() {
                       onClick={handleChangeEmail}
                       disabled={changingEmail}
                     >
-                      {changingEmail && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      {changingEmail && <LoadingIcon className="w-4 h-4 mr-2 animate-spin" />}
                       change_email
                     </Button>
                   </div>

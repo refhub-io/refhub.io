@@ -15,12 +15,13 @@ import {
 } from '@/lib/codexDiscovery';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
-import { useAllPublications } from '@/hooks/useAllPublications';
+import { useVaults, useInvalidateVaults } from '@/hooks/useVaults';
 import { SidebarDndBoundary } from '@/components/layout/SidebarDndBoundary';
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationViewDialog } from '@/components/publications/PublicationViewDialog';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
+import { VaultDialog } from '@/components/vaults/VaultDialog';
 import { LoadingSpinner } from '@/components/ui/loading';
 import {
   Select,
@@ -41,9 +42,12 @@ export default function CodexTopic() {
 
   const { user } = useAuth();
   const { profile, refetch: refetchProfile } = useProfile();
-  const { vaults: myVaults } = useAllPublications();
+  const { ownedVaults, sharedVaults } = useVaults();
+  const invalidateVaults = useInvalidateVaults();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
+  const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
+  const [editingVault, setEditingVault] = useState<Vault | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -179,10 +183,18 @@ export default function CodexTopic() {
   // Tag badges on this page come from each match's `signals`, not FilterBuilder's tag picker.
   const tagsForList: Tag[] = [];
 
-  // Sidebar nav needs the signed-in user's OWN vaults, distinct from
-  // matchedVaults (the vaults that happen to match this topic).
-  const ownedVaults = useMemo(() => myVaults.filter((v) => v.user_id === user?.id), [myVaults, user?.id]);
-  const sharedVaults = useMemo(() => myVaults.filter((v) => v.user_id !== user?.id), [myVaults, user?.id]);
+  const handleSaveVault = async (data: Partial<Vault>) => {
+    if (!editingVault) return;
+    const { data: updated, error: updateError } = await supabase
+      .from('vaults')
+      .update(data)
+      .eq('id', editingVault.id)
+      .select()
+      .single();
+    if (updateError) throw updateError;
+    void invalidateVaults();
+    return updated as Vault;
+  };
 
   if (loading) {
     return (
@@ -214,6 +226,10 @@ export default function CodexTopic() {
           onMobileClose={() => setIsMobileSidebarOpen(false)}
           profile={profile}
           onEditProfile={() => setIsProfileDialogOpen(true)}
+          onEditVault={(vault) => {
+            setEditingVault(vault);
+            setIsVaultDialogOpen(true);
+          }}
         />
       )}
       <div className={`flex-1 min-w-0 flex flex-col min-h-screen ${user ? 'lg:pl-72' : ''}`}>
@@ -326,6 +342,14 @@ export default function CodexTopic() {
             void refetchProfile();
           }
         }}
+      />
+
+      <VaultDialog
+        open={isVaultDialogOpen}
+        onOpenChange={setIsVaultDialogOpen}
+        vault={editingVault}
+        onSave={handleSaveVault}
+        onUpdate={() => {}}
       />
     </div>
   );

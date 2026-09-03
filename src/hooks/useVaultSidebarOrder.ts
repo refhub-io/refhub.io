@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { arrayMove } from '@dnd-kit/sortable';
 import { logger } from '@/lib/logger';
 import { Vault } from '@/types/database';
@@ -41,6 +41,16 @@ function persistOrder(userId: string, orderedIds: string[]) {
  */
 export function useVaultSidebarOrder(userId: string | null | undefined) {
   const [orderedIds, setOrderedIds] = useState<string[]>(() => readStoredOrder(userId));
+
+  // userId is frequently undefined on this hook's very first render (auth
+  // resolves async) — the lazy useState initializer above only runs once,
+  // so without this it would permanently lock in the "no stored order"
+  // result from that first render, silently ignoring a saved order for
+  // the rest of this mount. Re-reading whenever userId settles (or
+  // changes, e.g. a different account on the same device) fixes it.
+  useEffect(() => {
+    setOrderedIds(readStoredOrder(userId));
+  }, [userId]);
 
   const orderVaults = useCallback((vaults: Vault[]) => applyVaultOrder(vaults, orderedIds), [orderedIds]);
 

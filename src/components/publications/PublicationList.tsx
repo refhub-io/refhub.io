@@ -39,7 +39,7 @@ import {
   MoreVertical,
   Tags,
   Telescope,
-  Loader2,
+  Loader2 as LoadingIcon,
   CopyCheck,
   ArrowUp,
   ArrowDown,
@@ -797,7 +797,7 @@ export function PublicationList({
           isLoadingPublications ? (
             <div className="flex flex-col items-center justify-center py-20 text-center" role="status" aria-live="polite">
               <div className="w-20 h-20 rounded-3xl bg-gradient-primary flex items-center justify-center mb-6 shadow-lg glow-purple">
-                <Loader2 className="w-10 h-10 text-white animate-spin" />
+                <LoadingIcon className="w-10 h-10 text-white animate-spin" />
               </div>
               <h3 className="text-2xl font-bold mb-2 font-mono">
                 {loadingMessage}

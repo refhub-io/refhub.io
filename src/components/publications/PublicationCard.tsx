@@ -14,7 +14,7 @@ import {
   StickyNote,
   Link2,
   ChevronDown,
-  Loader2
+  Loader2 as LoadingIcon
 } from 'lucide-react';
 import { GoogleDriveIcon } from '@/components/ui/GoogleDriveIcon';
 import { Badge } from '@/components/ui/badge';
@@ -177,7 +177,7 @@ export function PublicationCard({
                 )}
                 {driveLoading && (
                   <span className="flex items-center px-1.5 py-1">
-                    <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+                    <LoadingIcon className="w-3 h-3 animate-spin text-muted-foreground" />
                   </span>
                 )}
                 {typeof syncDiffCount === 'number' && syncDiffCount > 0 && (
@@ -216,7 +216,7 @@ export function PublicationCard({
                     )}
                     {onCheckSync && (
                       <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onCheckSync(); }} disabled={syncLoading || syncCooldownSeconds > 0 || !publication.doi}>
-                        <Loader2 className={`w-4 h-4 mr-2 ${syncLoading ? 'animate-spin' : ''}`} />
+                        <LoadingIcon className={`w-4 h-4 mr-2 ${syncLoading ? 'animate-spin' : ''}`} />
                         {syncCooldownSeconds > 0 ? `sync cooldown ${syncCooldownSeconds}s` : 'sync details'}
                       </DropdownMenuItem>
                     )}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatDistanceToNowStrict } from 'date-fns';
-import { AlertCircle, CheckCircle2, Copy, KeyRound, Loader2, RefreshCw, ShieldAlert, ShieldOff, Trash2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Copy, KeyRound, Loader2 as LoadingIcon, RefreshCw, ShieldAlert, ShieldOff, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -554,7 +554,7 @@ export function ApiKeyManagementPanel({ userId, userEmail, accessToken }: ApiKey
                 onClick={handleCreateApiKey}
                 disabled={isCreating || loadingVaults || !accessToken}
               >
-                {isCreating && <Loader2 className="h-4 w-4 animate-spin" />}
+                {isCreating && <LoadingIcon className="h-4 w-4 animate-spin" />}
                 create_api_key
               </Button>
             </div>
@@ -722,7 +722,7 @@ export function ApiKeyManagementPanel({ userId, userEmail, accessToken }: ApiKey
               onClick={handleConfirmRevoke}
               disabled={isRevoking}
             >
-              {isRevoking && <Loader2 className="h-4 w-4 animate-spin" />}
+              {isRevoking && <LoadingIcon className="h-4 w-4 animate-spin" />}
               revoke_key
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -750,7 +750,7 @@ export function ApiKeyManagementPanel({ userId, userEmail, accessToken }: ApiKey
               onClick={handleConfirmDelete}
               disabled={isDeleting}
             >
-              {isDeleting && <Loader2 className="h-4 w-4 animate-spin" />}
+              {isDeleting && <LoadingIcon className="h-4 w-4 animate-spin" />}
               delete_key
             </AlertDialogAction>
           </AlertDialogFooter>

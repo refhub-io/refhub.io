@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback, useMemo, useRef, type RefObject } fro
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
+import { useVaults, useInvalidateVaults } from '@/hooks/useVaults';
 import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag, PublicationRelation, VaultShare } from '@/types/database';
-import { VaultRole } from '@/types/vault-extensions';
 import { DndContext, DragOverlay } from '@dnd-kit/core';
 import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import { useVaultDragAndDrop } from '@/hooks/useVaultDragAndDrop';
@@ -123,9 +123,8 @@ export default function VaultDetail() {
 
   // Local state for UI elements
   const [vaultPapers, setVaultPapers] = useState<{[key: string]: string[]}>({});
-  const [vaults, setVaults] = useState<Vault[]>([]);
-  const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
-  const [sharedVaultRoles, setSharedVaultRoles] = useState<Record<string, VaultRole>>({});
+  const { ownedVaults: vaults, sharedVaults, sharedVaultRoles } = useVaults();
+  const invalidateVaults = useInvalidateVaults();
   const [allPublications, setAllPublications] = useState<Publication[]>([]);
   const [publicationVaultsMap, setPublicationVaultsMap] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
@@ -303,47 +302,6 @@ export default function VaultDetail() {
     navigate(`/vault/${vaultId}`, { replace: true });
   }, [location.state, canEdit, publications, navigate, vaultId]);
 
-  // Fetch user's vaults and shared vaults separately
-  const fetchUserVaults = useCallback(async () => {
-    if (!user) return;
-
-    try {
-      // Fetch user's vaults
-      const [ownedVaultsRes, sharedVaultsRes] = await Promise.all([
-        supabase.from('vaults').select('*').eq('user_id', user.id).order('name'),
-        supabase
-          .from('vault_shares')
-          .select('vault_id, role')
-          .or(`shared_with_email.eq.${user.email},shared_with_user_id.eq.${user.id}`)
-      ]);
-
-      const rolesByVaultId: Record<string, VaultRole> = {};
-      for (const share of sharedVaultsRes.data || []) {
-        if (share.role) rolesByVaultId[share.vault_id] = share.role as VaultRole;
-      }
-      setSharedVaultRoles(rolesByVaultId);
-
-      // Process shared vaults
-      let processedSharedVaults: Vault[] = [];
-      if (sharedVaultsRes.data && sharedVaultsRes.data.length > 0) {
-        const sharedVaultIds = sharedVaultsRes.data.map(s => s.vault_id);
-        const { data: sharedVaultDetails } = await supabase
-          .from('vaults')
-          .select('*')
-          .in('id', sharedVaultIds);
-
-        if (sharedVaultDetails) {
-          processedSharedVaults = sharedVaultDetails as Vault[];
-        }
-      }
-
-      if (ownedVaultsRes.data) setVaults(ownedVaultsRes.data as Vault[]);
-      setSharedVaults(processedSharedVaults);
-    } catch (error) {
-      logger.error('VaultDetail', 'Error fetching user vaults:', error);
-    }
-  }, [user]);
-
   // Fetch all user publications
   const fetchAllPublications = useCallback(async () => {
     if (!user) return;
@@ -411,13 +369,12 @@ export default function VaultDetail() {
     }
   }, [vaultId, setCurrentVaultId]);
 
-  // Fetch user's vaults and all publications when user changes
+  // Fetch all publications when user changes (vaults come from useVaults())
   useEffect(() => {
     if (user) {
-      fetchUserVaults();
       fetchAllPublications();
     }
-  }, [user, fetchUserVaults, fetchAllPublications]);
+  }, [user, fetchAllPublications]);
 
   // Fetch favorites and forks count for the current vault
   useEffect(() => {
@@ -570,7 +527,7 @@ export default function VaultDetail() {
   const refetchVault = async () => {
     if (!user || !vaultId) return;
     silentRefresh(); // Use silent refresh to avoid showing loading screen
-    fetchUserVaults(); // Also refresh sidebar vaults to update visibility icons
+    void invalidateVaults(); // Also refresh sidebar vaults to update visibility icons
   };
 
   const checkForDuplicate = (newPub: Partial<Publication>, existingPubs: Publication[], excludeId?: string) => {
@@ -1343,6 +1300,7 @@ export default function VaultDetail() {
 
       if (error) throw error;
 
+      void invalidateVaults();
       toast({
         title: 'Vault deleted',
         description: deleteVaultConfirmation.name ? `“${deleteVaultConfirmation.name}” was deleted and you were returned to the dashboard.` : 'The vault was deleted and you were returned to the dashboard.',
@@ -1517,15 +1475,10 @@ export default function VaultDetail() {
         // Update the editingVault state with the fresh data from the database
         setEditingVault(updatedVault as Vault);
         updateCurrentVault(updatedVault as Vault);
-        setVaults(prev => prev.map(v =>
-          v.id === editingVault.id ? updatedVault as Vault : v
-        ));
-        setSharedVaults(prev => prev.map(v =>
-          v.id === editingVault.id ? updatedVault as Vault : v
-        ));
-        
+
         // Update the vault in the hook's state (silent - toast provides feedback)
         silentRefresh();
+        void invalidateVaults();
         toast({
           title: 'Vault updated ✨',
           description: updatedVault.name ? `Saved changes to “${updatedVault.name}”.` : 'Your vault changes were saved.',
@@ -1543,13 +1496,12 @@ export default function VaultDetail() {
 
         if (newVault) {
           const createdVault = newVault as Vault;
-          setVaults(prev => [...prev.filter(v => v.id !== createdVault.id), createdVault]
-            .sort((a, b) => a.name.localeCompare(b.name)));
           navigate(`/vault/${createdVault.id}`);
         }
 
         // Update the vault in the hook's state (silent - toast provides feedback)
         silentRefresh();
+        void invalidateVaults();
         toast({
           title: 'Vault created ✨',
           description: (newVault as Vault)?.name ? `Created “${(newVault as Vault).name}”.` : 'Your new vault is ready.',

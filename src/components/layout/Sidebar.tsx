@@ -33,6 +33,7 @@ import { ProfileAvatar } from '@/components/profile/ProfileAvatar';
 import { Profile } from '@/hooks/useProfile';
 import { useVaultFavorites } from '@/hooks/useVaultFavorites';
 import { useVaultFavoritesOrder } from '@/hooks/useVaultFavoritesOrder';
+import { useSidebarSectionState } from '@/hooks/useSidebarSectionState';
 import { resolveVaultDragEndAction } from '@/lib/vaultSidebarDnd';
 import { ThemeToggle } from './ThemeToggle';
 import { useKeyboardNavigation, useHotkeys } from '@/hooks/useKeyboardNavigation';
@@ -81,9 +82,12 @@ export function Sidebar({
   profile,
   onEditProfile
 }: SidebarProps) {
-  const [isVaultsExpanded, setIsVaultsExpanded] = useState(true);
-  const [isSharedExpanded, setIsSharedExpanded] = useState(true);
-  const [isFavoritesExpanded, setIsFavoritesExpanded] = useState(true);
+  const {
+    vaultsExpanded: isVaultsExpanded,
+    sharedExpanded: isSharedExpanded,
+    favoritesExpanded: isFavoritesExpanded,
+    toggle: toggleSidebarSection,
+  } = useSidebarSectionState();
   const [showAllOwnedVaults, setShowAllOwnedVaults] = useState(false);
   const [showAllSharedVaults, setShowAllSharedVaults] = useState(false);
   const [showAllFavoriteVaults, setShowAllFavoriteVaults] = useState(false);
@@ -365,7 +369,7 @@ export function Sidebar({
 
           <div className="pt-4">
             <button
-              onClick={() => setIsVaultsExpanded(!isVaultsExpanded)}
+              onClick={() => toggleSidebarSection('vaultsExpanded')}
               data-onboarding-target="vaults-section"
               className="w-full flex items-center justify-between px-4 py-2 text-xs font-bold uppercase tracking-widest text-sidebar-foreground/40 hover:text-sidebar-foreground/60 transition-colors font-mono"
             >
@@ -503,7 +507,7 @@ export function Sidebar({
           {sharedVaults.length > 0 && (
             <div className="pt-2">
               <button
-                onClick={() => setIsSharedExpanded(!isSharedExpanded)}
+                onClick={() => toggleSidebarSection('sharedExpanded')}
                 className="w-full flex items-center justify-between px-4 py-2 text-xs font-bold uppercase tracking-widest text-sidebar-foreground/40 hover:text-sidebar-foreground/60 transition-colors font-mono"
               >
                 <span className="flex items-center gap-2">
@@ -596,7 +600,7 @@ export function Sidebar({
           {favoriteVaults.length > 0 && (
             <div className="pt-2">
               <button
-                onClick={() => setIsFavoritesExpanded(!isFavoritesExpanded)}
+                onClick={() => toggleSidebarSection('favoritesExpanded')}
                 className="w-full flex items-center justify-between px-4 py-2 text-xs font-bold uppercase tracking-widest text-sidebar-foreground/40 hover:text-sidebar-foreground/60 transition-colors font-mono"
               >
                 <span className="flex items-center gap-2">

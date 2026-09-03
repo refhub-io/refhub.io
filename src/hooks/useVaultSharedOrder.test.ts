@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { Vault } from '@/types/database';
 import { getVaultSharedOrderStorageKey, useVaultSharedOrder } from './useVaultSharedOrder';
@@ -78,5 +78,21 @@ describe('useVaultSharedOrder', () => {
     });
 
     expect(result.current.orderShared(vaults).map(v => v.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('picks up a stored order once userId becomes available after mount (auth resolving async)', async () => {
+    localStorage.setItem(getVaultSharedOrderStorageKey('user-1'), JSON.stringify(['c', 'a', 'b']));
+
+    const { result, rerender } = renderHook(
+      ({ userId }: { userId: string | null | undefined }) => useVaultSharedOrder(userId),
+      { initialProps: { userId: undefined } },
+    );
+    expect(result.current.orderShared(vaults).map((v) => v.id)).toEqual(['a', 'b', 'c']);
+
+    rerender({ userId: 'user-1' });
+
+    await waitFor(() => {
+      expect(result.current.orderShared(vaults).map((v) => v.id)).toEqual(['c', 'a', 'b']);
+    });
   });
 });

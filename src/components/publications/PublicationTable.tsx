@@ -33,7 +33,7 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
-  Loader2,
+  Loader2 as LoadingIcon,
 } from 'lucide-react';
 import { GoogleDriveIcon } from '@/components/ui/GoogleDriveIcon';
 import { Badge } from '@/components/ui/badge';
@@ -498,7 +498,7 @@ const PublicationTableRow = memo(forwardRef<HTMLTableRowElement, PublicationTabl
               </a>
             ) : null}
             {driveLoading ? (
-              <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+              <LoadingIcon className="w-3 h-3 animate-spin text-muted-foreground" />
             ) : driveUrl ? (
               <a
                 href={driveUrl}
@@ -551,7 +551,7 @@ const PublicationTableRow = memo(forwardRef<HTMLTableRowElement, PublicationTabl
             )}
             {onCheckSync && (
               <DropdownMenuItem onClick={() => onCheckSync(pub)} disabled={syncLoading || syncCooldown > 0 || !pub.doi}>
-                <Loader2 className={`w-4 h-4 mr-2 ${syncLoading ? 'animate-spin' : ''}`} />
+                <LoadingIcon className={`w-4 h-4 mr-2 ${syncLoading ? 'animate-spin' : ''}`} />
                 {syncCooldown > 0 ? `sync cooldown ${syncCooldown}s` : 'sync details'}
               </DropdownMenuItem>
             )}

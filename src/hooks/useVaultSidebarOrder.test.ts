@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { Vault } from '@/types/database';
 import { getVaultSidebarOrderStorageKey, useVaultSidebarOrder } from './useVaultSidebarOrder';
@@ -70,5 +70,23 @@ describe('useVaultSidebarOrder', () => {
     });
 
     expect(result.current.orderVaults(vaults).map(v => v.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('picks up a stored order once userId becomes available after mount (auth resolving async)', async () => {
+    localStorage.setItem(getVaultSidebarOrderStorageKey('user-1'), JSON.stringify(['c', 'a', 'b']));
+
+    // Sidebar mounts before useAuth() resolves on most pages, so this hook
+    // is frequently first rendered with userId undefined.
+    const { result, rerender } = renderHook(
+      ({ userId }: { userId: string | null | undefined }) => useVaultSidebarOrder(userId),
+      { initialProps: { userId: undefined } },
+    );
+    expect(result.current.orderVaults(vaults).map((v) => v.id)).toEqual(['a', 'b', 'c']);
+
+    rerender({ userId: 'user-1' });
+
+    await waitFor(() => {
+      expect(result.current.orderVaults(vaults).map((v) => v.id)).toEqual(['c', 'a', 'b']);
+    });
   });
 });

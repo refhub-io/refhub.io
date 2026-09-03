@@ -23,7 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { parseBibtex, fetchDOIMetadata, generateBibtexKey } from '@/lib/bibtex';
 import { orderImportPreviewIndices } from '@/lib/importOrdering';
 import { DUPE_PRESETS, scorePair } from '@/lib/dupeDetection';
-import { FileText, Link, Upload, Check, X, Library, PenLine, Loader2 } from 'lucide-react';
+import { FileText, Link, Upload, Check, X, Library, PenLine } from 'lucide-react';
 import { LoadingSpinner } from '@/components/ui/loading';
 import { useToast } from '@/hooks/use-toast';
 import { ExistingPaperSelector } from './ExistingPaperSelector';

@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { Vault } from '@/types/database';
 import { getVaultFavoritesOrderStorageKey, useVaultFavoritesOrder } from './useVaultFavoritesOrder';
@@ -77,5 +77,21 @@ describe('useVaultFavoritesOrder', () => {
     });
 
     expect(result.current.orderFavorites(vaults).map(v => v.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('picks up a stored order once userId becomes available after mount (auth resolving async)', async () => {
+    localStorage.setItem(getVaultFavoritesOrderStorageKey('user-1'), JSON.stringify(['c', 'a', 'b']));
+
+    const { result, rerender } = renderHook(
+      ({ userId }: { userId: string | null | undefined }) => useVaultFavoritesOrder(userId),
+      { initialProps: { userId: undefined } },
+    );
+    expect(result.current.orderFavorites(vaults).map((v) => v.id)).toEqual(['a', 'b', 'c']);
+
+    rerender({ userId: 'user-1' });
+
+    await waitFor(() => {
+      expect(result.current.orderFavorites(vaults).map((v) => v.id)).toEqual(['c', 'a', 'b']);
+    });
   });
 });

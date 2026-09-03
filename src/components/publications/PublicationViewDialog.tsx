@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Download, ExternalLink, FileText, Link2, Loader2, Pencil } from 'lucide-react';
+import { Download, ExternalLink, FileText, Link2, Loader2 as LoadingIcon, Pencil } from 'lucide-react';
 import { GoogleDriveIcon } from '@/components/ui/GoogleDriveIcon';
 import { ReadingProgressControl, ImportantToggle } from './ReadingStateControl';
 
@@ -169,7 +169,7 @@ export function PublicationViewDialog({
               )}
               {driveLoading && (
                 <Button variant="outline" size="sm" className="w-full justify-start sm:w-auto font-mono" disabled>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <LoadingIcon className="w-4 h-4 mr-2 animate-spin" />
                   drive_pdf
                 </Button>
               )}

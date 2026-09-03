@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { Check, Loader2 } from 'lucide-react';
+import { Check, Loader2 as LoadingIcon } from 'lucide-react';
 
 interface LoadingSpinnerProps {
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
@@ -55,48 +55,57 @@ const loadingMessages = [
   'decrypting_doi_algorithms...',
 ];
 
-// Core spinner component with consistent styling
-export function LoadingSpinner({ size = 'md', variant = 'default', className }: LoadingSpinnerProps) {
-  const sizeClasses = {
-    xs: 'w-4 h-4',
-    sm: 'w-6 h-6', 
-    md: 'w-8 h-8',
-    lg: 'w-12 h-12',
-    xl: 'w-16 h-16'
-  };
+// Short words for the compact spinner replacement below — loadingMessages
+// above is for full-sentence contexts (FullScreenLoader), these need to fit
+// inline next to other UI (buttons, headers) without wrapping.
+const spinnerWords = ['loading', 'fetching', 'syncing', 'indexing', 'computing', 'parsing'];
 
-  const borderClasses = {
-    xs: 'border-2',
-    sm: 'border-2',
-    md: 'border-2',
-    lg: 'border-3',
-    xl: 'border-4'
+// Text-based "spinner": a CSS animate-spin ring can visually freeze mid-
+// rotation under heavy compositor load (e.g. many backdrop-blur layers on
+// screen at once) while the page stays fully interactive — the animation
+// itself just never gets composited. Cycling text is driven by React state
+// on the main thread, so it can't get stuck the same way.
+export function LoadingSpinner({ size = 'md', variant = 'default', className }: LoadingSpinnerProps) {
+  const [wordIndex, setWordIndex] = useState(0);
+  const [dotCount, setDotCount] = useState(0);
+
+  useEffect(() => {
+    const wordInterval = setInterval(() => {
+      setWordIndex((i) => (i + 1) % spinnerWords.length);
+    }, 1600);
+    const dotInterval = setInterval(() => {
+      setDotCount((d) => (d + 1) % 4);
+    }, 400);
+    return () => {
+      clearInterval(wordInterval);
+      clearInterval(dotInterval);
+    };
+  }, []);
+
+  const sizeClasses = {
+    xs: 'text-[10px]',
+    sm: 'text-xs',
+    md: 'text-sm',
+    lg: 'text-base',
+    xl: 'text-lg'
   };
 
   const variantClasses = {
-    default: 'border-primary/20 border-t-primary',
-    subtle: 'border-muted/30 border-t-muted-foreground',
-    inverted: 'border-background/50 border-t-foreground',
-    gradient: 'border-primary/20 border-t-transparent'
+    default: 'text-primary',
+    subtle: 'text-muted-foreground',
+    inverted: 'text-foreground',
+    gradient: 'text-gradient'
   };
 
   return (
-    <div className={cn(
-      "relative rounded-full",
+    <span className={cn(
+      "font-mono select-none whitespace-nowrap",
       sizeClasses[size],
-      borderClasses[size],
       variantClasses[variant],
       className
     )}>
-      <div className={cn(
-        "absolute inset-0 rounded-full border-transparent animate-spin",
-        borderClasses[size],
-        variant === 'gradient' ? 'border-t-primary' : ''
-      )} />
-      {variant === 'gradient' && (
-        <div className="absolute inset-1 rounded-full border border-transparent border-t-secondary animate-spin-reverse" style={{ animationDuration: '1.5s' }} />
-      )}
-    </div>
+      {spinnerWords[wordIndex]}{'.'.repeat(dotCount)}
+    </span>
   );
 }
 
@@ -144,14 +153,10 @@ export function LoadingButton({ loading, children, className, disabled, ...props
   );
 }
 
-// Inline loader for tight spaces (buttons, forms, etc.)
+// Inline loader for tight spaces (buttons, forms, etc.) — LoadingSpinner
+// already carries its own cycling "loading..."-style message now.
 export function InlineLoader({ size = 'sm', variant = 'default', className }: Omit<LoadingSpinnerProps, 'variant'> & { variant?: 'default' | 'subtle' }) {
-  return (
-    <div className={cn("inline-flex items-center gap-2", className)}>
-      <LoadingSpinner size={size} variant={variant} />
-      <LoadingText text="loading" dots={false} />
-    </div>
-  );
+  return <LoadingSpinner size={size} variant={variant} className={className} />;
 }
 
 // Compact three-dot loader for minimal spaces
@@ -299,11 +304,6 @@ export function FullScreenLoader({ message, variant = 'terminal', progress = fal
         </div>
       </div>
 
-      {/* Rotating DNA/helix loader */}
-      <div className="relative mt-6">
-        <LoadingSpinner size="xl" variant="gradient" />
-      </div>
-
       {/* Fun status message */}
       <p className="text-xs text-muted-foreground font-mono text-center max-w-xs mt-6">
         // brewing_coffee_for_the_neural_network ☕
@@ -433,7 +433,9 @@ export function PhaseLoader({ phases, title = 'initializing_refhub', subtitle, c
                       <Check className="w-4 h-4 animate-in zoom-in duration-200" />
                     )}
                     {phase.status === 'loading' && (
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      // Static, not animate-spin: the phase label itself already
+                      // carries the "in progress" cue via its own trailing dots.
+                      <LoadingIcon className="w-4 h-4" />
                     )}
                     {phase.status === 'pending' && (
                       <div className="w-2 h-2 rounded-full bg-current" />

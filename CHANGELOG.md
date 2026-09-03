@@ -6,6 +6,45 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.11.8] - 2026-09-01
+
+### Fixed
+- `/public/:slug`'s sidebar still visibly reordered a second or two after load, even with the 1.11.7 fix. Real cause: its loading and not-found states rendered a bare `<Sidebar>` (no drag-reorder wrapper, so no saved order applied at all — vaults showed in raw alphabetical order), while the main content state rendered `<SidebarDndBoundary>` (which does apply the saved order). Once the vault's own fetch resolved, React swapped between these two different component types at that position in the tree, forcing a full remount at the exact moment the order visibly snapped from raw to correct. All three of this page's states now consistently use `SidebarDndBoundary`.
+
+## [1.11.7] - 2026-09-01
+
+### Fixed
+- The sidebar's saved custom vault order (drag-to-reorder, for owned vaults, shared vaults, and favorites) would silently stop applying depending on which page you landed on. Root cause: `useVaultSidebarOrder`/`useVaultFavoritesOrder`/`useVaultSharedOrder` read the saved order from localStorage in a `useState` lazy initializer, which only runs once — but the signed-in user's id is frequently still `undefined` on that very first render (auth resolves asynchronously), so the saved order silently never loaded for the rest of that page visit whenever the timing landed that way. All three now re-read the saved order whenever the user id actually becomes available.
+
+## [1.11.6] - 2026-09-01
+
+### Fixed
+- Renamed `Loader2` (its actual name in `lucide-react`) to `LoadingIcon` at every one of its 24 usage sites across 9 files, via import aliasing — didn't say what it was for at a glance. Also removed two dead `Loader2` imports found along the way (imported but never referenced).
+- `/public/:slug` had the exact same sidebar bugs already fixed on 6 other pages in 1.11.3/1.11.4, just missed in that pass: its own duplicate vault-fetching code (migrated to `useVaults()`), and none of its three sidebar render states passed `onEditVault`, so the settings icon never rendered and rows came out shorter than everywhere else. Also fixed a dead link found in the same area — its "edit profile" action pointed at `/profile/edit`, which doesn't exist (the real route is `/profile-edit`).
+- The Codex page's "loading_topics..." text now reads redundant next to the cycling-text spinner introduced in 1.11.5 ("fetching... loading_topics...") — dropped the spinner there, kept the more specific text.
+
+## [1.11.5] - 2026-09-01
+
+### Fixed
+- Loading spinners could appear visually frozen mid-rotation while the page stayed fully responsive — a CSS `animate-spin` ring can stop getting composited under heavy paint/compositor load (this app uses `backdrop-blur` extensively across headers, sidebars, and buttons, which is one of the more compositor-expensive CSS properties there is) even though nothing on the main thread is actually blocked. Replaced `LoadingSpinner` with a cycling nerdy loading word (`fetching...`, `syncing...`, `indexing...`, etc.), driven by React state on the main thread rather than a CSS keyframe animation, so it can't visually stick the same way. Also removed the now-redundant spinner rings from `FullScreenLoader`/`Loader`'s terminal-style loading screens (they already show their own rotating status message) and switched the small icon-sized `SpinnerLoader` (used inline in buttons/status rows) from a spinning ring to bouncing dots, which read correctly even if briefly paused.
+
+## [1.11.4] - 2026-09-01
+
+### Fixed
+- Dashboard's own initial data fetch had the identical blocking-wait problem fixed elsewhere in 1.11.2/1.11.3, in a third code path that hadn't been touched yet: `publication_tags` was awaited in the same batch as publications/vaults/vault_shares/vault_publications/relations/pdf_assets, so however long that single slowest, most failure-prone query took held up rendering everything else on the page. It's now fetched separately, non-blocking — the rest of the page renders as soon as the other six queries resolve.
+- Vault rows in the sidebar rendered visibly shorter on SmartCollections, the smart collection detail page, and the Codex topic page than on every other page. Root cause: the per-vault settings/gear icon (taller than the row's other elements) only renders when an `onEditVault` handler is passed to the sidebar, and these three pages never wired one up — unlike Dashboard/TheCodex/VaultDetail/Users, which all do. All three now support editing a vault from the sidebar the same way.
+- The sidebar's expanded/collapsed section state (my_vaults / shared_with_me / favorites) reset on every single page navigation — it was local component state with no persistence, and each page mounts a fresh sidebar instance. Now persisted to localStorage.
+- The sidebar's "favorites" section had the exact same uncached-refetch-on-every-navigation problem `useVaults()`/`useProfile()` were built to fix, just never migrated: `useVaultFavorites()` was a plain `useState`/`useEffect` hook, refetching from empty state on every sidebar mount. Rewrote it the same way (react-query, external API unchanged) — its data now also stays cached across pages. It also had its own N+1 (2 queries per favorited vault); batched the same way as TheCodex's public vault listing.
+- Smart collection cards showed a raw tag/vault UUID in their filter summary ("tags equals 90f79e1d-...") whenever `tags`/`vaults` hadn't finished loading yet (or the referenced one had since been deleted) — the fallback now never displays the id itself.
+- The smart collections list page had no loading indicator at all for the collections-data fetch — the list area was simply blank until data arrived, with no spinner.
+
+## [1.11.3] - 2026-09-01
+
+### Fixed
+- The sidebar's vault list and profile avatar visibly emptied and repopulated on every single page navigation, and pages felt slow to load. Root cause: 6 separate, independently-implemented fetches for "this user's owned+shared vaults" (Dashboard, The Codex, Users, VaultDetail, and `useAllPublications()` shared by 3 more pages) plus a `useProfile()` that refetched from empty state on every mount — nothing persisted across navigations. Introduced a shared, cached `useVaults()` hook (react-query, already installed and configured app-wide but never actually used anywhere) and rewrote `useProfile()` internally to use the same caching, migrating SmartCollections, SmartCollectionDetail, CodexTopic, Users, VaultDetail, and The Codex's sidebars onto them. Every vault create/rename/delete/fork now invalidates the shared cache so a change on one page shows up on another immediately, not after a stale refetch.
+- The Codex's public-vault listing fired 5 separate queries *per public vault* (publication count, stats, favorites, forks, owner profile) — for N public vaults, 5N round trips. Batched into one query per data source across all vaults instead, grouping/counting client-side by vault id afterward — a constant 6 round trips regardless of vault count.
+- Dashboard's own vault grid (a more delicate optimistic-update flow with temp IDs and rollback-on-error) was intentionally left on its own local state rather than migrated onto the shared cache, to avoid risking regressions in the app's most-used page — its mutations now also invalidate the shared cache so other pages stay in sync, even though Dashboard itself doesn't read from it.
+
 ## [1.11.2] - 2026-08-31
 
 ### Fixed
