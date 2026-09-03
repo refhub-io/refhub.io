@@ -126,13 +126,6 @@ export function Loader({ message, className }: LoaderProps) {
         </div>
       </div>
 
-      {/* Rotating DNA/helix loader */}
-      <div className="relative w-16 h-16">
-        <div className="absolute inset-0 rounded-full border-4 border-primary/20" />
-        <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-primary animate-spin" />
-        <div className="absolute inset-2 rounded-full border-4 border-transparent border-t-secondary animate-spin-reverse" style={{ animationDuration: '1.5s' }} />
-      </div>
-
       {/* Fun status message */}
       <p className="text-xs text-muted-foreground font-mono text-center max-w-xs">
         // brewing_coffee_for_the_neural_network ☕
@@ -152,12 +145,15 @@ export function InlineLoader({ className }: { className?: string }) {
   );
 }
 
-// Minimal spinner loader
+// Minimal loading indicator for icon-sized slots (buttons, inline status
+// rows) — bouncing dots instead of a spinning ring: a ring frozen mid-
+// rotation reads as visibly broken, but a few dots read fine even paused.
 export function SpinnerLoader({ className }: { className?: string }) {
   return (
-    <div className={cn("relative w-8 h-8", className)}>
-      <div className="absolute inset-0 rounded-full border-2 border-primary/20" />
-      <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-primary animate-spin" />
+    <div className={cn("flex items-center justify-center gap-0.5", className)}>
+      <div className="w-1 h-1 rounded-full bg-current animate-bounce" style={{ animationDelay: '0ms' }} />
+      <div className="w-1 h-1 rounded-full bg-current animate-bounce" style={{ animationDelay: '150ms' }} />
+      <div className="w-1 h-1 rounded-full bg-current animate-bounce" style={{ animationDelay: '300ms' }} />
     </div>
   );
 }

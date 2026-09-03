@@ -3,6 +3,7 @@ import { logger } from '@/lib/logger';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
+import { useInvalidateVaults } from '@/hooks/useVaults';
 import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag, PublicationRelation } from '@/types/database';
 import { VaultRole } from '@/types/vault-extensions';
@@ -67,6 +68,7 @@ interface DashboardCache {
 export default function Dashboard() {
   const { user, loading: authLoading } = useAuth();
   const { profile, loading: profileLoading, refetch: refetchProfile } = useProfile();
+  const invalidateVaults = useInvalidateVaults();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -136,6 +138,8 @@ export default function Dashboard() {
   const [bulkDeleteConfirmation, setBulkDeleteConfirmation] = useState<Publication[]>([]);
   const [deleteVaultConfirmation, setDeleteVaultConfirmation] = useState<Vault | null>(null);
   const [deleteVaultNameInput, setDeleteVaultNameInput] = useState('');
+  const [archiveVaultConfirmation, setArchiveVaultConfirmation] = useState<Vault | null>(null);
+  const [archiveVaultNameInput, setArchiveVaultNameInput] = useState('');
   const [syncLoadingIds, setSyncLoadingIds] = useState<Set<string>>(new Set());
   const [syncDiffsByPublication, setSyncDiffsByPublication] = useState<Record<string, PublicationSyncDiff[]>>({});
   const [syncMetadataByPublication, setSyncMetadataByPublication] = useState<Record<string, SemanticScholarMetadata>>({});
@@ -283,7 +287,7 @@ export default function Dashboard() {
 
       // Fetch owned vaults, shared vaults, and other data
       setPdfAssetsLoading(true);
-      const [pubsRes, ownedVaultsRes, sharedVaultsRes, vaultPubsRes, pubTagsRes, relationsRes, pdfAssetsRes] = await Promise.all([
+      const [pubsRes, ownedVaultsRes, sharedVaultsRes, vaultPubsRes, relationsRes, pdfAssetsRes] = await Promise.all([
         supabase.from('publications').select('*').order('created_at', { ascending: false }),
         supabase.from('vaults').select('*').eq('user_id', user.id).order('name'),
         // Fetch vaults shared with current user (via email or user_id)
@@ -292,7 +296,6 @@ export default function Dashboard() {
           .select('vault_id, role')
           .or(`shared_with_email.eq.${user.email},shared_with_user_id.eq.${user.id}`),
         supabase.from('vault_publications').select('*').order('created_at', { ascending: false }),
-        supabase.from('publication_tags').select('*'),
         supabase.from('publication_relations').select('*'),
         supabase
           .from('publication_pdf_assets')
@@ -300,6 +303,20 @@ export default function Dashboard() {
           .eq('storage_provider', 'google_drive')
           .eq('status', 'stored'),
       ]);
+
+      // publication_tags is fetched separately and NOT awaited here: it's
+      // shown (see PRs #205/#206) to be the slowest/most failure-prone query
+      // in this whole batch — an unscoped select relying entirely on RLS,
+      // observed timing out for 13-19s in production. Awaiting it inline
+      // used to delay every other piece of this page (vaults, publications,
+      // tags, relations all rendered fine on their own) behind however long
+      // it took to resolve or time out. Its own .then() (attached further
+      // down, once the other pieces it needs to merge into the cache are
+      // computed) updates state whenever it happens to resolve, without
+      // blocking anything else.
+      const pubTagsQuery = supabase
+        .from('publication_tags')
+        .select('id, publication_id, vault_publication_id, tag_id');
 
       // Build PDF assets map (keyed by publication_id for canonical, vault_publication_id for vault copies)
       const assetsMap: Record<string, string | null> = {};
@@ -382,7 +399,6 @@ export default function Dashboard() {
       // Set the state with the processed data
       setPublications(allPublications);
       setTags(dedupedTags);
-      if (pubTagsRes.data) setPublicationTags(pubTagsRes.data as PublicationTag[]);
       if (relationsRes.data) setPublicationRelations(relationsRes.data as PublicationRelation[]);
 
       // Complete relations phase
@@ -411,17 +427,33 @@ export default function Dashboard() {
         setSharedVaults([]);
       }
       
-      // Save to cache for future visits
+      // Save to cache for future visits. publicationTags isn't in yet (it's
+      // fetched separately above, non-blocking) — patched in below once it
+      // resolves, instead of waiting for it here.
       setPageCache<DashboardCache>('dashboard', {
         publications: allPublications,
         vaults: ownedVaults,
         sharedVaults: processedSharedVaults,
         tags: dedupedTags,
-        publicationTags: pubTagsRes.data as PublicationTag[] || [],
+        publicationTags: [],
         publicationRelations: relationsRes.data as PublicationRelation[] || [],
         vaultPublicationLinks: rawVaultPublicationLinks,
       }, user?.id);
-      
+
+      void pubTagsQuery.then((res) => {
+        if (res.error) {
+          console.error('Failed to fetch publication_tags (tag data will be incomplete):', res.error);
+          return;
+        }
+        const freshPublicationTags = (res.data as PublicationTag[]) || [];
+        setPublicationTags(freshPublicationTags);
+
+        const cached = getPageCache<DashboardCache>('dashboard', user?.id);
+        if (cached) {
+          setPageCache<DashboardCache>('dashboard', { ...cached, publicationTags: freshPublicationTags }, user?.id);
+        }
+      });
+
     } catch (error) {
       toast({
         title: 'Could not load dashboard data',
@@ -475,6 +507,17 @@ export default function Dashboard() {
       }
     }
   }, [searchParams, vaults, navigate]);
+
+  // Open the create-vault dialog immediately if URL contains createVault param
+  // (e.g. "new vault" clicked from a page other than the dashboard, which
+  // can't open this dialog locally since it doesn't own this dialog's state).
+  useEffect(() => {
+    if (searchParams.get('createVault')) {
+      setEditingVault(null);
+      setIsVaultDialogOpen(true);
+      navigate('/dashboard', { replace: true });
+    }
+  }, [searchParams, navigate]);
 
   const refetchVaults = async () => {
     if (!user) return;
@@ -1261,35 +1304,14 @@ export default function Dashboard() {
         return;
       }
 
-      // Delete vault publications (annotated copies)
-      // This will cascade delete publication_tags due to ON DELETE CASCADE
-      await supabase
-        .from('vault_publications')
-        .delete()
-        .eq('vault_id', deletedId);
-
-      // Delete vault shares
-      await supabase
-        .from('vault_shares')
-        .delete()
-        .eq('vault_id', deletedId);
-
-      // Delete vault favorites
-      await supabase
-        .from('vault_favorites')
-        .delete()
-        .eq('vault_id', deletedId);
-
       // Optimistic update - remove vault from list
       setVaults(prev => prev.filter(v => v.id !== deletedId));
 
-      const { error } = await supabase
-        .from('vaults')
-        .delete()
-        .eq('id', deletedId);
+      const { error } = await supabase.rpc('delete_vault', { p_vault_id: deletedId });
 
       if (error) throw error;
 
+      void invalidateVaults();
       toast({ title: 'Vault deleted', source: null });
       setIsVaultDialogOpen(false);
     } catch (error) {
@@ -1304,6 +1326,40 @@ export default function Dashboard() {
     } finally {
       setDeleteVaultConfirmation(null);
       setDeleteVaultNameInput('');
+    }
+  };
+
+  const handleArchiveVault = async () => {
+    if (!archiveVaultConfirmation || archiveVaultConfirmation.user_id !== user?.id) return; // Only allow archiving if user is the owner
+
+    const archivedId = archiveVaultConfirmation.id;
+    const archivedAt = new Date().toISOString();
+
+    try {
+      const { error } = await supabase
+        .from('vaults')
+        .update({ archived_at: archivedAt })
+        .eq('id', archivedId);
+
+      if (error) throw error;
+
+      setVaults(prev => prev.map(v => (v.id === archivedId ? { ...v, archived_at: archivedAt } : v)));
+      void invalidateVaults();
+      toast({
+        title: 'Vault archived',
+        description: `"${archiveVaultConfirmation.name}" is now permanently read-only.`,
+        source: null,
+      });
+      setArchiveVaultConfirmation(null);
+      setArchiveVaultNameInput('');
+      setIsVaultDialogOpen(false);
+    } catch (error) {
+      toast({
+        title: 'Failed to archive vault',
+        description: 'Please try again.',
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: null,
+      });
     }
   };
 
@@ -1417,11 +1473,12 @@ export default function Dashboard() {
         if (error) throw error;
         
         // Optimistic update
-        setVaults(prev => prev.map(v => 
+        setVaults(prev => prev.map(v =>
           v.id === editingVault.id ? { ...v, ...updatedVault } as Vault : v
         ));
         setEditingVault(updatedVault as Vault);
-        
+        void invalidateVaults();
+
         toast({ title: 'Vault updated ✨', source: null });
         return updatedVault as Vault;
       } else {
@@ -1454,12 +1511,13 @@ export default function Dashboard() {
           // Replace temporary vault with real one from database and go straight to it.
           if (newVault) {
             const createdVault = newVault as Vault;
-            setVaults(prev => prev.map(v => 
+            setVaults(prev => prev.map(v =>
               v.id === tempId ? createdVault : v
             ).sort((a, b) => a.name.localeCompare(b.name)));
+            void invalidateVaults();
             navigate(`/vault/${createdVault.id}`);
           }
-          
+
           toast({ title: 'Vault created ✨', source: null });
           setEditingVault(null);
           return newVault as Vault;
@@ -1630,6 +1688,10 @@ export default function Dashboard() {
           setDeleteVaultConfirmation(vault);
           setIsVaultDialogOpen(false);
         }}
+        onArchive={editingVault?.user_id === user?.id ? (vault) => {
+          setArchiveVaultConfirmation(vault);
+          setIsVaultDialogOpen(false);
+        } : undefined}
       />
 
       <ProfileDialog
@@ -1743,6 +1805,54 @@ export default function Dashboard() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono disabled:opacity-40"
             >
               delete vault
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!archiveVaultConfirmation} onOpenChange={(open) => { if (!open) { setArchiveVaultConfirmation(null); setArchiveVaultNameInput(''); } }}>
+        <AlertDialogContent className="border-2 bg-card/95 backdrop-blur-xl">
+          <AlertDialogHeader className="overflow-visible">
+            <AlertDialogTitle className="text-xl font-bold">archive vault?</AlertDialogTitle>
+          </AlertDialogHeader>
+          <div className="px-6 pb-4">
+            <div className="text-sm space-y-3">
+              <p className="text-foreground">
+                Archive <span className="font-bold">"{archiveVaultConfirmation?.name}"</span>.
+              </p>
+              <p className="text-muted-foreground">
+                The vault and everything in it stay exactly as visible as they are now, but become permanently read-only:
+              </p>
+              <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-2">
+                <li>no papers can be added, removed, or edited</li>
+                <li>no tags, notes, or metadata can change</li>
+                <li>no collaborators can be added or removed</li>
+              </ul>
+              <p className="font-bold mt-3">
+                This cannot be undone. There is no way to unarchive a vault.
+              </p>
+              <div className="space-y-1 pt-1">
+                <p className="text-muted-foreground">
+                  Type the vault name to confirm.
+                </p>
+                <input
+                  type="text"
+                  value={archiveVaultNameInput}
+                  onChange={(e) => setArchiveVaultNameInput(e.target.value)}
+                  placeholder={archiveVaultConfirmation?.name ?? ''}
+                  className="h-10 w-full rounded-md border border-destructive/50 bg-background px-3 py-2 text-sm font-mono outline-none overflow-hidden transition-colors placeholder:text-muted-foreground/50 hover:border-destructive/50 focus:border-destructive focus:ring-2 focus:ring-destructive/20 focus:ring-offset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/20 focus-visible:ring-offset-0"
+                />
+              </div>
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="font-mono">cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleArchiveVault}
+              disabled={archiveVaultNameInput !== archiveVaultConfirmation?.name}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono disabled:opacity-40"
+            >
+              archive_vault
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

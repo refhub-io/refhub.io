@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback, useMemo, useRef, type RefObject } fro
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
+import { useVaults, useInvalidateVaults } from '@/hooks/useVaults';
 import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag, PublicationRelation, VaultShare } from '@/types/database';
-import { VaultRole } from '@/types/vault-extensions';
 import { DndContext, DragOverlay } from '@dnd-kit/core';
 import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import { useVaultDragAndDrop } from '@/hooks/useVaultDragAndDrop';
@@ -42,7 +42,7 @@ import { useVaultContent } from '@/contexts/VaultContentContext';
 import { useSharedVaultOperations } from '@/hooks/useSharedVaultOperations';
 import { getForkSourceHref, getForkSourceLabel, getVaultForkInfo, VaultForkInfo } from '@/lib/vaultFork';
 import { buildVaultPublicationCopyPayload } from '@/lib/vaultPublicationAttribution';
-import { Lock, Globe, Shield, Users, Clock, User, ExternalLink, Sparkles, Crown, Edit, Eye, Heart, GitFork, PencilLine, Stethoscope } from 'lucide-react';
+import { Lock, Globe, Shield, Users, Clock, User, ExternalLink, Sparkles, Crown, Edit, Eye, Heart, GitFork, PencilLine, Stethoscope, Archive } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -70,7 +70,7 @@ export default function VaultDetail() {
   );
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { canView, canEdit, isOwner, userRole, accessStatus, vault, error: accessError, refresh, silentRefresh } = useVaultAccess(vaultId || '');
+  const { canView, canEdit, isOwner, isArchived, userRole, accessStatus, vault, error: accessError, refresh, silentRefresh } = useVaultAccess(vaultId || '');
   const { isFavorite, toggleFavorite } = useVaultFavorites();
   const { forkVault } = useVaultFork();
   const [forking, setForking] = useState(false);
@@ -123,9 +123,8 @@ export default function VaultDetail() {
 
   // Local state for UI elements
   const [vaultPapers, setVaultPapers] = useState<{[key: string]: string[]}>({});
-  const [vaults, setVaults] = useState<Vault[]>([]);
-  const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
-  const [sharedVaultRoles, setSharedVaultRoles] = useState<Record<string, VaultRole>>({});
+  const { ownedVaults: vaults, sharedVaults, sharedVaultRoles } = useVaults();
+  const invalidateVaults = useInvalidateVaults();
   const [allPublications, setAllPublications] = useState<Publication[]>([]);
   const [publicationVaultsMap, setPublicationVaultsMap] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
@@ -189,6 +188,8 @@ export default function VaultDetail() {
   const [bulkDeleteConfirmation, setBulkDeleteConfirmation] = useState<Publication[]>([]);
   const [deleteVaultConfirmation, setDeleteVaultConfirmation] = useState<Vault | null>(null);
   const [deleteVaultNameInput, setDeleteVaultNameInput] = useState('');
+  const [archiveVaultConfirmation, setArchiveVaultConfirmation] = useState<Vault | null>(null);
+  const [archiveVaultNameInput, setArchiveVaultNameInput] = useState('');
 
   // Track loading phase updates based on access status and content
   useEffect(() => {
@@ -303,47 +304,6 @@ export default function VaultDetail() {
     navigate(`/vault/${vaultId}`, { replace: true });
   }, [location.state, canEdit, publications, navigate, vaultId]);
 
-  // Fetch user's vaults and shared vaults separately
-  const fetchUserVaults = useCallback(async () => {
-    if (!user) return;
-
-    try {
-      // Fetch user's vaults
-      const [ownedVaultsRes, sharedVaultsRes] = await Promise.all([
-        supabase.from('vaults').select('*').eq('user_id', user.id).order('name'),
-        supabase
-          .from('vault_shares')
-          .select('vault_id, role')
-          .or(`shared_with_email.eq.${user.email},shared_with_user_id.eq.${user.id}`)
-      ]);
-
-      const rolesByVaultId: Record<string, VaultRole> = {};
-      for (const share of sharedVaultsRes.data || []) {
-        if (share.role) rolesByVaultId[share.vault_id] = share.role as VaultRole;
-      }
-      setSharedVaultRoles(rolesByVaultId);
-
-      // Process shared vaults
-      let processedSharedVaults: Vault[] = [];
-      if (sharedVaultsRes.data && sharedVaultsRes.data.length > 0) {
-        const sharedVaultIds = sharedVaultsRes.data.map(s => s.vault_id);
-        const { data: sharedVaultDetails } = await supabase
-          .from('vaults')
-          .select('*')
-          .in('id', sharedVaultIds);
-
-        if (sharedVaultDetails) {
-          processedSharedVaults = sharedVaultDetails as Vault[];
-        }
-      }
-
-      if (ownedVaultsRes.data) setVaults(ownedVaultsRes.data as Vault[]);
-      setSharedVaults(processedSharedVaults);
-    } catch (error) {
-      logger.error('VaultDetail', 'Error fetching user vaults:', error);
-    }
-  }, [user]);
-
   // Fetch all user publications
   const fetchAllPublications = useCallback(async () => {
     if (!user) return;
@@ -411,13 +371,12 @@ export default function VaultDetail() {
     }
   }, [vaultId, setCurrentVaultId]);
 
-  // Fetch user's vaults and all publications when user changes
+  // Fetch all publications when user changes (vaults come from useVaults())
   useEffect(() => {
     if (user) {
-      fetchUserVaults();
       fetchAllPublications();
     }
-  }, [user, fetchUserVaults, fetchAllPublications]);
+  }, [user, fetchAllPublications]);
 
   // Fetch favorites and forks count for the current vault
   useEffect(() => {
@@ -570,7 +529,7 @@ export default function VaultDetail() {
   const refetchVault = async () => {
     if (!user || !vaultId) return;
     silentRefresh(); // Use silent refresh to avoid showing loading screen
-    fetchUserVaults(); // Also refresh sidebar vaults to update visibility icons
+    void invalidateVaults(); // Also refresh sidebar vaults to update visibility icons
   };
 
   const checkForDuplicate = (newPub: Partial<Publication>, existingPubs: Publication[], excludeId?: string) => {
@@ -1084,8 +1043,13 @@ export default function VaultDetail() {
         source: null,
       });
 
-      // Refresh the data in background (toast provides feedback)
+      // silentRefresh() only re-checks vault access/metadata — it never
+      // touches publicationVaultsMap, which is built once from a separate
+      // fetch and otherwise only updates on full page load. Without also
+      // refetching it here, the publication's own edit dialog kept showing
+      // "not_in_any_vault" for the vault just added until a manual reload.
       silentRefresh();
+      fetchAllPublications();
     } catch (error) {
       toast({
         title: 'Error adding paper',
@@ -1309,35 +1273,14 @@ export default function VaultDetail() {
         return;
       }
 
-      // Delete vault publications (annotated copies)
-      // This will cascade delete publication_tags due to ON DELETE CASCADE
-      await supabase
-        .from('vault_publications')
-        .delete()
-        .eq('vault_id', deletedId);
-
-      // Delete vault shares
-      await supabase
-        .from('vault_shares')
-        .delete()
-        .eq('vault_id', deletedId);
-
-      // Delete vault favorites
-      await supabase
-        .from('vault_favorites')
-        .delete()
-        .eq('vault_id', deletedId);
-
       // Optimistic update
       navigate('/dashboard');
 
-      const { error } = await supabase
-        .from('vaults')
-        .delete()
-        .eq('id', deletedId);
+      const { error } = await supabase.rpc('delete_vault', { p_vault_id: deletedId });
 
       if (error) throw error;
 
+      void invalidateVaults();
       toast({
         title: 'Vault deleted',
         description: deleteVaultConfirmation.name ? `“${deleteVaultConfirmation.name}” was deleted and you were returned to the dashboard.` : 'The vault was deleted and you were returned to the dashboard.',
@@ -1356,6 +1299,38 @@ export default function VaultDetail() {
     } finally {
       setDeleteVaultConfirmation(null);
       setDeleteVaultNameInput('');
+    }
+  };
+
+  const handleArchiveVault = async () => {
+    if (!archiveVaultConfirmation || !isOwner) return; // Only allow archiving if user is the owner
+
+    try {
+      const { error } = await supabase
+        .from('vaults')
+        .update({ archived_at: new Date().toISOString() })
+        .eq('id', archiveVaultConfirmation.id);
+
+      if (error) throw error;
+
+      // useVaultAccess's realtime subscription refreshes this page's own view of
+      // the vault automatically, but the sidebar's vault list is a separate
+      // react-query cache that needs its own invalidation.
+      void invalidateVaults();
+      toast({
+        title: 'Vault archived',
+        description: `"${archiveVaultConfirmation.name}" is now permanently read-only.`,
+        source: null,
+      });
+      setArchiveVaultConfirmation(null);
+      setArchiveVaultNameInput('');
+    } catch (error) {
+      toast({
+        title: 'Failed to archive vault',
+        description: 'Please try again.',
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: null,
+      });
     }
   };
 
@@ -1512,15 +1487,10 @@ export default function VaultDetail() {
         // Update the editingVault state with the fresh data from the database
         setEditingVault(updatedVault as Vault);
         updateCurrentVault(updatedVault as Vault);
-        setVaults(prev => prev.map(v =>
-          v.id === editingVault.id ? updatedVault as Vault : v
-        ));
-        setSharedVaults(prev => prev.map(v =>
-          v.id === editingVault.id ? updatedVault as Vault : v
-        ));
-        
+
         // Update the vault in the hook's state (silent - toast provides feedback)
         silentRefresh();
+        void invalidateVaults();
         toast({
           title: 'Vault updated ✨',
           description: updatedVault.name ? `Saved changes to “${updatedVault.name}”.` : 'Your vault changes were saved.',
@@ -1538,13 +1508,12 @@ export default function VaultDetail() {
 
         if (newVault) {
           const createdVault = newVault as Vault;
-          setVaults(prev => [...prev.filter(v => v.id !== createdVault.id), createdVault]
-            .sort((a, b) => a.name.localeCompare(b.name)));
           navigate(`/vault/${createdVault.id}`);
         }
 
         // Update the vault in the hook's state (silent - toast provides feedback)
         silentRefresh();
+        void invalidateVaults();
         toast({
           title: 'Vault created ✨',
           description: (newVault as Vault)?.name ? `Created “${(newVault as Vault).name}”.` : 'Your new vault is ready.',
@@ -1872,6 +1841,12 @@ export default function VaultDetail() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0 flex-wrap">
                 {visibilityBadge}
+                {isArchived && (
+                  <Badge variant="outline" className="font-mono text-xs gap-1 shrink-0 text-muted-foreground">
+                    <Archive className="w-3 h-3" />
+                    archived
+                  </Badge>
+                )}
                 {forkInfo?.forkedFrom && (
                   <Badge variant="outline" className="font-mono text-xs gap-1 shrink-0 text-muted-foreground">
                     <GitFork className="w-3 h-3" />
@@ -2054,6 +2029,13 @@ export default function VaultDetail() {
           </div>
         </div>
 
+        {isArchived && (
+          <div className="px-3 sm:px-4 py-2 bg-muted/30 border-b border-border text-xs font-mono text-muted-foreground flex items-center gap-2">
+            <Archive className="w-3.5 h-3.5" />
+            <span>this vault is archived — read-only, no further changes can be made</span>
+          </div>
+        )}
+
         <PublicationList
           publications={publications}
           tags={tags}
@@ -2194,6 +2176,10 @@ export default function VaultDetail() {
             setDeleteVaultConfirmation(vault);
             setIsVaultDialogOpen(false);
           } : undefined}
+          onArchive={isOwner ? (vault) => {
+            setArchiveVaultConfirmation(vault);
+            setIsVaultDialogOpen(false);
+          } : undefined}
       />
 
       <ProfileDialog
@@ -2322,6 +2308,54 @@ export default function VaultDetail() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono disabled:opacity-40"
             >
               delete vault
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!archiveVaultConfirmation} onOpenChange={(open) => { if (!open) { setArchiveVaultConfirmation(null); setArchiveVaultNameInput(''); } }}>
+        <AlertDialogContent className="border-2 bg-card/95 backdrop-blur-xl">
+          <AlertDialogHeader className="overflow-visible">
+            <AlertDialogTitle className="text-xl font-bold">archive vault?</AlertDialogTitle>
+          </AlertDialogHeader>
+          <div className="px-6 pb-4">
+            <div className="text-sm space-y-3">
+              <p className="text-foreground">
+                Archive <span className="font-bold">"{archiveVaultConfirmation?.name}"</span>.
+              </p>
+              <p className="text-muted-foreground">
+                The vault and everything in it stay exactly as visible as they are now, but become permanently read-only:
+              </p>
+              <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-2">
+                <li>no papers can be added, removed, or edited</li>
+                <li>no tags, notes, or metadata can change</li>
+                <li>no collaborators can be added or removed</li>
+              </ul>
+              <p className="font-bold mt-3">
+                This cannot be undone. There is no way to unarchive a vault.
+              </p>
+              <div className="space-y-1 pt-1">
+                <p className="text-muted-foreground">
+                  Type the vault name to confirm.
+                </p>
+                <input
+                  type="text"
+                  value={archiveVaultNameInput}
+                  onChange={(e) => setArchiveVaultNameInput(e.target.value)}
+                  placeholder={archiveVaultConfirmation?.name ?? ''}
+                  className="h-10 w-full rounded-md border border-destructive/50 bg-background px-3 py-2 text-sm font-mono outline-none overflow-hidden transition-colors placeholder:text-muted-foreground/50 hover:border-destructive/50 focus:border-destructive focus:ring-2 focus:ring-destructive/20 focus:ring-offset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/20 focus-visible:ring-offset-0"
+                />
+              </div>
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="font-mono">cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleArchiveVault}
+              disabled={archiveVaultNameInput !== archiveVaultConfirmation?.name}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono disabled:opacity-40"
+            >
+              archive_vault
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

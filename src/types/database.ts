@@ -54,6 +54,7 @@ export interface Vault {
   abstract: string | null;
   created_at: string;
   updated_at: string;
+  archived_at: string | null;
   /** populated via vault_forks join when attribution is needed */
   forked_from_id?: string | null;
 }
@@ -122,6 +123,7 @@ export interface SmartCollection {
   id: string;
   user_id: string;
   name: string;
+  description: string | null;
   color: string | null;
   filters: PublicationFilter[];
   created_at: string;

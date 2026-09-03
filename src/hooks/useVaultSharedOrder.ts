@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { arrayMove } from '@dnd-kit/sortable';
 import { logger } from '@/lib/logger';
 import { Vault } from '@/types/database';
@@ -39,6 +39,14 @@ function persistOrder(userId: string, orderedIds: string[]) {
  */
 export function useVaultSharedOrder(userId: string | null | undefined) {
   const [orderedIds, setOrderedIds] = useState<string[]>(() => readStoredOrder(userId));
+
+  // See useVaultSidebarOrder for why this is needed: userId is frequently
+  // undefined on first render (auth resolves async), and the lazy useState
+  // initializer only runs once, so without this a saved order silently
+  // never applies for the rest of this mount.
+  useEffect(() => {
+    setOrderedIds(readStoredOrder(userId));
+  }, [userId]);
 
   const orderShared = useCallback((vaults: Vault[]) => applyVaultOrder(vaults, orderedIds), [orderedIds]);
 

@@ -21,6 +21,38 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    id: 22,
+    date: '2026-09-01',
+    title: 'archive vaults for good',
+    features: [
+      {
+        tag: 'feature',
+        title: 'archive a vault',
+        description:
+          'permanently freeze a vault as read-only from its settings dialog. content, tags, and sharing stay exactly as they are and stay visible per the vault\'s existing visibility — nothing more can be added, edited, or removed. this cannot be undone, but the vault can still be deleted outright.',
+      },
+    ],
+  },
+  {
+    id: 21,
+    date: '2026-08-30',
+    title: 'codex discovery: topics, tags, and keyword search',
+    features: [
+      {
+        tag: 'feature',
+        title: 'codex discovery mode',
+        description:
+          'browse topics and tags directly from the codex with dedicated discovery pages at /codex/topic/:topicSlug. each topic shows related topics, curators, filterable results with facets and sort modes, and transparent matching across tag names, keywords, notes, and citations.',
+      },
+      {
+        tag: 'feature',
+        title: 'topic chip suggestions',
+        description:
+          'the codex search bar now suggests topic chips as you type, making it faster to jump straight to a topic discovery page.',
+      },
+    ],
+  },
+  {
     id: 20,
     date: '2026-08-29',
     title: 'smart collections',

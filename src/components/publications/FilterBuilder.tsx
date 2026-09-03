@@ -123,12 +123,26 @@ const needsValueInput = (operator: FilterOperator): boolean => {
   return !['is_empty', 'is_not_empty'].includes(operator);
 };
 
-export function FilterBuilder({ filters, onFiltersChange, tags, vaults, open: controlledOpen, onOpenChange, onCloseAutoFocus }: FilterBuilderProps) {
-  const [internalOpen, setInternalOpen] = useState(false);
-  const isOpen = controlledOpen ?? internalOpen;
-  const setIsOpen = (v: boolean) => { setInternalOpen(v); onOpenChange?.(v); };
-  const isMobile = useIsMobile();
+interface FilterRuleEditorProps {
+  filters: PublicationFilter[];
+  onFiltersChange: (filters: PublicationFilter[]) => void;
+  tags: Tag[];
+  vaults: Vault[];
+  /**
+   * Cumulative match count after each filter is applied in order (same
+   * length/order as `filters`), e.g. matchCounts[1] is the result of
+   * applying filters[0] AND filters[1]. When provided, each row shows how
+   * much that filter narrowed the set down from the row above it.
+   */
+  matchCounts?: number[];
+}
 
+/**
+ * The actual "list of filter rows + add button" editor, extracted from
+ * FilterBuilder so it can be dropped inline (a full always-visible form)
+ * as well as inside FilterBuilder's compact popover/sheet trigger.
+ */
+export function FilterRuleEditor({ filters, onFiltersChange, tags, vaults, matchCounts }: FilterRuleEditorProps) {
   const addFilter = () => {
     const newFilter: PublicationFilter = {
       id: crypto.randomUUID(),
@@ -266,27 +280,7 @@ export function FilterBuilder({ filters, onFiltersChange, tags, vaults, open: co
     }
   };
 
-  const filterTrigger = (
-    <Button
-      variant={filters.length > 0 ? 'default' : 'outline'}
-      size="sm"
-      className={cn(
-        'h-9 gap-2 font-mono text-xs',
-        filters.length > 0 && 'bg-primary/20 border-primary/50 text-primary hover:bg-primary/30'
-      )}
-      data-filter-trigger
-    >
-      <Filter className="w-3.5 h-3.5" />
-      <span className="hidden sm:inline">Filter</span>
-      {filters.length > 0 && (
-        <span className="bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 text-[10px] font-bold">
-          {filters.length}
-        </span>
-      )}
-    </Button>
-  );
-
-  const filterContent = (
+  return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-semibold">Filters</h4>
@@ -297,9 +291,6 @@ export function FilterBuilder({ filters, onFiltersChange, tags, vaults, open: co
             className="h-7 text-xs text-muted-foreground hover:text-destructive"
             onClick={clearAllFilters}
           >
-          <span className="ml-2">
-            <kbd className="rounded border border-border bg-background/60 font-mono text-muted-foreground text-[10px] min-w-[1rem] h-4 px-1 leading-none shadow-sm select-none">f</kbd>
-          </span>
             <Trash2 className="w-3 h-3 mr-1" />
             Clear all
           </Button>
@@ -319,16 +310,16 @@ export function FilterBuilder({ filters, onFiltersChange, tags, vaults, open: co
                   <span className="text-xs text-muted-foreground font-mono">and</span>
                 )}
               </div>
-              
+
               <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2">
                 <Select
                   value={filter.field}
                   onValueChange={(value: FilterField) => {
                     const operators = getOperatorsForField(value);
-                    updateFilter(filter.id, { 
-                      field: value, 
+                    updateFilter(filter.id, {
+                      field: value,
                       operator: operators[0].value,
-                      value: '' 
+                      value: ''
                     });
                   }}
                 >
@@ -374,6 +365,12 @@ export function FilterBuilder({ filters, onFiltersChange, tags, vaults, open: co
                   </Button>
                 </div>
               </div>
+
+              {matchCounts && matchCounts[index] !== undefined && (
+                <p className="text-xs text-muted-foreground font-mono pl-1">
+                  → narrows to {matchCounts[index]}_paper{matchCounts[index] !== 1 ? 's' : ''}
+                </p>
+              )}
             </div>
           ))}
         </div>
@@ -389,6 +386,37 @@ export function FilterBuilder({ filters, onFiltersChange, tags, vaults, open: co
         Add filter
       </Button>
     </div>
+  );
+}
+
+export function FilterBuilder({ filters, onFiltersChange, tags, vaults, open: controlledOpen, onOpenChange, onCloseAutoFocus }: FilterBuilderProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isOpen = controlledOpen ?? internalOpen;
+  const setIsOpen = (v: boolean) => { setInternalOpen(v); onOpenChange?.(v); };
+  const isMobile = useIsMobile();
+
+  const filterTrigger = (
+    <Button
+      variant={filters.length > 0 ? 'default' : 'outline'}
+      size="sm"
+      className={cn(
+        'h-9 gap-2 font-mono text-xs',
+        filters.length > 0 && 'bg-primary/20 border-primary/50 text-primary hover:bg-primary/30'
+      )}
+      data-filter-trigger
+    >
+      <Filter className="w-3.5 h-3.5" />
+      <span className="hidden sm:inline">Filter</span>
+      {filters.length > 0 && (
+        <span className="bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 text-[10px] font-bold">
+          {filters.length}
+        </span>
+      )}
+    </Button>
+  );
+
+  const filterContent = (
+    <FilterRuleEditor filters={filters} onFiltersChange={onFiltersChange} tags={tags} vaults={vaults} />
   );
 
   // Use Sheet on mobile, Popover on desktop
@@ -413,8 +441,8 @@ export function FilterBuilder({ filters, onFiltersChange, tags, vaults, open: co
       <PopoverTrigger asChild>
         {filterTrigger}
       </PopoverTrigger>
-      <PopoverContent 
-        align="start" 
+      <PopoverContent
+        align="start"
         side="bottom"
         sideOffset={8}
         className="w-auto min-w-[400px] p-3 bg-popover border-2"

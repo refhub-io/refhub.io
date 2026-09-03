@@ -6,6 +6,109 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.12.0] - 2026-09-01
+
+### Added
+- Vaults can now be archived: an irreversible, owner-triggered action that makes a vault permanently read-only (no adding/removing papers, no metadata/tag/note edits, no collaborator changes) while leaving its visibility and everything already in it exactly as visible as before. Archived vaults show a badge in the sidebar, the vault header, and public vault pages, and can still be deleted outright by their owner.
+
+## [1.11.8] - 2026-09-01
+
+### Fixed
+- `/public/:slug`'s sidebar still visibly reordered a second or two after load, even with the 1.11.7 fix. Real cause: its loading and not-found states rendered a bare `<Sidebar>` (no drag-reorder wrapper, so no saved order applied at all — vaults showed in raw alphabetical order), while the main content state rendered `<SidebarDndBoundary>` (which does apply the saved order). Once the vault's own fetch resolved, React swapped between these two different component types at that position in the tree, forcing a full remount at the exact moment the order visibly snapped from raw to correct. All three of this page's states now consistently use `SidebarDndBoundary`.
+
+## [1.11.7] - 2026-09-01
+
+### Fixed
+- The sidebar's saved custom vault order (drag-to-reorder, for owned vaults, shared vaults, and favorites) would silently stop applying depending on which page you landed on. Root cause: `useVaultSidebarOrder`/`useVaultFavoritesOrder`/`useVaultSharedOrder` read the saved order from localStorage in a `useState` lazy initializer, which only runs once — but the signed-in user's id is frequently still `undefined` on that very first render (auth resolves asynchronously), so the saved order silently never loaded for the rest of that page visit whenever the timing landed that way. All three now re-read the saved order whenever the user id actually becomes available.
+
+## [1.11.6] - 2026-09-01
+
+### Fixed
+- Renamed `Loader2` (its actual name in `lucide-react`) to `LoadingIcon` at every one of its 24 usage sites across 9 files, via import aliasing — didn't say what it was for at a glance. Also removed two dead `Loader2` imports found along the way (imported but never referenced).
+- `/public/:slug` had the exact same sidebar bugs already fixed on 6 other pages in 1.11.3/1.11.4, just missed in that pass: its own duplicate vault-fetching code (migrated to `useVaults()`), and none of its three sidebar render states passed `onEditVault`, so the settings icon never rendered and rows came out shorter than everywhere else. Also fixed a dead link found in the same area — its "edit profile" action pointed at `/profile/edit`, which doesn't exist (the real route is `/profile-edit`).
+- The Codex page's "loading_topics..." text now reads redundant next to the cycling-text spinner introduced in 1.11.5 ("fetching... loading_topics...") — dropped the spinner there, kept the more specific text.
+
+## [1.11.5] - 2026-09-01
+
+### Fixed
+- Loading spinners could appear visually frozen mid-rotation while the page stayed fully responsive — a CSS `animate-spin` ring can stop getting composited under heavy paint/compositor load (this app uses `backdrop-blur` extensively across headers, sidebars, and buttons, which is one of the more compositor-expensive CSS properties there is) even though nothing on the main thread is actually blocked. Replaced `LoadingSpinner` with a cycling nerdy loading word (`fetching...`, `syncing...`, `indexing...`, etc.), driven by React state on the main thread rather than a CSS keyframe animation, so it can't visually stick the same way. Also removed the now-redundant spinner rings from `FullScreenLoader`/`Loader`'s terminal-style loading screens (they already show their own rotating status message) and switched the small icon-sized `SpinnerLoader` (used inline in buttons/status rows) from a spinning ring to bouncing dots, which read correctly even if briefly paused.
+
+## [1.11.4] - 2026-09-01
+
+### Fixed
+- Dashboard's own initial data fetch had the identical blocking-wait problem fixed elsewhere in 1.11.2/1.11.3, in a third code path that hadn't been touched yet: `publication_tags` was awaited in the same batch as publications/vaults/vault_shares/vault_publications/relations/pdf_assets, so however long that single slowest, most failure-prone query took held up rendering everything else on the page. It's now fetched separately, non-blocking — the rest of the page renders as soon as the other six queries resolve.
+- Vault rows in the sidebar rendered visibly shorter on SmartCollections, the smart collection detail page, and the Codex topic page than on every other page. Root cause: the per-vault settings/gear icon (taller than the row's other elements) only renders when an `onEditVault` handler is passed to the sidebar, and these three pages never wired one up — unlike Dashboard/TheCodex/VaultDetail/Users, which all do. All three now support editing a vault from the sidebar the same way.
+- The sidebar's expanded/collapsed section state (my_vaults / shared_with_me / favorites) reset on every single page navigation — it was local component state with no persistence, and each page mounts a fresh sidebar instance. Now persisted to localStorage.
+- The sidebar's "favorites" section had the exact same uncached-refetch-on-every-navigation problem `useVaults()`/`useProfile()` were built to fix, just never migrated: `useVaultFavorites()` was a plain `useState`/`useEffect` hook, refetching from empty state on every sidebar mount. Rewrote it the same way (react-query, external API unchanged) — its data now also stays cached across pages. It also had its own N+1 (2 queries per favorited vault); batched the same way as TheCodex's public vault listing.
+- Smart collection cards showed a raw tag/vault UUID in their filter summary ("tags equals 90f79e1d-...") whenever `tags`/`vaults` hadn't finished loading yet (or the referenced one had since been deleted) — the fallback now never displays the id itself.
+- The smart collections list page had no loading indicator at all for the collections-data fetch — the list area was simply blank until data arrived, with no spinner.
+
+## [1.11.3] - 2026-09-01
+
+### Fixed
+- The sidebar's vault list and profile avatar visibly emptied and repopulated on every single page navigation, and pages felt slow to load. Root cause: 6 separate, independently-implemented fetches for "this user's owned+shared vaults" (Dashboard, The Codex, Users, VaultDetail, and `useAllPublications()` shared by 3 more pages) plus a `useProfile()` that refetched from empty state on every mount — nothing persisted across navigations. Introduced a shared, cached `useVaults()` hook (react-query, already installed and configured app-wide but never actually used anywhere) and rewrote `useProfile()` internally to use the same caching, migrating SmartCollections, SmartCollectionDetail, CodexTopic, Users, VaultDetail, and The Codex's sidebars onto them. Every vault create/rename/delete/fork now invalidates the shared cache so a change on one page shows up on another immediately, not after a stale refetch.
+- The Codex's public-vault listing fired 5 separate queries *per public vault* (publication count, stats, favorites, forks, owner profile) — for N public vaults, 5N round trips. Batched into one query per data source across all vaults instead, grouping/counting client-side by vault id afterward — a constant 6 round trips regardless of vault count.
+- Dashboard's own vault grid (a more delicate optimistic-update flow with temp IDs and rollback-on-error) was intentionally left on its own local state rather than migrated onto the shared cache, to avoid risking regressions in the app's most-used page — its mutations now also invalidate the shared cache so other pages stay in sync, even though Dashboard itself doesn't read from it.
+
+## [1.11.2] - 2026-08-31
+
+### Fixed
+- `publication_tags` queries were timing out in production (Postgres error `57014`, "canceling statement due to statement timeout"), most likely from missing indexes on a table with no supporting index for either column it's looked up by. Added `idx_publication_tags_vault_publication_id` and `idx_publication_tags_tag_id`. **Requires running the new migration** (`supabase/migrations/20260831010000_publication_tags_perf_indexes.sql`).
+- That timeout had a much bigger blast radius than just missing tags: `useAllPublications()` (used by smart collections and the Codex topic page's sidebar) fetched publications/vaults/vault_shares/vault_publications/publication_tags in one batch and discarded the *entire* batch — including vaults and publications that had already loaded fine — if any single one of those five queries failed. A slow tags query was silently wiping out sidebar vault lists and publication data on every affected page. Tags failing now degrades to an incomplete (rather than a discarded) result; only a failure in the other four still surfaces as an error, since those are needed for correct smart-collection matching.
+- The Codex topic page's own discovery fetch had the identical failure mode one level up: a failed `publication_tags` lookup threw and took down the whole page ("could_not_load_this_topic") instead of just omitting tag-based match signals for that refresh.
+- Smart collections, the smart collection detail page, and the Codex topic page never fetched or passed the signed-in user's profile to the sidebar, unlike every other authenticated page — the sidebar's avatar silently fell back to a placeholder instead of showing the real profile picture, and clicking it did nothing. All three now wire up `useProfile()` + the profile-edit dialog the same way Dashboard/The Codex/Users do.
+
+## [1.11.1] - 2026-08-31
+
+### Fixed
+- `/collections` and `/collections/:id` had no auth gate at all — an anonymous visitor could browse to the smart collections UI shell. Both pages now redirect to `/` when signed out, matching every other authenticated page's pattern.
+- The Codex topic page repeated its own topic name and item count above `PublicationList`'s own title/count header, reading as two stacked headers. Its own title/stat text is gone and the back link is now icon-only, matching the smart collection detail page's pattern — `PublicationList`'s header is the single place the name and count show.
+- The Codex topic page never rendered the nav sidebar at all for signed-in users, unlike every other authenticated page (including its own parent, The Codex). Added it back. Also added the missing "the codex" icon next to the back button, and merged the back button, matching_vaults/related_topics/curators chips, and sort control into one row instead of two stacked ones.
+- A publication added to a vault via "add to vault(s)" kept showing "not_in_any_vault" in its own edit dialog until a full page reload, since that action only refreshed vault access/metadata, never the separate map tracking which vaults each publication belongs to.
+- The Codex page's topic/tag suggestion chips popped in with no loading state (and this isn't cached, so it happens on every visit). Added a small inline spinner while they load.
+- Smart collections and their detail pages picked up the app's design system: gradient primary buttons, lowercase font-mono labels, and the shared vault color palette in the "new/edit collection" dialog, replacing generic purple accents.
+- Smart collection cards showed raw tag/vault UUIDs (e.g. "tags equals 90f79e1d-...") instead of the tag/vault name.
+- The smart collections list page had no description of what the feature is and no way to search collections by name; both are now present, matching the Codex/researchers-directory pattern.
+- The smart collection detail page duplicated its title above `PublicationList`'s own header, leaving a large empty gap between the two; the page-level header is now a slim back/edit-rules bar only, matching how vault pages avoid this duplication.
+- The smart collection detail page's content would intermittently vanish when switching away from and back to the browser tab. Root cause: `useAllPublications`/`useSmartCollections` re-fetched (with a brief `loading` flash to blank content) on every Supabase auth token refresh, which fires automatically when a backgrounded tab regains focus — not just on an actual sign-in/sign-out. Fixed by keying those effects off the user's id instead of the whole (frequently-recreated) user object, and added a loading spinner for genuine load transitions.
+- Smart collection detail pages had no "discover related papers" action, unlike vault pages. Since a smart collection has no membership to add newly-found papers into, discovering now asks which of your vaults to add a match to, then reuses the same Semantic Scholar discovery flow vault pages already have.
+- Clicking "new vault" from any page other than the dashboard navigated there without opening the create-vault dialog, requiring a second click once landed. It now opens immediately on arrival.
+- Public vault pages never showed the vault's tagline (`description`) when an abstract was also set — the two fields were combined into one `abstract || description` block, so the tagline silently disappeared whenever an abstract existed. Both now render together (tagline above abstract) wherever a vault's text is shown, and the vault settings dialog's field is relabeled "tagline" to match.
+- Public vault pages now show a subtle glow/border in the vault's own color, for a bit of per-vault visual identity.
+- Fixed a `ReferenceError` crash on `/codex` (missing import introduced earlier in this same round).
+- The sidebar's smart-collections highlight was a violet→purple (effectively monochrome) gradient, and the page's own icon was accent-green — neither matched the app's actual brand gradient (purple→pink) or each other. Both now use the same tokens as the rest of the app's branding.
+- Brought smart collections' UI copy in line with this app's lowercase snake_case conventions (buttons, empty states, confirmations) — it had drifted to title-case/sentence-case English in a few places.
+- Smart collections' sidebar entry and icon now use the logo's exact colors (`#A855F7` → `#EC4899`, read from the logo asset itself), moved to right after "all_papers" for easier access, and are styled as a flat tinted box like the sidebar's other nav icons (an earlier attempt used the literal glossy logo image, which stood out inconsistently next to the others).
+- Codex vault cards now show a subtle border tinted with the vault's own color instead of a generic border.
+- Dropped the "// tagline" / "// abstract" labels from vault description text — bold-vs-muted text hierarchy already conveys which is which.
+- Smart collections list header's subtext no longer has a stray "//" prefix, matching how the researchers/all_papers pages format their subtitle line.
+- The smart collections list page's H1 no longer carries an icon (icons belong on sidebar nav only) and is now prefixed with "// ", matching the all_papers/researchers pages.
+- Both smart-collection pages' content wrapper was missing `min-w-0`, letting `PublicationList`'s table view stretch the whole page instead of scrolling horizontally inside its own container.
+- The Codex topic page duplicated its title above `PublicationList`'s own header, used "//" as a mid-sentence stat separator instead of "•", used raw unstyled `<select>`/`<input>` elements for its facet/sort controls, and rendered paper titles in monospace inside "why these matched" (paper titles use the plain display font everywhere else). All fixed; facet/sort controls now match the app's actual `Select`/`Input` components.
+- The Codex topic page's header, facet bar, and "matching_vaults"/"related_topics"/"curators" panel were stacked across many separately-bordered blocks, each wrapping onto its own line and wasting vertical space. The header now shares one row for the back-link, title, paper/vault counts, and sort control; the summary panel renders its groups as a single flex-wrap row instead of stacked sections.
+- "Why these matched" is now a closed-by-default disclosure with a badge showing the match count, instead of always rendering every match's provenance in full — avoids dumping a wall of rows above the fold when a topic has many matches.
+- Removed the Codex topic page's tag/author/venue/year filter inputs, which duplicated filtering `PublicationList`'s own toolbar already provides; kept the topic-specific sort modes (relevance/recent/popular/connected), which have no `PublicationList` equivalent.
+- Fixed a "Rendered more hooks than during the previous render" crash on `/codex/topic/:topicSlug`, caused by a hook added after the component's early loading/error returns.
+
+### Added
+- Smart collections can now have an optional description, so a collection can carry its curatorial intent (e.g. "papers I still need to read for the visual storytelling survey") alongside its name and rules. Shown on list cards and the collection detail page. **Requires running the new migration** (`supabase/migrations/20260831000000_smart_collections_description.sql`).
+- The smart collection dialog's rules are now a full inline form instead of a compact filter popover, with each rule showing a live, cumulative match count — how many papers match once that rule and every rule above it are applied together — so it's visible how each rule narrows the collection down.
+
+## [1.11.0] - 2026-08-30
+
+### Added
+- Codex discovery mode: browse topics and tags directly at `/codex/topic/:topicSlug`, with transparent matching across tag names, keyword indices, notes, and citations. Each topic page shows related topics, topic curators, filterable results with facets and sort modes, and topic-chip suggestions on The Codex search bar.
+
+## [1.10.2] - 2026-08-30
+
+### Changed
+- `AGENTS.md`: added two process items for coding agents working in this repo — always report stale/dead code, placeholders, and unrelated test failures encountered while working (without silently expanding scope to fix them), and always reference the GitHub issue(s) a PR relates to in its description, using closing keywords only when the PR fully resolves the issue.
+
+## [1.10.1] - 2026-08-30
+
+### Fixed
+- The public vault page at `/public/:slug` never rendered a vault's description/abstract, even though the same fields are already shown on Codex browse cards and the abstract field's own hint says it's "shown on the codex when published." Visitors landing directly on a vault's page now see it, with a placeholder statement when neither field is set (#98).
+
 ## [1.10.0] - 2026-08-29
 
 ### Added

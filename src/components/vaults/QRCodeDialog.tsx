@@ -53,6 +53,11 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
 
   const isPrivate = vault.visibility === 'private';
   const canShare = vault.visibility !== 'private';
+  const isArchived = !!vault.archived_at;
+  // A private archived vault can never be upgraded to protected/public (visibility
+  // is frozen), so the "upgrade to share" prompt would be a dead end that fails
+  // against the DB's immutability trigger -- disable the trigger entirely instead.
+  const isStuckPrivate = isPrivate && isArchived;
 
   // Generate random aesthetic gradient color for the fallback QR.
   const generateRandomColor = () => {
@@ -142,6 +147,9 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
   };
 
   const handleOpenChange = (newOpen: boolean) => {
+    if (newOpen && isStuckPrivate) {
+      return;
+    }
     if (newOpen && isPrivate) {
       setShowUpgradeDialog(true);
     } else {
@@ -254,13 +262,14 @@ export function QRCodeDialog({ vault, onVaultUpdate }: QRCodeDialogProps) {
             ref={qrTriggerRef}
             variant="ghost"
             size="icon"
+            disabled={isStuckPrivate}
             className={cn(
               "h-8 w-8 shrink-0",
-              isPrivate 
-                ? "text-muted-foreground/50 hover:text-muted-foreground" 
+              isPrivate
+                ? "text-muted-foreground/50 hover:text-muted-foreground"
                 : "text-muted-foreground hover:text-primary"
             )}
-            title={isPrivate ? "upgrade vault to share" : "share via qr code"}
+            title={isStuckPrivate ? "archived vaults can't change visibility to enable sharing" : isPrivate ? "upgrade vault to share" : "share via qr code"}
           >
             {isPrivate ? (
               <Lock className="w-4 h-4" />

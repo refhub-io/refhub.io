@@ -8,16 +8,17 @@ import { resolveLastUpdatedActivity } from '@/lib/vaultPublicationAttribution';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
+import { useVaults, useInvalidateVaults } from '@/hooks/useVaults';
 import { useVaultFavorites } from '@/hooks/useVaultFavorites';
 import { useVaultFork } from '@/hooks/useVaultFork';
 import { useVaultAccess, requestVaultAccess } from '@/hooks/useVaultAccess';
 import { getForkSourceHref, getForkSourceLabel, getVaultForkInfo, VaultForkInfo } from '@/lib/vaultFork';
-import { Sidebar } from '@/components/layout/Sidebar';
 import { SidebarDndBoundary } from '@/components/layout/SidebarDndBoundary';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationViewDialog } from '@/components/publications/PublicationViewDialog';
 import { CollectionAnalytics } from '@/components/publications/CollectionAnalytics';
 import { ExportDialog } from '@/components/publications/ExportDialog';
+import { VaultDialog } from '@/components/vaults/VaultDialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { BrandMark } from '@/components/branding/BrandMark';
@@ -28,14 +29,18 @@ import {
   GitFork,
   Clock,
   PencilLine,
+  Archive,
 } from 'lucide-react';
 import VaultAccessBadge from '../components/vaults/VaultAccessBadge';
+import VaultAbstractBlock from '../components/vaults/VaultAbstractBlock';
 
 export default function PublicVault() {
   const { slug } = useParams();
   const { toast } = useToast();
   const { user } = useAuth();
   const { profile } = useProfile();
+  const { ownedVaults: userVaults, sharedVaults } = useVaults();
+  const invalidateVaults = useInvalidateVaults();
   const { isFavorite, toggleFavorite } = useVaultFavorites();
   const { forkVault } = useVaultFork();
   const navigate = useNavigate();
@@ -57,8 +62,8 @@ export default function PublicVault() {
   const [forking, setForking] = useState(false);
   const [forkInfo, setForkInfo] = useState<VaultForkInfo | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [userVaults, setUserVaults] = useState<Vault[]>([]);
-  const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
+  const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
+  const [editingVault, setEditingVault] = useState<Vault | null>(null);
   const [viewingPublication, setViewingPublication] = useState<Publication | null>(null);
   const [isGraphOpen, setIsGraphOpen] = useState(false);
   const [exportPublications, setExportPublications] = useState<Publication[]>([]);
@@ -113,52 +118,6 @@ export default function PublicVault() {
 
     return map;
   }, [normalizedPublicationRelations]);
-
-  // Fetch user's own vaults and shared vaults
-  const fetchUserVaults = useCallback(async () => {
-    if (!user) {
-      setUserVaults([]);
-      setSharedVaults([]);
-      return;
-    }
-
-    try {
-      // Fetch owned vaults
-      const { data: ownedVaults, error: ownedError } = await supabase
-        .from('vaults')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('name');
-
-      if (ownedError) throw ownedError;
-
-      // Fetch shared vaults
-      const { data: sharedVaultIds, error: sharedError } = await supabase
-        .from('vault_shares')
-        .select('vault_id')
-        .or(`shared_with_email.eq.${user.email},shared_with_user_id.eq.${user.id}`);
-
-      if (sharedError) throw sharedError;
-
-      if (sharedVaultIds && sharedVaultIds.length > 0) {
-        const vaultIds = sharedVaultIds.map(vs => vs.vault_id);
-        const { data: sharedVaultsData, error: vaultsError } = await supabase
-          .from('vaults')
-          .select('*')
-          .in('id', vaultIds)
-          .order('name');
-
-        if (vaultsError) throw vaultsError;
-        setSharedVaults(sharedVaultsData || []);
-      } else {
-        setSharedVaults([]);
-      }
-
-      setUserVaults(ownedVaults || []);
-    } catch (error) {
-      logger.error('PublicVaultSimple', 'Error fetching user vaults:', error);
-    }
-  }, [user]);
 
   // Fetch public vault
   const fetchPublicVault = useCallback(async () => {
@@ -376,10 +335,6 @@ export default function PublicVault() {
   }, [fetchPublicVault]);
 
   useEffect(() => {
-    fetchUserVaults();
-  }, [fetchUserVaults]);
-
-  useEffect(() => {
     if (!user || !vault) return;
     const checkPendingRequest = async () => {
       const { data: existingRequest } = await supabase
@@ -438,6 +393,7 @@ export default function PublicVault() {
     try {
       const newVaultId = await forkVault(vault);
       if (newVaultId) {
+        void invalidateVaults();
         navigate(`/vault/${newVaultId}`);
       }
     } finally {
@@ -445,23 +401,40 @@ export default function PublicVault() {
     }
   };
 
+  const handleSaveVault = async (data: Partial<Vault>) => {
+    if (!editingVault) return;
+    const { data: updated, error } = await supabase
+      .from('vaults')
+      .update(data)
+      .eq('id', editingVault.id)
+      .select()
+      .single();
+    if (error) throw error;
+    void invalidateVaults();
+    return updated as Vault;
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex">
         {user && (
-          <Sidebar
-            vaults={[]}
-            sharedVaults={[]}
+          <SidebarDndBoundary
+            vaults={userVaults}
+            sharedVaults={sharedVaults}
             selectedVaultId={null}
-            onSelectVault={() => {}}
-            onCreateVault={() => {}}
+            onSelectVault={(vaultId) => (vaultId ? navigate(`/vault/${vaultId}`) : navigate('/dashboard'))}
+            onCreateVault={() => navigate('/dashboard?createVault=1')}
+            onEditVault={(vault) => {
+              setEditingVault(vault);
+              setIsVaultDialogOpen(true);
+            }}
             isMobileOpen={isMobileSidebarOpen}
             onMobileClose={() => setIsMobileSidebarOpen(false)}
             profile={profile}
-            onEditProfile={() => {}}
+            onEditProfile={() => navigate('/profile-edit')}
           />
         )}
-        
+
         <div className={`flex-1 ${user ? 'lg:pl-72' : ''} min-w-0 flex items-center justify-center`}>
           <div className="flex flex-col items-center gap-4">
             <BrandMark className="h-16 w-16 rounded-2xl shadow-lg animate-glow-pulse" />
@@ -476,16 +449,20 @@ export default function PublicVault() {
     return (
       <div className="min-h-screen bg-background flex">
         {user && (
-          <Sidebar
-            vaults={[]}
-            sharedVaults={[]}
+          <SidebarDndBoundary
+            vaults={userVaults}
+            sharedVaults={sharedVaults}
             selectedVaultId={null}
-            onSelectVault={() => {}}
-            onCreateVault={() => {}}
+            onSelectVault={(vaultId) => (vaultId ? navigate(`/vault/${vaultId}`) : navigate('/dashboard'))}
+            onCreateVault={() => navigate('/dashboard?createVault=1')}
+            onEditVault={(vault) => {
+              setEditingVault(vault);
+              setIsVaultDialogOpen(true);
+            }}
             isMobileOpen={isMobileSidebarOpen}
             onMobileClose={() => setIsMobileSidebarOpen(false)}
             profile={profile}
-            onEditProfile={() => {}}
+            onEditProfile={() => navigate('/profile-edit')}
           />
         )}
         
@@ -524,11 +501,15 @@ export default function PublicVault() {
               navigate('/dashboard');
             }
           }}
-          onCreateVault={() => navigate('/dashboard')}
+          onCreateVault={() => navigate('/dashboard?createVault=1')}
+          onEditVault={(vault) => {
+            setEditingVault(vault);
+            setIsVaultDialogOpen(true);
+          }}
           isMobileOpen={isMobileSidebarOpen}
           onMobileClose={() => setIsMobileSidebarOpen(false)}
           profile={profile}
-          onEditProfile={() => navigate('/profile/edit')}
+          onEditProfile={() => navigate('/profile-edit')}
         />
       ) : (
         // Show logo only for non-logged in users
@@ -552,7 +533,10 @@ export default function PublicVault() {
       <div className={`flex-1 ${user ? 'lg:pl-72' : 'pt-20'} min-w-0`}>
         {/* Header with vault info and actions */}
         {vault && (
-          <div className="border-b border-border bg-card/50 backdrop-blur-xl sticky top-0 z-30">
+          <div
+            className="border-b-2 bg-card/50 backdrop-blur-xl sticky top-0 z-30"
+            style={{ borderBottomColor: vault.color, boxShadow: `0 1px 24px -4px ${vault.color}66` }}
+          >
             <div className="px-4 py-3">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0 flex-wrap">
@@ -561,6 +545,12 @@ export default function PublicVault() {
                     public
                   </Badge>
                   <VaultAccessBadge vaultId={vault.id} />
+                  {vault.archived_at && (
+                    <Badge variant="outline" className="gap-1 font-mono text-xs shrink-0 text-muted-foreground">
+                      <Archive className="w-3 h-3" />
+                      archived
+                    </Badge>
+                  )}
                   {/* Attribution badge — shown when this vault was itself forked */}
                   {forkInfo?.forkedFrom && (
                     <Badge variant="outline" className="gap-1 font-mono text-xs shrink-0 text-muted-foreground">
@@ -684,6 +674,10 @@ export default function PublicVault() {
                   )}
                 </div>
               </div>
+
+              <div className="mt-2">
+                <VaultAbstractBlock abstract={vault.abstract} description={vault.description} />
+              </div>
             </div>
           </div>
         )}
@@ -748,6 +742,14 @@ export default function PublicVault() {
           vaultName={vault?.name}
           tags={tags}
           publicationTags={publicationTags}
+        />
+
+        <VaultDialog
+          open={isVaultDialogOpen}
+          onOpenChange={setIsVaultDialogOpen}
+          vault={editingVault}
+          onSave={handleSaveVault}
+          onUpdate={() => {}}
         />
 
         <CollectionAnalytics

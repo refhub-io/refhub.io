@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { SmartCollectionDialog } from './SmartCollectionDialog';
-import type { Publication } from '@/types/database';
+import type { Publication, SmartCollection } from '@/types/database';
 
 function makePub(overrides: Partial<Publication> = {}): Publication {
   return {
@@ -32,10 +32,10 @@ describe('SmartCollectionDialog', () => {
         onSave={vi.fn()}
       />,
     );
-    expect(screen.getByText(/2 papers match/i)).toBeInTheDocument();
+    expect(screen.getByText(/2_matching_papers/i)).toBeInTheDocument();
   });
 
-  it('requires a name before Save is enabled', () => {
+  it('requires a name before the submit button is enabled', () => {
     render(
       <SmartCollectionDialog
         open
@@ -49,8 +49,40 @@ describe('SmartCollectionDialog', () => {
         onSave={vi.fn()}
       />,
     );
-    expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
+    // A new (not-yet-editing) collection's submit button reads "create_collection",
+    // matching VaultDialog's create_vault/save_changes distinction.
+    expect(screen.getByRole('button', { name: /create_collection/i })).toBeDisabled();
     fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'Reading list' } });
-    expect(screen.getByRole('button', { name: /save/i })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /create_collection/i })).not.toBeDisabled();
+  });
+
+  it('prefills and saves the description alongside the name', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const editingCollection: SmartCollection = {
+      id: 'c1', user_id: 'u1', name: 'Unread guidance', description: 'papers to read before the survey',
+      color: '#a855f7', filters: [], created_at: 't', updated_at: 't',
+    };
+    render(
+      <SmartCollectionDialog
+        open
+        onOpenChange={() => {}}
+        editingCollection={editingCollection}
+        allPublications={[]}
+        tags={[]}
+        vaults={[]}
+        publicationTagsMap={{}}
+        publicationVaultsMap={{}}
+        onSave={onSave}
+      />,
+    );
+    const descriptionField = screen.getByLabelText(/description/i);
+    expect(descriptionField).toHaveValue('papers to read before the survey');
+
+    fireEvent.change(descriptionField, { target: { value: 'updated intent' } });
+    fireEvent.click(screen.getByRole('button', { name: /save_changes/i }));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Unread guidance', description: 'updated intent' }),
+    );
   });
 });
