@@ -39,6 +39,14 @@ Bump `package.json`'s version for every shipped change (and run `npm install --p
 
 When in doubt about which tier a change is, or whether a minor bump clears the "What's New"-worthy bar, ask rather than guess — silently over- or under-notifying users is worse than a quick check.
 
+## 7. Report faults you find, even ones you don't fix
+
+While working, you will run into things that aren't the task at hand: stale or dead code, leftover placeholders/TODOs, tests that fail (or are skipped/silently broken) for reasons unrelated to your change, mismatched mocks, or anything else that looks faulty. Always report these — in the PR description and/or directly to whoever asked for the work — rather than working around them quietly or leaving them for someone else to rediscover from scratch. This is a reporting duty, not an obligation to fix everything you see: per item 2, don't silently expand scope to fix unrelated faults, but don't silently ignore them either. Say what you found, and let the person decide whether it gets fixed now, filed as an issue, or left alone.
+
+## 8. Reference every issue a PR relates to, in its body
+
+Every PR description mentions the GitHub issue(s) it relates to — never leave a PR unlinked to its issue. Use GitHub's closing keywords (`Closes #N`, `Fixes #N`) **only** when the PR actually resolves the issue in full — those keywords auto-close the issue the moment the PR merges, so using one on a partial slice incorrectly closes work that isn't done. For a PR that's a partial slice, stacked increment, or otherwise doesn't fully resolve the issue, reference it without a closing keyword (e.g. `Part of #N`, `Addresses #N`) so the link is visible without triggering auto-close. When a PR spins off follow-up issues for deferred scope, list those too.
+
 ## Anything else worth doing before you start
 
 - Check `git status` and recent `git log` before touching anything — know what's already in flight on the current branch versus what you're about to add.
