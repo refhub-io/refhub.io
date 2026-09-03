@@ -21,6 +21,7 @@ BEGIN
   END IF;
 
   IF NEW."archived_at" IS NOT NULL THEN
+    -- Note: updated_at is deliberately excluded because update_vaults_updated_at trigger unconditionally bumps it on every UPDATE
     IF NEW."name" IS DISTINCT FROM OLD."name"
       OR NEW."description" IS DISTINCT FROM OLD."description"
       OR NEW."color" IS DISTINCT FROM OLD."color"
@@ -62,7 +63,7 @@ BEGIN
   IF v_owner_id IS NULL THEN
     RAISE EXCEPTION 'vault not found';
   END IF;
-  IF v_owner_id != auth.uid() THEN
+  IF v_owner_id IS DISTINCT FROM auth.uid() THEN
     RAISE EXCEPTION 'only the vault owner can delete this vault';
   END IF;
 
@@ -76,7 +77,6 @@ END;
 $$;
 
 ALTER FUNCTION "public"."delete_vault"(uuid) OWNER TO "postgres";
-GRANT ALL ON FUNCTION "public"."delete_vault"(uuid) TO "anon";
 GRANT ALL ON FUNCTION "public"."delete_vault"(uuid) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."delete_vault"(uuid) TO "service_role";
 
