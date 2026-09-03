@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/select';
 import { useKeyboardContext } from '@/contexts/KeyboardContext';
 import { useHotkeys } from '@/hooks/useKeyboardNavigation';
-import { Lock, Users, Globe, Mail, Trash2, Copy, Check, Link2, X, Save, Plus, Bell, ChevronDown } from 'lucide-react';
+import { Lock, Users, Globe, Mail, Trash2, Copy, Check, Link2, X, Save, Plus, Bell, ChevronDown, Archive } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createVaultPublicSlugCandidate, normalizeVaultPublicSlug } from '@/lib/vaultSlug';
 
@@ -80,9 +80,10 @@ interface VaultDialogProps {
   onSave?: (data: Partial<Vault>) => Promise<Vault | void>;
   onUpdate?: () => void;
   onDelete?: (vault: Vault) => void;
+  onArchive?: (vault: Vault) => void;
 }
 
-export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSave, onUpdate, onDelete }: VaultDialogProps) {
+export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSave, onUpdate, onDelete, onArchive }: VaultDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const shareFormRef = useRef<HTMLFormElement>(null);
@@ -116,6 +117,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [isForkedVault, setIsForkedVault] = useState(false);
+  const isArchived = !!vault?.archived_at;
   const slugCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadRef = useRef(true);
   const accessRequestsSectionRef = useRef<HTMLDivElement | null>(null);
@@ -902,6 +904,13 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
         </DialogHeader>
 
         <form ref={shareFormRef} onSubmit={handleFormSubmit} className="flex-1 overflow-y-auto space-y-5 px-6 pb-6">
+          {isArchived && (
+            <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs font-mono text-muted-foreground" data-testid="vault-archived-notice">
+              this vault is archived — read-only, cannot be edited
+            </div>
+          )}
+
+          <fieldset disabled={isArchived} className="contents">
           <div className="space-y-2">
             <Label htmlFor="name" className="font-semibold font-mono">name</Label>
             <Input
@@ -1303,6 +1312,8 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
             </p>
           )}
 
+          </fieldset>
+
           <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-3 sm:pt-4 border-t border-border w-full box-border">
             {vault && onDelete && (
               <Button
@@ -1315,6 +1326,17 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                 delete_vault
               </Button>
             )}
+            {vault && onArchive && !isArchived && (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => onArchive(vault)}
+                className="text-muted-foreground hover:text-foreground font-mono w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10"
+              >
+                <Archive className="w-3 h-3 mr-1.5" />
+                archive_vault
+              </Button>
+            )}
             <Button type="button" variant="outline" onClick={() => handleDialogClose(false)} className="font-mono w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10">
               <X className="w-3 h-3 mr-1.5" />
               cancel
@@ -1322,7 +1344,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
             <Button
               type="submit"
               variant="glow"
-              disabled={saving || !name.trim() || !onSave}
+              disabled={saving || !name.trim() || !onSave || isArchived}
               className="font-mono w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10"
             >
               {saving ? (
