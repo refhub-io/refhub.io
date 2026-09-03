@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, memo, forwardRef } f
 import { Publication, Tag, Vault } from '@/types/database';
 import { PublicationCard } from './PublicationCard';
 import { PublicationTable } from './PublicationTable';
-import { PublicationFilter, applyFilters } from './FilterBuilder';
+import { FilterField, PublicationFilter, applyFilters } from './FilterBuilder';
 import { ViewSettings, ViewMode, VisibleColumns, DEFAULT_VISIBLE_COLUMNS } from './ViewSettings';
 import { useViewSettingsPersistence, SortField, SortDirection } from '@/hooks/useViewSettingsPersistence';
 import { comparePublications, SORT_FIELD_OPTIONS } from '@/lib/publicationSort';
@@ -99,6 +99,10 @@ interface PublicationListProps {
   /** Disables dragging papers onto sidebar vaults — set when the viewer
    * can't add content here (e.g. a read-only shared vault). */
   dragDisabled?: boolean;
+  /** Restricts the filter panel's field picker to this subset — e.g. hiding
+   * the owner's private/personal fields (notes, reading state, important)
+   * on a public, read-only view. Omit for the full field list. */
+  filterableFields?: FilterField[];
 }
 
 export function PublicationList({
@@ -140,6 +144,7 @@ export function PublicationList({
   isLoadingPublications = false,
   loadingMessage = 'hang_on_getting_your_papers',
   dragDisabled = false,
+  filterableFields,
 }: PublicationListProps) {
   const openPublication = onOpenPublication || onEditPublication;
   const [searchQuery, setSearchQuery] = useState('');
@@ -655,6 +660,7 @@ export function PublicationList({
                 open={filterOpen}
                 onOpenChange={setFilterOpen}
                 onCloseAutoFocus={handleToolbarCloseAutoFocus}
+                filterableFields={filterableFields}
               />
               {persistedFilters.length > 0 && (
                 <span className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full z-10"></span>

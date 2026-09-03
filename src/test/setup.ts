@@ -51,3 +51,20 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
     writable: true,
   });
 }
+
+// jsdom doesn't implement these, but Radix's Select (and other popover-ish
+// primitives) call them internally when opening/closing via pointer events.
+if (typeof Element !== 'undefined') {
+  if (!Element.prototype.hasPointerCapture) {
+    Element.prototype.hasPointerCapture = () => false;
+  }
+  if (!Element.prototype.setPointerCapture) {
+    Element.prototype.setPointerCapture = () => {};
+  }
+  if (!Element.prototype.releasePointerCapture) {
+    Element.prototype.releasePointerCapture = () => {};
+  }
+  if (!Element.prototype.scrollIntoView) {
+    Element.prototype.scrollIntoView = () => {};
+  }
+}
