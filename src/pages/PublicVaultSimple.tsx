@@ -30,6 +30,7 @@ import {
   PencilLine,
 } from 'lucide-react';
 import VaultAccessBadge from '../components/vaults/VaultAccessBadge';
+import VaultAbstractBlock from '../components/vaults/VaultAbstractBlock';
 
 export default function PublicVault() {
   const { slug } = useParams();
@@ -683,6 +684,10 @@ export default function PublicVault() {
                     </>
                   )}
                 </div>
+              </div>
+
+              <div className="mt-2">
+                <VaultAbstractBlock abstract={vault.abstract} description={vault.description} />
               </div>
             </div>
           </div>
