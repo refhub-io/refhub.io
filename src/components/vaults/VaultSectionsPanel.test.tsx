@@ -80,4 +80,23 @@ describe('VaultSectionsPanel', () => {
 
     await waitFor(() => expect(mockUpdatePublicationSection).toHaveBeenCalledWith({}, 'p1', { featured: true }));
   });
+
+  it('reorders papers within a section by swapping section_position', async () => {
+    const section: VaultSection = { id: 's1', vault_id: 'v1', name: 'starter_papers', description: null, position: 0, created_at: '', updated_at: '' };
+    mockFetch.mockResolvedValue([section]);
+    mockUpdatePublicationSection.mockResolvedValue(undefined);
+
+    const pub1 = makePub({ id: 'p1', title: 'First Paper', section_id: 's1', section_position: 0 });
+    const pub2 = makePub({ id: 'p2', title: 'Second Paper', section_id: 's1', section_position: 1 });
+
+    render(<VaultSectionsPanel vaultId="v1" publications={[pub1, pub2]} onPublicationsChange={() => {}} />);
+
+    await waitFor(() => expect(screen.getByLabelText(/move first paper up within section/i)).toBeInTheDocument());
+    fireEvent.click(screen.getByLabelText(/move second paper up within section/i));
+
+    await waitFor(() => {
+      expect(mockUpdatePublicationSection).toHaveBeenCalledWith({}, 'p1', { section_position: 1 });
+      expect(mockUpdatePublicationSection).toHaveBeenCalledWith({}, 'p2', { section_position: 0 });
+    });
+  });
 });

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useVaultSections } from '@/hooks/useVaultSections';
 import { updateVaultPublicationSection } from '@/lib/vaultSections';
+import { showError } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -20,8 +21,13 @@ export function VaultSectionsPanel({ vaultId, publications, onPublicationsChange
   const [newDescription, setNewDescription] = useState('');
 
   const patchPublication = async (pubId: string, patch: Parameters<typeof updateVaultPublicationSection>[2]) => {
-    await updateVaultPublicationSection(supabase, pubId, patch);
-    onPublicationsChange(publications.map((p) => (p.id === pubId ? { ...p, ...patch } : p)));
+    const updated = publications.map((p) => (p.id === pubId ? { ...p, ...patch } : p));
+    onPublicationsChange(updated);
+    try {
+      await updateVaultPublicationSection(supabase, pubId, patch);
+    } catch (error) {
+      showError('Failed to save publication', error instanceof Error ? error.message : 'Unknown error');
+    }
   };
 
   const handleAddSection = async () => {
@@ -34,11 +40,10 @@ export function VaultSectionsPanel({ vaultId, publications, onPublicationsChange
   };
 
   const handleAssign = (pubId: string, sectionId: string) => {
-    const pub = publications.find((p) => p.id === pubId);
     const sectionPubs = publications.filter((p) => p.section_id === sectionId);
     void patchPublication(pubId, {
       section_id: sectionId || null,
-      section_position: sectionId ? sectionPubs.length : (pub?.section_position ?? 0),
+      section_position: sectionId ? sectionPubs.length : 0,
     });
   };
 
@@ -48,6 +53,22 @@ export function VaultSectionsPanel({ vaultId, publications, onPublicationsChange
     const reordered = sections.map((s) => s.id);
     [reordered[index], reordered[targetIndex]] = [reordered[targetIndex], reordered[index]];
     void reorderSections(reordered);
+  };
+
+  const movePublicationInSection = (pub: Publication) => {
+    if (!pub.section_id) return undefined;
+    const siblings = publications
+      .filter((p) => p.section_id === pub.section_id)
+      .sort((a, b) => (a.section_position ?? 0) - (b.section_position ?? 0));
+    return (direction: -1 | 1) => {
+      const index = siblings.findIndex((p) => p.id === pub.id);
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= siblings.length) return;
+      const a = siblings[index];
+      const b = siblings[targetIndex];
+      void patchPublication(a.id, { section_position: b.section_position ?? 0 });
+      void patchPublication(b.id, { section_position: a.section_position ?? 0 });
+    };
   };
 
   if (loading) {
@@ -113,6 +134,28 @@ export function VaultSectionsPanel({ vaultId, publications, onPublicationsChange
             </select>
             {pub.section_id && (
               <>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => movePublicationInSection(pub)?.(- 1)}
+                  aria-label={`move ${pub.title} up within section`}
+                  disabled={publications.filter((p) => p.section_id === pub.section_id).sort((a, b) => (a.section_position ?? 0) - (b.section_position ?? 0))[0]?.id === pub.id}
+                >
+                  <ChevronUp className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => movePublicationInSection(pub)?.(1)}
+                  aria-label={`move ${pub.title} down within section`}
+                  disabled={publications.filter((p) => p.section_id === pub.section_id).sort((a, b) => (a.section_position ?? 0) - (b.section_position ?? 0)).at(-1)?.id === pub.id}
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </Button>
                 <button
                   type="button"
                   aria-label={`feature ${pub.title}`}
