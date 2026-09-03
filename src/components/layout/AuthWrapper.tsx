@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { Link } from 'react-router-dom';
 import { LoadingSpinner } from '@/components/ui/loading';
+import { LogIn } from 'lucide-react';
 
 // Simple auth wrapper component that redirects to auth if not authenticated
 // This ensures unauthenticated users can't access protected routes
@@ -20,8 +21,8 @@ const AuthWrapper = ({ children }: { children: React.ReactNode }) => {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-6 p-8">
-          <div className="w-20 h-20 rounded-2xl bg-muted flex items-center justify-center mx-auto">
-            <LoadingSpinner size="md" />
+          <div className="w-20 h-20 rounded-2xl bg-gradient-primary flex items-center justify-center mx-auto shadow-lg">
+            <LogIn className="w-10 h-10 text-white" />
           </div>
           <p className="text-muted-foreground font-mono text-sm mb-4">
             // authentication_required

@@ -6,6 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.12.3] - 2026-09-03
+
+### Fixed
+- Loading a vault by URL (`/vault/:id`) while signed out — for a protected vault in particular — showed `vault_not_found` instead of the request-access screen. Root cause: `useVaultAccess` called `supabase.auth.getUser()`, which validates the session against the server and throws `AuthSessionMissingError` when there's no session at all (i.e. for every signed-out visitor), aborting the whole access check before it ever looked at vault visibility. Switched to `supabase.auth.getSession()`, which reads the local session without a network round trip and returns `null` gracefully — matching every other anonymous-safe auth check already in this codebase (`useAuth`, `pdfUpload`, `bibtex`, `semanticScholar`). Doesn't touch the private-vault/nonexistent-vault path, which already correctly shows `vault_not_found` either way.
+- Fixing the above exposed a second, previously-unreachable bug in the same function: `isOwner` compared `user?.id === vaultData.user_id` without checking that `user` exists first. `get_vault_metadata` (the RLS-bypassing fallback used for protected vaults) never returns a `user_id` column, so for a signed-out visitor both sides of that comparison were `undefined` — `undefined === undefined` is `true`, so an anonymous visitor to a protected vault would have been granted owner-level access. This was never reachable before because the `getUser()` crash above always intercepted first for signed-out visitors. Now requires `user` to be truthy before comparing.
+- The `get_vault_metadata` RPC's own error was fetched but never checked, so a genuine backend failure (network, outage) was indistinguishable from "this vault doesn't exist" and left no trace in the logs. Now logged, and surfaces a toast distinct from the silent private/nonexistent case.
+- The "No Access" / "Request Access" / "Checking access..." labels on `VaultAccessBadge` were Title Case, inconsistent with the rest of the app's lowercase/snake_case convention (`owner`, `editor`, `viewer`, etc.) — now `no_access` / `request_access` / `checking_access...`.
+- `AuthWrapper`'s "please sign in" gate reused the same cycling-loading-word `LoadingSpinner` shown during the actual loading state, even though nothing is loading at that point — it's a static, already-resolved "you need to sign in" screen. Replaced with the app's logo-gradient icon box (`bg-gradient-primary`, matching the pattern used on `vault_not_found`/empty-state screens) and a sign-in icon.
+
 ## [1.12.1] - 2026-09-01
 
 ### Fixed
