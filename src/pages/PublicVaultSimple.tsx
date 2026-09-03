@@ -29,6 +29,7 @@ import {
   GitFork,
   Clock,
   PencilLine,
+  Archive,
 } from 'lucide-react';
 import VaultAccessBadge from '../components/vaults/VaultAccessBadge';
 import VaultAbstractBlock from '../components/vaults/VaultAbstractBlock';
@@ -544,6 +545,12 @@ export default function PublicVault() {
                     public
                   </Badge>
                   <VaultAccessBadge vaultId={vault.id} />
+                  {vault.archived_at && (
+                    <Badge variant="outline" className="gap-1 font-mono text-xs shrink-0 text-muted-foreground">
+                      <Archive className="w-3 h-3" />
+                      archived
+                    </Badge>
+                  )}
                   {/* Attribution badge — shown when this vault was itself forked */}
                   {forkInfo?.forkedFrom && (
                     <Badge variant="outline" className="gap-1 font-mono text-xs shrink-0 text-muted-foreground">

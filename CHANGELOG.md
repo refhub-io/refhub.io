@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.12.0] - 2026-09-01
+
+### Added
+- Vaults can now be archived: an irreversible, owner-triggered action that makes a vault permanently read-only (no adding/removing papers, no metadata/tag/note edits, no collaborator changes) while leaving its visibility and everything already in it exactly as visible as before. Archived vaults show a badge in the sidebar, the vault header, and public vault pages, and can still be deleted outright by their owner.
+
 ## [1.11.8] - 2026-09-01
 
 ### Fixed

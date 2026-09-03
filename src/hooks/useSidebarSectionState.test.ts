@@ -7,11 +7,12 @@ describe('useSidebarSectionState', () => {
     localStorage.clear();
   });
 
-  it('defaults every section to expanded when nothing is stored', () => {
+  it('defaults every daily-use section to expanded, and archived to collapsed, when nothing is stored', () => {
     const { result } = renderHook(() => useSidebarSectionState());
     expect(result.current.vaultsExpanded).toBe(true);
     expect(result.current.sharedExpanded).toBe(true);
     expect(result.current.favoritesExpanded).toBe(true);
+    expect(result.current.archivedExpanded).toBe(false);
   });
 
   it('toggle() flips a section and persists it', () => {

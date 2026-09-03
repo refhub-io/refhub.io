@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    id: 22,
+    date: '2026-09-01',
+    title: 'archive vaults for good',
+    features: [
+      {
+        tag: 'feature',
+        title: 'archive a vault',
+        description:
+          'permanently freeze a vault as read-only from its settings dialog. content, tags, and sharing stay exactly as they are and stay visible per the vault\'s existing visibility — nothing more can be added, edited, or removed. this cannot be undone, but the vault can still be deleted outright.',
+      },
+    ],
+  },
+  {
     id: 21,
     date: '2026-08-30',
     title: 'codex discovery: topics, tags, and keyword search',

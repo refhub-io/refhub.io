@@ -7,12 +7,15 @@ export interface SidebarSectionState {
   vaultsExpanded: boolean;
   sharedExpanded: boolean;
   favoritesExpanded: boolean;
+  archivedExpanded: boolean;
 }
 
 const DEFAULT_STATE: SidebarSectionState = {
   vaultsExpanded: true,
   sharedExpanded: true,
   favoritesExpanded: true,
+  // Collapsed by default -- archived vaults are housekeeping, not daily-use.
+  archivedExpanded: false,
 };
 
 function readState(): SidebarSectionState {

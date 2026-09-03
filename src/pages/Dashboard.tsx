@@ -138,6 +138,8 @@ export default function Dashboard() {
   const [bulkDeleteConfirmation, setBulkDeleteConfirmation] = useState<Publication[]>([]);
   const [deleteVaultConfirmation, setDeleteVaultConfirmation] = useState<Vault | null>(null);
   const [deleteVaultNameInput, setDeleteVaultNameInput] = useState('');
+  const [archiveVaultConfirmation, setArchiveVaultConfirmation] = useState<Vault | null>(null);
+  const [archiveVaultNameInput, setArchiveVaultNameInput] = useState('');
   const [syncLoadingIds, setSyncLoadingIds] = useState<Set<string>>(new Set());
   const [syncDiffsByPublication, setSyncDiffsByPublication] = useState<Record<string, PublicationSyncDiff[]>>({});
   const [syncMetadataByPublication, setSyncMetadataByPublication] = useState<Record<string, SemanticScholarMetadata>>({});
@@ -1302,32 +1304,10 @@ export default function Dashboard() {
         return;
       }
 
-      // Delete vault publications (annotated copies)
-      // This will cascade delete publication_tags due to ON DELETE CASCADE
-      await supabase
-        .from('vault_publications')
-        .delete()
-        .eq('vault_id', deletedId);
-
-      // Delete vault shares
-      await supabase
-        .from('vault_shares')
-        .delete()
-        .eq('vault_id', deletedId);
-
-      // Delete vault favorites
-      await supabase
-        .from('vault_favorites')
-        .delete()
-        .eq('vault_id', deletedId);
-
       // Optimistic update - remove vault from list
       setVaults(prev => prev.filter(v => v.id !== deletedId));
 
-      const { error } = await supabase
-        .from('vaults')
-        .delete()
-        .eq('id', deletedId);
+      const { error } = await supabase.rpc('delete_vault', { p_vault_id: deletedId });
 
       if (error) throw error;
 
@@ -1346,6 +1326,40 @@ export default function Dashboard() {
     } finally {
       setDeleteVaultConfirmation(null);
       setDeleteVaultNameInput('');
+    }
+  };
+
+  const handleArchiveVault = async () => {
+    if (!archiveVaultConfirmation || archiveVaultConfirmation.user_id !== user?.id) return; // Only allow archiving if user is the owner
+
+    const archivedId = archiveVaultConfirmation.id;
+    const archivedAt = new Date().toISOString();
+
+    try {
+      const { error } = await supabase
+        .from('vaults')
+        .update({ archived_at: archivedAt })
+        .eq('id', archivedId);
+
+      if (error) throw error;
+
+      setVaults(prev => prev.map(v => (v.id === archivedId ? { ...v, archived_at: archivedAt } : v)));
+      void invalidateVaults();
+      toast({
+        title: 'Vault archived',
+        description: `"${archiveVaultConfirmation.name}" is now permanently read-only.`,
+        source: null,
+      });
+      setArchiveVaultConfirmation(null);
+      setArchiveVaultNameInput('');
+      setIsVaultDialogOpen(false);
+    } catch (error) {
+      toast({
+        title: 'Failed to archive vault',
+        description: 'Please try again.',
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: null,
+      });
     }
   };
 
@@ -1674,6 +1688,10 @@ export default function Dashboard() {
           setDeleteVaultConfirmation(vault);
           setIsVaultDialogOpen(false);
         }}
+        onArchive={editingVault?.user_id === user?.id ? (vault) => {
+          setArchiveVaultConfirmation(vault);
+          setIsVaultDialogOpen(false);
+        } : undefined}
       />
 
       <ProfileDialog
@@ -1787,6 +1805,54 @@ export default function Dashboard() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono disabled:opacity-40"
             >
               delete vault
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!archiveVaultConfirmation} onOpenChange={(open) => { if (!open) { setArchiveVaultConfirmation(null); setArchiveVaultNameInput(''); } }}>
+        <AlertDialogContent className="border-2 bg-card/95 backdrop-blur-xl">
+          <AlertDialogHeader className="overflow-visible">
+            <AlertDialogTitle className="text-xl font-bold">archive vault?</AlertDialogTitle>
+          </AlertDialogHeader>
+          <div className="px-6 pb-4">
+            <div className="text-sm space-y-3">
+              <p className="text-foreground">
+                Archive <span className="font-bold">"{archiveVaultConfirmation?.name}"</span>.
+              </p>
+              <p className="text-muted-foreground">
+                The vault and everything in it stay exactly as visible as they are now, but become permanently read-only:
+              </p>
+              <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-2">
+                <li>no papers can be added, removed, or edited</li>
+                <li>no tags, notes, or metadata can change</li>
+                <li>no collaborators can be added or removed</li>
+              </ul>
+              <p className="font-bold mt-3">
+                This cannot be undone. There is no way to unarchive a vault.
+              </p>
+              <div className="space-y-1 pt-1">
+                <p className="text-muted-foreground">
+                  Type the vault name to confirm.
+                </p>
+                <input
+                  type="text"
+                  value={archiveVaultNameInput}
+                  onChange={(e) => setArchiveVaultNameInput(e.target.value)}
+                  placeholder={archiveVaultConfirmation?.name ?? ''}
+                  className="h-10 w-full rounded-md border border-destructive/50 bg-background px-3 py-2 text-sm font-mono outline-none overflow-hidden transition-colors placeholder:text-muted-foreground/50 hover:border-destructive/50 focus:border-destructive focus:ring-2 focus:ring-destructive/20 focus:ring-offset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/20 focus-visible:ring-offset-0"
+                />
+              </div>
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="font-mono">cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleArchiveVault}
+              disabled={archiveVaultNameInput !== archiveVaultConfirmation?.name}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono disabled:opacity-40"
+            >
+              archive_vault
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
