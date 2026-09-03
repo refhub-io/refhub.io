@@ -1313,6 +1313,10 @@ export default function VaultDetail() {
 
       if (error) throw error;
 
+      // useVaultAccess's realtime subscription refreshes this page's own view of
+      // the vault automatically, but the sidebar's vault list is a separate
+      // react-query cache that needs its own invalidation.
+      void invalidateVaults();
       toast({
         title: 'Vault archived',
         description: `"${archiveVaultConfirmation.name}" is now permanently read-only.`,
@@ -1320,9 +1324,6 @@ export default function VaultDetail() {
       });
       setArchiveVaultConfirmation(null);
       setArchiveVaultNameInput('');
-      // useVaultAccess's existing realtime subscription to `vaults` UPDATE
-      // events will pick up the new archived_at automatically — no manual
-      // refresh() call needed here.
     } catch (error) {
       toast({
         title: 'Failed to archive vault',

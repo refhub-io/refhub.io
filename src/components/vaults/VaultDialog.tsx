@@ -607,7 +607,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
 
   // Handle save and close
   const handleSaveAndClose = useCallback(async () => {
-    if (!name.trim() || !onSave) return;
+    if (!name.trim() || !onSave || isArchived) return;
     
     setSaving(true);
     try {
@@ -620,10 +620,10 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     } finally {
       setSaving(false);
     }
-  }, [buildSavePayload, name, onSave, onOpenChange, syncSavedValues]);
+  }, [buildSavePayload, name, onSave, onOpenChange, syncSavedValues, isArchived]);
 
   const handleSubmit = useCallback(async () => {
-    if (!open || saving || !name.trim() || !onSave) return;
+    if (!open || saving || !name.trim() || !onSave || isArchived) return;
 
     setSaving(true);
     try {
@@ -636,7 +636,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     } finally {
       setSaving(false);
     }
-  }, [buildSavePayload, open, saving, name, onSave, syncSavedValues, vault, onOpenChange]);
+  }, [buildSavePayload, open, saving, name, onSave, syncSavedValues, vault, onOpenChange, isArchived]);
 
   useHotkeys(
     'dialog',
@@ -645,7 +645,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
         combo: 'Ctrl+s',
         description: 'Save changes',
         handler: (e) => {
-          if (!open || !vault || saving || !name.trim()) return false;
+          if (!open || !vault || saving || !name.trim() || isArchived) return false;
           e.preventDefault();
           void handleSubmit();
           return true;
@@ -653,7 +653,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
         allowInInput: true,
       },
     ],
-    [open, vault, saving, name, handleSubmit],
+    [open, vault, saving, name, handleSubmit, isArchived],
   );
 
   const handleFormSubmit = useCallback((e: React.FormEvent) => {
