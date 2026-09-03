@@ -2170,6 +2170,7 @@ export default function VaultDetail() {
             setIsVaultDialogOpen(open);
           }}
           vault={editingVault}
+          publications={publications}
           onSave={!editingVault || isOwner ? handleSaveVault : undefined}
           onUpdate={refetchVault}
           onDelete={isOwner ? (vault) => {

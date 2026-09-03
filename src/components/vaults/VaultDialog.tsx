@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { logger } from '@/lib/logger';
-import { Vault, VaultShare, VAULT_CATEGORIES } from '@/types/database';
+import { Vault, VaultShare, VAULT_CATEGORIES, Publication } from '@/types/database';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -24,6 +24,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { VaultSectionsPanel } from './VaultSectionsPanel';
 import { useKeyboardContext } from '@/contexts/KeyboardContext';
 import { useHotkeys } from '@/hooks/useKeyboardNavigation';
 import { Lock, Users, Globe, Mail, Trash2, Copy, Check, Link2, X, Save, Plus, Bell, ChevronDown, Archive } from 'lucide-react';
@@ -81,9 +83,10 @@ interface VaultDialogProps {
   onUpdate?: () => void;
   onDelete?: (vault: Vault) => void;
   onArchive?: (vault: Vault) => void;
+  publications?: Publication[];
 }
 
-export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSave, onUpdate, onDelete, onArchive }: VaultDialogProps) {
+export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSave, onUpdate, onDelete, onArchive, publications = [] }: VaultDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const shareFormRef = useRef<HTMLFormElement>(null);
@@ -904,6 +907,30 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
         </DialogHeader>
 
         <form ref={shareFormRef} onSubmit={handleFormSubmit} className="flex-1 overflow-y-auto space-y-5 px-6 pb-6">
+          <Tabs defaultValue="settings">
+            <TabsList className="w-auto h-8">
+              <TabsTrigger value="settings" className="text-xs font-mono h-6 px-3">settings</TabsTrigger>
+              {vault && (
+                <TabsTrigger value="sections" className="text-xs font-mono h-6 px-3" disabled={visibility !== 'public'}>
+                  sections
+                </TabsTrigger>
+              )}
+            </TabsList>
+            {vault && visibility !== 'public' && (
+              <p className="text-xs text-muted-foreground font-mono mt-2">
+                set this vault to public to curate sections
+              </p>
+            )}
+            {vault && (
+              <TabsContent value="sections">
+                <VaultSectionsPanel
+                  vaultId={vault.id}
+                  publications={publications}
+                  onPublicationsChange={() => {}}
+                />
+              </TabsContent>
+            )}
+            <TabsContent value="settings">
           {isArchived && (
             <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs font-mono text-muted-foreground" data-testid="vault-archived-notice">
               this vault is archived — read-only, cannot be edited
@@ -1314,6 +1341,8 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
           )}
 
           </fieldset>
+            </TabsContent>
+          </Tabs>
 
           <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 pt-3 sm:pt-4 border-t border-border w-full box-border">
             <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
