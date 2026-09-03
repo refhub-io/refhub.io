@@ -60,6 +60,19 @@ ALTER TABLE public.vault_publications
 -- independent of and in addition to the existing row-level policy. Same
 -- technique as enforce_vault_archive_immutability (see
 -- 20260901000000_vault_archive_state.sql) -- not a new pattern.
+-- Authorizes against OLD.vault_id, not NEW.vault_id: the row's current vault
+-- (OLD) is the one whose curated state is actually being changed, and is
+-- what must be owned by the caller. Checking NEW.vault_id instead would be
+-- bypassable by an attacker who owns some unrelated vault B and issues
+-- `UPDATE ... SET featured = true, vault_id = '<B>' WHERE id = '<row in
+-- public vault A they don't own>'` -- the existing "editable vaults" RLS
+-- policy's USING clause (evaluated against OLD) already allows editing rows
+-- in public vault A, and its WITH CHECK clause (evaluated against NEW)
+-- allows it because they own B, so the statement would pass RLS; checking
+-- NEW.vault_id here would then wrongly authorize on B (owned) instead of A
+-- (not owned). Note: this function intentionally does not otherwise
+-- restrict changing vault_id itself -- an owner of vault A moving one of
+-- their own rows into a vault they don't own is out of scope for this task.
 CREATE OR REPLACE FUNCTION public.enforce_vault_section_owner_only()
 RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE
@@ -70,7 +83,7 @@ BEGIN
     OR NEW.featured IS DISTINCT FROM OLD.featured
     OR NEW.featured_note IS DISTINCT FROM OLD.featured_note
   THEN
-    SELECT user_id INTO v_owner_id FROM public.vaults WHERE id = NEW.vault_id;
+    SELECT user_id INTO v_owner_id FROM public.vaults WHERE id = OLD.vault_id;
     IF v_owner_id IS DISTINCT FROM (select auth.uid()) THEN
       RAISE EXCEPTION 'only the vault owner can change section/featured state';
     END IF;
