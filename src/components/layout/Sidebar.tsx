@@ -87,11 +87,13 @@ export function Sidebar({
     vaultsExpanded: isVaultsExpanded,
     sharedExpanded: isSharedExpanded,
     favoritesExpanded: isFavoritesExpanded,
+    archivedExpanded: isArchivedExpanded,
     toggle: toggleSidebarSection,
   } = useSidebarSectionState();
   const [showAllOwnedVaults, setShowAllOwnedVaults] = useState(false);
   const [showAllSharedVaults, setShowAllSharedVaults] = useState(false);
   const [showAllFavoriteVaults, setShowAllFavoriteVaults] = useState(false);
+  const [showAllArchivedVaults, setShowAllArchivedVaults] = useState(false);
   const { user, signOut } = useAuth();
   const { favoriteVaults } = useVaultFavorites();
   const { orderFavorites, reorder: reorderFavorites } = useVaultFavoritesOrder(user?.id);
@@ -136,25 +138,50 @@ export function Sidebar({
   // — which re-renders the sidebar on every pointer move via dnd-kit's own
   // context updates — doesn't hand SortableContext a brand-new `items` array
   // each frame purely because .slice() allocates a fresh one every render.
+  // Archived vaults move out of every other section into their own -- filter
+  // them out at the source, before pagination, so "+N more" counts and slices
+  // reflect only the non-archived vaults actually shown in each section.
+  const nonArchivedVaults = useMemo(() => vaults.filter((v) => !v.archived_at), [vaults]);
+  const nonArchivedSharedVaults = useMemo(() => sharedVaults.filter((v) => !v.archived_at), [sharedVaults]);
+
   const visibleOwnedVaults = useMemo(
-    () => (showAllOwnedVaults ? vaults : vaults.slice(0, VISIBLE_VAULT_LIMIT)),
-    [vaults, showAllOwnedVaults],
+    () => (showAllOwnedVaults ? nonArchivedVaults : nonArchivedVaults.slice(0, VISIBLE_VAULT_LIMIT)),
+    [nonArchivedVaults, showAllOwnedVaults],
   );
-  const hiddenOwnedVaultCount = Math.max(0, vaults.length - VISIBLE_VAULT_LIMIT);
+  const hiddenOwnedVaultCount = Math.max(0, nonArchivedVaults.length - VISIBLE_VAULT_LIMIT);
   const vaultIds = useMemo(() => visibleOwnedVaults.map((v) => v.id), [visibleOwnedVaults]);
 
   const visibleSharedVaults = useMemo(
-    () => (showAllSharedVaults ? sharedVaults : sharedVaults.slice(0, VISIBLE_VAULT_LIMIT)),
-    [sharedVaults, showAllSharedVaults],
+    () => (showAllSharedVaults ? nonArchivedSharedVaults : nonArchivedSharedVaults.slice(0, VISIBLE_VAULT_LIMIT)),
+    [nonArchivedSharedVaults, showAllSharedVaults],
   );
-  const hiddenSharedVaultCount = Math.max(0, sharedVaults.length - VISIBLE_VAULT_LIMIT);
+  const hiddenSharedVaultCount = Math.max(0, nonArchivedSharedVaults.length - VISIBLE_VAULT_LIMIT);
   const sharedVaultIds = useMemo(() => visibleSharedVaults.map((v) => v.id), [visibleSharedVaults]);
 
-  const orderedFavoriteVaults = useMemo(() => orderFavorites(favoriteVaults), [orderFavorites, favoriteVaults]);
+  const nonArchivedFavoriteVaults = useMemo(() => favoriteVaults.filter((v) => !v.archived_at), [favoriteVaults]);
+  const orderedFavoriteVaults = useMemo(() => orderFavorites(nonArchivedFavoriteVaults), [orderFavorites, nonArchivedFavoriteVaults]);
   const visibleFavoriteVaults = useMemo(
     () => (showAllFavoriteVaults ? orderedFavoriteVaults : orderedFavoriteVaults.slice(0, VISIBLE_VAULT_LIMIT)),
     [orderedFavoriteVaults, showAllFavoriteVaults],
   );
+
+  // Archived: union of owned + shared + favorited vaults that are archived,
+  // deduped by id (a vault could be both shared-with-you and favorited).
+  // Most-recently-archived first; this list never needs drag-reordering.
+  const archivedVaults = useMemo(() => {
+    const byId = new Map<string, Vault>();
+    for (const v of [...vaults, ...sharedVaults, ...favoriteVaults]) {
+      if (v.archived_at) byId.set(v.id, v);
+    }
+    return Array.from(byId.values()).sort((a, b) =>
+      (b.archived_at as string).localeCompare(a.archived_at as string)
+    );
+  }, [vaults, sharedVaults, favoriteVaults]);
+  const visibleArchivedVaults = useMemo(
+    () => (showAllArchivedVaults ? archivedVaults : archivedVaults.slice(0, VISIBLE_VAULT_LIMIT)),
+    [archivedVaults, showAllArchivedVaults],
+  );
+  const hiddenArchivedVaultCount = Math.max(0, archivedVaults.length - VISIBLE_VAULT_LIMIT);
   const hiddenFavoriteVaultCount = Math.max(0, orderedFavoriteVaults.length - VISIBLE_VAULT_LIMIT);
   const favoriteVaultIds = useMemo(() => visibleFavoriteVaults.map((v) => v.id), [visibleFavoriteVaults]);
 
@@ -449,9 +476,6 @@ export function Sidebar({
                             ) : (
                               <Lock className="w-3 h-3 text-muted-foreground shrink-0" />
                             )}
-                            {vault.archived_at && (
-                              <Archive className="w-3 h-3 text-muted-foreground shrink-0" aria-label="archived" />
-                            )}
                           </button>
 
                           {onEditVault && (
@@ -570,9 +594,6 @@ export function Sidebar({
                                 />
                                 <span className="truncate font-medium">{vault.name}</span>
                                 <Share2 className="w-3 h-3 text-blue-400 shrink-0" />
-                                {vault.archived_at && (
-                                  <Archive className="w-3 h-3 text-muted-foreground shrink-0" aria-label="archived" />
-                                )}
                               </Link>
                             </div>
                           )}
@@ -669,9 +690,6 @@ export function Sidebar({
                                   ) : (
                                     <Share2 className="w-3 h-3 text-muted-foreground shrink-0" />
                                   )}
-                                  {vault.archived_at && (
-                                    <Archive className="w-3 h-3 text-muted-foreground shrink-0" aria-label="archived" />
-                                  )}
                                 </Link>
                               </div>
                             )}
@@ -697,6 +715,76 @@ export function Sidebar({
                         <>
                           <ChevronDown className="w-3.5 h-3.5" />
                           +{hiddenFavoriteVaultCount} more
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Archived Section -- read-only, never drag-reordered */}
+          {archivedVaults.length > 0 && (
+            <div className="pt-2">
+              <button
+                onClick={() => toggleSidebarSection('archivedExpanded')}
+                className="w-full flex items-center justify-between px-4 py-2 text-xs font-bold uppercase tracking-widest text-sidebar-foreground/40 hover:text-sidebar-foreground/60 transition-colors font-mono"
+              >
+                <span className="flex items-center gap-2">
+                  <Archive className="w-3.5 h-3.5" />
+                  archived
+                </span>
+                {isArchivedExpanded ? (
+                  <ChevronDown className="w-3.5 h-3.5" />
+                ) : (
+                  <ChevronRight className="w-3.5 h-3.5" />
+                )}
+              </button>
+
+              {isArchivedExpanded && (
+                <div className="mt-2 space-y-1">
+                  {visibleArchivedVaults.map((vault) => {
+                    const href = vault.public_slug
+                      ? `/public/${vault.public_slug}`
+                      : `/vault/${vault.id}`;
+                    return (
+                      <Link
+                        key={vault.id}
+                        to={href}
+                        onClick={onMobileClose}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm transition-all duration-200 hover:bg-sidebar-accent/50 text-sidebar-foreground/70 border-2 border-transparent"
+                      >
+                        <div
+                          className="w-3 h-3 rounded-md shrink-0 shadow-sm"
+                          style={{ backgroundColor: vault.color || '#6366f1' }}
+                        />
+                        <span className="truncate font-medium">{vault.name}</span>
+                        {vault.visibility === 'public' ? (
+                          <Globe className="w-3 h-3 text-muted-foreground shrink-0" />
+                        ) : vault.visibility === 'protected' ? (
+                          <Shield className="w-3 h-3 text-muted-foreground shrink-0" />
+                        ) : (
+                          <Lock className="w-3 h-3 text-muted-foreground shrink-0" />
+                        )}
+                        <Archive className="w-3 h-3 text-muted-foreground shrink-0" aria-label="archived" />
+                      </Link>
+                    );
+                  })}
+                  {hiddenArchivedVaultCount > 0 && (
+                    <button
+                      onClick={() => setShowAllArchivedVaults((prev) => !prev)}
+                      className="w-full flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-mono text-sidebar-foreground/40 hover:text-sidebar-foreground/70 hover:bg-sidebar-accent/50 transition-all duration-200"
+                    >
+                      {showAllArchivedVaults ? (
+                        <>
+                          <ChevronUp className="w-3.5 h-3.5" />
+                          show_less
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="w-3.5 h-3.5" />
+                          +{hiddenArchivedVaultCount} more
                         </>
                       )}
                     </button>

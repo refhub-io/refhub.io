@@ -1840,7 +1840,7 @@ export default function Dashboard() {
                   value={archiveVaultNameInput}
                   onChange={(e) => setArchiveVaultNameInput(e.target.value)}
                   placeholder={archiveVaultConfirmation?.name ?? ''}
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono outline-none overflow-hidden transition-colors placeholder:text-muted-foreground/50 focus:ring-2 focus:ring-ring/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20"
+                  className="h-10 w-full rounded-md border border-destructive/50 bg-background px-3 py-2 text-sm font-mono outline-none overflow-hidden transition-colors placeholder:text-muted-foreground/50 hover:border-destructive/50 focus:border-destructive focus:ring-2 focus:ring-destructive/20 focus:ring-offset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/20 focus-visible:ring-offset-0"
                 />
               </div>
             </div>
@@ -1850,7 +1850,7 @@ export default function Dashboard() {
             <AlertDialogAction
               onClick={handleArchiveVault}
               disabled={archiveVaultNameInput !== archiveVaultConfirmation?.name}
-              className="font-mono disabled:opacity-40"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono disabled:opacity-40"
             >
               archive_vault
             </AlertDialogAction>

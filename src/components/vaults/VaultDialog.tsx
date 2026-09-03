@@ -879,7 +879,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
         description="You have unsaved changes to this vault. Would you like to save them before closing?"
       />
       <Dialog open={open} onOpenChange={handleDialogClose}>
-        <DialogContent className="dialog-mobile max-w-[100vw] sm:rounded-2xl sm:h-auto sm:w-[95vw] sm:max-w-2xl border-2 bg-card/95 backdrop-blur-xl sm:max-h-[90vh] overflow-hidden flex flex-col p-0">
+        <DialogContent className="dialog-mobile max-w-[100vw] sm:rounded-2xl sm:h-auto sm:w-[95vw] sm:max-w-3xl border-2 bg-card/95 backdrop-blur-xl sm:max-h-[90vh] overflow-hidden flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4">
           <div className="flex items-center justify-between gap-3">
             <DialogTitle className="text-xl sm:text-2xl font-bold font-mono">
@@ -973,7 +973,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                   key={c}
                   type="button"
                   onClick={() => setColor(c)}
-                  className={`w-8 h-8 rounded-lg transition-all duration-200 shadow-md ${
+                  className={`w-8 h-8 rounded-lg transition-all duration-200 shadow-md disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 ${
                     color === c ? 'ring-2 ring-offset-2 ring-offset-background ring-white scale-110' : 'hover:scale-105'
                   }`}
                   style={{
@@ -999,6 +999,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                     disabled={isDisabled}
                     className={cn(
                       "flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all duration-200",
+                      "disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-border disabled:hover:text-muted-foreground disabled:pointer-events-none",
                       visibility === option.value
                         ? "border-primary bg-primary/10 text-primary"
                         : "border-border hover:border-primary/50 text-muted-foreground hover:text-foreground",
@@ -1126,7 +1127,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                                 type="button"
                                 onMouseDown={(event) => event.preventDefault()}
                                 onClick={() => handleSelectUserSuggestion(profile)}
-                                className="flex w-full flex-col rounded-sm px-2 py-2 text-left font-mono text-sm hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none"
+                                className="flex w-full flex-col rounded-sm px-2 py-2 text-left font-mono text-sm hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
                               >
                                 <span className="truncate">
                                   {profile.display_name || profile.username || profile.email}
@@ -1314,50 +1315,54 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
 
           </fieldset>
 
-          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-3 sm:pt-4 border-t border-border w-full box-border">
-            {vault && onDelete && (
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => onDelete(vault)}
-                className="text-destructive hover:text-destructive hover:bg-destructive/10 font-mono w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10"
-              >
-                <Trash2 className="w-3 h-3 mr-1.5" />
-                delete_vault
-              </Button>
-            )}
-            {vault && onArchive && !isArchived && (
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => onArchive(vault)}
-                className="text-muted-foreground hover:text-foreground font-mono w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10"
-              >
-                <Archive className="w-3 h-3 mr-1.5" />
-                archive_vault
-              </Button>
-            )}
-            <Button type="button" variant="outline" onClick={() => handleDialogClose(false)} className="font-mono w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10">
-              <X className="w-3 h-3 mr-1.5" />
-              cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="glow"
-              disabled={saving || !name.trim() || !onSave || isArchived}
-              className="font-mono w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10"
-            >
-              {saving ? (
-                'saving...'
-              ) : vault ? (
-                <><Save className="w-3 h-3 mr-1.5" />save_changes</>
-              ) : (
-                <><Plus className="w-3 h-3 mr-1.5" />create_vault</>
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 pt-3 sm:pt-4 border-t border-border w-full box-border">
+            <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
+              {vault && onDelete && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => onDelete(vault)}
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10 font-mono w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10"
+                >
+                  <Trash2 className="w-3 h-3 mr-1.5" />
+                  delete_vault
+                </Button>
               )}
-              {vault && (
-                <KbdHint shortcut="Ctrl+S" className="ml-1.5 hidden sm:inline-flex [&_kbd]:bg-white/20 [&_kbd]:border-white/30 [&_kbd]:text-primary-foreground [&_kbd]:shadow-none" size="sm" />
+              {vault && onArchive && !isArchived && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => onArchive(vault)}
+                  className="text-muted-foreground hover:text-foreground font-mono w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10"
+                >
+                  <Archive className="w-3 h-3 mr-1.5" />
+                  archive_vault
+                </Button>
               )}
-            </Button>
+            </div>
+            <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
+              <Button type="button" variant="outline" onClick={() => handleDialogClose(false)} className="font-mono w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10">
+                <X className="w-3 h-3 mr-1.5" />
+                cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="glow"
+                disabled={saving || !name.trim() || !onSave || isArchived}
+                className="font-mono w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10"
+              >
+                {saving ? (
+                  'saving...'
+                ) : vault ? (
+                  <><Save className="w-3 h-3 mr-1.5" />save_changes</>
+                ) : (
+                  <><Plus className="w-3 h-3 mr-1.5" />create_vault</>
+                )}
+                {vault && (
+                  <KbdHint shortcut="Ctrl+S" className="ml-1.5 hidden sm:inline-flex [&_kbd]:bg-white/20 [&_kbd]:border-white/30 [&_kbd]:text-primary-foreground [&_kbd]:shadow-none" size="sm" />
+                )}
+              </Button>
+            </div>
           </div>
         </form>
       </DialogContent>
