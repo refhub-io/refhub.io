@@ -67,6 +67,7 @@ ALTER TYPE "public"."vault_visibility" OWNER TO "postgres";
 
 CREATE OR REPLACE FUNCTION "public"."copy_publication_to_vault"("pub_id" "uuid", "target_vault_id" "uuid", "user_id" "uuid") RETURNS "uuid"
     LANGUAGE "plpgsql"
+    SET "search_path" TO 'public'
     AS $$
 DECLARE
     new_pub_id UUID;
@@ -179,8 +180,13 @@ ALTER FUNCTION "public"."copy_publication_to_vault"("pub_id" "uuid", "target_vau
 
 CREATE OR REPLACE FUNCTION "public"."create_user_profile"("p_user_id" "uuid", "p_email" "text", "p_display_name" "text") RETURNS TABLE("id" "uuid", "user_id" "uuid", "display_name" "text", "email" "text", "avatar_url" "text", "username" "text", "bio" "text", "github_url" "text", "linkedin_url" "text", "bluesky_url" "text", "created_at" timestamp with time zone, "updated_at" timestamp with time zone, "is_setup" boolean)
     LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
     AS $$
 BEGIN
+  IF "auth"."uid"() IS NOT NULL AND "auth"."uid"() <> p_user_id THEN
+    RAISE EXCEPTION 'Cannot create a profile for another user';
+  END IF;
+
   INSERT INTO public.profiles (
     user_id, email, display_name, username, bio, avatar_url,
     github_url, linkedin_url, bluesky_url, is_setup
@@ -252,6 +258,7 @@ COMMENT ON FUNCTION "public"."delete_user"() IS 'Allows a user to delete their o
 
 CREATE OR REPLACE FUNCTION "public"."enforce_forked_vaults_public"() RETURNS "trigger"
     LANGUAGE "plpgsql"
+    SET "search_path" TO 'public'
     AS $$
 BEGIN
   IF EXISTS (
@@ -272,6 +279,7 @@ ALTER FUNCTION "public"."enforce_forked_vaults_public"() OWNER TO "postgres";
 
 CREATE OR REPLACE FUNCTION "public"."get_researcher_stats"("p_user_ids" "uuid"[]) RETURNS TABLE("user_id" "uuid", "vault_count" bigint, "public_vault_count" bigint, "publication_count" bigint)
     LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
     AS $$
 BEGIN
   RETURN QUERY
@@ -367,6 +375,7 @@ ALTER FUNCTION "public"."handle_new_user"() OWNER TO "postgres";
 
 CREATE OR REPLACE FUNCTION "public"."has_vault_access"("p_user_id" "uuid", "p_vault_id" "uuid", "p_required_role" "text") RETURNS boolean
     LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
     AS $$
 BEGIN
   -- Owner always has access
@@ -670,6 +679,7 @@ ALTER FUNCTION "public"."notify_vault_shared"() OWNER TO "postgres";
 
 CREATE OR REPLACE FUNCTION "public"."set_updated_at"() RETURNS "trigger"
     LANGUAGE "plpgsql"
+    SET "search_path" TO 'public'
     AS $$
 BEGIN
   NEW.updated_at = now();
@@ -697,6 +707,7 @@ ALTER FUNCTION "public"."set_vault_publication_updated_by"() OWNER TO "postgres"
 
 CREATE OR REPLACE FUNCTION "public"."take_openalex_budget"("p_bucket_key" "text", "p_cost_usd" numeric, "p_daily_budget_usd" numeric) RETURNS TABLE("allowed" boolean, "spent_usd" numeric)
     LANGUAGE "plpgsql"
+    SET "search_path" TO 'public'
     AS $$
 DECLARE
     v_now timestamptz := clock_timestamp();
@@ -749,6 +760,7 @@ ALTER FUNCTION "public"."take_openalex_budget"("p_bucket_key" "text", "p_cost_us
 
 CREATE OR REPLACE FUNCTION "public"."take_semantic_scholar_rate_limit"("p_bucket_key" "text", "p_max_requests" integer, "p_window_ms" integer) RETURNS TABLE("allowed" boolean, "retry_after_seconds" integer)
     LANGUAGE "plpgsql"
+    SET "search_path" TO 'public'
     AS $$
 DECLARE
     v_now timestamptz := clock_timestamp();
@@ -830,6 +842,7 @@ ALTER FUNCTION "public"."update_updated_at_column"() OWNER TO "postgres";
 
 CREATE OR REPLACE FUNCTION "public"."update_vault_publication_with_rollup"("p_vault_publication_id" "uuid", "p_vault_id" "uuid", "p_patch" "jsonb", "p_actor_user_id" "uuid") RETURNS "void"
     LANGUAGE "plpgsql"
+    SET "search_path" TO 'public'
     AS $$
 DECLARE
     v_original_id uuid;
@@ -1046,6 +1059,7 @@ ALTER FUNCTION "public"."update_vault_publication_with_rollup"("p_vault_publicat
 
 CREATE OR REPLACE FUNCTION "public"."user_can_access_vault"("p_vault_uuid" "uuid", "p_required_permission" "text" DEFAULT 'viewer'::"text") RETURNS boolean
     LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
     AS $$
 DECLARE
   vault_owner_id UUID;
@@ -1370,6 +1384,29 @@ CREATE TABLE IF NOT EXISTS "public"."semantic_scholar_rate_limit_state" (
 ALTER TABLE "public"."semantic_scholar_rate_limit_state" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."smart_collections" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "name" "text" NOT NULL,
+    "color" "text",
+    "filters" "jsonb" DEFAULT '[]'::"jsonb" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "description" "text"
+);
+
+
+ALTER TABLE "public"."smart_collections" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."smart_collections" IS 'Owner-only saved filter rule sets. filters is a PublicationFilter[] (see FilterBuilder.tsx), matched live against the cross-vault publication set -- no membership is persisted here.';
+
+
+
+COMMENT ON COLUMN "public"."smart_collections"."description" IS 'Optional free-text note on what this collection is for. Purely descriptive -- never used in matching.';
+
+
+
 CREATE TABLE IF NOT EXISTS "public"."tags" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "user_id" "uuid" NOT NULL,
@@ -1512,6 +1549,8 @@ CREATE TABLE IF NOT EXISTS "public"."vault_publications" (
     "important" boolean DEFAULT false NOT NULL,
     CONSTRAINT "vault_publications_reading_state_check" CHECK (("reading_state" = ANY (ARRAY['unread'::"text", 'skimmed'::"text", 'read'::"text"])))
 );
+
+ALTER TABLE ONLY "public"."vault_publications" REPLICA IDENTITY FULL;
 
 
 ALTER TABLE "public"."vault_publications" OWNER TO "postgres";
@@ -1657,6 +1696,11 @@ ALTER TABLE ONLY "public"."semantic_scholar_rate_limit_state"
 
 
 
+ALTER TABLE ONLY "public"."smart_collections"
+    ADD CONSTRAINT "smart_collections_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."tags"
     ADD CONSTRAINT "tags_pkey" PRIMARY KEY ("id");
 
@@ -1760,6 +1804,10 @@ CREATE INDEX "idx_api_keys_active" ON "public"."api_keys" USING "btree" ("owner_
 
 
 
+CREATE INDEX "idx_api_keys_created_by" ON "public"."api_keys" USING "btree" ("created_by");
+
+
+
 CREATE INDEX "idx_api_keys_owner_user_id" ON "public"."api_keys" USING "btree" ("owner_user_id");
 
 
@@ -1788,6 +1836,10 @@ CREATE INDEX "idx_profiles_username" ON "public"."profiles" USING "btree" ("user
 
 
 
+CREATE INDEX "idx_publication_pdf_assets_user_id" ON "public"."publication_pdf_assets" USING "btree" ("user_id");
+
+
+
 CREATE INDEX "idx_publication_relations_publication" ON "public"."publication_relations" USING "btree" ("publication_id");
 
 
@@ -1796,11 +1848,23 @@ CREATE INDEX "idx_publication_relations_related" ON "public"."publication_relati
 
 
 
+CREATE INDEX "idx_publication_tags_tag_id" ON "public"."publication_tags" USING "btree" ("tag_id");
+
+
+
 CREATE INDEX "idx_publication_tags_vault_publication_id" ON "public"."publication_tags" USING "btree" ("vault_publication_id");
 
 
 
+CREATE INDEX "idx_publications_user_id" ON "public"."publications" USING "btree" ("user_id");
+
+
+
 CREATE INDEX "idx_tags_parent_id" ON "public"."tags" USING "btree" ("parent_id");
+
+
+
+CREATE INDEX "idx_tags_user_id" ON "public"."tags" USING "btree" ("user_id");
 
 
 
@@ -1813,6 +1877,10 @@ CREATE UNIQUE INDEX "idx_tags_vault_name_unique" ON "public"."tags" USING "btree
 
 
 CREATE UNIQUE INDEX "idx_unique_pending_requester_email" ON "public"."vault_access_requests" USING "btree" ("vault_id", "requester_email") WHERE (("status" = 'pending'::"text") AND ("requester_email" IS NOT NULL));
+
+
+
+CREATE INDEX "idx_vault_access_requests_requester_id" ON "public"."vault_access_requests" USING "btree" ("requester_id");
 
 
 
@@ -1844,6 +1912,10 @@ CREATE INDEX "idx_vault_papers_vault_id" ON "public"."vault_papers" USING "btree
 
 
 
+CREATE INDEX "idx_vault_publications_created_by" ON "public"."vault_publications" USING "btree" ("created_by");
+
+
+
 CREATE INDEX "idx_vault_publications_original_id" ON "public"."vault_publications" USING "btree" ("original_publication_id");
 
 
@@ -1860,11 +1932,23 @@ CREATE INDEX "idx_vault_shares_role" ON "public"."vault_shares" USING "btree" ("
 
 
 
+CREATE INDEX "idx_vault_shares_shared_by" ON "public"."vault_shares" USING "btree" ("shared_by");
+
+
+
 CREATE INDEX "idx_vault_shares_user_id" ON "public"."vault_shares" USING "btree" ("shared_with_user_id");
 
 
 
+CREATE INDEX "idx_vault_shares_vault_id" ON "public"."vault_shares" USING "btree" ("vault_id");
+
+
+
 CREATE INDEX "idx_vaults_public_slug" ON "public"."vaults" USING "btree" ("public_slug") WHERE ("public_slug" IS NOT NULL);
+
+
+
+CREATE INDEX "idx_vaults_user_id" ON "public"."vaults" USING "btree" ("user_id");
 
 
 
@@ -2025,6 +2109,11 @@ ALTER TABLE ONLY "public"."publications"
 
 
 
+ALTER TABLE ONLY "public"."smart_collections"
+    ADD CONSTRAINT "smart_collections_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+
 ALTER TABLE ONLY "public"."tags"
     ADD CONSTRAINT "tags_parent_id_fkey" FOREIGN KEY ("parent_id") REFERENCES "public"."tags"("id") ON DELETE SET NULL;
 
@@ -2148,17 +2237,13 @@ CREATE POLICY "Anyone can view stats for public vaults" ON "public"."vault_stats
 
 
 
-CREATE POLICY "Authenticated users can fork public vaults" ON "public"."vault_forks" FOR INSERT TO "authenticated" WITH CHECK ((("auth"."uid"() = "forked_by") AND (EXISTS ( SELECT 1
+CREATE POLICY "Authenticated users can fork public vaults" ON "public"."vault_forks" FOR INSERT TO "authenticated" WITH CHECK (((( SELECT "auth"."uid"() AS "uid") = "forked_by") AND (EXISTS ( SELECT 1
    FROM "public"."vaults" "v"
   WHERE (("v"."id" = "vault_forks"."original_vault_id") AND ("v"."visibility" = 'public'::"public"."vault_visibility"))))));
 
 
 
 CREATE POLICY "Authenticated users can view profiles" ON "public"."profiles" FOR SELECT TO "authenticated" USING (true);
-
-
-
-CREATE POLICY "Authenticated users can view set up profiles" ON "public"."profiles" FOR SELECT TO "authenticated" USING (("is_setup" = true));
 
 
 
@@ -2202,231 +2287,223 @@ UNION
 
 CREATE POLICY "Users can access publication tags for accessible publications" ON "public"."publication_tags" FOR SELECT TO "authenticated", "anon" USING (((("publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM "public"."publications" "p"
-  WHERE (("p"."id" = "publication_tags"."publication_id") AND ("p"."user_id" = "auth"."uid"()))))) OR (("publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
+  WHERE (("p"."id" = "publication_tags"."publication_id") AND ("p"."user_id" = ( SELECT "auth"."uid"() AS "uid")))))) OR (("publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM ((("public"."publications" "p"
      LEFT JOIN "public"."vault_papers" "vp" ON (("p"."id" = "vp"."publication_id")))
      LEFT JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
-     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-  WHERE (("p"."id" = "publication_tags"."publication_id") AND (("p"."user_id" = "auth"."uid"()) OR (("v"."id" IS NOT NULL) AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL)) OR ("v"."visibility" = 'public'::"public"."vault_visibility")))))))) OR (("vault_publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
+     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = ( SELECT "auth"."uid"() AS "uid")))))
+  WHERE (("p"."id" = "publication_tags"."publication_id") AND (("p"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR (("v"."id" IS NOT NULL) AND (("v"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL)) OR ("v"."visibility" = 'public'::"public"."vault_visibility")))))))) OR (("vault_publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM (("public"."vault_publications" "vp"
      LEFT JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
-     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-  WHERE (("vp"."id" = "publication_tags"."vault_publication_id") AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL)) OR ("v"."visibility" = 'public'::"public"."vault_visibility"))))))));
+     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = ( SELECT "auth"."uid"() AS "uid")))))
+  WHERE (("vp"."id" = "publication_tags"."vault_publication_id") AND (("v"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL)) OR ("v"."visibility" = 'public'::"public"."vault_visibility"))))))));
 
 
 
-CREATE POLICY "Users can add favorites" ON "public"."vault_favorites" FOR INSERT TO "authenticated" WITH CHECK (("auth"."uid"() = "user_id"));
+CREATE POLICY "Users can add favorites" ON "public"."vault_favorites" FOR INSERT TO "authenticated" WITH CHECK ((( SELECT "auth"."uid"() AS "uid") = "user_id"));
 
 
 
-CREATE POLICY "Users can add favorites for accessible vaults" ON "public"."vault_favorites" FOR INSERT TO "authenticated" WITH CHECK ((("auth"."uid"() = "user_id") AND (EXISTS ( SELECT 1
+CREATE POLICY "Users can add favorites for accessible vaults" ON "public"."vault_favorites" FOR INSERT TO "authenticated" WITH CHECK (((( SELECT "auth"."uid"() AS "uid") = "user_id") AND (EXISTS ( SELECT 1
    FROM "public"."vaults" "v"
   WHERE (("v"."id" = "vault_favorites"."vault_id") AND ("v"."visibility" = ANY (ARRAY['public'::"public"."vault_visibility", 'protected'::"public"."vault_visibility"])))))));
 
 
 
-CREATE POLICY "Users can create forks" ON "public"."vault_forks" FOR INSERT TO "authenticated" WITH CHECK (("auth"."uid"() = "forked_by"));
+CREATE POLICY "Users can delete own fork records" ON "public"."vault_forks" FOR DELETE TO "authenticated" USING (("forked_by" = ( SELECT "auth"."uid"() AS "uid")));
 
 
 
-CREATE POLICY "Users can delete own fork records" ON "public"."vault_forks" FOR DELETE TO "authenticated" USING (("forked_by" = "auth"."uid"()));
+CREATE POLICY "Users can delete own notifications" ON "public"."notifications" FOR DELETE TO "authenticated" USING ((( SELECT "auth"."uid"() AS "uid") = "user_id"));
 
 
 
-CREATE POLICY "Users can delete own notifications" ON "public"."notifications" FOR DELETE TO "authenticated" USING (("auth"."uid"() = "user_id"));
+CREATE POLICY "Users can delete their own google drive link" ON "public"."user_google_drive_links" FOR DELETE TO "authenticated" USING (("user_id" = ( SELECT "auth"."uid"() AS "uid")));
 
 
 
-CREATE POLICY "Users can delete their own forks" ON "public"."vault_forks" FOR DELETE TO "authenticated" USING (("auth"."uid"() = "forked_by"));
+CREATE POLICY "Users can delete their own publication pdf assets" ON "public"."publication_pdf_assets" FOR DELETE TO "authenticated" USING (("user_id" = ( SELECT "auth"."uid"() AS "uid")));
 
 
 
-CREATE POLICY "Users can delete their own google drive link" ON "public"."user_google_drive_links" FOR DELETE TO "authenticated" USING (("user_id" = "auth"."uid"()));
-
-
-
-CREATE POLICY "Users can delete their own publication pdf assets" ON "public"."publication_pdf_assets" FOR DELETE TO "authenticated" USING (("user_id" = "auth"."uid"()));
-
-
-
-CREATE POLICY "Users can fork public vaults" ON "public"."vault_forks" FOR INSERT TO "authenticated" WITH CHECK ((("auth"."uid"() = "forked_by") AND (EXISTS ( SELECT 1
+CREATE POLICY "Users can fork public vaults" ON "public"."vault_forks" FOR INSERT TO "authenticated" WITH CHECK (((( SELECT "auth"."uid"() AS "uid") = "forked_by") AND (EXISTS ( SELECT 1
    FROM "public"."vaults" "v"
-  WHERE (("v"."id" = "vault_forks"."original_vault_id") AND ("v"."visibility" = 'public'::"public"."vault_visibility") AND ("v"."user_id" <> "auth"."uid"()))))));
+  WHERE (("v"."id" = "vault_forks"."original_vault_id") AND ("v"."visibility" = 'public'::"public"."vault_visibility") AND ("v"."user_id" <> ( SELECT "auth"."uid"() AS "uid")))))));
 
 
 
-CREATE POLICY "Users can insert their own google drive link" ON "public"."user_google_drive_links" FOR INSERT TO "authenticated" WITH CHECK (("user_id" = "auth"."uid"()));
+CREATE POLICY "Users can insert their own google drive link" ON "public"."user_google_drive_links" FOR INSERT TO "authenticated" WITH CHECK (("user_id" = ( SELECT "auth"."uid"() AS "uid")));
 
 
 
-CREATE POLICY "Users can insert their own publication pdf assets" ON "public"."publication_pdf_assets" FOR INSERT TO "authenticated" WITH CHECK (("user_id" = "auth"."uid"()));
+CREATE POLICY "Users can insert their own publication pdf assets" ON "public"."publication_pdf_assets" FOR INSERT TO "authenticated" WITH CHECK (("user_id" = ( SELECT "auth"."uid"() AS "uid")));
 
 
 
-CREATE POLICY "Users can manage own publications" ON "public"."publications" TO "authenticated" USING (("auth"."uid"() = "user_id")) WITH CHECK (("auth"."uid"() = "user_id"));
-
-
-
-CREATE POLICY "Users can manage own publications and publications in editable " ON "public"."publications" TO "authenticated" USING ((("auth"."uid"() = "user_id") OR (EXISTS ( SELECT 1
+CREATE POLICY "Users can manage own publications and publications in editable " ON "public"."publications" TO "authenticated" USING (((( SELECT "auth"."uid"() AS "uid") = "user_id") OR (EXISTS ( SELECT 1
    FROM (("public"."vault_papers" "vp"
      JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
-     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-  WHERE (("vp"."publication_id" = "publications"."id") AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility"))))))) WITH CHECK ((("auth"."uid"() = "user_id") OR (EXISTS ( SELECT 1
+     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = ( SELECT "auth"."uid"() AS "uid")))))
+  WHERE (("vp"."publication_id" = "publications"."id") AND (("v"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility"))))))) WITH CHECK (((( SELECT "auth"."uid"() AS "uid") = "user_id") OR (EXISTS ( SELECT 1
    FROM (("public"."vault_papers" "vp"
      JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
-     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-  WHERE (("vp"."publication_id" = "publications"."id") AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility")))))));
+     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = ( SELECT "auth"."uid"() AS "uid")))))
+  WHERE (("vp"."publication_id" = "publications"."id") AND (("v"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility")))))));
 
 
 
-CREATE POLICY "Users can manage own tags and tags in editable vaults" ON "public"."tags" TO "authenticated" USING ((("auth"."uid"() = "user_id") OR (("vault_id" IS NOT NULL) AND (EXISTS ( SELECT 1
+CREATE POLICY "Users can manage own smart collections" ON "public"."smart_collections" TO "authenticated" USING (("auth"."uid"() = "user_id")) WITH CHECK (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can manage own tags and tags in editable vaults" ON "public"."tags" TO "authenticated" USING (((( SELECT "auth"."uid"() AS "uid") = "user_id") OR (("vault_id" IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM ("public"."vaults" "v"
-     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-  WHERE (("v"."id" = "tags"."vault_id") AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility")))))))) WITH CHECK ((("auth"."uid"() = "user_id") OR (("vault_id" IS NOT NULL) AND (EXISTS ( SELECT 1
+     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = ( SELECT "auth"."uid"() AS "uid")))))
+  WHERE (("v"."id" = "tags"."vault_id") AND (("v"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility")))))))) WITH CHECK (((( SELECT "auth"."uid"() AS "uid") = "user_id") OR (("vault_id" IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM ("public"."vaults" "v"
-     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-  WHERE (("v"."id" = "tags"."vault_id") AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility"))))))));
+     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = ( SELECT "auth"."uid"() AS "uid")))))
+  WHERE (("v"."id" = "tags"."vault_id") AND (("v"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility"))))))));
 
 
 
-CREATE POLICY "Users can manage own vaults" ON "public"."vaults" TO "authenticated" USING (("auth"."uid"() = "user_id")) WITH CHECK (("auth"."uid"() = "user_id"));
+CREATE POLICY "Users can manage own vaults" ON "public"."vaults" TO "authenticated" USING ((( SELECT "auth"."uid"() AS "uid") = "user_id")) WITH CHECK ((( SELECT "auth"."uid"() AS "uid") = "user_id"));
 
 
 
 CREATE POLICY "Users can manage publication tags for own publications and acce" ON "public"."publication_tags" TO "authenticated" USING (((("publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM "public"."publications" "p"
-  WHERE (("p"."id" = "publication_tags"."publication_id") AND ("p"."user_id" = "auth"."uid"()))))) OR (("publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
+  WHERE (("p"."id" = "publication_tags"."publication_id") AND ("p"."user_id" = ( SELECT "auth"."uid"() AS "uid")))))) OR (("publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM ((("public"."publications" "p"
      LEFT JOIN "public"."vault_papers" "vp" ON (("p"."id" = "vp"."publication_id")))
      LEFT JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
-     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-  WHERE (("p"."id" = "publication_tags"."publication_id") AND (("p"."user_id" = "auth"."uid"()) OR (("v"."id" IS NOT NULL) AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility")))))))) OR (("vault_publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
+     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = ( SELECT "auth"."uid"() AS "uid")))))
+  WHERE (("p"."id" = "publication_tags"."publication_id") AND (("p"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR (("v"."id" IS NOT NULL) AND (("v"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility")))))))) OR (("vault_publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM (("public"."vault_publications" "vp"
      LEFT JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
-     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-  WHERE (("vp"."id" = "publication_tags"."vault_publication_id") AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility")))))))) WITH CHECK (((("publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
+     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = ( SELECT "auth"."uid"() AS "uid")))))
+  WHERE (("vp"."id" = "publication_tags"."vault_publication_id") AND (("v"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility")))))))) WITH CHECK (((("publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM "public"."publications" "p"
-  WHERE (("p"."id" = "publication_tags"."publication_id") AND ("p"."user_id" = "auth"."uid"()))))) OR (("publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
+  WHERE (("p"."id" = "publication_tags"."publication_id") AND ("p"."user_id" = ( SELECT "auth"."uid"() AS "uid")))))) OR (("publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM ((("public"."publications" "p"
      LEFT JOIN "public"."vault_papers" "vp" ON (("p"."id" = "vp"."publication_id")))
      LEFT JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
-     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-  WHERE (("p"."id" = "publication_tags"."publication_id") AND (("p"."user_id" = "auth"."uid"()) OR (("v"."id" IS NOT NULL) AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility")))))))) OR (("vault_publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
+     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = ( SELECT "auth"."uid"() AS "uid")))))
+  WHERE (("p"."id" = "publication_tags"."publication_id") AND (("p"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR (("v"."id" IS NOT NULL) AND (("v"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility")))))))) OR (("vault_publication_id" IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM (("public"."vault_publications" "vp"
      LEFT JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
-     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-  WHERE (("vp"."id" = "publication_tags"."vault_publication_id") AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility"))))))));
+     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = ( SELECT "auth"."uid"() AS "uid")))))
+  WHERE (("vp"."id" = "publication_tags"."vault_publication_id") AND (("v"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility"))))))));
 
 
 
-CREATE POLICY "Users can manage vault papers" ON "public"."vault_papers" WITH CHECK ((("auth"."uid"() = "added_by") OR (EXISTS ( SELECT 1
+CREATE POLICY "Users can manage vault papers" ON "public"."vault_papers" TO "authenticated" USING (((( SELECT "auth"."uid"() AS "uid") = "added_by") OR (EXISTS ( SELECT 1
    FROM "public"."vaults" "v"
-  WHERE (("v"."id" = "vault_papers"."vault_id") AND (("v"."user_id" = "auth"."uid"()) OR (EXISTS ( SELECT 1
+  WHERE (("v"."id" = "vault_papers"."vault_id") AND (("v"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR (EXISTS ( SELECT 1
            FROM "public"."vault_shares" "vs"
-          WHERE (("vs"."vault_id" = "v"."id") AND ("vs"."shared_with_user_id" = "auth"."uid"()) AND ("vs"."role" = ANY (ARRAY['editor'::"public"."vault_permission", 'owner'::"public"."vault_permission"])))))))))));
+          WHERE (("vs"."vault_id" = "v"."id") AND ("vs"."shared_with_user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("vs"."role" = ANY (ARRAY['editor'::"public"."vault_permission", 'owner'::"public"."vault_permission"]))))))))))) WITH CHECK (((( SELECT "auth"."uid"() AS "uid") = "added_by") OR (EXISTS ( SELECT 1
+   FROM "public"."vaults" "v"
+  WHERE (("v"."id" = "vault_papers"."vault_id") AND (("v"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR (EXISTS ( SELECT 1
+           FROM "public"."vault_shares" "vs"
+          WHERE (("vs"."vault_id" = "v"."id") AND ("vs"."shared_with_user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("vs"."role" = ANY (ARRAY['editor'::"public"."vault_permission", 'owner'::"public"."vault_permission"])))))))))));
 
 
 
 CREATE POLICY "Users can manage vault publications in editable vaults" ON "public"."vault_publications" TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM ("public"."vaults" "v"
-     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-  WHERE (("v"."id" = "vault_publications"."vault_id") AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility")))))) WITH CHECK ((EXISTS ( SELECT 1
+     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = ( SELECT "auth"."uid"() AS "uid")))))
+  WHERE (("v"."id" = "vault_publications"."vault_id") AND (("v"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility")))))) WITH CHECK ((EXISTS ( SELECT 1
    FROM ("public"."vaults" "v"
-     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-  WHERE (("v"."id" = "vault_publications"."vault_id") AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility"))))));
+     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = ( SELECT "auth"."uid"() AS "uid")))))
+  WHERE (("v"."id" = "vault_publications"."vault_id") AND (("v"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility"))))));
 
 
 
-CREATE POLICY "Users can remove own favorites" ON "public"."vault_favorites" FOR DELETE TO "authenticated" USING (("auth"."uid"() = "user_id"));
+CREATE POLICY "Users can remove own favorites" ON "public"."vault_favorites" FOR DELETE TO "authenticated" USING ((( SELECT "auth"."uid"() AS "uid") = "user_id"));
 
 
 
-CREATE POLICY "Users can remove their own favorites" ON "public"."vault_favorites" FOR DELETE TO "authenticated" USING (("auth"."uid"() = "user_id"));
+CREATE POLICY "Users can request access to vaults" ON "public"."vault_access_requests" FOR INSERT WITH CHECK ((( SELECT "auth"."uid"() AS "uid") = "requester_id"));
 
 
 
-CREATE POLICY "Users can request access to vaults" ON "public"."vault_access_requests" FOR INSERT WITH CHECK (("auth"."uid"() = "requester_id"));
+CREATE POLICY "Users can select their own google drive link" ON "public"."user_google_drive_links" FOR SELECT TO "authenticated" USING (("user_id" = ( SELECT "auth"."uid"() AS "uid")));
 
 
 
-CREATE POLICY "Users can select their own google drive link" ON "public"."user_google_drive_links" FOR SELECT TO "authenticated" USING (("user_id" = "auth"."uid"()));
+CREATE POLICY "Users can select their own publication pdf assets" ON "public"."publication_pdf_assets" FOR SELECT TO "authenticated" USING (("user_id" = ( SELECT "auth"."uid"() AS "uid")));
 
 
 
-CREATE POLICY "Users can select their own publication pdf assets" ON "public"."publication_pdf_assets" FOR SELECT TO "authenticated" USING (("user_id" = "auth"."uid"()));
+CREATE POLICY "Users can update own notifications" ON "public"."notifications" FOR UPDATE TO "authenticated" USING ((( SELECT "auth"."uid"() AS "uid") = "user_id")) WITH CHECK ((( SELECT "auth"."uid"() AS "uid") = "user_id"));
 
 
 
-CREATE POLICY "Users can update own notifications" ON "public"."notifications" FOR UPDATE TO "authenticated" USING (("auth"."uid"() = "user_id")) WITH CHECK (("auth"."uid"() = "user_id"));
+CREATE POLICY "Users can update own profile" ON "public"."profiles" FOR UPDATE TO "authenticated" USING ((( SELECT "auth"."uid"() AS "uid") = "user_id")) WITH CHECK ((( SELECT "auth"."uid"() AS "uid") = "user_id"));
 
 
 
-CREATE POLICY "Users can update own profile" ON "public"."profiles" FOR UPDATE TO "authenticated" USING (("auth"."uid"() = "user_id")) WITH CHECK (("auth"."uid"() = "user_id"));
+CREATE POLICY "Users can update their own google drive link" ON "public"."user_google_drive_links" FOR UPDATE TO "authenticated" USING (("user_id" = ( SELECT "auth"."uid"() AS "uid"))) WITH CHECK (("user_id" = ( SELECT "auth"."uid"() AS "uid")));
 
 
 
-CREATE POLICY "Users can update their own google drive link" ON "public"."user_google_drive_links" FOR UPDATE TO "authenticated" USING (("user_id" = "auth"."uid"())) WITH CHECK (("user_id" = "auth"."uid"()));
-
-
-
-CREATE POLICY "Users can update their own publication pdf assets" ON "public"."publication_pdf_assets" FOR UPDATE TO "authenticated" USING (("user_id" = "auth"."uid"())) WITH CHECK (("user_id" = "auth"."uid"()));
+CREATE POLICY "Users can update their own publication pdf assets" ON "public"."publication_pdf_assets" FOR UPDATE TO "authenticated" USING (("user_id" = ( SELECT "auth"."uid"() AS "uid"))) WITH CHECK (("user_id" = ( SELECT "auth"."uid"() AS "uid")));
 
 
 
 CREATE POLICY "Users can view favorites for accessible vaults" ON "public"."vault_favorites" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."vaults"
-  WHERE (("vaults"."id" = "vault_favorites"."vault_id") AND (("vaults"."user_id" = "auth"."uid"()) OR "public"."user_can_access_vault"("vaults"."id", 'viewer'::"text"))))));
+  WHERE (("vaults"."id" = "vault_favorites"."vault_id") AND (("vaults"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR "public"."user_can_access_vault"("vaults"."id", 'viewer'::"text"))))));
 
 
 
-CREATE POLICY "Users can view fork relationships" ON "public"."vault_forks" FOR SELECT TO "authenticated" USING ((("forked_by" = "auth"."uid"()) OR (EXISTS ( SELECT 1
+CREATE POLICY "Users can view fork relationships" ON "public"."vault_forks" FOR SELECT TO "authenticated" USING ((("forked_by" = ( SELECT "auth"."uid"() AS "uid")) OR (EXISTS ( SELECT 1
    FROM "public"."vaults" "v"
-  WHERE (("v"."id" = "vault_forks"."original_vault_id") AND (("v"."visibility" = 'public'::"public"."vault_visibility") OR ("v"."user_id" = "auth"."uid"())))))));
+  WHERE (("v"."id" = "vault_forks"."original_vault_id") AND (("v"."visibility" = 'public'::"public"."vault_visibility") OR ("v"."user_id" = ( SELECT "auth"."uid"() AS "uid"))))))));
 
 
 
 CREATE POLICY "Users can view forks for accessible vaults" ON "public"."vault_forks" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."vaults"
-  WHERE (("vaults"."id" = "vault_forks"."original_vault_id") AND (("vaults"."user_id" = "auth"."uid"()) OR "public"."user_can_access_vault"("vaults"."id", 'viewer'::"text"))))));
+  WHERE (("vaults"."id" = "vault_forks"."original_vault_id") AND (("vaults"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR "public"."user_can_access_vault"("vaults"."id", 'viewer'::"text"))))));
 
 
 
-CREATE POLICY "Users can view notifications" ON "public"."notifications" FOR SELECT USING (("auth"."uid"() = "user_id"));
+CREATE POLICY "Users can view notifications" ON "public"."notifications" FOR SELECT USING ((( SELECT "auth"."uid"() AS "uid") = "user_id"));
 
 
 
-CREATE POLICY "Users can view own access requests" ON "public"."vault_access_requests" FOR SELECT USING (("auth"."uid"() = "requester_id"));
+CREATE POLICY "Users can view own access requests" ON "public"."vault_access_requests" FOR SELECT USING ((( SELECT "auth"."uid"() AS "uid") = "requester_id"));
 
 
 
-CREATE POLICY "Users can view own favorites" ON "public"."vault_favorites" FOR SELECT TO "authenticated" USING (("auth"."uid"() = "user_id"));
+CREATE POLICY "Users can view own favorites" ON "public"."vault_favorites" FOR SELECT TO "authenticated" USING ((( SELECT "auth"."uid"() AS "uid") = "user_id"));
 
 
 
-CREATE POLICY "Users can view own fork records" ON "public"."vault_forks" FOR SELECT TO "authenticated" USING (("auth"."uid"() = "forked_by"));
+CREATE POLICY "Users can view own fork records" ON "public"."vault_forks" FOR SELECT TO "authenticated" USING ((( SELECT "auth"."uid"() AS "uid") = "forked_by"));
 
 
 
-CREATE POLICY "Users can view own publications and publications in accessible " ON "public"."publications" FOR SELECT TO "authenticated" USING ((("auth"."uid"() = "user_id") OR (EXISTS ( SELECT 1
+CREATE POLICY "Users can view own publications and publications in accessible " ON "public"."publications" FOR SELECT TO "authenticated" USING (((( SELECT "auth"."uid"() AS "uid") = "user_id") OR (EXISTS ( SELECT 1
    FROM (("public"."vault_papers" "vp"
      JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
-     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-  WHERE (("vp"."publication_id" = "publications"."id") AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL)) OR ("v"."visibility" = 'public'::"public"."vault_visibility")))))));
+     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = ( SELECT "auth"."uid"() AS "uid")))))
+  WHERE (("vp"."publication_id" = "publications"."id") AND (("v"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL)) OR ("v"."visibility" = 'public'::"public"."vault_visibility")))))));
 
 
 
-CREATE POLICY "Users can view own tags and tags in accessible vaults" ON "public"."tags" FOR SELECT TO "authenticated" USING ((("auth"."uid"() = "user_id") OR (("vault_id" IS NOT NULL) AND (EXISTS ( SELECT 1
+CREATE POLICY "Users can view own smart collections" ON "public"."smart_collections" FOR SELECT TO "authenticated" USING (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can view own tags and tags in accessible vaults" ON "public"."tags" FOR SELECT TO "authenticated" USING (((( SELECT "auth"."uid"() AS "uid") = "user_id") OR (("vault_id" IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM ("public"."vaults" "v"
-     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-  WHERE (("v"."id" = "tags"."vault_id") AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL)) OR ("v"."visibility" = 'public'::"public"."vault_visibility"))))))));
+     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = ( SELECT "auth"."uid"() AS "uid")))))
+  WHERE (("v"."id" = "tags"."vault_id") AND (("v"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL)) OR ("v"."visibility" = 'public'::"public"."vault_visibility"))))))));
 
 
 
-CREATE POLICY "Users can view own vaults" ON "public"."vaults" FOR SELECT TO "authenticated" USING (("auth"."uid"() = "user_id"));
-
-
-
-CREATE POLICY "Users can view relevant shares" ON "public"."vault_shares" FOR SELECT TO "authenticated" USING ((("auth"."uid"() = "shared_by") OR ("auth"."uid"() = "shared_with_user_id")));
+CREATE POLICY "Users can view relevant shares" ON "public"."vault_shares" FOR SELECT TO "authenticated" USING (((( SELECT "auth"."uid"() AS "uid") = "shared_by") OR (( SELECT "auth"."uid"() AS "uid") = "shared_with_user_id")));
 
 
 
@@ -2436,56 +2513,48 @@ CREATE POLICY "Users can view shared vaults" ON "public"."vaults" FOR SELECT TO 
 
 CREATE POLICY "Users can view stats for accessible vaults" ON "public"."vault_stats" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."vaults"
-  WHERE (("vaults"."id" = "vault_stats"."vault_id") AND (("vaults"."user_id" = "auth"."uid"()) OR ("vaults"."visibility" = 'public'::"public"."vault_visibility") OR "public"."user_can_access_vault"("vaults"."id", 'viewer'::"text"))))));
+  WHERE (("vaults"."id" = "vault_stats"."vault_id") AND (("vaults"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR ("vaults"."visibility" = 'public'::"public"."vault_visibility") OR "public"."user_can_access_vault"("vaults"."id", 'viewer'::"text"))))));
 
 
 
-CREATE POLICY "Users can view their own favorites" ON "public"."vault_favorites" FOR SELECT TO "authenticated" USING (("auth"."uid"() = "user_id"));
-
-
-
-CREATE POLICY "Users can view their own forks" ON "public"."vault_forks" FOR SELECT TO "authenticated" USING (("auth"."uid"() = "forked_by"));
-
-
-
-CREATE POLICY "Users can view vault papers" ON "public"."vault_papers" FOR SELECT USING ((("auth"."uid"() = "added_by") OR (EXISTS ( SELECT 1
+CREATE POLICY "Users can view vault papers" ON "public"."vault_papers" FOR SELECT USING (((( SELECT "auth"."uid"() AS "uid") = "added_by") OR (EXISTS ( SELECT 1
    FROM "public"."vaults" "v"
-  WHERE (("v"."id" = "vault_papers"."vault_id") AND (("v"."user_id" = "auth"."uid"()) OR ("v"."visibility" = 'public'::"public"."vault_visibility") OR (EXISTS ( SELECT 1
+  WHERE (("v"."id" = "vault_papers"."vault_id") AND (("v"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR ("v"."visibility" = 'public'::"public"."vault_visibility") OR (EXISTS ( SELECT 1
            FROM "public"."vault_shares" "vs"
-          WHERE (("vs"."vault_id" = "v"."id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))))))));
+          WHERE (("vs"."vault_id" = "v"."id") AND ("vs"."shared_with_user_id" = ( SELECT "auth"."uid"() AS "uid")))))))))));
 
 
 
 CREATE POLICY "Users can view vault publications in accessible vaults" ON "public"."vault_publications" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM ("public"."vaults" "v"
-     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-  WHERE (("v"."id" = "vault_publications"."vault_id") AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL)) OR ("v"."visibility" = 'public'::"public"."vault_visibility"))))));
+     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = ( SELECT "auth"."uid"() AS "uid")))))
+  WHERE (("v"."id" = "vault_publications"."vault_id") AND (("v"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL)) OR ("v"."visibility" = 'public'::"public"."vault_visibility"))))));
 
 
 
 CREATE POLICY "Vault owners can manage shares" ON "public"."vault_shares" TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."vaults" "v"
-  WHERE (("v"."id" = "vault_shares"."vault_id") AND ("v"."user_id" = "auth"."uid"()))))) WITH CHECK ((EXISTS ( SELECT 1
+  WHERE (("v"."id" = "vault_shares"."vault_id") AND ("v"."user_id" = ( SELECT "auth"."uid"() AS "uid")))))) WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."vaults" "v"
-  WHERE (("v"."id" = "vault_shares"."vault_id") AND ("v"."user_id" = "auth"."uid"())))));
+  WHERE (("v"."id" = "vault_shares"."vault_id") AND ("v"."user_id" = ( SELECT "auth"."uid"() AS "uid"))))));
 
 
 
 CREATE POLICY "Vault owners can update access requests" ON "public"."vault_access_requests" FOR UPDATE USING ((EXISTS ( SELECT 1
    FROM "public"."vaults"
-  WHERE (("vaults"."id" = "vault_access_requests"."vault_id") AND ("vaults"."user_id" = "auth"."uid"())))));
+  WHERE (("vaults"."id" = "vault_access_requests"."vault_id") AND ("vaults"."user_id" = ( SELECT "auth"."uid"() AS "uid"))))));
 
 
 
 CREATE POLICY "Vault owners can view access requests" ON "public"."vault_access_requests" FOR SELECT USING ((EXISTS ( SELECT 1
    FROM "public"."vaults"
-  WHERE (("vaults"."id" = "vault_access_requests"."vault_id") AND ("vaults"."user_id" = "auth"."uid"())))));
+  WHERE (("vaults"."id" = "vault_access_requests"."vault_id") AND ("vaults"."user_id" = ( SELECT "auth"."uid"() AS "uid"))))));
 
 
 
 CREATE POLICY "Vault owners can view forks of their vault" ON "public"."vault_forks" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."vaults" "v"
-  WHERE (("v"."id" = "vault_forks"."original_vault_id") AND ("v"."user_id" = "auth"."uid"())))));
+  WHERE (("v"."id" = "vault_forks"."original_vault_id") AND ("v"."user_id" = ( SELECT "auth"."uid"() AS "uid"))))));
 
 
 
@@ -2501,6 +2570,9 @@ ALTER TABLE "public"."api_request_audit_logs" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."notifications" ENABLE ROW LEVEL SECURITY;
 
 
+ALTER TABLE "public"."openalex_budget_state" ENABLE ROW LEVEL SECURITY;
+
+
 ALTER TABLE "public"."profiles" ENABLE ROW LEVEL SECURITY;
 
 
@@ -2510,30 +2582,30 @@ ALTER TABLE "public"."publication_pdf_assets" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."publication_relations" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "publication_relations_delete" ON "public"."publication_relations" FOR DELETE TO "authenticated" USING ((("created_by" = "auth"."uid"()) OR (EXISTS ( SELECT 1
+CREATE POLICY "publication_relations_delete" ON "public"."publication_relations" FOR DELETE TO "authenticated" USING ((("created_by" = ( SELECT "auth"."uid"() AS "uid")) OR (EXISTS ( SELECT 1
    FROM ("public"."vault_publications" "vp"
      JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
-  WHERE ((("vp"."id" = "publication_relations"."publication_id") OR ("vp"."id" = "publication_relations"."related_publication_id")) AND ("v"."user_id" = "auth"."uid"()))))));
+  WHERE ((("vp"."id" = "publication_relations"."publication_id") OR ("vp"."id" = "publication_relations"."related_publication_id")) AND ("v"."user_id" = ( SELECT "auth"."uid"() AS "uid")))))));
 
 
 
-CREATE POLICY "publication_relations_insert" ON "public"."publication_relations" FOR INSERT TO "authenticated" WITH CHECK ((("created_by" = "auth"."uid"()) AND (EXISTS ( SELECT 1
+CREATE POLICY "publication_relations_insert" ON "public"."publication_relations" FOR INSERT TO "authenticated" WITH CHECK ((("created_by" = ( SELECT "auth"."uid"() AS "uid")) AND (EXISTS ( SELECT 1
    FROM (("public"."vault_publications" "vp"
      JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
-     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-  WHERE (("vp"."id" = "publication_relations"."publication_id") AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" = ANY (ARRAY['editor'::"public"."vault_permission", 'owner'::"public"."vault_permission"])))))))));
+     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = ( SELECT "auth"."uid"() AS "uid")))))
+  WHERE (("vp"."id" = "publication_relations"."publication_id") AND (("v"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" = ANY (ARRAY['editor'::"public"."vault_permission", 'owner'::"public"."vault_permission"])))))))));
 
 
 
 CREATE POLICY "publication_relations_select" ON "public"."publication_relations" FOR SELECT TO "authenticated", "anon" USING ((EXISTS ( SELECT 1
    FROM (("public"."vault_publications" "vp"
      JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
-     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-  WHERE ((("vp"."id" = "publication_relations"."publication_id") OR ("vp"."id" = "publication_relations"."related_publication_id")) AND (("v"."user_id" = "auth"."uid"()) OR ("vs"."shared_with_user_id" IS NOT NULL) OR ("v"."visibility" = 'public'::"public"."vault_visibility"))))));
+     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = ( SELECT "auth"."uid"() AS "uid")))))
+  WHERE ((("vp"."id" = "publication_relations"."publication_id") OR ("vp"."id" = "publication_relations"."related_publication_id")) AND (("v"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR ("vs"."shared_with_user_id" IS NOT NULL) OR ("v"."visibility" = 'public'::"public"."vault_visibility"))))));
 
 
 
-CREATE POLICY "publication_relations_update" ON "public"."publication_relations" FOR UPDATE TO "authenticated" USING (("created_by" = "auth"."uid"())) WITH CHECK (("created_by" = "auth"."uid"()));
+CREATE POLICY "publication_relations_update" ON "public"."publication_relations" FOR UPDATE TO "authenticated" USING (("created_by" = ( SELECT "auth"."uid"() AS "uid"))) WITH CHECK (("created_by" = ( SELECT "auth"."uid"() AS "uid")));
 
 
 
@@ -2541,6 +2613,9 @@ ALTER TABLE "public"."publication_tags" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."publications" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."semantic_scholar_rate_limit_state" ENABLE ROW LEVEL SECURITY;
 
 
 CREATE POLICY "service_role manages api_key_vaults" ON "public"."api_key_vaults" TO "service_role" USING (true) WITH CHECK (true);
@@ -2553,6 +2628,9 @@ CREATE POLICY "service_role manages api_keys" ON "public"."api_keys" TO "service
 
 CREATE POLICY "service_role manages api_request_audit_logs" ON "public"."api_request_audit_logs" TO "service_role" USING (true) WITH CHECK (true);
 
+
+
+ALTER TABLE "public"."smart_collections" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."tags" ENABLE ROW LEVEL SECURITY;
@@ -2818,13 +2896,11 @@ GRANT ALL ON FUNCTION "public"."copy_publication_to_vault"("pub_id" "uuid", "tar
 
 
 
-GRANT ALL ON FUNCTION "public"."create_user_profile"("p_user_id" "uuid", "p_email" "text", "p_display_name" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."create_user_profile"("p_user_id" "uuid", "p_email" "text", "p_display_name" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."create_user_profile"("p_user_id" "uuid", "p_email" "text", "p_display_name" "text") TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."delete_user"() TO "anon";
 GRANT ALL ON FUNCTION "public"."delete_user"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."delete_user"() TO "service_role";
 
@@ -2848,14 +2924,10 @@ GRANT ALL ON FUNCTION "public"."get_vault_metadata"("vault_id" "uuid") TO "servi
 
 
 
-GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "anon";
-GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."has_vault_access"("p_user_id" "uuid", "p_vault_id" "uuid", "p_required_role" "text") TO "anon";
-GRANT ALL ON FUNCTION "public"."has_vault_access"("p_user_id" "uuid", "p_vault_id" "uuid", "p_required_role" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."has_vault_access"("p_user_id" "uuid", "p_vault_id" "uuid", "p_required_role" "text") TO "service_role";
 
 
@@ -2872,32 +2944,22 @@ GRANT ALL ON FUNCTION "public"."increment_vault_views"("vault_uuid" "uuid") TO "
 
 
 
-GRANT ALL ON FUNCTION "public"."notify_vault_access_requested"() TO "anon";
-GRANT ALL ON FUNCTION "public"."notify_vault_access_requested"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."notify_vault_access_requested"() TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."notify_vault_access_status_changed"() TO "anon";
-GRANT ALL ON FUNCTION "public"."notify_vault_access_status_changed"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."notify_vault_access_status_changed"() TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."notify_vault_favorited"() TO "anon";
-GRANT ALL ON FUNCTION "public"."notify_vault_favorited"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."notify_vault_favorited"() TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."notify_vault_forked"() TO "anon";
-GRANT ALL ON FUNCTION "public"."notify_vault_forked"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."notify_vault_forked"() TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."notify_vault_shared"() TO "anon";
-GRANT ALL ON FUNCTION "public"."notify_vault_shared"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."notify_vault_shared"() TO "service_role";
 
 
@@ -2908,8 +2970,6 @@ GRANT ALL ON FUNCTION "public"."set_updated_at"() TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."set_vault_publication_updated_by"() TO "anon";
-GRANT ALL ON FUNCTION "public"."set_vault_publication_updated_by"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."set_vault_publication_updated_by"() TO "service_role";
 
 
@@ -2941,20 +3001,15 @@ GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "service_role";
 
 
 REVOKE ALL ON FUNCTION "public"."update_vault_publication_with_rollup"("p_vault_publication_id" "uuid", "p_vault_id" "uuid", "p_patch" "jsonb", "p_actor_user_id" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."update_vault_publication_with_rollup"("p_vault_publication_id" "uuid", "p_vault_id" "uuid", "p_patch" "jsonb", "p_actor_user_id" "uuid") TO "anon";
-GRANT ALL ON FUNCTION "public"."update_vault_publication_with_rollup"("p_vault_publication_id" "uuid", "p_vault_id" "uuid", "p_patch" "jsonb", "p_actor_user_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_vault_publication_with_rollup"("p_vault_publication_id" "uuid", "p_vault_id" "uuid", "p_patch" "jsonb", "p_actor_user_id" "uuid") TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."user_can_access_vault"("p_vault_uuid" "uuid", "p_required_permission" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."user_can_access_vault"("p_vault_uuid" "uuid", "p_required_permission" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."user_can_access_vault"("p_vault_uuid" "uuid", "p_required_permission" "text") TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."validate_username"() TO "anon";
-GRANT ALL ON FUNCTION "public"."validate_username"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."validate_username"() TO "service_role";
 
 
@@ -3037,6 +3092,12 @@ GRANT ALL ON TABLE "public"."publications" TO "service_role";
 GRANT ALL ON TABLE "public"."semantic_scholar_rate_limit_state" TO "anon";
 GRANT ALL ON TABLE "public"."semantic_scholar_rate_limit_state" TO "authenticated";
 GRANT ALL ON TABLE "public"."semantic_scholar_rate_limit_state" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."smart_collections" TO "anon";
+GRANT ALL ON TABLE "public"."smart_collections" TO "authenticated";
+GRANT ALL ON TABLE "public"."smart_collections" TO "service_role";
 
 
 
