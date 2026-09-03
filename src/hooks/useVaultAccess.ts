@@ -72,6 +72,7 @@ export const useVaultAccess = (
         canView: false,
         canEdit: false,
         isOwner: false,
+        isArchived: false,
         permission: null,
         accessStatus: 'loading',
         vault: null,

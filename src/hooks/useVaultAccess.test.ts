@@ -87,4 +87,16 @@ describe('useVaultAccess archived-vault behavior', () => {
     expect(result.current.canEdit).toBe(false);
     expect(result.current.isArchived).toBe(true);
   });
+
+  it('returns isArchived as a defined boolean immediately on mount, before the vault fetch resolves', () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'owner-1', email: 'owner@example.com' } }, error: null });
+    mockSingle.mockResolvedValue({ data: makeVault(), error: null });
+
+    const { result } = renderHook(() => useVaultAccess('vault-fresh-mount-test', { enableRealtime: false }));
+
+    // Synchronous assertion: the cache-miss reset (no page cache in this test env)
+    // must leave isArchived as a real boolean, not undefined, before any async data arrives.
+    expect(typeof result.current.isArchived).toBe('boolean');
+    expect(result.current.isArchived).toBe(false);
+  });
 });
