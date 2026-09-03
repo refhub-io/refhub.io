@@ -6,6 +6,42 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.11.1] - 2026-08-31
+
+### Fixed
+- `/collections` and `/collections/:id` had no auth gate at all — an anonymous visitor could browse to the smart collections UI shell. Both pages now redirect to `/` when signed out, matching every other authenticated page's pattern.
+- The Codex topic page repeated its own topic name and item count above `PublicationList`'s own title/count header, reading as two stacked headers. Its own title/stat text is gone and the back link is now icon-only, matching the smart collection detail page's pattern — `PublicationList`'s header is the single place the name and count show.
+- The Codex topic page never rendered the nav sidebar at all for signed-in users, unlike every other authenticated page (including its own parent, The Codex). Added it back. Also added the missing "the codex" icon next to the back button, and merged the back button, matching_vaults/related_topics/curators chips, and sort control into one row instead of two stacked ones.
+- A publication added to a vault via "add to vault(s)" kept showing "not_in_any_vault" in its own edit dialog until a full page reload, since that action only refreshed vault access/metadata, never the separate map tracking which vaults each publication belongs to.
+- The Codex page's topic/tag suggestion chips popped in with no loading state (and this isn't cached, so it happens on every visit). Added a small inline spinner while they load.
+- Smart collections and their detail pages picked up the app's design system: gradient primary buttons, lowercase font-mono labels, and the shared vault color palette in the "new/edit collection" dialog, replacing generic purple accents.
+- Smart collection cards showed raw tag/vault UUIDs (e.g. "tags equals 90f79e1d-...") instead of the tag/vault name.
+- The smart collections list page had no description of what the feature is and no way to search collections by name; both are now present, matching the Codex/researchers-directory pattern.
+- The smart collection detail page duplicated its title above `PublicationList`'s own header, leaving a large empty gap between the two; the page-level header is now a slim back/edit-rules bar only, matching how vault pages avoid this duplication.
+- The smart collection detail page's content would intermittently vanish when switching away from and back to the browser tab. Root cause: `useAllPublications`/`useSmartCollections` re-fetched (with a brief `loading` flash to blank content) on every Supabase auth token refresh, which fires automatically when a backgrounded tab regains focus — not just on an actual sign-in/sign-out. Fixed by keying those effects off the user's id instead of the whole (frequently-recreated) user object, and added a loading spinner for genuine load transitions.
+- Smart collection detail pages had no "discover related papers" action, unlike vault pages. Since a smart collection has no membership to add newly-found papers into, discovering now asks which of your vaults to add a match to, then reuses the same Semantic Scholar discovery flow vault pages already have.
+- Clicking "new vault" from any page other than the dashboard navigated there without opening the create-vault dialog, requiring a second click once landed. It now opens immediately on arrival.
+- Public vault pages never showed the vault's tagline (`description`) when an abstract was also set — the two fields were combined into one `abstract || description` block, so the tagline silently disappeared whenever an abstract existed. Both now render together (tagline above abstract) wherever a vault's text is shown, and the vault settings dialog's field is relabeled "tagline" to match.
+- Public vault pages now show a subtle glow/border in the vault's own color, for a bit of per-vault visual identity.
+- Fixed a `ReferenceError` crash on `/codex` (missing import introduced earlier in this same round).
+- The sidebar's smart-collections highlight was a violet→purple (effectively monochrome) gradient, and the page's own icon was accent-green — neither matched the app's actual brand gradient (purple→pink) or each other. Both now use the same tokens as the rest of the app's branding.
+- Brought smart collections' UI copy in line with this app's lowercase snake_case conventions (buttons, empty states, confirmations) — it had drifted to title-case/sentence-case English in a few places.
+- Smart collections' sidebar entry and icon now use the logo's exact colors (`#A855F7` → `#EC4899`, read from the logo asset itself), moved to right after "all_papers" for easier access, and are styled as a flat tinted box like the sidebar's other nav icons (an earlier attempt used the literal glossy logo image, which stood out inconsistently next to the others).
+- Codex vault cards now show a subtle border tinted with the vault's own color instead of a generic border.
+- Dropped the "// tagline" / "// abstract" labels from vault description text — bold-vs-muted text hierarchy already conveys which is which.
+- Smart collections list header's subtext no longer has a stray "//" prefix, matching how the researchers/all_papers pages format their subtitle line.
+- The smart collections list page's H1 no longer carries an icon (icons belong on sidebar nav only) and is now prefixed with "// ", matching the all_papers/researchers pages.
+- Both smart-collection pages' content wrapper was missing `min-w-0`, letting `PublicationList`'s table view stretch the whole page instead of scrolling horizontally inside its own container.
+- The Codex topic page duplicated its title above `PublicationList`'s own header, used "//" as a mid-sentence stat separator instead of "•", used raw unstyled `<select>`/`<input>` elements for its facet/sort controls, and rendered paper titles in monospace inside "why these matched" (paper titles use the plain display font everywhere else). All fixed; facet/sort controls now match the app's actual `Select`/`Input` components.
+- The Codex topic page's header, facet bar, and "matching_vaults"/"related_topics"/"curators" panel were stacked across many separately-bordered blocks, each wrapping onto its own line and wasting vertical space. The header now shares one row for the back-link, title, paper/vault counts, and sort control; the summary panel renders its groups as a single flex-wrap row instead of stacked sections.
+- "Why these matched" is now a closed-by-default disclosure with a badge showing the match count, instead of always rendering every match's provenance in full — avoids dumping a wall of rows above the fold when a topic has many matches.
+- Removed the Codex topic page's tag/author/venue/year filter inputs, which duplicated filtering `PublicationList`'s own toolbar already provides; kept the topic-specific sort modes (relevance/recent/popular/connected), which have no `PublicationList` equivalent.
+- Fixed a "Rendered more hooks than during the previous render" crash on `/codex/topic/:topicSlug`, caused by a hook added after the component's early loading/error returns.
+
+### Added
+- Smart collections can now have an optional description, so a collection can carry its curatorial intent (e.g. "papers I still need to read for the visual storytelling survey") alongside its name and rules. Shown on list cards and the collection detail page. **Requires running the new migration** (`supabase/migrations/20260831000000_smart_collections_description.sql`).
+- The smart collection dialog's rules are now a full inline form instead of a compact filter popover, with each rule showing a live, cumulative match count — how many papers match once that rule and every rule above it are applied together — so it's visible how each rule narrows the collection down.
+
 ## [1.11.0] - 2026-08-30
 
 ### Added

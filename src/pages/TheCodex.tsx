@@ -19,6 +19,7 @@ import { NotificationDropdown } from '@/components/notifications/NotificationDro
 import { SidebarDndBoundary } from '@/components/layout/SidebarDndBoundary';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { VaultDialog } from '@/components/vaults/VaultDialog';
+import VaultAbstractBlock from '@/components/vaults/VaultAbstractBlock';
 import { getPageCache, setPageCache, hasPageCache } from '@/lib/pageCache';
 import { 
   BookOpen,
@@ -87,6 +88,7 @@ export default function TheCodex() {
   const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
   const [editingVault, setEditingVault] = useState<Vault | null>(null);
   const [topicSuggestions, setTopicSuggestions] = useState<string[]>([]);
+  const [topicSuggestionsLoading, setTopicSuggestionsLoading] = useState(false);
 
   const fetchPublicVaults = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -173,6 +175,7 @@ export default function TheCodex() {
       setTopicSuggestions([]);
       return;
     }
+    setTopicSuggestionsLoading(true);
     try {
       const { data: vaultPubs } = await supabase
         .from('vault_publications')
@@ -198,6 +201,8 @@ export default function TheCodex() {
       setTopicSuggestions(Array.from(topics).sort());
     } catch (error) {
       logger.error('TheCodex', 'Error fetching topic suggestions:', error);
+    } finally {
+      setTopicSuggestionsLoading(false);
     }
   };
 
@@ -404,7 +409,7 @@ export default function TheCodex() {
             if (vaultId) navigate(`/vault/${vaultId}`);
             else navigate('/dashboard');
           }}
-          onCreateVault={() => navigate('/dashboard')}
+          onCreateVault={() => navigate('/dashboard?createVault=1')}
           isMobileOpen={isMobileSidebarOpen}
           onMobileClose={() => setIsMobileSidebarOpen(false)}
           profile={profile}
@@ -475,6 +480,12 @@ export default function TheCodex() {
                   </Select>
                 </div>
               </div>
+              {topicSuggestionsLoading && topicSuggestions.length === 0 && (
+                <div className="flex items-center justify-center gap-2 mt-3 text-xs text-muted-foreground font-mono">
+                  <LoadingSpinner size="xs" />
+                  loading_topics...
+                </div>
+              )}
               {topicSuggestions.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-3 w-full justify-center">
                   {topicSuggestions
@@ -526,7 +537,10 @@ export default function TheCodex() {
                   to={`/public/${vault.public_slug}`}
                   className="group"
                 >
-                  <article className={`h-full p-6 rounded-2xl border-2 bg-card/50 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 flex flex-col ${vault.is_fork ? 'border-amber-500/30 bg-amber-500/[0.03]' : 'border-border'}`}>
+                  <article
+                    className={`h-full p-6 rounded-2xl border-2 bg-card/50 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 flex flex-col ${vault.is_fork ? 'bg-amber-500/[0.03]' : ''}`}
+                    style={{ borderColor: `${vault.color}40` }}
+                  >
                     {/* Header with owner info */}
                     <div className="flex items-start gap-3 mb-4">
                       <Avatar className="w-10 h-10 border-2 border-border ring-2 ring-background group-hover:ring-primary/20 transition-all">
@@ -577,10 +591,7 @@ export default function TheCodex() {
                     {/* Description/Abstract */}
                     {(vault.abstract || vault.description) && (
                       <div className="mb-4 flex-1">
-                        <p className="text-xs text-muted-foreground/60 font-mono mb-1">// description</p>
-                        <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
-                          {vault.abstract || vault.description}
-                        </p>
+                        <VaultAbstractBlock abstract={vault.abstract} description={vault.description} />
                       </div>
                     )}
 

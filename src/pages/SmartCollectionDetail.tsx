@@ -1,16 +1,34 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { SidebarDndBoundary } from '@/components/layout/SidebarDndBoundary';
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
 import { Button } from '@/components/ui/button';
+import { LoadingSpinner } from '@/components/ui/loading';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { ArrowLeft, Pencil, Sparkles } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
 import { useAllPublications } from '@/hooks/useAllPublications';
 import { useSmartCollections } from '@/hooks/useSmartCollections';
+import { supabase } from '@/integrations/supabase/client';
 import { applyFilters } from '@/components/publications/FilterBuilder';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { SmartCollectionDialog } from '@/components/collections/SmartCollectionDialog';
+import { VaultAugmentDialog, type AugmentTab } from '@/components/publications/VaultAugmentDialog';
 import { exportMultipleToBibtex, downloadBibtex } from '@/lib/bibtex';
+import type { SSPaper } from '@/lib/semanticScholar';
 import type { Publication } from '@/types/database';
 
 const RULE_HINTS: Record<string, string> = {
@@ -23,12 +41,28 @@ const RULE_HINTS: Record<string, string> = {
 export default function SmartCollectionDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const { publications, tags, vaults, publicationTagsMap, publicationVaultsMap, loading: publicationsLoading } =
+  const { user, loading: authLoading } = useAuth();
+  const { toast } = useToast();
+  const { publications, tags, vaults, publicationTagsMap, publicationVaultsMap, loading: publicationsLoading, refetch } =
     useAllPublications();
   const { collections, loading: collectionsLoading, updateCollection } = useSmartCollections();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  // A smart collection has no membership to add newly-discovered papers into
+  // (it's filter rules, not a container) — unlike a vault. "Discover" here
+  // asks which of the user's own vaults a found paper should actually land
+  // in, then runs the same Semantic Scholar dialog vault pages already use.
+  const [isVaultPickerOpen, setIsVaultPickerOpen] = useState(false);
+  const [augmentSeedPublications, setAugmentSeedPublications] = useState<Publication[]>([]);
+  const [targetVaultId, setTargetVaultId] = useState<string | null>(null);
+  const [isAugmentDialogOpen, setIsAugmentDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/');
+    }
+  }, [user, authLoading, navigate]);
 
   const collection = collections.find((c) => c.id === id) ?? null;
 
@@ -48,12 +82,52 @@ export default function SmartCollectionDetail() {
     return applyFilters(publications, collection.filters, publicationTagsMap, publicationVaultsMap);
   }, [collection, publications, publicationTagsMap, publicationVaultsMap]);
 
+  // The paper picker for "add this Semantic Scholar result" only needs to
+  // dedupe against whatever's already in the chosen target vault, not the
+  // whole cross-vault publication set.
+  const targetVaultPublications = useMemo(() => {
+    if (!targetVaultId) return [];
+    return publications.filter((p) => (publicationVaultsMap[p.id] || []).includes(targetVaultId));
+  }, [publications, publicationVaultsMap, targetVaultId]);
+
+  const handleAddSSPaper = async (paper: SSPaper, _tab: AugmentTab, _sourcePublicationIds: string[]) => {
+    if (!user || !targetVaultId) return;
+    const { error } = await supabase.from('vault_publications').insert({
+      vault_id: targetVaultId,
+      created_by: user.id,
+      title: paper.title,
+      authors: paper.authors.map((a) => a.name),
+      year: paper.year,
+      doi: paper.externalIds?.DOI ?? null,
+      url: paper.externalIds?.DOI ? `https://doi.org/${paper.externalIds.DOI}` : null,
+      publication_type: 'article',
+      abstract: paper.abstract,
+      pdf_url: paper.openAccessPdfUrl,
+      reading_state: 'unread',
+    });
+    if (error) throw error;
+    toast({ title: 'paper_added ✨' });
+    refetch();
+  };
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen bg-background items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
+
   const loading = publicationsLoading || collectionsLoading;
 
   if (!loading && !collection) {
     return (
       <div className="flex min-h-screen bg-background items-center justify-center">
-        <p className="font-mono text-muted-foreground">Smart collection not found.</p>
+        <p className="font-mono text-muted-foreground">// smart_collection_not_found</p>
       </div>
     );
   }
@@ -67,31 +141,46 @@ export default function SmartCollectionDetail() {
         sharedVaults={sharedVaults}
         selectedVaultId={null}
         onSelectVault={(vaultId) => (vaultId ? navigate(`/vault/${vaultId}`) : navigate('/dashboard'))}
-        onCreateVault={() => navigate('/dashboard')}
+        onCreateVault={() => navigate('/dashboard?createVault=1')}
         isMobileOpen={isMobileSidebarOpen}
         onMobileClose={() => setIsMobileSidebarOpen(false)}
       />
-      <main className="flex-1 lg:pl-72 p-6 md:p-10">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
+      <main className="flex-1 lg:pl-72 min-w-0 flex flex-col min-h-screen">
+        {/* Slim back-nav + edit-rules bar. The title/item-count itself comes
+            from PublicationList's own header below (via listTitle) — matching
+            vault pages, which never duplicate the title above PublicationList
+            either — so this bar stays a single line with no leftover gap. */}
+        <div className="flex items-center justify-between px-4 lg:px-8 py-2 border-b border-border shrink-0">
+          <div className="flex items-center gap-1">
             <MobileMenuButton onClick={() => setIsMobileSidebarOpen(true)} />
-            <Button variant="ghost" size="icon" onClick={() => navigate('/collections')} aria-label="Back">
+            <Button variant="ghost" size="icon" onClick={() => navigate('/collections')} aria-label="Back to collections">
               <ArrowLeft className="w-4 h-4" />
             </Button>
-            <h1 className="text-xl font-bold font-mono flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-violet-500" />
-              {collection?.name}
-            </h1>
+            <div className="w-6 h-6 rounded-md flex items-center justify-center bg-gradient-to-br from-[#A855F7]/20 to-[#EC4899]/20 shrink-0">
+              <Sparkles className="w-3.5 h-3.5 text-primary" />
+            </div>
           </div>
-          <Button variant="outline" onClick={() => setDialogOpen(true)}>
+          <Button variant="outline" size="sm" onClick={() => setDialogOpen(true)} className="font-mono">
             <Pencil className="w-4 h-4 mr-2" />
-            Edit rules
+            edit_rules
           </Button>
         </div>
 
+        {!loading && collection?.description && (
+          <div className="px-4 lg:px-8 py-3 border-b border-border">
+            <p className="text-sm text-foreground/80">{collection.description}</p>
+          </div>
+        )}
+
+        {loading && (
+          <div className="flex-1 flex items-center justify-center">
+            <LoadingSpinner />
+          </div>
+        )}
+
         {!loading && collection && filtered.length === 0 && (
           <div className="text-center py-16 text-muted-foreground font-mono">
-            <p>No papers match this collection's rules.</p>
+            <p>// no_papers_match_this_collections_rules</p>
             {emptyRuleHint && <p className="text-sm mt-1">{emptyRuleHint}</p>}
           </div>
         )}
@@ -108,9 +197,65 @@ export default function SmartCollectionDetail() {
             listTitle={collection?.name}
             dragDisabled
             onExportBibtex={handleExportBibtex}
+            onDiscoverRelated={ownedVaults.length > 0 ? (pubs) => {
+              setAugmentSeedPublications(pubs);
+              setTargetVaultId(null);
+              setIsVaultPickerOpen(true);
+            } : undefined}
+            onDiscoverByTopic={ownedVaults.length > 0 ? () => {
+              setAugmentSeedPublications([]);
+              setTargetVaultId(null);
+              setIsVaultPickerOpen(true);
+            } : undefined}
             onMobileMenuOpen={() => setIsMobileSidebarOpen(true)}
           />
         )}
+
+        <Dialog open={isVaultPickerOpen} onOpenChange={setIsVaultPickerOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="font-mono">discover_related_papers</DialogTitle>
+            </DialogHeader>
+            <p className="text-xs text-muted-foreground/60 font-mono">// a_smart_collection_has_no_papers_of_its_own</p>
+            <p className="text-sm text-muted-foreground">pick a vault to add anything you find to.</p>
+            <Select value={targetVaultId ?? undefined} onValueChange={setTargetVaultId}>
+              <SelectTrigger className="font-mono text-sm">
+                <SelectValue placeholder="choose_a_vault..." />
+              </SelectTrigger>
+              <SelectContent>
+                {ownedVaults.map((v) => (
+                  <SelectItem key={v.id} value={v.id} className="font-mono text-sm">
+                    {v.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setIsVaultPickerOpen(false)} className="font-mono">
+                cancel
+              </Button>
+              <Button
+                variant="glow"
+                disabled={!targetVaultId}
+                onClick={() => {
+                  setIsVaultPickerOpen(false);
+                  setIsAugmentDialogOpen(true);
+                }}
+                className="font-mono"
+              >
+                continue
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <VaultAugmentDialog
+          open={isAugmentDialogOpen}
+          onOpenChange={setIsAugmentDialogOpen}
+          publications={augmentSeedPublications}
+          vaultPublications={targetVaultPublications}
+          onAddPaper={handleAddSSPaper}
+        />
 
         {collection && (
           <SmartCollectionDialog

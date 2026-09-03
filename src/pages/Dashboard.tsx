@@ -476,6 +476,17 @@ export default function Dashboard() {
     }
   }, [searchParams, vaults, navigate]);
 
+  // Open the create-vault dialog immediately if URL contains createVault param
+  // (e.g. "new vault" clicked from a page other than the dashboard, which
+  // can't open this dialog locally since it doesn't own this dialog's state).
+  useEffect(() => {
+    if (searchParams.get('createVault')) {
+      setEditingVault(null);
+      setIsVaultDialogOpen(true);
+      navigate('/dashboard', { replace: true });
+    }
+  }, [searchParams, navigate]);
+
   const refetchVaults = async () => {
     if (!user) return;
     try {

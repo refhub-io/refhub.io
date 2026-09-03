@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import MatchProvenanceList from '../MatchProvenanceList';
 import type { TopicMatch } from '@/lib/codexDiscovery';
 import type { Publication, Vault } from '@/types/database';
@@ -59,19 +59,36 @@ function makePublication(id: string, title: string): Publication {
   };
 }
 
+function openDisclosure() {
+  fireEvent.click(screen.getByRole('button', { name: /why_these_matched/ }));
+}
+
 describe('MatchProvenanceList', () => {
   it('renders an empty state / nothing for an empty match list', () => {
     const { container } = render(<MatchProvenanceList matches={[]} onOpenPublication={() => {}} />);
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('renders the publication title and a single badge for a match with one signal', () => {
+  it('defaults to closed, showing a pill with the match count but not the match rows', () => {
     const match: TopicMatch = {
       publication: makePublication('p1', 'Paper One'),
       vault,
       signals: [{ type: 'tag', value: 'graph drawing' }],
     };
     render(<MatchProvenanceList matches={[match]} onOpenPublication={() => {}} />);
+    expect(screen.getByText('// why_these_matched')).toBeInTheDocument();
+    expect(screen.getByText('1')).toBeInTheDocument();
+    expect(screen.queryByText('Paper One')).not.toBeInTheDocument();
+  });
+
+  it('renders the publication title and a single badge for a match with one signal, once opened', () => {
+    const match: TopicMatch = {
+      publication: makePublication('p1', 'Paper One'),
+      vault,
+      signals: [{ type: 'tag', value: 'graph drawing' }],
+    };
+    render(<MatchProvenanceList matches={[match]} onOpenPublication={() => {}} />);
+    openDisclosure();
     expect(screen.getByText('Paper One')).toBeInTheDocument();
     expect(screen.getByText('tag: graph drawing')).toBeInTheDocument();
   });
@@ -87,6 +104,7 @@ describe('MatchProvenanceList', () => {
       ],
     };
     render(<MatchProvenanceList matches={[match]} onOpenPublication={() => {}} />);
+    openDisclosure();
     expect(screen.getByText('tag: graph drawing')).toBeInTheDocument();
     expect(screen.getByText('keyword: graph drawing')).toBeInTheDocument();
     expect(screen.getByText('mentioned in notes')).toBeInTheDocument();
@@ -100,6 +118,7 @@ describe('MatchProvenanceList', () => {
       signals: [{ type: 'notes', snippet: longSnippet }],
     };
     render(<MatchProvenanceList matches={[match]} onOpenPublication={() => {}} />);
+    openDisclosure();
     expect(screen.getByText('mentioned in notes')).toBeInTheDocument();
     expect(screen.queryByText(longSnippet)).not.toBeInTheDocument();
     expect(screen.queryByText(/graph drawing techniques/)).not.toBeInTheDocument();
@@ -112,6 +131,7 @@ describe('MatchProvenanceList', () => {
       signals: [{ type: 'citation', viaPublicationId: 'p1' }],
     };
     render(<MatchProvenanceList matches={[match]} onOpenPublication={() => {}} />);
+    openDisclosure();
     expect(screen.getByText('cited by a related match')).toBeInTheDocument();
     expect(screen.queryByText(/p1/)).not.toBeInTheDocument();
   });
@@ -121,7 +141,8 @@ describe('MatchProvenanceList', () => {
     const publication = makePublication('p1', 'Paper One');
     const match: TopicMatch = { publication, vault, signals: [{ type: 'keyword', value: 'graph drawing' }] };
     render(<MatchProvenanceList matches={[match]} onOpenPublication={onOpenPublication} />);
-    screen.getByText('Paper One').click();
+    openDisclosure();
+    fireEvent.click(screen.getByText('Paper One'));
     expect(onOpenPublication).toHaveBeenCalledWith(publication);
   });
 
@@ -131,6 +152,7 @@ describe('MatchProvenanceList', () => {
       { publication: makePublication('p2', 'Paper Two'), vault, signals: [{ type: 'keyword', value: 'graph drawing' }] },
     ];
     render(<MatchProvenanceList matches={matches} onOpenPublication={() => {}} />);
+    openDisclosure();
     expect(screen.getByText('Paper One')).toBeInTheDocument();
     expect(screen.getByText('Paper Two')).toBeInTheDocument();
   });

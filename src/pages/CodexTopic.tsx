@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { logger } from '@/lib/logger';
 import {
@@ -8,30 +8,43 @@ import {
   slugToTopic,
   deriveRelatedTopics,
   countNewInLastDays,
-  applyTopicFacets,
   sortTopicMatches,
   type TopicMatch,
-  type TopicFacets,
   type TopicSortMode,
   type VaultPopularity,
 } from '@/lib/codexDiscovery';
+import { useAuth } from '@/hooks/useAuth';
+import { useAllPublications } from '@/hooks/useAllPublications';
+import { SidebarDndBoundary } from '@/components/layout/SidebarDndBoundary';
+import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationViewDialog } from '@/components/publications/PublicationViewDialog';
 import { LoadingSpinner } from '@/components/ui/loading';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import TopicSummaryPanel from '@/components/codex/TopicSummaryPanel';
 import MatchProvenanceList from '@/components/codex/MatchProvenanceList';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Scroll } from 'lucide-react';
 import type { Publication, Vault, Tag } from '@/types/database';
 
 export default function CodexTopic() {
   const { topicSlug } = useParams();
+  const navigate = useNavigate();
   const topic = topicSlug ? slugToTopic(topicSlug) : '';
+
+  const { user } = useAuth();
+  const { vaults: myVaults } = useAllPublications();
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [matches, setMatches] = useState<TopicMatch[]>([]);
   const [curators, setCurators] = useState<{ display_name: string | null; username: string | null }[]>([]);
-  const [facets, setFacets] = useState<TopicFacets>({});
   const [sortMode, setSortMode] = useState<TopicSortMode>('relevance');
   const [vaultPopularity, setVaultPopularity] = useState<Record<string, VaultPopularity>>({});
   const [viewingPublication, setViewingPublication] = useState<Publication | null>(null);
@@ -111,9 +124,9 @@ export default function CodexTopic() {
     return counts;
   }, [matches]);
 
-  const facetedDirectMatches = useMemo(
-    () => sortTopicMatches(applyTopicFacets(directMatches, facets), sortMode, vaultPopularity, relationCounts),
-    [directMatches, facets, sortMode, vaultPopularity, relationCounts],
+  const sortedDirectMatches = useMemo(
+    () => sortTopicMatches(directMatches, sortMode, vaultPopularity, relationCounts),
+    [directMatches, sortMode, vaultPopularity, relationCounts],
   );
 
   const matchedVaults = useMemo(() => {
@@ -154,8 +167,18 @@ export default function CodexTopic() {
   const relatedTopics = useMemo(() => deriveRelatedTopics(topic, directMatches), [topic, directMatches]);
   const newInLast30Days = useMemo(() => countNewInLastDays(directMatches, 30), [directMatches]);
 
+  const matchingVaultsForPanel = useMemo(
+    () => matchedVaults.map((vault) => ({ vault, count: vaultMatchCounts[vault.id] || 0 })),
+    [matchedVaults, vaultMatchCounts],
+  );
+
   // Tag badges on this page come from each match's `signals`, not FilterBuilder's tag picker.
   const tagsForList: Tag[] = [];
+
+  // Sidebar nav needs the signed-in user's OWN vaults, distinct from
+  // matchedVaults (the vaults that happen to match this topic).
+  const ownedVaults = useMemo(() => myVaults.filter((v) => v.user_id === user?.id), [myVaults, user?.id]);
+  const sharedVaults = useMemo(() => myVaults.filter((v) => v.user_id !== user?.id), [myVaults, user?.id]);
 
   if (loading) {
     return (
@@ -175,143 +198,109 @@ export default function CodexTopic() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="border-b border-border bg-card/50 backdrop-blur-xl px-4 py-4">
-        <Link to="/codex" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground font-mono mb-2">
-          <ArrowLeft className="w-4 h-4" /> back_to_codex
-        </Link>
-        <h1 className="text-2xl font-bold font-mono">{topic}</h1>
-        <p className="text-xs text-muted-foreground font-mono mt-1">
-          {matchedVaults.length}_vault{matchedVaults.length !== 1 ? 's' : ''} // {facetedDirectMatches.length}_paper{facetedDirectMatches.length !== 1 ? 's' : ''}
-        </p>
-        <TopicSummaryPanel relatedTopics={relatedTopics} curators={curators} newInLast30Days={newInLast30Days} />
+    <div className="min-h-screen bg-background flex">
+      {user && (
+        <SidebarDndBoundary
+          vaults={ownedVaults}
+          sharedVaults={sharedVaults}
+          selectedVaultId={null}
+          onSelectVault={(vaultId) => (vaultId ? navigate(`/vault/${vaultId}`) : navigate('/dashboard'))}
+          onCreateVault={() => navigate('/dashboard?createVault=1')}
+          isMobileOpen={isMobileSidebarOpen}
+          onMobileClose={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
+      <div className={`flex-1 min-w-0 flex flex-col min-h-screen ${user ? 'lg:pl-72' : ''}`}>
+        {user && !isMobileSidebarOpen && (
+          <MobileMenuButton onClick={() => setIsMobileSidebarOpen(true)} className="fixed top-4 left-4 z-50" />
+        )}
+
+        <div className="border-b border-border bg-card/50 backdrop-blur-xl px-4 py-3">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <div className="flex items-center gap-2 shrink-0">
+              <Link
+                to="/codex"
+                aria-label="Back to codex"
+                className="inline-flex items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </Link>
+              <div className="w-6 h-6 rounded-md flex items-center justify-center bg-gradient-to-br from-amber-500/20 to-orange-500/20 shrink-0">
+                <Scroll className="w-3.5 h-3.5 text-amber-500" />
+              </div>
+            </div>
+
+            <TopicSummaryPanel
+              relatedTopics={relatedTopics}
+              curators={curators}
+              newInLast30Days={newInLast30Days}
+              matchingVaults={matchingVaultsForPanel}
+            />
+
+            {directMatches.length > 0 && (
+              <Select value={sortMode} onValueChange={(value) => setSortMode(value as TopicSortMode)}>
+                <SelectTrigger className="h-7 w-auto rounded-full text-xs font-mono shrink-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="relevance" className="text-xs font-mono">sort: relevance</SelectItem>
+                  <SelectItem value="recent" className="text-xs font-mono">sort: recent</SelectItem>
+                  <SelectItem value="popular" className="text-xs font-mono">sort: most forked/favorited</SelectItem>
+                  <SelectItem value="connected" className="text-xs font-mono">sort: most connected</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+        </div>
+
+        {sortedDirectMatches.length === 0 ? (
+          <div className="p-8 text-center">
+            <p className="text-muted-foreground font-mono text-sm">// no_public_papers_match_this_topic_yet</p>
+          </div>
+        ) : (
+          <>
+            <MatchProvenanceList matches={sortedDirectMatches} onOpenPublication={(pub) => setViewingPublication(pub)} />
+            <PublicationList
+              publications={sortedDirectMatches.map((m) => m.publication)}
+              tags={tagsForList}
+              vaults={matchedVaults}
+              publicationVaultsMap={publicationVaultsMap}
+              publicationTagsMap={{}}
+              relationsCountMap={{}}
+              selectedVault={null}
+              listTitle={topic}
+              onOpenPublication={(pub) => setViewingPublication(pub)}
+              onExportBibtex={() => {}}
+              onMobileMenuOpen={() => setIsMobileSidebarOpen(true)}
+            />
+          </>
+        )}
+
+        {citationOnlyMatches.length > 0 && (
+          <div className="border-t border-border">
+            <div className="px-4 pt-6 pb-2">
+              <h2 className="text-sm font-mono text-muted-foreground">// related_via_citation</h2>
+              <p className="text-xs text-muted-foreground/70">
+                cited by a direct match — not tagged or keyworded with "{topic}" itself
+              </p>
+            </div>
+            <MatchProvenanceList matches={citationOnlyMatches} onOpenPublication={(pub) => setViewingPublication(pub)} />
+            <PublicationList
+              publications={citationOnlyMatches.map((m) => m.publication)}
+              tags={tagsForList}
+              vaults={citationOnlyVaults}
+              publicationVaultsMap={citationOnlyVaultsMap}
+              publicationTagsMap={{}}
+              relationsCountMap={{}}
+              selectedVault={null}
+              listTitle={`related to ${topic}`}
+              onOpenPublication={(pub) => setViewingPublication(pub)}
+              onExportBibtex={() => {}}
+              onMobileMenuOpen={() => setIsMobileSidebarOpen(true)}
+            />
+          </div>
+        )}
       </div>
-
-      {matchedVaults.length > 0 && (
-        <div className="px-4 py-3 border-b border-border">
-          <p className="text-xs text-muted-foreground/60 font-mono mb-2">// matching_vaults</p>
-          <div className="flex flex-wrap gap-2">
-            {matchedVaults.map((vault) => {
-              const count = vaultMatchCounts[vault.id] || 0;
-              const content = (
-                <>
-                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: vault.color }} />
-                  <span>{vault.name}</span>
-                  <span className="text-muted-foreground">{count}_match{count !== 1 ? 'es' : ''}</span>
-                </>
-              );
-              return vault.public_slug ? (
-                <Link
-                  key={vault.id}
-                  to={`/public/${vault.public_slug}`}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-border bg-card/50 hover:border-primary/30 transition-colors text-xs font-mono"
-                >
-                  {content}
-                </Link>
-              ) : (
-                <span
-                  key={vault.id}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-border bg-card/30 text-xs font-mono opacity-70"
-                >
-                  {content}
-                </span>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {directMatches.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-border">
-          <select
-            className="text-xs font-mono border border-input rounded-md h-8 px-2 bg-background"
-            value={sortMode}
-            onChange={(e) => setSortMode(e.target.value as TopicSortMode)}
-          >
-            <option value="relevance">sort: relevance</option>
-            <option value="recent">sort: recent</option>
-            <option value="popular">sort: most forked/favorited</option>
-            <option value="connected">sort: most connected</option>
-          </select>
-          <input
-            className="text-xs font-mono border border-input rounded-md h-8 px-2 bg-background"
-            placeholder="filter: tag"
-            value={facets.tag || ''}
-            onChange={(e) => setFacets((f) => ({ ...f, tag: e.target.value || undefined }))}
-          />
-          <input
-            className="text-xs font-mono border border-input rounded-md h-8 px-2 bg-background"
-            placeholder="filter: author"
-            value={facets.author || ''}
-            onChange={(e) => setFacets((f) => ({ ...f, author: e.target.value || undefined }))}
-          />
-          <input
-            className="text-xs font-mono border border-input rounded-md h-8 px-2 bg-background"
-            placeholder="filter: venue"
-            value={facets.venue || ''}
-            onChange={(e) => setFacets((f) => ({ ...f, venue: e.target.value || undefined }))}
-          />
-          <input
-            className="text-xs font-mono border border-input rounded-md h-8 px-2 bg-background w-24"
-            placeholder="filter: year"
-            type="number"
-            value={facets.year ?? ''}
-            onChange={(e) => setFacets((f) => ({ ...f, year: e.target.value ? Number(e.target.value) : undefined }))}
-          />
-        </div>
-      )}
-
-      {facetedDirectMatches.length === 0 ? (
-        <div className="p-8 text-center">
-          <p className="text-muted-foreground font-mono text-sm">
-            {directMatches.length === 0
-              ? '// no_public_papers_match_this_topic_yet'
-              : '// no_results_match_your_filters'}
-          </p>
-        </div>
-      ) : (
-        <>
-          <MatchProvenanceList matches={facetedDirectMatches} onOpenPublication={(pub) => setViewingPublication(pub)} />
-          <PublicationList
-            publications={facetedDirectMatches.map((m) => m.publication)}
-            tags={tagsForList}
-            vaults={matchedVaults}
-            publicationVaultsMap={publicationVaultsMap}
-            publicationTagsMap={{}}
-            relationsCountMap={{}}
-            selectedVault={null}
-            listTitle={topic}
-            onOpenPublication={(pub) => setViewingPublication(pub)}
-            onExportBibtex={() => {}}
-            onMobileMenuOpen={() => {}}
-          />
-        </>
-      )}
-
-      {citationOnlyMatches.length > 0 && (
-        <div className="border-t border-border">
-          <div className="px-4 pt-6 pb-2">
-            <h2 className="text-sm font-mono text-muted-foreground">// related_via_citation</h2>
-            <p className="text-xs text-muted-foreground/70 font-mono">
-              cited by a direct match — not tagged or keyworded with "{topic}" itself
-            </p>
-          </div>
-          <MatchProvenanceList matches={citationOnlyMatches} onOpenPublication={(pub) => setViewingPublication(pub)} />
-          <PublicationList
-            publications={citationOnlyMatches.map((m) => m.publication)}
-            tags={tagsForList}
-            vaults={citationOnlyVaults}
-            publicationVaultsMap={citationOnlyVaultsMap}
-            publicationTagsMap={{}}
-            relationsCountMap={{}}
-            selectedVault={null}
-            listTitle={`related to ${topic}`}
-            onOpenPublication={(pub) => setViewingPublication(pub)}
-            onExportBibtex={() => {}}
-            onMobileMenuOpen={() => {}}
-          />
-        </div>
-      )}
 
       <PublicationViewDialog
         open={!!viewingPublication}

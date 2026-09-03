@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { TopicMatch, TopicMatchSignal } from '@/lib/codexDiscovery';
 import type { Publication } from '@/types/database';
@@ -35,31 +37,47 @@ function signalLabel(signal: TopicMatchSignal): string {
  * actually visible to a visitor, instead of only existing internally.
  */
 export default function MatchProvenanceList({ matches, onOpenPublication }: MatchProvenanceListProps) {
+  const [open, setOpen] = useState(false);
   if (matches.length === 0) return null;
 
   return (
-    <div className="px-4 py-3 border-b border-border space-y-2">
-      <p className="text-xs text-muted-foreground/60 font-mono">// why_these_matched</p>
-      <ul className="space-y-2">
-        {matches.map((match) => (
-          <li key={match.publication.id} className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => onOpenPublication(match.publication)}
-              className="text-sm font-mono text-left hover:text-primary hover:underline"
-            >
-              {match.publication.title}
-            </button>
-            <div className="flex flex-wrap gap-1">
-              {match.signals.map((signal, index) => (
-                <Badge key={`${signal.type}-${index}`} variant="outline" className="font-mono text-[10px]">
-                  {signalLabel(signal)}
-                </Badge>
-              ))}
-            </div>
-          </li>
-        ))}
-      </ul>
+    <div className="border-b border-border">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-card/50 transition-colors"
+        aria-expanded={open}
+      >
+        {open ? (
+          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
+        ) : (
+          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
+        )}
+        <span className="text-xs text-muted-foreground/60 font-mono">// why_these_matched</span>
+        <Badge variant="outline" className="font-mono text-[10px]">{matches.length}</Badge>
+      </button>
+      {open && (
+        <ul className="space-y-2 px-4 pb-3">
+          {matches.map((match) => (
+            <li key={match.publication.id} className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onOpenPublication(match.publication)}
+                className="text-sm font-semibold text-left text-foreground hover:text-primary hover:underline"
+              >
+                {match.publication.title}
+              </button>
+              <div className="flex flex-wrap gap-1">
+                {match.signals.map((signal, index) => (
+                  <Badge key={`${signal.type}-${index}`} variant="outline" className="font-mono text-[10px]">
+                    {signalLabel(signal)}
+                  </Badge>
+                ))}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

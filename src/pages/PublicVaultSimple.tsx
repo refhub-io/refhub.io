@@ -525,7 +525,7 @@ export default function PublicVault() {
               navigate('/dashboard');
             }
           }}
-          onCreateVault={() => navigate('/dashboard')}
+          onCreateVault={() => navigate('/dashboard?createVault=1')}
           isMobileOpen={isMobileSidebarOpen}
           onMobileClose={() => setIsMobileSidebarOpen(false)}
           profile={profile}
@@ -553,7 +553,10 @@ export default function PublicVault() {
       <div className={`flex-1 ${user ? 'lg:pl-72' : 'pt-20'} min-w-0`}>
         {/* Header with vault info and actions */}
         {vault && (
-          <div className="border-b border-border bg-card/50 backdrop-blur-xl sticky top-0 z-30">
+          <div
+            className="border-b-2 bg-card/50 backdrop-blur-xl sticky top-0 z-30"
+            style={{ borderBottomColor: vault.color, boxShadow: `0 1px 24px -4px ${vault.color}66` }}
+          >
             <div className="px-4 py-3">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0 flex-wrap">
