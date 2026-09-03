@@ -15,6 +15,8 @@ import { useVaultAccess, requestVaultAccess } from '@/hooks/useVaultAccess';
 import { getForkSourceHref, getForkSourceLabel, getVaultForkInfo, VaultForkInfo } from '@/lib/vaultFork';
 import { SidebarDndBoundary } from '@/components/layout/SidebarDndBoundary';
 import { PublicationList } from '@/components/publications/PublicationList';
+import { PublicVaultSectionsView } from '@/components/vaults/PublicVaultSectionsView';
+import { useVaultSections } from '@/hooks/useVaultSections';
 import type { FilterField } from '@/components/publications/FilterBuilder';
 import { PublicationViewDialog } from '@/components/publications/PublicationViewDialog';
 import { CollectionAnalytics } from '@/components/publications/CollectionAnalytics';
@@ -76,6 +78,9 @@ export default function PublicVault() {
   const { canEdit, isOwner, userRole } = useVaultAccess(vault?.id || '');
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
   const [pendingRequestRole, setPendingRequestRole] = useState<'viewer' | 'editor' | null>(null);
+  const [viewMode, setViewMode] = useState<'curated' | 'all_papers'>('curated');
+  const { sections } = useVaultSections(vault?.id ?? null);
+  const hasSections = sections.length > 0;
 
   const publicationTagsMap = useMemo(() => {
     const vaultPubTagsMap: Record<string, string[]> = {};
@@ -692,8 +697,38 @@ export default function PublicVault() {
           </div>
         )}
 
+        {vault && hasSections && (
+          <div className="flex items-center gap-2 px-4 pt-4">
+            <button
+              type="button"
+              onClick={() => setViewMode('curated')}
+              className={`text-xs font-mono px-3 py-1.5 rounded-full border transition-colors ${viewMode === 'curated' ? 'bg-primary/20 border-primary/50 text-primary' : 'border-border text-muted-foreground hover:text-foreground'}`}
+            >
+              curated
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('all_papers')}
+              className={`text-xs font-mono px-3 py-1.5 rounded-full border transition-colors ${viewMode === 'all_papers' ? 'bg-primary/20 border-primary/50 text-primary' : 'border-border text-muted-foreground hover:text-foreground'}`}
+            >
+              all_papers
+            </button>
+          </div>
+        )}
+
+        {vault && hasSections && viewMode === 'curated' && (
+          <div className="px-4 py-6">
+            <PublicVaultSectionsView
+              vault={vault}
+              publications={publications}
+              tags={tags}
+              onOpenPublication={(pub) => setViewingPublication(pub)}
+            />
+          </div>
+        )}
+
         {/* PublicationList - READ-ONLY mode */}
-        {vault && (
+        {vault && (!hasSections || viewMode === 'all_papers') && (
           <PublicationList
             publications={publications}
             tags={tags}
