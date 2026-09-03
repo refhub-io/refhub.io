@@ -18,8 +18,7 @@ import {
   MoreVertical,
   Heart,
   Share2,
-  GripVertical,
-  Sparkles
+  GripVertical
 } from 'lucide-react';
 import { SortableContext, verticalListSortingStrategy, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { DndContext, DragOverlay, PointerSensor, KeyboardSensor, useSensor, useSensors, DragStartEvent, DragEndEvent } from '@dnd-kit/core';
@@ -40,6 +39,7 @@ import { KbdHint } from '@/components/ui/KbdHint';
 import { KeyboardShortcutsButton } from '@/components/ui/KeyboardHelpOverlay';
 import { WhatsNewDialog } from '@/components/ui/WhatsNewDialog';
 import { useWhatsNew } from '@/hooks/useWhatsNew';
+import { Sparkles } from 'lucide-react';
 import { SortableVaultRow } from '@/components/dnd/SortableVaultRow';
 import { VaultDragOverlayContent } from '@/components/dnd/VaultDragOverlayContent';
 import type { ActiveVaultDrag } from '@/hooks/useVaultDragAndDrop';
@@ -122,7 +122,6 @@ export function Sidebar({
 
   const isCodexActive = location.pathname === '/codex';
   const isUsersActive = location.pathname === '/users';
-  const isCollectionsActive = location.pathname.startsWith('/collections');
   // Dashboard is active when on /dashboard or on / without a vault selected
   const isDashboardActive = location.pathname === '/dashboard' || (location.pathname === '/' && !activeVaultId);
 
@@ -340,25 +339,6 @@ export function Sidebar({
               <Users className={cn("w-4 h-4", location.pathname === '/users' ? "text-rose-400" : "text-rose-500")} />
             </div>
             <span className="font-mono">researchers</span>
-          </Link>
-
-          <Link
-            to="/collections"
-            onClick={onMobileClose}
-            className={cn(
-              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border-2",
-              isCollectionsActive
-                ? "bg-gradient-to-br from-violet-500/10 to-purple-500/10 text-violet-500 border-violet-500/30"
-                : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 border-transparent"
-            )}
-          >
-            <div className={cn(
-              "w-8 h-8 rounded-lg flex items-center justify-center",
-              isCollectionsActive ? "bg-gradient-to-br from-violet-500/30 to-purple-500/30" : "bg-gradient-to-br from-violet-500/20 to-purple-500/20"
-            )}>
-              <Sparkles className={cn("w-4 h-4", isCollectionsActive ? "text-violet-400" : "text-violet-500")} />
-            </div>
-            <span className="font-mono">smart_collections</span>
           </Link>
 
           <div className="pt-4">

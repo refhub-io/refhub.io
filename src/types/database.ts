@@ -1,5 +1,3 @@
-import type { PublicationFilter } from '@/components/publications/FilterBuilder';
-
 export interface Publication {
   id: string;
   user_id: string;
@@ -116,16 +114,6 @@ export interface Tag {
   depth: number;
   created_at: string;
   vault_id?: string | null;
-}
-
-export interface SmartCollection {
-  id: string;
-  user_id: string;
-  name: string;
-  color: string | null;
-  filters: PublicationFilter[];
-  created_at: string;
-  updated_at: string;
 }
 
 export interface PublicationTag {

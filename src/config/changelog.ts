@@ -21,25 +21,6 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
-    id: 20,
-    date: '2026-08-29',
-    title: 'smart collections',
-    features: [
-      {
-        tag: 'feature',
-        title: 'smart collections',
-        description:
-          'save a filter rule set as a named collection that stays current automatically, across every vault, no manual re-filing needed. find it in the sidebar under smart_collections.',
-      },
-      {
-        tag: 'fix',
-        title: 'vault filter, fixed',
-        description:
-          'filtering publications by vault in the filter builder now actually matches the selected vault instead of silently matching nothing.',
-      },
-    ],
-  },
-  {
     id: 19,
     date: '2026-08-29',
     title: 'drag papers straight into a vault',

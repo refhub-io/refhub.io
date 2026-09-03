@@ -33,13 +33,6 @@ import {
 import { createPublicationSyncPatch, extractBibliographicPatch, getPublicationSyncDiffs, PublicationSyncDiff } from '@/lib/publicationSync';
 import { updatePublicationReadingState } from '@/lib/publicationReadingState';
 import { filterDashboardTags, getDashboardAccessibleVaultIds } from '@/lib/dashboardTagScope';
-import {
-  buildAllPublications,
-  buildPublicationVaultsMap,
-  buildPublicationTagsMap,
-  type VaultPublicationLink,
-  type RawVaultPublicationRow,
-} from '@/lib/publicationAggregate';
 import { syncDrivePdfAsset } from '@/lib/pdfAssets';
 import { PublicationSyncDialog } from '@/components/publications/PublicationSyncDialog';
 import {
@@ -54,6 +47,12 @@ import {
 } from '@/components/ui/alert-dialog';
 
 // Cache structure for Dashboard data
+interface VaultPublicationLink {
+  id: string;
+  vault_id: string;
+  original_publication_id: string | null;
+}
+
 interface DashboardCache {
   publications: Publication[];
   vaults: Vault[];
@@ -63,6 +62,92 @@ interface DashboardCache {
   publicationRelations: PublicationRelation[];
   vaultPublicationLinks: VaultPublicationLink[];
 }
+
+type PublicationDisplayField = keyof Pick<
+  Publication,
+  | 'title'
+  | 'authors'
+  | 'year'
+  | 'journal'
+  | 'volume'
+  | 'issue'
+  | 'pages'
+  | 'doi'
+  | 'url'
+  | 'abstract'
+  | 'pdf_url'
+  | 'bibtex_key'
+  | 'publication_type'
+  | 'booktitle'
+  | 'chapter'
+  | 'edition'
+  | 'editor'
+  | 'howpublished'
+  | 'institution'
+  | 'number'
+  | 'organization'
+  | 'publisher'
+  | 'school'
+  | 'series'
+  | 'type'
+  | 'eid'
+  | 'isbn'
+  | 'issn'
+  | 'keywords'
+>;
+
+const DISPLAY_METADATA_FIELDS: PublicationDisplayField[] = [
+  'title',
+  'authors',
+  'year',
+  'journal',
+  'volume',
+  'issue',
+  'pages',
+  'doi',
+  'url',
+  'abstract',
+  'pdf_url',
+  'bibtex_key',
+  'publication_type',
+  'booktitle',
+  'chapter',
+  'edition',
+  'editor',
+  'howpublished',
+  'institution',
+  'number',
+  'organization',
+  'publisher',
+  'school',
+  'series',
+  'type',
+  'eid',
+  'isbn',
+  'issn',
+  'keywords',
+];
+
+const hasDisplayValue = (value: unknown): boolean => {
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === 'string') return value.trim().length > 0;
+  return value !== null && value !== undefined;
+};
+
+const mergeMissingDisplayMetadata = (canonical: Publication, instance: Publication): Publication => {
+  const merged: Publication = { ...canonical };
+
+  DISPLAY_METADATA_FIELDS.forEach((field) => {
+    const canonicalValue = merged[field];
+    const instanceValue = instance[field];
+
+    if (!hasDisplayValue(canonicalValue) && hasDisplayValue(instanceValue)) {
+      (merged as Record<PublicationDisplayField, Publication[PublicationDisplayField]>)[field] = instanceValue;
+    }
+  });
+
+  return merged;
+};
 
 export default function Dashboard() {
   const { user, loading: authLoading } = useAuth();
@@ -152,15 +237,47 @@ export default function Dashboard() {
   // Derived from the raw arrays (not cached maps) so a save anywhere -- tags,
   // relations, notes -- is reflected in the list immediately, without needing
   // a full refetch. Mirrors the pattern already used by VaultDetail.tsx.
-  const publicationVaultsMap = useMemo(
-    () => buildPublicationVaultsMap(publications, vaultPublicationLinks),
-    [publications, vaultPublicationLinks],
-  );
+  const publicationVaultsMap = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    publications.forEach(pub => { map[pub.id] = []; });
+    vaultPublicationLinks.forEach(link => {
+      if (link.original_publication_id) {
+        if (!map[link.original_publication_id]) map[link.original_publication_id] = [];
+        if (!map[link.original_publication_id].includes(link.vault_id)) {
+          map[link.original_publication_id].push(link.vault_id);
+        }
+      }
+      if (!map[link.id]) map[link.id] = [];
+      if (!map[link.id].includes(link.vault_id)) map[link.id].push(link.vault_id);
+    });
+    return map;
+  }, [publications, vaultPublicationLinks]);
 
-  const publicationTagsMap = useMemo(
-    () => buildPublicationTagsMap(publications, publicationTags, vaultPublicationLinks),
-    [publications, publicationTags, vaultPublicationLinks],
-  );
+  const publicationTagsMap = useMemo(() => {
+    const linksById = new Map(vaultPublicationLinks.map(link => [link.id, link]));
+    const originalPubTagsMap: Record<string, string[]> = {};
+
+    publicationTags.forEach((pt) => {
+      if (pt.publication_id) {
+        (originalPubTagsMap[pt.publication_id] ??= []).push(pt.tag_id);
+      }
+      if (pt.vault_publication_id) {
+        // Standalone vault publications (no original_publication_id) are
+        // keyed by their own id in `publications` (see the aggregation
+        // below) -- fall back to the same id here, or their tags would be
+        // looked up under the wrong (null) key and silently dropped.
+        const originalId = linksById.get(pt.vault_publication_id)?.original_publication_id || pt.vault_publication_id;
+        (originalPubTagsMap[originalId] ??= []).push(pt.tag_id);
+      }
+    });
+
+    const map: Record<string, string[]> = {};
+    publications.forEach(pub => {
+      const originalId = pub.original_publication_id || pub.id;
+      map[pub.id] = [...new Set(originalPubTagsMap[originalId] || [])];
+    });
+    return map;
+  }, [publications, publicationTags, vaultPublicationLinks]);
 
   const relationsCountMap = useMemo(() => {
     // publication_relations rows are written using whichever id the dialog
@@ -358,20 +475,87 @@ export default function Dashboard() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const vaultPublications = vaultPubsRes.data as any[];
 
-      // Combine publications - deduplicating by original publication ID and aggregating
-      // vault info. all_papers remains deduplicated by canonical/original publication
-      // ID, but sparse canonical rows can borrow missing bibliography fields from
-      // richer vault instances. Vault-local copies themselves are not mutated.
-      const { allPublications, vaultPublicationLinks: rawVaultPublicationLinks } = buildAllPublications(
-        originalPublications,
-        vaultPublications as RawVaultPublicationRow[],
-      );
+      // Convert vault publications to the same format as original publications
+      const formattedVaultPublications = vaultPublications.map(vp => ({
+        id: vp.id, // Use the vault publication ID
+        user_id: vp.created_by, // Use the creator of the vault copy
+        title: vp.title,
+        authors: vp.authors,
+        year: vp.year,
+        journal: vp.journal,
+        volume: vp.volume,
+        issue: vp.issue,
+        pages: vp.pages,
+        doi: vp.doi,
+        url: vp.url,
+        abstract: vp.abstract,
+        pdf_url: vp.pdf_url,
+        bibtex_key: vp.bibtex_key,
+        publication_type: vp.publication_type,
+        notes: vp.notes,
+        booktitle: vp.booktitle,
+        chapter: vp.chapter,
+        edition: vp.edition,
+        editor: vp.editor,
+        howpublished: vp.howpublished,
+        institution: vp.institution,
+        number: vp.number,
+        organization: vp.organization,
+        publisher: vp.publisher,
+        school: vp.school,
+        series: vp.series,
+        type: vp.type,
+        eid: vp.eid,
+        isbn: vp.isbn,
+        issn: vp.issn,
+        keywords: vp.keywords,
+        reading_state: vp.reading_state || 'unread',
+        important: vp.important ?? false,
+        created_at: vp.created_at,
+        updated_at: vp.updated_at,
+        original_publication_id: vp.original_publication_id, // Keep track of the original
+      }));
+
+      // Combine publications - deduplicating by original publication ID and aggregating vault info
+      const allPublicationsMap: Record<string, Publication> = {};
+
+      // Add original publications first
+      originalPublications.forEach(pub => {
+        allPublicationsMap[pub.id] = pub;
+      });
+
+      // Process vault-specific copies and aggregate their display information.
+      // all_papers remains deduplicated by canonical/original publication ID, but
+      // sparse canonical rows can borrow missing bibliography fields from richer
+      // vault instances. Vault-local copies themselves are not mutated.
+      formattedVaultPublications.forEach(vp => {
+        if (vp.original_publication_id) {
+          const canonical = allPublicationsMap[vp.original_publication_id];
+
+          if (canonical) {
+            allPublicationsMap[vp.original_publication_id] = mergeMissingDisplayMetadata(canonical, vp as Publication);
+          }
+        } else {
+          // If no original ID, treat as standalone (this shouldn't normally happen)
+          if (!allPublicationsMap[vp.id]) {
+            allPublicationsMap[vp.id] = vp;
+          }
+        }
+      });
+
+      const allPublications = Object.values(allPublicationsMap);
 
       // publicationVaultsMap, publicationTagsMap, and relationsCountMap are
       // derived reactively (useMemo) from publications/publicationTags/
       // publicationRelations/vaultPublicationLinks, so they stay fresh after
       // any save without a full refetch. Just persist the raw links here.
-      setVaultPublicationLinks(rawVaultPublicationLinks);
+      setVaultPublicationLinks(
+        vaultPublications.map(vp => ({
+          id: vp.id,
+          vault_id: vp.vault_id,
+          original_publication_id: vp.original_publication_id,
+        })),
+      );
 
       // Complete publications phase after all processing
       updatePhase('publications', 'complete');
@@ -419,7 +603,11 @@ export default function Dashboard() {
         tags: dedupedTags,
         publicationTags: pubTagsRes.data as PublicationTag[] || [],
         publicationRelations: relationsRes.data as PublicationRelation[] || [],
-        vaultPublicationLinks: rawVaultPublicationLinks,
+        vaultPublicationLinks: vaultPublications.map(vp => ({
+          id: vp.id,
+          vault_id: vp.vault_id,
+          original_publication_id: vp.original_publication_id,
+        })),
       }, user?.id);
       
     } catch (error) {
