@@ -23,6 +23,7 @@ import NotFound from "./pages/NotFound";
 import PublicVault from "./pages/PublicVaultSimple";
 import VaultDetail from "./pages/VaultDetail";
 import TheCodex from "./pages/TheCodex";
+import CodexTopic from "./pages/CodexTopic";
 import OpenGraphPreview from "./pages/OpenGraphPreview";
 import Users from "./pages/Users";
 import SmartCollections from "./pages/SmartCollections";
@@ -106,6 +107,7 @@ const App = () => {
                   <Route path="/auth/callback" element={<AuthCallback />} />
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/codex" element={<TheCodex />} />
+                  <Route path="/codex/topic/:topicSlug" element={<CodexTopic />} />
                   <Route path="/users" element={<Users />} />
                   <Route path="/collections" element={<SmartCollections />} />
                   <Route path="/collections/:id" element={<SmartCollectionDetail />} />
