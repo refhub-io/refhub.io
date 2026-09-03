@@ -110,6 +110,7 @@ describe('fetchAllPublicationsData', () => {
     expect(result.tags).toEqual([]);
     expect(result.publicationVaultsMap).toEqual({});
     expect(result.publicationTagsMap).toEqual({});
+    expect(result.tagsIncomplete).toBe(false);
   });
 
   it('merges canonical publications with vault copies into one aggregate', async () => {
@@ -211,5 +212,36 @@ describe('fetchAllPublicationsData', () => {
     await expect(fetchAllPublicationsData(client, 'user-1', 'user@example.com')).rejects.toMatchObject({
       message: 'tags query failed',
     });
+  });
+
+  it('does NOT reject when publication_tags errors — it degrades to an empty tag map with tagsIncomplete set, instead of discarding vaults/publications too', async () => {
+    const ownedVault: Vault = {
+      id: 'vault-1', user_id: 'user-1', name: 'Owned', description: null,
+      color: '#fff', visibility: 'private', public_slug: null, category: null,
+      abstract: null, created_at: 'now', updated_at: 'now',
+    };
+    const canonical: Publication = {
+      id: 'p1', user_id: 'user-1', title: 'Paper', authors: ['A'], year: 2020,
+      journal: null, volume: null, issue: null, pages: null, doi: null, url: null,
+      abstract: null, pdf_url: null, bibtex_key: null, publication_type: 'article',
+      notes: null, booktitle: null, chapter: null, edition: null, editor: null,
+      howpublished: null, institution: null, number: null, organization: null,
+      publisher: null, school: null, series: null, type: null, eid: null,
+      isbn: null, issn: null, keywords: null, reading_state: 'unread',
+      important: false, created_at: 'now', updated_at: 'now',
+    };
+
+    const client = makeClient({
+      publications: [canonical],
+      ownedVaults: [ownedVault],
+      errors: { publicationTags: { message: 'canceling statement due to statement timeout' } },
+    });
+
+    const result = await fetchAllPublicationsData(client, 'user-1', 'user@example.com');
+
+    expect(result.tagsIncomplete).toBe(true);
+    expect(result.publicationTagsMap).toEqual({ p1: [] });
+    expect(result.publications).toHaveLength(1);
+    expect(result.vaults.map((v) => v.id)).toEqual(['vault-1']);
   });
 });

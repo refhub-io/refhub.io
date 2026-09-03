@@ -275,14 +275,24 @@ export async function fetchPublicCodexPublications(supabase: SupabaseClient): Pr
 
   const pubIds = rawRows.map((r) => r.id);
   const [pubTagsRes, relationsRes] = await Promise.all([
-    supabase.from('publication_tags').select('*').in('vault_publication_id', pubIds),
+    // Only vault_publication_id/tag_id are used below; narrower than
+    // select('*') to cut payload size on what's shown to be the slowest
+    // query in this function (observed timing out — Postgres error 57014 —
+    // even scoped to a small IN-list; see the perf-index migration).
+    supabase.from('publication_tags').select('vault_publication_id, tag_id').in('vault_publication_id', pubIds),
     // Matches the existing anonymous-read pattern in PublicVaultSimple.tsx:
     // relations aren't filtered server-side, filtered against our id set below.
     supabase.from('publication_relations').select('*'),
   ]);
-  throwOnAnyError([pubTagsRes, relationsRes]);
+  throwOnAnyError([relationsRes]);
+  // Tags are a lesser signal (tag-based match provenance) than relations —
+  // a slow/timed-out tags query shouldn't take down the whole discovery
+  // page along with it. Degrade to "no tag signals this refresh" instead.
+  if (pubTagsRes.error) {
+    console.error('Failed to fetch publication_tags for Codex discovery (tag-based matching will be incomplete):', pubTagsRes.error);
+  }
 
-  const pubTags = (pubTagsRes.data as PublicationTag[]) || [];
+  const pubTags = pubTagsRes.error ? [] : ((pubTagsRes.data as PublicationTag[]) || []);
   const tagIds = [...new Set(pubTags.map((pt) => pt.tag_id))];
 
   let tags: Tag[] = [];

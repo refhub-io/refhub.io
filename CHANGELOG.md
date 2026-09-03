@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.11.2] - 2026-08-31
+
+### Fixed
+- `publication_tags` queries were timing out in production (Postgres error `57014`, "canceling statement due to statement timeout"), most likely from missing indexes on a table with no supporting index for either column it's looked up by. Added `idx_publication_tags_vault_publication_id` and `idx_publication_tags_tag_id`. **Requires running the new migration** (`supabase/migrations/20260831010000_publication_tags_perf_indexes.sql`).
+- That timeout had a much bigger blast radius than just missing tags: `useAllPublications()` (used by smart collections and the Codex topic page's sidebar) fetched publications/vaults/vault_shares/vault_publications/publication_tags in one batch and discarded the *entire* batch — including vaults and publications that had already loaded fine — if any single one of those five queries failed. A slow tags query was silently wiping out sidebar vault lists and publication data on every affected page. Tags failing now degrades to an incomplete (rather than a discarded) result; only a failure in the other four still surfaces as an error, since those are needed for correct smart-collection matching.
+- The Codex topic page's own discovery fetch had the identical failure mode one level up: a failed `publication_tags` lookup threw and took down the whole page ("could_not_load_this_topic") instead of just omitting tag-based match signals for that refresh.
+- Smart collections, the smart collection detail page, and the Codex topic page never fetched or passed the signed-in user's profile to the sidebar, unlike every other authenticated page — the sidebar's avatar silently fell back to a placeholder instead of showing the real profile picture, and clicking it did nothing. All three now wire up `useProfile()` + the profile-edit dialog the same way Dashboard/The Codex/Users do.
+
 ## [1.11.1] - 2026-08-31
 
 ### Fixed

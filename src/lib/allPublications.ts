@@ -14,6 +14,12 @@ export interface AllPublicationsData {
   tags: Tag[];
   publicationVaultsMap: Record<string, string[]>;
   publicationTagsMap: Record<string, string[]>;
+  // True when the publication_tags query itself failed (e.g. a slow/timed-out
+  // query), so publicationTagsMap above is known-incomplete rather than a
+  // genuine "nothing is tagged" result. Callers that match against tags
+  // (smart collections) should treat this as "results may be incomplete"
+  // rather than trusting an empty tag map at face value.
+  tagsIncomplete: boolean;
 }
 
 /**
@@ -43,9 +49,22 @@ export async function fetchAllPublicationsData(
       .select('vault_id, role')
       .or(`shared_with_email.eq.${userEmail ?? ''},shared_with_user_id.eq.${userId}`),
     supabase.from('vault_publications').select('*').order('created_at', { ascending: false }),
-    supabase.from('publication_tags').select('*'),
+    // Only these three columns feed buildPublicationTagsMap() below —
+    // narrower than select('*') to cut payload size on what's shown to be
+    // this hook's slowest query.
+    supabase.from('publication_tags').select('id, publication_id, vault_publication_id, tag_id'),
   ]);
-  throwOnAnyError([pubsRes, ownedVaultsRes, sharedVaultsRes, vaultPubsRes, pubTagsRes]);
+  // publication_tags is queried separately from the other four: it's the
+  // slowest/most failure-prone query here (unscoped select across the whole
+  // table, relying entirely on RLS), and it only feeds tag badges/matching —
+  // it must not be able to wipe out vaults/publications too. A single
+  // combined throwOnAnyError() used to do exactly that: any one query
+  // failing discarded the whole Promise.all's results, including the
+  // sidebar's own vault list, on every page built on this hook.
+  throwOnAnyError([pubsRes, ownedVaultsRes, sharedVaultsRes, vaultPubsRes]);
+  if (pubTagsRes.error) {
+    console.error('Failed to fetch publication_tags (tag data will be incomplete):', pubTagsRes.error);
+  }
 
   const ownedVaults = (ownedVaultsRes.data as Vault[]) || [];
   const sharedVaultIds = (sharedVaultsRes.data || []).map((share: { vault_id: string }) => share.vault_id);
@@ -93,5 +112,6 @@ export async function fetchAllPublicationsData(
     tags,
     publicationVaultsMap,
     publicationTagsMap,
+    tagsIncomplete: Boolean(pubTagsRes.error),
   };
 }

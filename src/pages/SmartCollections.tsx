@@ -8,9 +8,11 @@ import { Input } from '@/components/ui/input';
 import { LoadingSpinner } from '@/components/ui/loading';
 import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useProfile } from '@/hooks/useProfile';
 import { useAllPublications } from '@/hooks/useAllPublications';
 import { useSmartCollections } from '@/hooks/useSmartCollections';
 import { SmartCollectionDialog } from '@/components/collections/SmartCollectionDialog';
+import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { applyFilters } from '@/components/publications/FilterBuilder';
 import type { SmartCollection, Tag, Vault } from '@/types/database';
 import {
@@ -39,12 +41,14 @@ function summarizeFilters(collection: SmartCollection, tags: Tag[], vaults: Vaul
 export default function SmartCollections() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const { profile, refetch: refetchProfile } = useProfile();
   const { publications, tags, vaults, publicationTagsMap, publicationVaultsMap } = useAllPublications();
   const { collections, loading, createCollection, updateCollection, deleteCollection } = useSmartCollections();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCollection, setEditingCollection] = useState<SmartCollection | null>(null);
   const [deletingCollection, setDeletingCollection] = useState<SmartCollection | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
@@ -111,6 +115,8 @@ export default function SmartCollections() {
         onCreateVault={() => navigate('/dashboard?createVault=1')}
         isMobileOpen={isMobileSidebarOpen}
         onMobileClose={() => setIsMobileSidebarOpen(false)}
+        profile={profile}
+        onEditProfile={() => setIsProfileDialogOpen(true)}
       />
       <main className="flex-1 lg:pl-72 min-w-0 flex flex-col min-h-screen">
         <header className="bg-card/50 backdrop-blur-xl border-b-2 border-border px-4 lg:px-8 py-4 shrink-0 sticky top-0 z-10">
@@ -219,6 +225,16 @@ export default function SmartCollections() {
           publicationTagsMap={publicationTagsMap}
           publicationVaultsMap={publicationVaultsMap}
           onSave={handleSave}
+        />
+
+        <ProfileDialog
+          open={isProfileDialogOpen}
+          onOpenChange={(open) => {
+            setIsProfileDialogOpen(open);
+            if (!open) {
+              void refetchProfile();
+            }
+          }}
         />
 
         <AlertDialog open={!!deletingCollection} onOpenChange={(open) => !open && setDeletingCollection(null)}>

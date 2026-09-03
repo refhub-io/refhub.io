@@ -466,12 +466,25 @@ describe('fetchPublicCodexPublications', () => {
     expect(result.relations).toEqual([]);
   });
 
-  it('throws if any underlying query errors, instead of returning a partial corpus', async () => {
+  it('throws if the relations query errors, instead of returning a partial corpus', async () => {
     const client = makeCodexClient({
       publicVaults: [makeVault('v1')],
       vaultPublications: [rawVaultPub('p1', 'v1')],
-      errors: { publicationTags: { message: 'boom' } },
+      errors: { relations: { message: 'boom' } },
     });
     await expect(fetchPublicCodexPublications(client)).rejects.toEqual({ message: 'boom' });
+  });
+
+  it('degrades to an empty tag list instead of rejecting when publication_tags errors (a slow/timed-out tags query must not take the whole discovery page down)', async () => {
+    const client = makeCodexClient({
+      publicVaults: [makeVault('v1')],
+      vaultPublications: [rawVaultPub('p1', 'v1')],
+      relations: [],
+      errors: { publicationTags: { message: 'canceling statement due to statement timeout' } },
+    });
+
+    const result = await fetchPublicCodexPublications(client);
+    expect(result.corpus).toHaveLength(1);
+    expect(result.corpus[0].tags).toEqual([]);
   });
 });

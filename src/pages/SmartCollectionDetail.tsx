@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/select';
 import { ArrowLeft, Pencil, Sparkles } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useProfile } from '@/hooks/useProfile';
 import { useToast } from '@/hooks/use-toast';
 import { useAllPublications } from '@/hooks/useAllPublications';
 import { useSmartCollections } from '@/hooks/useSmartCollections';
@@ -26,6 +27,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { applyFilters } from '@/components/publications/FilterBuilder';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { SmartCollectionDialog } from '@/components/collections/SmartCollectionDialog';
+import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { VaultAugmentDialog, type AugmentTab } from '@/components/publications/VaultAugmentDialog';
 import { exportMultipleToBibtex, downloadBibtex } from '@/lib/bibtex';
 import type { SSPaper } from '@/lib/semanticScholar';
@@ -42,12 +44,14 @@ export default function SmartCollectionDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const { profile, refetch: refetchProfile } = useProfile();
   const { toast } = useToast();
   const { publications, tags, vaults, publicationTagsMap, publicationVaultsMap, loading: publicationsLoading, refetch } =
     useAllPublications();
   const { collections, loading: collectionsLoading, updateCollection } = useSmartCollections();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
 
   // A smart collection has no membership to add newly-discovered papers into
   // (it's filter rules, not a container) — unlike a vault. "Discover" here
@@ -144,6 +148,8 @@ export default function SmartCollectionDetail() {
         onCreateVault={() => navigate('/dashboard?createVault=1')}
         isMobileOpen={isMobileSidebarOpen}
         onMobileClose={() => setIsMobileSidebarOpen(false)}
+        profile={profile}
+        onEditProfile={() => setIsProfileDialogOpen(true)}
       />
       <main className="flex-1 lg:pl-72 min-w-0 flex flex-col min-h-screen">
         {/* Slim back-nav + edit-rules bar. The title/item-count itself comes
@@ -273,6 +279,16 @@ export default function SmartCollectionDetail() {
             }}
           />
         )}
+
+        <ProfileDialog
+          open={isProfileDialogOpen}
+          onOpenChange={(open) => {
+            setIsProfileDialogOpen(open);
+            if (!open) {
+              void refetchProfile();
+            }
+          }}
+        />
       </main>
     </div>
   );
