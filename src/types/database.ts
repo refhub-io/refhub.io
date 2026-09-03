@@ -54,6 +54,7 @@ export interface Vault {
   abstract: string | null;
   created_at: string;
   updated_at: string;
+  archived_at: string | null;
   /** populated via vault_forks join when attribution is needed */
   forked_from_id?: string | null;
 }

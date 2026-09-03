@@ -9,6 +9,7 @@ interface VaultAccessResult {
   canView: boolean;
   canEdit: boolean;
   isOwner: boolean;
+  isArchived: boolean;
   permission: VaultRole | null;
   accessStatus: 'granted' | 'denied' | 'pending' | 'requestable' | 'loading';
   vault: Vault | null;
@@ -43,6 +44,7 @@ export const useVaultAccess = (
       canView: false,
       canEdit: false,
       isOwner: false,
+      isArchived: false,
       permission: null,
       accessStatus: 'loading',
       vault: null,
@@ -165,6 +167,7 @@ export const useVaultAccess = (
             canView: false,
             canEdit: false,
             isOwner: false,
+            isArchived: false,
             permission: null,
             accessStatus: 'denied',
             vault: null,
@@ -174,6 +177,8 @@ export const useVaultAccess = (
           return;
         }
 
+        const isArchived = vaultData ? (vaultData as Vault).archived_at != null : false;
+
         // Check if user is owner (only if we have vault data)
         if (vaultData) {
           const isOwner = user?.id === vaultData.user_id;
@@ -182,8 +187,9 @@ export const useVaultAccess = (
             setResult(prev => ({
               ...prev,
               canView: true,
-              canEdit: true,
+              canEdit: !isArchived,
               isOwner: true,
+              isArchived,
               permission: 'owner' as const,
               accessStatus: 'granted' as const,
               vault: vaultData,
@@ -199,17 +205,13 @@ export const useVaultAccess = (
           if (vaultData) {
             const canView = (vaultData as Vault).visibility === 'public';
             const isProtected = (vaultData as Vault).visibility === 'protected';
-            
+
             setResult(prev => ({
               ...prev,
-              canView,
-              canEdit: false,
-              isOwner: false,
+              canView, canEdit: false, isOwner: false, isArchived,
               permission: canView ? ('viewer' as const) : null,
               accessStatus: canView ? ('granted' as const) : isProtected ? ('requestable' as const) : ('denied' as const),
-              vault: vaultData,
-              userRole: null,
-              error: null,
+              vault: vaultData, userRole: null, error: null,
             }));
             return;
           } else {
@@ -301,6 +303,7 @@ export const useVaultAccess = (
           }
         }
 
+        canEdit = canEdit && !isArchived;
         const permission = canView ? (userRole || 'viewer') : null;
 
         setResult(prev => ({
@@ -308,6 +311,7 @@ export const useVaultAccess = (
           canView,
           canEdit,
           isOwner: false,
+          isArchived,
           permission: permission as 'owner' | 'editor' | 'viewer' | null,
           accessStatus,
           vault: vaultData,
