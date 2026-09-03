@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { logger } from '@/lib/logger';
+import { cn } from '@/lib/utils';
 import {
   fetchPublicCodexPublications,
   matchPublicationsForTopic,
@@ -30,9 +31,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import TopicSummaryPanel from '@/components/codex/TopicSummaryPanel';
 import MatchProvenanceList from '@/components/codex/MatchProvenanceList';
-import { ArrowLeft, Scroll } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronRight, Scroll } from 'lucide-react';
 import type { Publication, Vault, Tag } from '@/types/database';
 
 export default function CodexTopic() {
@@ -45,6 +47,7 @@ export default function CodexTopic() {
   const { ownedVaults, sharedVaults } = useVaults();
   const invalidateVaults = useInvalidateVaults();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [topicContextOpen, setTopicContextOpen] = useState(false);
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
   const [editingVault, setEditingVault] = useState<Vault | null>(null);
@@ -234,7 +237,7 @@ export default function CodexTopic() {
       )}
       <div className={`flex-1 min-w-0 flex flex-col min-h-screen ${user ? 'lg:pl-72' : ''}`}>
         <div className="border-b border-border bg-card/50 backdrop-blur-xl px-4 py-3">
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 shrink-0">
               <Link
                 to="/codex"
@@ -248,26 +251,50 @@ export default function CodexTopic() {
               </div>
             </div>
 
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Mobile: the topic context (matching vaults, related topics,
+                  curators) is collapsed by default so it doesn't push the
+                  actual paper list below the fold — it's context, not the
+                  main event. Desktop keeps it always expanded (see below). */}
+              <button
+                type="button"
+                onClick={() => setTopicContextOpen((o) => !o)}
+                className="lg:hidden inline-flex items-center gap-1.5 text-xs font-mono text-muted-foreground/70 hover:text-foreground transition-colors"
+                aria-expanded={topicContextOpen}
+              >
+                {topicContextOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                // context
+                <Badge variant="outline" className="font-mono text-[10px]">
+                  {matchingVaultsForPanel.length + relatedTopics.length + curators.length}
+                </Badge>
+              </button>
+
+              {directMatches.length > 0 && (
+                <Select value={sortMode} onValueChange={(value) => setSortMode(value as TopicSortMode)}>
+                  <SelectTrigger className="h-7 w-auto rounded-full text-xs font-mono shrink-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="relevance" className="text-xs font-mono">sort: relevance</SelectItem>
+                    <SelectItem value="recent" className="text-xs font-mono">sort: recent</SelectItem>
+                    <SelectItem value="popular" className="text-xs font-mono">sort: most forked/favorited</SelectItem>
+                    <SelectItem value="connected" className="text-xs font-mono">sort: most connected</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          </div>
+
+          <div className={cn(
+            "flex flex-wrap items-center gap-x-5 gap-y-2 mt-3",
+            !topicContextOpen && "hidden lg:flex"
+          )}>
             <TopicSummaryPanel
               relatedTopics={relatedTopics}
               curators={curators}
               newInLast30Days={newInLast30Days}
               matchingVaults={matchingVaultsForPanel}
             />
-
-            {directMatches.length > 0 && (
-              <Select value={sortMode} onValueChange={(value) => setSortMode(value as TopicSortMode)}>
-                <SelectTrigger className="h-7 w-auto rounded-full text-xs font-mono shrink-0">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="relevance" className="text-xs font-mono">sort: relevance</SelectItem>
-                  <SelectItem value="recent" className="text-xs font-mono">sort: recent</SelectItem>
-                  <SelectItem value="popular" className="text-xs font-mono">sort: most forked/favorited</SelectItem>
-                  <SelectItem value="connected" className="text-xs font-mono">sort: most connected</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
           </div>
         </div>
 

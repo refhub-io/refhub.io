@@ -6,6 +6,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.12.2] - 2026-09-03
+
+### Fixed
+- Public vault pages (`/public/:slug`) already exposed the filter panel to signed-out visitors, but its field list was the same one shown to signed-in owners — including `Vault` (meaningless with exactly one vault on the page) and the owner's private/personal fields (`Notes`, `Reading State`, `Important`). `FilterBuilder` now accepts an optional `filterableFields` prop to restrict the field picker; public vault pages pass a public-appropriate subset (title, authors, year, journal, tags, type, DOI). Every other call site (vault view, dashboard, smart collections) is unaffected — the prop defaults to the full field list.
+- Codex topic page (`/codex/topic/:topicSlug`): the topic context panel (matching vaults, related topics, curators) rendered as 3+ stacked full-width rows on mobile, on top of the sort control and the collapsed "why these matched" section — pushing the actual paper list well below the fold before a visitor saw a single paper. It's now collapsed behind a `// context` disclosure toggle on mobile (closed by default, same pattern as "why these matched"); desktop keeps today's always-expanded layout.
+
 ## [1.12.1] - 2026-09-01
 
 ### Fixed

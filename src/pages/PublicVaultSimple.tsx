@@ -15,6 +15,7 @@ import { useVaultAccess, requestVaultAccess } from '@/hooks/useVaultAccess';
 import { getForkSourceHref, getForkSourceLabel, getVaultForkInfo, VaultForkInfo } from '@/lib/vaultFork';
 import { SidebarDndBoundary } from '@/components/layout/SidebarDndBoundary';
 import { PublicationList } from '@/components/publications/PublicationList';
+import type { FilterField } from '@/components/publications/FilterBuilder';
 import { PublicationViewDialog } from '@/components/publications/PublicationViewDialog';
 import { CollectionAnalytics } from '@/components/publications/CollectionAnalytics';
 import { ExportDialog } from '@/components/publications/ExportDialog';
@@ -33,6 +34,11 @@ import {
 } from 'lucide-react';
 import VaultAccessBadge from '../components/vaults/VaultAccessBadge';
 import VaultAbstractBlock from '../components/vaults/VaultAbstractBlock';
+
+// Anonymous visitors get a public-appropriate subset of FilterBuilder's
+// fields: drops `vault` (always exactly one vault on this page) and the
+// owner's private/personal fields (`notes`, `reading_state`, `important`).
+const PUBLIC_FILTERABLE_FIELDS: FilterField[] = ['title', 'authors', 'year', 'journal', 'tags', 'publication_type', 'doi'];
 
 export default function PublicVault() {
   const { slug } = useParams();
@@ -702,6 +708,7 @@ export default function PublicVault() {
             }}
             onMobileMenuOpen={() => setIsMobileSidebarOpen(true)}
             onVaultUpdate={() => {}}
+            filterableFields={PUBLIC_FILTERABLE_FIELDS}
           />
         )}
 
