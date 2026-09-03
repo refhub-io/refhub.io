@@ -1303,7 +1303,7 @@ export default function VaultDetail() {
   };
 
   const handleArchiveVault = async () => {
-    if (!archiveVaultConfirmation) return;
+    if (!archiveVaultConfirmation || !isOwner) return; // Only allow archiving if user is the owner
 
     try {
       const { error } = await supabase
@@ -2175,10 +2175,10 @@ export default function VaultDetail() {
             setDeleteVaultConfirmation(vault);
             setIsVaultDialogOpen(false);
           } : undefined}
-          onArchive={(vault) => {
+          onArchive={isOwner ? (vault) => {
             setArchiveVaultConfirmation(vault);
             setIsVaultDialogOpen(false);
-          }}
+          } : undefined}
       />
 
       <ProfileDialog
