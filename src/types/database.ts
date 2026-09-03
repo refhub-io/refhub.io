@@ -40,6 +40,11 @@ export interface Publication {
   updated_at: string;
   /** Set when this publication is a vault-specific copy of an original */
   original_publication_id?: string | null;
+  /** Curated-section fields — only meaningful on vault_publications rows */
+  section_id?: string | null;
+  section_position?: number;
+  featured?: boolean;
+  featured_note?: string | null;
 }
 
 export interface Vault {
@@ -57,6 +62,16 @@ export interface Vault {
   archived_at: string | null;
   /** populated via vault_forks join when attribution is needed */
   forked_from_id?: string | null;
+}
+
+export interface VaultSection {
+  id: string;
+  vault_id: string;
+  name: string;
+  description: string | null;
+  position: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface VaultStats {
