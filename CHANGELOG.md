@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.10.0] - 2026-08-29
+
+### Added
+- Smart collections: save a filter rule set as a named, cross-vault view that stays current automatically as publications and metadata change, browsable from a new "Smart Collections" page linked in the sidebar (#92).
+
+### Fixed
+- `FilterBuilder`'s "Vault" filter field, which previously matched nothing (or everything, for "is empty") regardless of the vault selected.
+
 ## [1.9.3] - 2026-08-30
 
 ### Fixed

@@ -62,6 +62,10 @@ interface PublicationListProps {
   publicationVaultsMap?: Record<string, string[]>; // Map of publication IDs to vault IDs
   relationsCountMap: Record<string, number>;
   selectedVault: Vault | null;
+  /** Overrides the default "all_papers" title (and "distinct paper" count
+   * label) shown when there's no selectedVault — e.g. a smart collection's
+   * name, so the header doesn't misleadingly claim to show all papers. */
+  listTitle?: string;
   vaultOwnerName?: string; // Display owner name next to item count
   isVaultContext?: boolean; // If true, shows "remove from vault" instead of "delete"
   onAddPublication?: () => void;
@@ -105,6 +109,7 @@ export function PublicationList({
   publicationVaultsMap,
   relationsCountMap,
   selectedVault,
+  listTitle,
   vaultOwnerName,
   isVaultContext = false,
   onAddPublication,
@@ -226,7 +231,7 @@ export function PublicationList({
   });
 
   // Apply custom filters
-  const customFiltered = applyFilters(searchFiltered, persistedFilters, publicationTagsMap);
+  const customFiltered = applyFilters(searchFiltered, persistedFilters, publicationTagsMap, publicationVaultsMap || {});
 
   // Apply sorting
   const filteredPublications = customFiltered.sort((a, b) => comparePublications(a, b, sortBy, sortDirection));
@@ -469,7 +474,9 @@ export function PublicationList({
                 />
               )}
               <h1 className="text-lg sm:text-xl lg:text-2xl font-bold truncate font-mono leading-none">
-                {selectedVault ? selectedVault.name : (
+                {selectedVault ? selectedVault.name : listTitle ? (
+                  <span className="text-gradient">{listTitle}</span>
+                ) : (
                   <>
                     // <span className="text-gradient">all_papers</span>
                   </>
@@ -483,7 +490,7 @@ export function PublicationList({
               {vaultOwnerName && (
                 <span>by {vaultOwnerName} • </span>
               )}
-              {filteredPublications.length} {selectedVault ? 'item' : 'distinct paper'}{filteredPublications.length !== 1 ? 's' : ''}
+              {filteredPublications.length} {selectedVault || listTitle ? 'item' : 'distinct paper'}{filteredPublications.length !== 1 ? 's' : ''}
               {persistedFilters.length > 0 && (
                 <span className="text-primary"> • {persistedFilters.length} filter{persistedFilters.length !== 1 ? 's' : ''}</span>
               )}

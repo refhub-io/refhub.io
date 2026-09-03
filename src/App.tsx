@@ -25,6 +25,8 @@ import VaultDetail from "./pages/VaultDetail";
 import TheCodex from "./pages/TheCodex";
 import OpenGraphPreview from "./pages/OpenGraphPreview";
 import Users from "./pages/Users";
+import SmartCollections from "./pages/SmartCollections";
+import SmartCollectionDetail from "./pages/SmartCollectionDetail";
 import UserProfile from "./pages/UserProfile";
 import ProfileEdit from "./pages/ProfileEdit";
 import AuthWrapper from "@/components/layout/AuthWrapper";
@@ -105,6 +107,8 @@ const App = () => {
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/codex" element={<TheCodex />} />
                   <Route path="/users" element={<Users />} />
+                  <Route path="/collections" element={<SmartCollections />} />
+                  <Route path="/collections/:id" element={<SmartCollectionDetail />} />
                   <Route path="/profile/:username" element={<UserProfile />} />
                   <Route path="/public/:slug" element={<PublicVault />} />
                   <Route path="/vault/:id" element={<VaultDetail />} />
