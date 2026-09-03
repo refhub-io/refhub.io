@@ -19,7 +19,8 @@ import {
   Heart,
   Share2,
   GripVertical,
-  Sparkles
+  Sparkles,
+  Archive
 } from 'lucide-react';
 import { SortableContext, verticalListSortingStrategy, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { DndContext, DragOverlay, PointerSensor, KeyboardSensor, useSensor, useSensors, DragStartEvent, DragEndEvent } from '@dnd-kit/core';
@@ -448,6 +449,9 @@ export function Sidebar({
                             ) : (
                               <Lock className="w-3 h-3 text-muted-foreground shrink-0" />
                             )}
+                            {vault.archived_at && (
+                              <Archive className="w-3 h-3 text-muted-foreground shrink-0" aria-label="archived" />
+                            )}
                           </button>
 
                           {onEditVault && (
@@ -566,6 +570,9 @@ export function Sidebar({
                                 />
                                 <span className="truncate font-medium">{vault.name}</span>
                                 <Share2 className="w-3 h-3 text-blue-400 shrink-0" />
+                                {vault.archived_at && (
+                                  <Archive className="w-3 h-3 text-muted-foreground shrink-0" aria-label="archived" />
+                                )}
                               </Link>
                             </div>
                           )}
@@ -661,6 +668,9 @@ export function Sidebar({
                                     <Globe className="w-3 h-3 text-muted-foreground shrink-0" />
                                   ) : (
                                     <Share2 className="w-3 h-3 text-muted-foreground shrink-0" />
+                                  )}
+                                  {vault.archived_at && (
+                                    <Archive className="w-3 h-3 text-muted-foreground shrink-0" aria-label="archived" />
                                   )}
                                 </Link>
                               </div>
