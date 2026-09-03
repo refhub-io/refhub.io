@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.10.1] - 2026-08-30
+
+### Fixed
+- The public vault page at `/public/:slug` never rendered a vault's description/abstract, even though the same fields are already shown on Codex browse cards and the abstract field's own hint says it's "shown on the codex when published." Visitors landing directly on a vault's page now see it, with a placeholder statement when neither field is set (#98).
+
 ## [1.10.0] - 2026-08-29
 
 ### Added
