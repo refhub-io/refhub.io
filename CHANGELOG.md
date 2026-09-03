@@ -14,6 +14,11 @@ project uses [Semantic Versioning](https://semver.org/). History prior to
 - The `get_vault_metadata` RPC's own error was fetched but never checked, so a genuine backend failure (network, outage) was indistinguishable from "this vault doesn't exist" and left no trace in the logs. Now logged, and surfaces a toast distinct from the silent private/nonexistent case.
 - The "No Access" / "Request Access" / "Checking access..." labels on `VaultAccessBadge` were Title Case, inconsistent with the rest of the app's lowercase/snake_case convention (`owner`, `editor`, `viewer`, etc.) — now `no_access` / `request_access` / `checking_access...`.
 - `AuthWrapper`'s "please sign in" gate reused the same cycling-loading-word `LoadingSpinner` shown during the actual loading state, even though nothing is loading at that point — it's a static, already-resolved "you need to sign in" screen. Replaced with the app's logo-gradient icon box (`bg-gradient-primary`, matching the pattern used on `vault_not_found`/empty-state screens) and a sign-in icon.
+## [1.12.2] - 2026-09-03
+
+### Fixed
+- Public vault pages (`/public/:slug`) already exposed the filter panel to signed-out visitors, but its field list was the same one shown to signed-in owners — including `Vault` (meaningless with exactly one vault on the page) and the owner's private/personal fields (`Notes`, `Reading State`, `Important`). `FilterBuilder` now accepts an optional `filterableFields` prop to restrict the field picker; public vault pages pass a public-appropriate subset (title, authors, year, journal, tags, type, DOI). Every other call site (vault view, dashboard, smart collections) is unaffected — the prop defaults to the full field list.
+- Codex topic page (`/codex/topic/:topicSlug`): the topic context panel (matching vaults, related topics, curators) rendered as 3+ stacked full-width rows on mobile, on top of the sort control and the collapsed "why these matched" section — pushing the actual paper list well below the fold before a visitor saw a single paper. It's now collapsed behind a `// context` disclosure toggle on mobile (closed by default, same pattern as "why these matched"); desktop keeps today's always-expanded layout.
 
 ## [1.12.1] - 2026-09-01
 

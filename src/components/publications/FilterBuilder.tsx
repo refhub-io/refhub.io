@@ -63,6 +63,8 @@ interface FilterBuilderProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   onCloseAutoFocus?: (event: Event) => void;
+  /** Restricts the field picker to this subset. Omit for the full field list. */
+  filterableFields?: FilterField[];
 }
 
 const FIELD_OPTIONS: { value: FilterField; label: string }[] = [
@@ -135,6 +137,8 @@ interface FilterRuleEditorProps {
    * much that filter narrowed the set down from the row above it.
    */
   matchCounts?: number[];
+  /** Restricts the field picker to this subset. Omit for the full field list. */
+  filterableFields?: FilterField[];
 }
 
 /**
@@ -142,11 +146,14 @@ interface FilterRuleEditorProps {
  * FilterBuilder so it can be dropped inline (a full always-visible form)
  * as well as inside FilterBuilder's compact popover/sheet trigger.
  */
-export function FilterRuleEditor({ filters, onFiltersChange, tags, vaults, matchCounts }: FilterRuleEditorProps) {
+export function FilterRuleEditor({ filters, onFiltersChange, tags, vaults, matchCounts, filterableFields }: FilterRuleEditorProps) {
+  const fieldOptions = filterableFields
+    ? FIELD_OPTIONS.filter((opt) => filterableFields.includes(opt.value))
+    : FIELD_OPTIONS;
   const addFilter = () => {
     const newFilter: PublicationFilter = {
       id: crypto.randomUUID(),
-      field: 'title',
+      field: fieldOptions[0]?.value ?? 'title',
       operator: 'contains',
       value: '',
     };
@@ -327,7 +334,7 @@ export function FilterRuleEditor({ filters, onFiltersChange, tags, vaults, match
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {FIELD_OPTIONS.map((opt) => (
+                    {fieldOptions.map((opt) => (
                       <SelectItem key={opt.value} value={opt.value} className="text-xs font-mono">
                         {opt.label}
                       </SelectItem>
@@ -389,7 +396,7 @@ export function FilterRuleEditor({ filters, onFiltersChange, tags, vaults, match
   );
 }
 
-export function FilterBuilder({ filters, onFiltersChange, tags, vaults, open: controlledOpen, onOpenChange, onCloseAutoFocus }: FilterBuilderProps) {
+export function FilterBuilder({ filters, onFiltersChange, tags, vaults, open: controlledOpen, onOpenChange, onCloseAutoFocus, filterableFields }: FilterBuilderProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const isOpen = controlledOpen ?? internalOpen;
   const setIsOpen = (v: boolean) => { setInternalOpen(v); onOpenChange?.(v); };
@@ -416,7 +423,7 @@ export function FilterBuilder({ filters, onFiltersChange, tags, vaults, open: co
   );
 
   const filterContent = (
-    <FilterRuleEditor filters={filters} onFiltersChange={onFiltersChange} tags={tags} vaults={vaults} />
+    <FilterRuleEditor filters={filters} onFiltersChange={onFiltersChange} tags={tags} vaults={vaults} filterableFields={filterableFields} />
   );
 
   // Use Sheet on mobile, Popover on desktop
