@@ -84,17 +84,32 @@ GRANT ALL ON FUNCTION "public"."delete_vault"(uuid) TO "service_role";
 -- "archived_at IS NULL". Ownership-only branches with no vault join
 -- (a user's own `publications` row, a personal tag with vault_id NULL)
 -- are untouched. Read-only SELECT policies are untouched.
+--
+-- auth.uid() is wrapped as (select auth.uid()) throughout these 8 policies
+-- to preserve the InitPlan-caching performance fix from
+-- "Fix Supabase Performance Advisor warnings" -- schema.sql predates that
+-- fix and does not reflect it, so these policies were re-derived directly
+-- from that commit's actual output, not from schema.sql.
+--
+-- "Users can manage vault papers" also required restoring "FOR ALL TO
+-- authenticated" plus an explicit USING clause matching WITH CHECK -- an
+-- earlier draft of this migration (copied from stale schema.sql) had
+-- WITH CHECK only, which for a FOR ALL policy makes Postgres default
+-- USING to unrestricted (true), not to the WITH CHECK expression. That
+-- would have silently reintroduced the exact "any role can delete any
+-- row" bug that "Fix Supabase Security Advisor errors and warnings"
+-- (rls_policy_always_true) previously fixed for this table.
 
 DROP POLICY IF EXISTS "Users can manage vault publications in editable vaults" ON "public"."vault_publications";
 CREATE POLICY "Users can manage vault publications in editable vaults" ON "public"."vault_publications" TO "authenticated"
 USING (
   EXISTS (
     SELECT 1 FROM "public"."vaults" "v"
-    LEFT JOIN "public"."vault_shares" "vs" ON "v"."id" = "vs"."vault_id" AND "vs"."shared_with_user_id" = auth.uid()
+    LEFT JOIN "public"."vault_shares" "vs" ON "v"."id" = "vs"."vault_id" AND "vs"."shared_with_user_id" = (select auth.uid())
     WHERE "v"."id" = "vault_publications"."vault_id"
       AND "v"."archived_at" IS NULL
       AND (
-        "v"."user_id" = auth.uid()
+        "v"."user_id" = (select auth.uid())
         OR ("vs"."shared_with_user_id" IS NOT NULL AND "vs"."role" IS NOT NULL AND "vs"."role" <> 'viewer'::"public"."vault_permission")
         OR "v"."visibility" = 'public'::"public"."vault_visibility"
       )
@@ -103,11 +118,11 @@ USING (
 WITH CHECK (
   EXISTS (
     SELECT 1 FROM "public"."vaults" "v"
-    LEFT JOIN "public"."vault_shares" "vs" ON "v"."id" = "vs"."vault_id" AND "vs"."shared_with_user_id" = auth.uid()
+    LEFT JOIN "public"."vault_shares" "vs" ON "v"."id" = "vs"."vault_id" AND "vs"."shared_with_user_id" = (select auth.uid())
     WHERE "v"."id" = "vault_publications"."vault_id"
       AND "v"."archived_at" IS NULL
       AND (
-        "v"."user_id" = auth.uid()
+        "v"."user_id" = (select auth.uid())
         OR ("vs"."shared_with_user_id" IS NOT NULL AND "vs"."role" IS NOT NULL AND "vs"."role" <> 'viewer'::"public"."vault_permission")
         OR "v"."visibility" = 'public'::"public"."vault_visibility"
       )
@@ -117,16 +132,16 @@ WITH CHECK (
 DROP POLICY IF EXISTS "Users can manage own tags and tags in editable vaults" ON "public"."tags";
 CREATE POLICY "Users can manage own tags and tags in editable vaults" ON "public"."tags" TO "authenticated"
 USING (
-  auth.uid() = "user_id"
+  (select auth.uid()) = "user_id"
   OR (
     "vault_id" IS NOT NULL
     AND EXISTS (
       SELECT 1 FROM "public"."vaults" "v"
-      LEFT JOIN "public"."vault_shares" "vs" ON "v"."id" = "vs"."vault_id" AND "vs"."shared_with_user_id" = auth.uid()
+      LEFT JOIN "public"."vault_shares" "vs" ON "v"."id" = "vs"."vault_id" AND "vs"."shared_with_user_id" = (select auth.uid())
       WHERE "v"."id" = "tags"."vault_id"
         AND "v"."archived_at" IS NULL
         AND (
-          "v"."user_id" = auth.uid()
+          "v"."user_id" = (select auth.uid())
           OR ("vs"."shared_with_user_id" IS NOT NULL AND "vs"."role" IS NOT NULL AND "vs"."role" <> 'viewer'::"public"."vault_permission")
           OR "v"."visibility" = 'public'::"public"."vault_visibility"
         )
@@ -134,16 +149,16 @@ USING (
   )
 )
 WITH CHECK (
-  auth.uid() = "user_id"
+  (select auth.uid()) = "user_id"
   OR (
     "vault_id" IS NOT NULL
     AND EXISTS (
       SELECT 1 FROM "public"."vaults" "v"
-      LEFT JOIN "public"."vault_shares" "vs" ON "v"."id" = "vs"."vault_id" AND "vs"."shared_with_user_id" = auth.uid()
+      LEFT JOIN "public"."vault_shares" "vs" ON "v"."id" = "vs"."vault_id" AND "vs"."shared_with_user_id" = (select auth.uid())
       WHERE "v"."id" = "tags"."vault_id"
         AND "v"."archived_at" IS NULL
         AND (
-          "v"."user_id" = auth.uid()
+          "v"."user_id" = (select auth.uid())
           OR ("vs"."shared_with_user_id" IS NOT NULL AND "vs"."role" IS NOT NULL AND "vs"."role" <> 'viewer'::"public"."vault_permission")
           OR "v"."visibility" = 'public'::"public"."vault_visibility"
         )
@@ -156,18 +171,18 @@ CREATE POLICY "Users can manage publication tags for own publications and acce" 
 USING (
   ("publication_id" IS NOT NULL AND EXISTS (
     SELECT 1 FROM "public"."publications" "p"
-    WHERE "p"."id" = "publication_tags"."publication_id" AND "p"."user_id" = auth.uid()
+    WHERE "p"."id" = "publication_tags"."publication_id" AND "p"."user_id" = (select auth.uid())
   ))
   OR ("publication_id" IS NOT NULL AND EXISTS (
     SELECT 1 FROM "public"."publications" "p"
     LEFT JOIN "public"."vault_papers" "vp" ON "p"."id" = "vp"."publication_id"
     LEFT JOIN "public"."vaults" "v" ON "vp"."vault_id" = "v"."id"
-    LEFT JOIN "public"."vault_shares" "vs" ON "v"."id" = "vs"."vault_id" AND "vs"."shared_with_user_id" = auth.uid()
+    LEFT JOIN "public"."vault_shares" "vs" ON "v"."id" = "vs"."vault_id" AND "vs"."shared_with_user_id" = (select auth.uid())
     WHERE "p"."id" = "publication_tags"."publication_id"
       AND (
-        "p"."user_id" = auth.uid()
+        "p"."user_id" = (select auth.uid())
         OR ("v"."id" IS NOT NULL AND "v"."archived_at" IS NULL AND (
-          "v"."user_id" = auth.uid()
+          "v"."user_id" = (select auth.uid())
           OR ("vs"."shared_with_user_id" IS NOT NULL AND "vs"."role" IS NOT NULL AND "vs"."role" <> 'viewer'::"public"."vault_permission")
           OR "v"."visibility" = 'public'::"public"."vault_visibility"
         ))
@@ -176,11 +191,11 @@ USING (
   OR ("vault_publication_id" IS NOT NULL AND EXISTS (
     SELECT 1 FROM "public"."vault_publications" "vp"
     LEFT JOIN "public"."vaults" "v" ON "vp"."vault_id" = "v"."id"
-    LEFT JOIN "public"."vault_shares" "vs" ON "v"."id" = "vs"."vault_id" AND "vs"."shared_with_user_id" = auth.uid()
+    LEFT JOIN "public"."vault_shares" "vs" ON "v"."id" = "vs"."vault_id" AND "vs"."shared_with_user_id" = (select auth.uid())
     WHERE "vp"."id" = "publication_tags"."vault_publication_id"
       AND "v"."archived_at" IS NULL
       AND (
-        "v"."user_id" = auth.uid()
+        "v"."user_id" = (select auth.uid())
         OR ("vs"."shared_with_user_id" IS NOT NULL AND "vs"."role" IS NOT NULL AND "vs"."role" <> 'viewer'::"public"."vault_permission")
         OR "v"."visibility" = 'public'::"public"."vault_visibility"
       )
@@ -189,18 +204,18 @@ USING (
 WITH CHECK (
   ("publication_id" IS NOT NULL AND EXISTS (
     SELECT 1 FROM "public"."publications" "p"
-    WHERE "p"."id" = "publication_tags"."publication_id" AND "p"."user_id" = auth.uid()
+    WHERE "p"."id" = "publication_tags"."publication_id" AND "p"."user_id" = (select auth.uid())
   ))
   OR ("publication_id" IS NOT NULL AND EXISTS (
     SELECT 1 FROM "public"."publications" "p"
     LEFT JOIN "public"."vault_papers" "vp" ON "p"."id" = "vp"."publication_id"
     LEFT JOIN "public"."vaults" "v" ON "vp"."vault_id" = "v"."id"
-    LEFT JOIN "public"."vault_shares" "vs" ON "v"."id" = "vs"."vault_id" AND "vs"."shared_with_user_id" = auth.uid()
+    LEFT JOIN "public"."vault_shares" "vs" ON "v"."id" = "vs"."vault_id" AND "vs"."shared_with_user_id" = (select auth.uid())
     WHERE "p"."id" = "publication_tags"."publication_id"
       AND (
-        "p"."user_id" = auth.uid()
+        "p"."user_id" = (select auth.uid())
         OR ("v"."id" IS NOT NULL AND "v"."archived_at" IS NULL AND (
-          "v"."user_id" = auth.uid()
+          "v"."user_id" = (select auth.uid())
           OR ("vs"."shared_with_user_id" IS NOT NULL AND "vs"."role" IS NOT NULL AND "vs"."role" <> 'viewer'::"public"."vault_permission")
           OR "v"."visibility" = 'public'::"public"."vault_visibility"
         ))
@@ -209,11 +224,11 @@ WITH CHECK (
   OR ("vault_publication_id" IS NOT NULL AND EXISTS (
     SELECT 1 FROM "public"."vault_publications" "vp"
     LEFT JOIN "public"."vaults" "v" ON "vp"."vault_id" = "v"."id"
-    LEFT JOIN "public"."vault_shares" "vs" ON "v"."id" = "vs"."vault_id" AND "vs"."shared_with_user_id" = auth.uid()
+    LEFT JOIN "public"."vault_shares" "vs" ON "v"."id" = "vs"."vault_id" AND "vs"."shared_with_user_id" = (select auth.uid())
     WHERE "vp"."id" = "publication_tags"."vault_publication_id"
       AND "v"."archived_at" IS NULL
       AND (
-        "v"."user_id" = auth.uid()
+        "v"."user_id" = (select auth.uid())
         OR ("vs"."shared_with_user_id" IS NOT NULL AND "vs"."role" IS NOT NULL AND "vs"."role" <> 'viewer'::"public"."vault_permission")
         OR "v"."visibility" = 'public'::"public"."vault_visibility"
       )
@@ -223,30 +238,30 @@ WITH CHECK (
 DROP POLICY IF EXISTS "Users can manage own publications and publications in editable " ON "public"."publications";
 CREATE POLICY "Users can manage own publications and publications in editable " ON "public"."publications" TO "authenticated"
 USING (
-  auth.uid() = "user_id"
+  (select auth.uid()) = "user_id"
   OR EXISTS (
     SELECT 1 FROM "public"."vault_papers" "vp"
     JOIN "public"."vaults" "v" ON "vp"."vault_id" = "v"."id"
-    LEFT JOIN "public"."vault_shares" "vs" ON "v"."id" = "vs"."vault_id" AND "vs"."shared_with_user_id" = auth.uid()
+    LEFT JOIN "public"."vault_shares" "vs" ON "v"."id" = "vs"."vault_id" AND "vs"."shared_with_user_id" = (select auth.uid())
     WHERE "vp"."publication_id" = "publications"."id"
       AND "v"."archived_at" IS NULL
       AND (
-        "v"."user_id" = auth.uid()
+        "v"."user_id" = (select auth.uid())
         OR ("vs"."shared_with_user_id" IS NOT NULL AND "vs"."role" IS NOT NULL AND "vs"."role" <> 'viewer'::"public"."vault_permission")
         OR "v"."visibility" = 'public'::"public"."vault_visibility"
       )
   )
 )
 WITH CHECK (
-  auth.uid() = "user_id"
+  (select auth.uid()) = "user_id"
   OR EXISTS (
     SELECT 1 FROM "public"."vault_papers" "vp"
     JOIN "public"."vaults" "v" ON "vp"."vault_id" = "v"."id"
-    LEFT JOIN "public"."vault_shares" "vs" ON "v"."id" = "vs"."vault_id" AND "vs"."shared_with_user_id" = auth.uid()
+    LEFT JOIN "public"."vault_shares" "vs" ON "v"."id" = "vs"."vault_id" AND "vs"."shared_with_user_id" = (select auth.uid())
     WHERE "vp"."publication_id" = "publications"."id"
       AND "v"."archived_at" IS NULL
       AND (
-        "v"."user_id" = auth.uid()
+        "v"."user_id" = (select auth.uid())
         OR ("vs"."shared_with_user_id" IS NOT NULL AND "vs"."role" IS NOT NULL AND "vs"."role" <> 'viewer'::"public"."vault_permission")
         OR "v"."visibility" = 'public'::"public"."vault_visibility"
       )
@@ -255,17 +270,34 @@ WITH CHECK (
 
 DROP POLICY IF EXISTS "Users can manage vault papers" ON "public"."vault_papers";
 CREATE POLICY "Users can manage vault papers" ON "public"."vault_papers"
-WITH CHECK (
-  auth.uid() = "added_by"
+FOR ALL TO "authenticated"
+USING (
+  (select auth.uid()) = "added_by"
   OR EXISTS (
     SELECT 1 FROM "public"."vaults" "v"
     WHERE "v"."id" = "vault_papers"."vault_id"
       AND "v"."archived_at" IS NULL
       AND (
-        "v"."user_id" = auth.uid()
+        "v"."user_id" = (select auth.uid())
         OR EXISTS (
           SELECT 1 FROM "public"."vault_shares" "vs"
-          WHERE "vs"."vault_id" = "v"."id" AND "vs"."shared_with_user_id" = auth.uid()
+          WHERE "vs"."vault_id" = "v"."id" AND "vs"."shared_with_user_id" = (select auth.uid())
+            AND "vs"."role" = ANY (ARRAY['editor'::"public"."vault_permission", 'owner'::"public"."vault_permission"])
+        )
+      )
+  )
+)
+WITH CHECK (
+  (select auth.uid()) = "added_by"
+  OR EXISTS (
+    SELECT 1 FROM "public"."vaults" "v"
+    WHERE "v"."id" = "vault_papers"."vault_id"
+      AND "v"."archived_at" IS NULL
+      AND (
+        "v"."user_id" = (select auth.uid())
+        OR EXISTS (
+          SELECT 1 FROM "public"."vault_shares" "vs"
+          WHERE "vs"."vault_id" = "v"."id" AND "vs"."shared_with_user_id" = (select auth.uid())
             AND "vs"."role" = ANY (ARRAY['editor'::"public"."vault_permission", 'owner'::"public"."vault_permission"])
         )
       )
@@ -275,15 +307,15 @@ WITH CHECK (
 DROP POLICY IF EXISTS "publication_relations_insert" ON "public"."publication_relations";
 CREATE POLICY "publication_relations_insert" ON "public"."publication_relations" FOR INSERT TO "authenticated"
 WITH CHECK (
-  "created_by" = auth.uid()
+  "created_by" = (select auth.uid())
   AND EXISTS (
     SELECT 1 FROM "public"."vault_publications" "vp"
     JOIN "public"."vaults" "v" ON "vp"."vault_id" = "v"."id"
-    LEFT JOIN "public"."vault_shares" "vs" ON "v"."id" = "vs"."vault_id" AND "vs"."shared_with_user_id" = auth.uid()
+    LEFT JOIN "public"."vault_shares" "vs" ON "v"."id" = "vs"."vault_id" AND "vs"."shared_with_user_id" = (select auth.uid())
     WHERE "vp"."id" = "publication_relations"."publication_id"
       AND "v"."archived_at" IS NULL
       AND (
-        "v"."user_id" = auth.uid()
+        "v"."user_id" = (select auth.uid())
         OR ("vs"."shared_with_user_id" IS NOT NULL AND "vs"."role" = ANY (ARRAY['editor'::"public"."vault_permission", 'owner'::"public"."vault_permission"]))
       )
   )
@@ -292,12 +324,12 @@ WITH CHECK (
 DROP POLICY IF EXISTS "publication_relations_delete" ON "public"."publication_relations";
 CREATE POLICY "publication_relations_delete" ON "public"."publication_relations" FOR DELETE TO "authenticated"
 USING (
-  "created_by" = auth.uid()
+  "created_by" = (select auth.uid())
   OR EXISTS (
     SELECT 1 FROM "public"."vault_publications" "vp"
     JOIN "public"."vaults" "v" ON "vp"."vault_id" = "v"."id"
     WHERE ("vp"."id" = "publication_relations"."publication_id" OR "vp"."id" = "publication_relations"."related_publication_id")
-      AND "v"."user_id" = auth.uid()
+      AND "v"."user_id" = (select auth.uid())
       AND "v"."archived_at" IS NULL
   )
 );
@@ -307,12 +339,12 @@ CREATE POLICY "Vault owners can manage shares" ON "public"."vault_shares" TO "au
 USING (
   EXISTS (
     SELECT 1 FROM "public"."vaults" "v"
-    WHERE "v"."id" = "vault_shares"."vault_id" AND "v"."user_id" = auth.uid() AND "v"."archived_at" IS NULL
+    WHERE "v"."id" = "vault_shares"."vault_id" AND "v"."user_id" = (select auth.uid()) AND "v"."archived_at" IS NULL
   )
 )
 WITH CHECK (
   EXISTS (
     SELECT 1 FROM "public"."vaults" "v"
-    WHERE "v"."id" = "vault_shares"."vault_id" AND "v"."user_id" = auth.uid() AND "v"."archived_at" IS NULL
+    WHERE "v"."id" = "vault_shares"."vault_id" AND "v"."user_id" = (select auth.uid()) AND "v"."archived_at" IS NULL
   )
 );
