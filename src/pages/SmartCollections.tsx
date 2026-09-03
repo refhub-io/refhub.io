@@ -152,9 +152,9 @@ export default function SmartCollections() {
                 saved_filter_rules_that_stay_current_automatically • {collections.length}_collection{collections.length !== 1 ? 's' : ''}
               </p>
             </div>
-            <Button onClick={openCreateDialog} variant="glow" className="shrink-0 font-mono">
-              <Plus className="w-4 h-4 mr-2" />
-              new_collection
+            <Button onClick={openCreateDialog} variant="glow" size="sm" className="shrink-0 font-mono">
+              <Plus className="w-4 h-4" />
+              <span className="ml-2 hidden sm:inline">new_collection</span>
             </Button>
           </div>
 

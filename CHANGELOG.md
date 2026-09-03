@@ -6,7 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
-## [1.12.0] - 2026-09-01
+## [1.12.1] - 2026-09-01
+
+### Fixed
+- Smart collections list header: the `new_collection` button had `shrink-0` but no responsive sizing, so on narrow screens it held its full width and forced the title/subtitle text down to a sliver, truncating both to a few characters. It now collapses to an icon-only button below the `sm` breakpoint, matching the icon-with-hidden-label pattern used elsewhere (e.g. the vault header's fork/health-check buttons).
+- Codex topic page (`/codex/topic/:topicSlug`): rendered its own `MobileMenuButton`, fixed to the viewport's top-left corner, in addition to the one already provided by `PublicationList`'s own header further down the page — two menu buttons, with the fixed one visually overlapping the in-flow "back to codex" arrow at the same corner. Removed the redundant fixed button; a `PublicationList`-independent one now only appears in the empty "no matches" state, where `PublicationList` isn't rendered at all.
 
 ### Added
 - Vaults can now be archived: an irreversible, owner-triggered action that makes a vault permanently read-only (no adding/removing papers, no metadata/tag/note edits, no collaborator changes) while leaving its visibility and everything already in it exactly as visible as before. Archived vaults show a badge in the sidebar, the vault header, and public vault pages, and can still be deleted outright by their owner.
