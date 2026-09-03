@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../integrations/supabase/client';
 import { logger } from '../lib/logger';
+import { showError } from '../lib/toast';
 import { VaultVisibility, VaultRole } from '../types/vault-extensions';
 import { Vault } from '../types/database';
 import { getPageCache, setPageCache, hasPageCache } from '../lib/pageCache';
@@ -121,11 +122,19 @@ export const useVaultAccess = (
           setResult(prev => ({ ...prev, accessStatus: 'loading', error: null }));
         }
 
-        // Get current user
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        if (userError && userError.code !== 'PGRST116') {
+        // Get current user. getUser() validates the session against the
+        // server and throws AuthSessionMissingError when there's no session
+        // at all — i.e. for every signed-out visitor — which would abort
+        // this whole check before it ever looks at vault visibility.
+        // getSession() reads the local session without that round trip and
+        // returns null gracefully instead, matching every other
+        // anonymous-safe auth check in this codebase (useAuth, pdfUpload,
+        // bibtex, semanticScholar).
+        const { data: { session }, error: userError } = await supabase.auth.getSession();
+        if (userError) {
           throw userError;
         }
+        const user = session?.user ?? null;
 
         let vaultData = null;
         let vaultNotFound = false;
@@ -145,10 +154,22 @@ export const useVaultAccess = (
             const { data: metadata, error: metadataError } = await supabase
               .rpc('get_vault_metadata', { vault_id: vaultSlug });
 
+            if (metadataError) {
+              // A genuine RPC failure (network, backend) — distinct from the
+              // RPC succeeding but finding nothing, which just means the
+              // vault doesn't exist or is private and needs no toast.
+              logger.error('useVaultAccess', 'get_vault_metadata RPC failed:', metadataError);
+              showError(
+                'Could not check vault access',
+                'RefHub could not verify this vault right now. Try refreshing the page.',
+                { source: null },
+              );
+            }
+
             if (metadata && metadata.length > 0) {
               vaultData = metadata[0];
             } else {
-              // Vault truly doesn't exist or is private
+              // Vault truly doesn't exist, is private, or the check above failed
               vaultNotFound = true;
             }
           } else {
@@ -180,9 +201,14 @@ export const useVaultAccess = (
 
         const isArchived = vaultData ? (vaultData as Vault).archived_at != null : false;
 
-        // Check if user is owner (only if we have vault data)
+        // Check if user is owner (only if we have vault data). get_vault_metadata's
+        // response never includes user_id (it only returns display metadata), so
+        // vaultData.user_id is undefined whenever vaultData came from that RPC
+        // fallback — comparing against a possibly-undefined user?.id without the
+        // `!!user` guard would make an anonymous visitor (user null, so user?.id
+        // is also undefined) match undefined === undefined and be treated as owner.
         if (vaultData) {
-          const isOwner = user?.id === vaultData.user_id;
+          const isOwner = !!user && user.id === vaultData.user_id;
 
           if (isOwner) {
             setResult(prev => ({

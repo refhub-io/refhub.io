@@ -13,7 +13,7 @@ const VaultAccessBadge: React.FC<VaultAccessBadgeProps> = ({ vaultId }) => {
   if (accessStatus === 'loading') {
     return (
       <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
-        <div className="animate-pulse">Checking access...</div>
+        <div className="animate-pulse font-mono">checking_access...</div>
       </div>
     );
   }
@@ -22,7 +22,7 @@ const VaultAccessBadge: React.FC<VaultAccessBadgeProps> = ({ vaultId }) => {
     return (
       <div className="flex items-center gap-2 px-3 py-2 text-sm text-red-600">
         <Shield className="w-4 h-4" />
-        <span>No Access</span>
+        <span className="font-mono">no_access</span>
       </div>
     );
   }
@@ -31,7 +31,7 @@ const VaultAccessBadge: React.FC<VaultAccessBadgeProps> = ({ vaultId }) => {
     return (
       <div className="flex items-center gap-2 px-3 py-2 text-sm text-yellow-600">
         <Eye className="w-4 h-4" />
-        <span>Request Access</span>
+        <span className="font-mono">request_access</span>
       </div>
     );
   }
