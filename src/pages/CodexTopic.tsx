@@ -233,10 +233,6 @@ export default function CodexTopic() {
         />
       )}
       <div className={`flex-1 min-w-0 flex flex-col min-h-screen ${user ? 'lg:pl-72' : ''}`}>
-        {user && !isMobileSidebarOpen && (
-          <MobileMenuButton onClick={() => setIsMobileSidebarOpen(true)} className="fixed top-4 left-4 z-50" />
-        )}
-
         <div className="border-b border-border bg-card/50 backdrop-blur-xl px-4 py-3">
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
             <div className="flex items-center gap-2 shrink-0">
@@ -277,6 +273,9 @@ export default function CodexTopic() {
 
         {sortedDirectMatches.length === 0 ? (
           <div className="p-8 text-center">
+            {user && (
+              <MobileMenuButton onClick={() => setIsMobileSidebarOpen(true)} className="mb-4" />
+            )}
             <p className="text-muted-foreground font-mono text-sm">// no_public_papers_match_this_topic_yet</p>
           </div>
         ) : (
