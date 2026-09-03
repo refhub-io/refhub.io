@@ -89,7 +89,8 @@ describe('VaultSectionsPanel', () => {
     const pub1 = makePub({ id: 'p1', title: 'First Paper', section_id: 's1', section_position: 0 });
     const pub2 = makePub({ id: 'p2', title: 'Second Paper', section_id: 's1', section_position: 1 });
 
-    render(<VaultSectionsPanel vaultId="v1" publications={[pub1, pub2]} onPublicationsChange={() => {}} />);
+    const onPublicationsChange = vi.fn();
+    render(<VaultSectionsPanel vaultId="v1" publications={[pub1, pub2]} onPublicationsChange={onPublicationsChange} />);
 
     await waitFor(() => expect(screen.getByLabelText(/move first paper up within section/i)).toBeInTheDocument());
     fireEvent.click(screen.getByLabelText(/move second paper up within section/i));
@@ -98,5 +99,11 @@ describe('VaultSectionsPanel', () => {
       expect(mockUpdatePublicationSection).toHaveBeenCalledWith({}, 'p1', { section_position: 1 });
       expect(mockUpdatePublicationSection).toHaveBeenCalledWith({}, 'p2', { section_position: 0 });
     });
+
+    const callArgs = onPublicationsChange.mock.calls[onPublicationsChange.mock.calls.length - 1][0];
+    const swappedPub1 = callArgs.find((p) => p.id === 'p1');
+    const swappedPub2 = callArgs.find((p) => p.id === 'p2');
+    expect(swappedPub1?.section_position).toBe(1);
+    expect(swappedPub2?.section_position).toBe(0);
   });
 });

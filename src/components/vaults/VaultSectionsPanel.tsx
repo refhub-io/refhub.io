@@ -55,6 +55,23 @@ export function VaultSectionsPanel({ vaultId, publications, onPublicationsChange
     void reorderSections(reordered);
   };
 
+  const swapSectionPositions = async (a: Publication, b: Publication) => {
+    const updated = publications.map((p) => {
+      if (p.id === a.id) return { ...p, section_position: b.section_position ?? 0 };
+      if (p.id === b.id) return { ...p, section_position: a.section_position ?? 0 };
+      return p;
+    });
+    onPublicationsChange(updated);
+    try {
+      await Promise.all([
+        updateVaultPublicationSection(supabase, a.id, { section_position: b.section_position ?? 0 }),
+        updateVaultPublicationSection(supabase, b.id, { section_position: a.section_position ?? 0 }),
+      ]);
+    } catch (error) {
+      showError('Failed to reorder', (error as Error).message, { source: null });
+    }
+  };
+
   const movePublicationInSection = (pub: Publication) => {
     if (!pub.section_id) return undefined;
     const siblings = publications
@@ -66,8 +83,7 @@ export function VaultSectionsPanel({ vaultId, publications, onPublicationsChange
       if (targetIndex < 0 || targetIndex >= siblings.length) return;
       const a = siblings[index];
       const b = siblings[targetIndex];
-      void patchPublication(a.id, { section_position: b.section_position ?? 0 });
-      void patchPublication(b.id, { section_position: a.section_position ?? 0 });
+      void swapSectionPositions(a, b);
     };
   };
 
