@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    id: 23,
+    date: '2026-09-03',
+    title: 'curated vault sections',
+    features: [
+      {
+        tag: 'feature',
+        title: 'curate your public vault',
+        description:
+          'organize a public vault into named sections and feature your favorite papers with a short note, from the vault settings dialog. visitors see your curated picks first, with one click back to the full list.',
+      },
+    ],
+  },
+  {
     id: 22,
     date: '2026-09-01',
     title: 'archive vaults for good',

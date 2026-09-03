@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.13.0] - 2026-09-03
+
+### Added
+- Vault owners can now organize a public vault's papers into named, ordered sections, and mark individual papers as featured with an optional curator note (`VaultDialog`'s new "sections" tab, available once a vault is set to public). Visitors to `/public/:slug` see the curated view by default when sections exist, with a toggle to reach the full, unchanged paper list.
+
 ## [1.12.3] - 2026-09-03
 
 ### Fixed
