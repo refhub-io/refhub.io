@@ -204,6 +204,40 @@ describe('useVaultAccess — signed-in visitor with no explicit share, public va
     expect(result.current.canView).toBe(true);
     expect(result.current.permission).toBe('viewer');
   });
+
+  it('still grants baseline viewer permission on a public vault when the visitor has a PENDING editor request', async () => {
+    // Reproduces the exact bug: clicking "collaborate" on a public vault
+    // (requesting an editor upgrade) left permission null forever after,
+    // because a pending request unconditionally blocked canView before
+    // the code ever checked whether the vault was public.
+    mockSignedIn('random-user-1');
+    mockSingle.mockResolvedValue({ data: makeVault({ user_id: 'owner-1', visibility: 'public' }), error: null });
+    mockMaybeSingle
+      .mockResolvedValueOnce({ data: null, error: null }) // share by user id — none
+      .mockResolvedValueOnce({ data: null, error: null }) // share by email — none
+      .mockResolvedValueOnce({ data: { status: 'pending' }, error: null }); // pending editor request
+
+    const { result } = renderHook(() => useVaultAccess('vault-1', { enableRealtime: false }));
+
+    await waitFor(() => expect(result.current.accessStatus).toBe('granted'));
+    expect(result.current.canView).toBe(true);
+    expect(result.current.permission).toBe('viewer');
+  });
+
+  it('keeps a pending request blocking view on a protected (non-public) vault, unchanged', async () => {
+    mockSignedIn('random-user-1');
+    mockSingle.mockResolvedValue({ data: makeVault({ user_id: 'owner-1', visibility: 'protected' }), error: null });
+    mockMaybeSingle
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: { status: 'pending' }, error: null });
+
+    const { result } = renderHook(() => useVaultAccess('vault-1', { enableRealtime: false }));
+
+    await waitFor(() => expect(result.current.accessStatus).toBe('pending'));
+    expect(result.current.canView).toBe(false);
+    expect(result.current.permission).toBeNull();
+  });
 });
 
 describe('useVaultAccess — caching a denied result', () => {

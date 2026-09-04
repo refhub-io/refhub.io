@@ -302,8 +302,19 @@ export const useVaultAccess = (
 
           if (request && !requestError) {
             if (request.status === 'pending') {
-              accessStatus = 'pending';
-              // canView stays false for pending
+              // A pending request (typically for an editor upgrade) only
+              // blocks baseline viewing on a protected/private vault, where
+              // there's no other way to see anything while waiting. On a
+              // public vault, everyone can already view regardless of any
+              // pending upgrade request — don't let this override that.
+              if (vaultData && (vaultData as Vault).visibility === 'public') {
+                canView = true;
+                accessStatus = 'granted';
+                userRole = 'viewer';
+              } else {
+                accessStatus = 'pending';
+                // canView stays false for pending
+              }
             } else if (request.status === 'approved') {
               canView = true;
               accessStatus = 'granted';
