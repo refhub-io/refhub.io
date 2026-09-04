@@ -1,26 +1,63 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useVaultSections } from '@/hooks/useVaultSections';
 import { updateVaultPublicationSection } from '@/lib/vaultSections';
+import { formatVaultPublication } from '@/lib/formatVaultPublication';
 import { showError } from '@/lib/toast';
+import { CuratedSectionsBody } from '@/components/vaults/CuratedSectionsBody';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Trash2, ChevronUp, ChevronDown, Star, Eye, Layers } from 'lucide-react';
-import type { Publication } from '@/types/database';
+import type { Publication, Vault } from '@/types/database';
 
 interface VaultSectionsPanelProps {
-  vaultId: string;
-  publications: Publication[];
-  onPublicationsChange: (next: Publication[]) => void;
+  vault: Vault;
+  /** Notifies the caller's own publication list (if it has one loaded,
+   * e.g. the vault detail page) so it stays in sync after edits made here.
+   * Optional — this panel loads and manages its own copy of the vault's
+   * papers regardless, so it works correctly even when opened from a page
+   * that never loaded them (fixes the "settings shows no papers" bug when
+   * editing a vault from outside its own detail page). */
+  onPublicationsChange?: (next: Publication[]) => void;
 }
 
-export function VaultSectionsPanel({ vaultId, publications, onPublicationsChange }: VaultSectionsPanelProps) {
-  const { sections, loading, createSection, renameSection, deleteSection, reorderSections } = useVaultSections(vaultId);
+export function VaultSectionsPanel({ vault, onPublicationsChange }: VaultSectionsPanelProps) {
+  const vaultId = vault.id;
+  const { sections, loading: sectionsLoading, createSection, renameSection, deleteSection, reorderSections } = useVaultSections(vaultId);
+  const [publications, setPublications] = useState<Publication[]>([]);
+  const [pubsLoading, setPubsLoading] = useState(true);
   const [newName, setNewName] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [previewOpen, setPreviewOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPubsLoading(true);
+    supabase
+      .from('vault_publications')
+      .select('*')
+      .eq('vault_id', vaultId)
+      .order('created_at', { ascending: false })
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          showError('Failed to load papers', error.message);
+        } else {
+          setPublications((data || []).map(formatVaultPublication));
+        }
+        setPubsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [vaultId]);
+
+  const updatePublications = (next: Publication[]) => {
+    setPublications(next);
+    onPublicationsChange?.(next);
+  };
 
   // Same grouping shape visitors will see in PublicVaultSectionsView, plus an
   // "unsectioned" bucket — lets an owner see at a glance what's organized vs.
@@ -44,9 +81,11 @@ export function VaultSectionsPanel({ vaultId, publications, onPublicationsChange
     [groups],
   );
 
+  const previewGroups = useMemo(() => groups.bySection.filter((g) => g.papers.length > 0), [groups]);
+
   const patchPublication = async (pubId: string, patch: Parameters<typeof updateVaultPublicationSection>[2]) => {
     const updated = publications.map((p) => (p.id === pubId ? { ...p, ...patch } : p));
-    onPublicationsChange(updated);
+    updatePublications(updated);
     try {
       await updateVaultPublicationSection(supabase, pubId, patch);
     } catch (error) {
@@ -85,7 +124,7 @@ export function VaultSectionsPanel({ vaultId, publications, onPublicationsChange
       if (p.id === b.id) return { ...p, section_position: a.section_position ?? 0 };
       return p;
     });
-    onPublicationsChange(updated);
+    updatePublications(updated);
     try {
       await Promise.all([
         updateVaultPublicationSection(supabase, a.id, { section_position: b.section_position ?? 0 }),
@@ -111,7 +150,7 @@ export function VaultSectionsPanel({ vaultId, publications, onPublicationsChange
     };
   };
 
-  if (loading) {
+  if (sectionsLoading || pubsLoading) {
     return <p className="text-sm text-muted-foreground font-mono py-4">// loading_sections...</p>;
   }
 
@@ -136,27 +175,16 @@ export function VaultSectionsPanel({ vaultId, publications, onPublicationsChange
       </div>
 
       {previewOpen && sections.length > 0 && (
-        <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-3">
-          <p className="text-[10px] text-muted-foreground font-mono uppercase tracking-wide">how visitors will see this</p>
-          {groups.bySection.filter((g) => g.papers.length > 0).length === 0 ? (
-            <p className="text-xs text-muted-foreground font-mono">// no papers assigned yet — the curated view will show nothing until you assign at least one</p>
-          ) : (
-            groups.bySection.filter((g) => g.papers.length > 0).map(({ section, papers }) => (
-              <div key={section.id}>
-                <p className="text-sm font-bold font-mono">{section.name}</p>
-                {section.description && <p className="text-xs text-muted-foreground font-mono">{section.description}</p>}
-                <ul className="mt-1 space-y-0.5">
-                  {papers.map((p) => (
-                    <li key={p.id} className="text-xs font-mono text-muted-foreground truncate">
-                      {p.featured && <span className="text-primary">★ </span>}
-                      {p.title}
-                      {p.featured && p.featured_note && <span className="text-primary/80"> — {p.featured_note}</span>}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))
-          )}
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+          <p className="text-[10px] text-muted-foreground font-mono uppercase tracking-wide mb-3">
+            how visitors will see this on /public/{vault.public_slug || '...'}
+          </p>
+          <CuratedSectionsBody
+            vault={vault}
+            grouped={previewGroups}
+            onOpenPublication={() => {}}
+            emptyMessage="// no papers assigned yet — the curated view will show nothing until you assign at least one"
+          />
         </div>
       )}
 
@@ -274,61 +302,63 @@ function AssignRow({ pub, sections, publications, onAssign, onMove, onPatch }: A
   const isLast = siblings.at(-1)?.id === pub.id;
 
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-border bg-card/40 p-2">
-      <span className="flex-1 text-sm font-medium truncate">{pub.title}</span>
-      <label className="sr-only" htmlFor={`section-select-${pub.id}`}>{`section for ${pub.title}`}</label>
-      <select
-        id={`section-select-${pub.id}`}
-        value={pub.section_id ?? ''}
-        onChange={(e) => onAssign(pub.id, e.target.value)}
-        className="text-xs font-mono h-8 rounded-md border border-input bg-background px-2"
-      >
-        <option value="">unsectioned</option>
-        {sections.map((s) => (
-          <option key={s.id} value={s.id}>{s.name}</option>
-        ))}
-      </select>
-      {pub.section_id && (
-        <>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => onMove(pub)?.(-1)}
-            aria-label={`move ${pub.title} up within section`}
-            disabled={isFirst}
-          >
-            <ChevronUp className="w-3.5 h-3.5" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => onMove(pub)?.(1)}
-            aria-label={`move ${pub.title} down within section`}
-            disabled={isLast}
-          >
-            <ChevronDown className="w-3.5 h-3.5" />
-          </Button>
-          <button
-            type="button"
-            aria-label={`feature ${pub.title}`}
-            onClick={() => void onPatch(pub.id, { featured: !pub.featured })}
-            className={pub.featured ? 'text-primary' : 'text-muted-foreground'}
-          >
-            <Star className="w-4 h-4" fill={pub.featured ? 'currentColor' : 'none'} />
-          </button>
-          {pub.featured && (
-            <Input
-              placeholder="curator note (optional)"
-              value={pub.featured_note ?? ''}
-              onChange={(e) => void onPatch(pub.id, { featured_note: e.target.value || null })}
-              className="font-mono text-xs h-8 w-40"
-            />
-          )}
-        </>
+    <div className="rounded-lg border border-border bg-card/40 p-2">
+      <div className="flex items-center gap-2">
+        <span className="flex-1 text-sm font-medium truncate">{pub.title}</span>
+        <label className="sr-only" htmlFor={`section-select-${pub.id}`}>{`section for ${pub.title}`}</label>
+        <select
+          id={`section-select-${pub.id}`}
+          value={pub.section_id ?? ''}
+          onChange={(e) => onAssign(pub.id, e.target.value)}
+          className="text-xs font-mono h-8 rounded-md border border-input bg-background px-2"
+        >
+          <option value="">unsectioned</option>
+          {sections.map((s) => (
+            <option key={s.id} value={s.id}>{s.name}</option>
+          ))}
+        </select>
+        {pub.section_id && (
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => onMove(pub)?.(-1)}
+              aria-label={`move ${pub.title} up within section`}
+              disabled={isFirst}
+            >
+              <ChevronUp className="w-3.5 h-3.5" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => onMove(pub)?.(1)}
+              aria-label={`move ${pub.title} down within section`}
+              disabled={isLast}
+            >
+              <ChevronDown className="w-3.5 h-3.5" />
+            </Button>
+            <button
+              type="button"
+              aria-label={`feature ${pub.title}`}
+              onClick={() => void onPatch(pub.id, { featured: !pub.featured })}
+              className={pub.featured ? 'text-primary' : 'text-muted-foreground'}
+            >
+              <Star className="w-4 h-4" fill={pub.featured ? 'currentColor' : 'none'} />
+            </button>
+          </>
+        )}
+      </div>
+      {pub.section_id && pub.featured && (
+        <Input
+          placeholder="curator note — shown under this paper on the public page (optional)"
+          value={pub.featured_note ?? ''}
+          onChange={(e) => void onPatch(pub.id, { featured_note: e.target.value || null })}
+          className="font-mono text-xs h-8 w-full mt-2"
+        />
       )}
     </div>
   );

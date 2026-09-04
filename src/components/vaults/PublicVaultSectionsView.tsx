@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { BarChart3, MoreVertical, Search } from 'lucide-react';
-import { useVaultSections } from '@/hooks/useVaultSections';
-import { PublicationCard } from '@/components/publications/PublicationCard';
+import { CuratedSectionsBody } from '@/components/vaults/CuratedSectionsBody';
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
 import { NotificationDropdown } from '@/components/notifications/NotificationDropdown';
 import { QRCodeDialog } from '@/components/vaults/QRCodeDialog';
@@ -13,10 +12,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import type { Publication, Tag, Vault } from '@/types/database';
+import type { Publication, Tag, Vault, VaultSection } from '@/types/database';
 
 interface PublicVaultSectionsViewProps {
   vault: Vault;
+  sections: VaultSection[];
   publications: Publication[];
   tags: Tag[];
   vaultOwnerName?: string;
@@ -26,8 +26,11 @@ interface PublicVaultSectionsViewProps {
   onVaultUpdate?: () => void;
 }
 
-export function PublicVaultSectionsView({ vault, publications, tags, vaultOwnerName, onOpenPublication, onOpenGraph, onMobileMenuOpen, onVaultUpdate }: PublicVaultSectionsViewProps) {
-  const { sections, loading } = useVaultSections(vault.id);
+// sections/loading are fetched once by the parent (which already needs them
+// to decide whether to show the curated/all_papers tabs at all) and passed
+// down here — fetching them again on every mount was causing a loading flash
+// each time a visitor switched from all_papers back to curated.
+export function PublicVaultSectionsView({ vault, sections, publications, tags, vaultOwnerName, onOpenPublication, onOpenGraph, onMobileMenuOpen, onVaultUpdate }: PublicVaultSectionsViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
 
   const grouped = useMemo(() => {
@@ -51,10 +54,6 @@ export function PublicVaultSectionsView({ vault, publications, tags, vaultOwnerN
   }, [sections, publications, searchQuery]);
 
   const curatedCount = useMemo(() => grouped.reduce((sum, g) => sum + g.papers.length, 0), [grouped]);
-
-  if (loading) {
-    return <p className="text-sm text-muted-foreground font-mono py-8 text-center">// loading_curated_view...</p>;
-  }
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -118,47 +117,14 @@ export function PublicVaultSectionsView({ vault, publications, tags, vaultOwnerN
         </div>
       </header>
 
-      <div className="px-3 sm:px-4 lg:px-8 py-6 space-y-8">
-        {grouped.length === 0 ? (
-          <p className="text-sm text-muted-foreground font-mono py-8 text-center">
-            {searchQuery ? '// no_results_found' : '// nothing_curated_yet'}
-          </p>
-        ) : (
-          grouped.map(({ section, papers }) => (
-            <div key={section.id}>
-              <div className="mb-3">
-                <h2 className="text-base font-bold font-mono">{section.name}</h2>
-                {section.description && (
-                  <p className="text-xs text-muted-foreground font-mono mt-0.5">{section.description}</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                {papers.map((pub) => (
-                  <div key={pub.id}>
-                    {pub.featured && (
-                      <div className="mb-1 px-3 py-1.5 text-xs font-mono text-primary bg-primary/10 rounded-t-md border border-b-0 border-primary/30">
-                        ★ featured{pub.featured_note ? ` — ${pub.featured_note}` : ''}
-                      </div>
-                    )}
-                    <PublicationCard
-                      publication={pub}
-                      tags={tags}
-                      allTags={tags}
-                      vaults={[vault]}
-                      publicationVaults={[vault.id]}
-                      relationsCount={0}
-                      isSelected={false}
-                      onToggleSelect={() => {}}
-                      onOpen={() => onOpenPublication(pub)}
-                      onExportBibtex={() => {}}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+      <CuratedSectionsBody
+        vault={vault}
+        tags={tags}
+        grouped={grouped}
+        onOpenPublication={onOpenPublication}
+        emptyMessage={searchQuery ? '// no_results_found' : '// nothing_curated_yet'}
+        className="px-3 sm:px-4 lg:px-8 py-6"
+      />
     </div>
   );
 }

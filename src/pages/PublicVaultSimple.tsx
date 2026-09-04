@@ -719,6 +719,7 @@ export default function PublicVault() {
         {vault && hasSections && viewMode === 'curated' && (
           <PublicVaultSectionsView
             vault={vault}
+            sections={sections}
             publications={publications}
             tags={tags}
             vaultOwnerName={vaultOwner?.display_name || vaultOwner?.username || undefined}
@@ -798,6 +799,7 @@ export default function PublicVault() {
           vault={editingVault}
           onSave={handleSaveVault}
           onUpdate={() => {}}
+          onPublicationsChange={setPublications}
         />
 
         <CollectionAnalytics

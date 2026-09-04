@@ -83,11 +83,10 @@ interface VaultDialogProps {
   onUpdate?: () => void;
   onDelete?: (vault: Vault) => void;
   onArchive?: (vault: Vault) => void;
-  publications?: Publication[];
   onPublicationsChange?: (next: Publication[]) => void;
 }
 
-export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSave, onUpdate, onDelete, onArchive, publications = [], onPublicationsChange }: VaultDialogProps) {
+export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSave, onUpdate, onDelete, onArchive, onPublicationsChange }: VaultDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const shareFormRef = useRef<HTMLFormElement>(null);
@@ -938,9 +937,8 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
             {vault && (
               <TabsContent value="sections">
                 <VaultSectionsPanel
-                  vaultId={vault.id}
-                  publications={publications}
-                  onPublicationsChange={onPublicationsChange ?? (() => {})}
+                  vault={vault}
+                  onPublicationsChange={onPublicationsChange}
                 />
               </TabsContent>
             )}

@@ -1,21 +1,50 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { VaultSectionsPanel } from './VaultSectionsPanel';
-import type { Publication, VaultSection } from '@/types/database';
+import { supabase } from '@/integrations/supabase/client';
+import type { Publication, Vault, VaultSection } from '@/types/database';
 
-const mockFetch = vi.fn();
+const mockFetchSections = vi.fn();
 const mockCreate = vi.fn();
 const mockUpdatePublicationSection = vi.fn();
+const mockPublicationsQuery = vi.fn();
 
 vi.mock('@/lib/vaultSections', () => ({
-  fetchVaultSections: (...args: unknown[]) => mockFetch(...args),
+  fetchVaultSections: (...args: unknown[]) => mockFetchSections(...args),
   createVaultSection: (...args: unknown[]) => mockCreate(...args),
   updateVaultSection: vi.fn(),
   deleteVaultSection: vi.fn(),
   reorderVaultSections: vi.fn(),
   updateVaultPublicationSection: (...args: unknown[]) => mockUpdatePublicationSection(...args),
 }));
-vi.mock('@/integrations/supabase/client', () => ({ supabase: {} }));
+vi.mock('@/integrations/supabase/client', () => ({
+  supabase: {
+    from: (table: string) => {
+      if (table !== 'vault_publications') throw new Error(`unexpected table ${table}`);
+      return {
+        select: () => ({
+          eq: () => ({
+            order: () => mockPublicationsQuery(),
+          }),
+        }),
+      };
+    },
+  },
+}));
+// formatVaultPublication normally maps DB column names (e.g. created_by) to
+// Publication fields (user_id) — tests feed it Publication fixtures directly,
+// so pass them through unchanged instead of re-deriving DB column mapping.
+vi.mock('@/lib/formatVaultPublication', () => ({
+  formatVaultPublication: (row: unknown) => row,
+}));
+
+function makeVault(overrides: Partial<Vault> = {}): Vault {
+  return {
+    id: 'v1', user_id: 'u1', name: 'treemaps_lab', description: null, color: '#a855f7',
+    visibility: 'public', public_slug: 'treemaps-lab', category: null, abstract: null,
+    created_at: '', updated_at: '', archived_at: null, ...overrides,
+  };
+}
 
 function makePub(overrides: Partial<Publication> = {}): Publication {
   return {
@@ -33,71 +62,74 @@ function makePub(overrides: Partial<Publication> = {}): Publication {
 
 describe('VaultSectionsPanel', () => {
   beforeEach(() => {
-    mockFetch.mockReset();
+    mockFetchSections.mockReset();
     mockCreate.mockReset();
     mockUpdatePublicationSection.mockReset();
+    mockPublicationsQuery.mockReset();
   });
 
   it('creates a section from the add-section form', async () => {
-    mockFetch.mockResolvedValueOnce([]);
+    mockPublicationsQuery.mockResolvedValue({ data: [makePub()], error: null });
+    mockFetchSections.mockResolvedValueOnce([]);
     const created: VaultSection = { id: 's1', vault_id: 'v1', name: 'starter_papers', description: null, position: 0, created_at: '', updated_at: '' };
     mockCreate.mockResolvedValue(created);
-    mockFetch.mockResolvedValueOnce([created]);
+    mockFetchSections.mockResolvedValueOnce([created]);
 
-    render(<VaultSectionsPanel vaultId="v1" publications={[makePub()]} onPublicationsChange={() => {}} />);
+    render(<VaultSectionsPanel vault={makeVault()} />);
 
     await waitFor(() => expect(screen.getByPlaceholderText(/section name/i)).toBeInTheDocument());
     fireEvent.change(screen.getByPlaceholderText(/section name/i), { target: { value: 'starter_papers' } });
     fireEvent.click(screen.getByRole('button', { name: /add section/i }));
 
-    await waitFor(() => expect(mockCreate).toHaveBeenCalledWith({}, 'v1', { name: 'starter_papers', description: null, position: 0 }));
+    await waitFor(() => expect(mockCreate).toHaveBeenCalledWith(supabase, 'v1', { name: 'starter_papers', description: null, position: 0 }));
   });
 
   it('assigns a paper to a section', async () => {
     const section: VaultSection = { id: 's1', vault_id: 'v1', name: 'starter_papers', description: null, position: 0, created_at: '', updated_at: '' };
-    mockFetch.mockResolvedValue([section]);
+    mockFetchSections.mockResolvedValue([section]);
+    mockPublicationsQuery.mockResolvedValue({ data: [makePub()], error: null });
     mockUpdatePublicationSection.mockResolvedValue(undefined);
-    const onPublicationsChange = vi.fn();
 
-    render(<VaultSectionsPanel vaultId="v1" publications={[makePub()]} onPublicationsChange={onPublicationsChange} />);
+    render(<VaultSectionsPanel vault={makeVault()} />);
 
     await waitFor(() => expect(screen.getByText('Temporal Treemaps')).toBeInTheDocument());
     fireEvent.change(screen.getByLabelText(/section for temporal treemaps/i), { target: { value: 's1' } });
 
-    await waitFor(() => expect(mockUpdatePublicationSection).toHaveBeenCalledWith({}, 'p1', { section_id: 's1', section_position: 0 }));
-    expect(onPublicationsChange).toHaveBeenCalled();
+    await waitFor(() => expect(mockUpdatePublicationSection).toHaveBeenCalledWith(supabase, 'p1', { section_id: 's1', section_position: 0 }));
   });
 
   it('toggles featured and saves a note for a sectioned paper', async () => {
     const section: VaultSection = { id: 's1', vault_id: 'v1', name: 'starter_papers', description: null, position: 0, created_at: '', updated_at: '' };
-    mockFetch.mockResolvedValue([section]);
+    mockFetchSections.mockResolvedValue([section]);
+    mockPublicationsQuery.mockResolvedValue({ data: [makePub({ section_id: 's1' })], error: null });
     mockUpdatePublicationSection.mockResolvedValue(undefined);
 
-    render(<VaultSectionsPanel vaultId="v1" publications={[makePub({ section_id: 's1' })]} onPublicationsChange={() => {}} />);
+    render(<VaultSectionsPanel vault={makeVault()} />);
 
     await waitFor(() => expect(screen.getByLabelText(/feature temporal treemaps/i)).toBeInTheDocument());
     fireEvent.click(screen.getByLabelText(/feature temporal treemaps/i));
 
-    await waitFor(() => expect(mockUpdatePublicationSection).toHaveBeenCalledWith({}, 'p1', { featured: true }));
+    await waitFor(() => expect(mockUpdatePublicationSection).toHaveBeenCalledWith(supabase, 'p1', { featured: true }));
   });
 
   it('reorders papers within a section by swapping section_position', async () => {
     const section: VaultSection = { id: 's1', vault_id: 'v1', name: 'starter_papers', description: null, position: 0, created_at: '', updated_at: '' };
-    mockFetch.mockResolvedValue([section]);
+    mockFetchSections.mockResolvedValue([section]);
     mockUpdatePublicationSection.mockResolvedValue(undefined);
 
     const pub1 = makePub({ id: 'p1', title: 'First Paper', section_id: 's1', section_position: 0 });
     const pub2 = makePub({ id: 'p2', title: 'Second Paper', section_id: 's1', section_position: 1 });
+    mockPublicationsQuery.mockResolvedValue({ data: [pub1, pub2], error: null });
 
     const onPublicationsChange = vi.fn();
-    render(<VaultSectionsPanel vaultId="v1" publications={[pub1, pub2]} onPublicationsChange={onPublicationsChange} />);
+    render(<VaultSectionsPanel vault={makeVault()} onPublicationsChange={onPublicationsChange} />);
 
     await waitFor(() => expect(screen.getByLabelText(/move first paper up within section/i)).toBeInTheDocument());
     fireEvent.click(screen.getByLabelText(/move second paper up within section/i));
 
     await waitFor(() => {
-      expect(mockUpdatePublicationSection).toHaveBeenCalledWith({}, 'p1', { section_position: 1 });
-      expect(mockUpdatePublicationSection).toHaveBeenCalledWith({}, 'p2', { section_position: 0 });
+      expect(mockUpdatePublicationSection).toHaveBeenCalledWith(supabase, 'p1', { section_position: 1 });
+      expect(mockUpdatePublicationSection).toHaveBeenCalledWith(supabase, 'p2', { section_position: 0 });
     });
 
     const callArgs = onPublicationsChange.mock.calls[onPublicationsChange.mock.calls.length - 1][0];
@@ -105,5 +137,14 @@ describe('VaultSectionsPanel', () => {
     const swappedPub2 = callArgs.find((p) => p.id === 'p2');
     expect(swappedPub1?.section_position).toBe(1);
     expect(swappedPub2?.section_position).toBe(0);
+  });
+
+  it('loads its own papers even when no onPublicationsChange callback is given (opened outside the vault detail page)', async () => {
+    mockFetchSections.mockResolvedValue([]);
+    mockPublicationsQuery.mockResolvedValue({ data: [makePub({ title: 'Standalone Paper' })], error: null });
+
+    render(<VaultSectionsPanel vault={makeVault()} />);
+
+    await waitFor(() => expect(screen.getByText('Standalone Paper')).toBeInTheDocument());
   });
 });
