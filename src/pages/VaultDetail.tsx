@@ -2182,6 +2182,8 @@ export default function VaultDetail() {
             setIsVaultDialogOpen(open);
           }}
           vault={editingVault}
+          publications={publications}
+          existingRelations={publicationRelations}
           onPublicationsChange={setPublications}
           onSave={!editingVault || isOwner ? handleSaveVault : undefined}
           onUpdate={refetchVault}

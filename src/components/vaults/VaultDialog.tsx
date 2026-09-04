@@ -26,11 +26,18 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { VaultSectionsPanel } from './VaultSectionsPanel';
+import { VaultRelationshipsPanel } from './VaultRelationshipsPanel';
 import { useKeyboardContext } from '@/contexts/KeyboardContext';
 import { useHotkeys } from '@/hooks/useKeyboardNavigation';
 import { Lock, Users, Globe, Mail, Trash2, Copy, Check, Link2, X, Save, Plus, Bell, ChevronDown, Archive, Settings, Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createVaultPublicSlugCandidate, normalizeVaultPublicSlug } from '@/lib/vaultSlug';
+import type { RelationshipSuggestion } from '@/lib/relationshipSuggestions';
+import { runVaultRelationshipScan } from '@/lib/vaultRelationshipScan';
+import { suggestionKey } from '@/components/publications/RelationshipSuggestionsList';
+import type { SemanticScholarQueueProgress } from '@/lib/semanticScholar';
+import type { PublicationRelation } from '@/types/database';
+import { showError } from '@/lib/toast';
 
 type VaultVisibility = 'private' | 'protected' | 'public';
 
@@ -84,9 +91,17 @@ interface VaultDialogProps {
   onDelete?: (vault: Vault) => void;
   onArchive?: (vault: Vault) => void;
   onPublicationsChange?: (next: Publication[]) => void;
+  // Optional — most call sites don't have vault-wide publication/relation data
+  // in scope (they just rename/archive a vault). Only VaultDetail.tsx, which
+  // already loads both for the vault it's displaying, passes real values;
+  // everywhere else the "relationships" tab still renders but has nothing to
+  // scan, which is the same graceful-degradation the "sections" tab already
+  // has for those lighter pages.
+  publications?: Publication[];
+  existingRelations?: PublicationRelation[];
 }
 
-export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSave, onUpdate, onDelete, onArchive, onPublicationsChange }: VaultDialogProps) {
+export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSave, onUpdate, onDelete, onArchive, onPublicationsChange, publications = [], existingRelations = [] }: VaultDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const shareFormRef = useRef<HTMLFormElement>(null);
@@ -102,7 +117,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   const sectionsHintHandleRef = useRef<ReturnType<typeof toast> | null>(null);
   const kbCtx = useKeyboardContext();
 
-  const [activeTab, setActiveTab] = useState<'settings' | 'sections'>('settings');
+  const [activeTab, setActiveTab] = useState<'settings' | 'sections' | 'relationships'>('settings');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState(VAULT_COLORS[0]);
@@ -130,6 +145,11 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [isForkedVault, setIsForkedVault] = useState(false);
+  const [relationshipSuggestions, setRelationshipSuggestions] = useState<RelationshipSuggestion[]>([]);
+  const [scanningRelationships, setScanningRelationships] = useState(false);
+  const [relationshipScanProgress, setRelationshipScanProgress] = useState<SemanticScholarQueueProgress | null>(null);
+  const [approvingRelationshipKey, setApprovingRelationshipKey] = useState<string | null>(null);
+  const [showPendingRelationshipsDialog, setShowPendingRelationshipsDialog] = useState(false);
   const isArchived = !!vault?.archived_at;
   const slugCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadRef = useRef(true);
@@ -596,20 +616,70 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     };
   }, [publicSlug, visibility, vault?.id]);
 
+  const handleScanRelationships = async () => {
+    setScanningRelationships(true);
+    setRelationshipScanProgress(null);
+    try {
+      const result = await runVaultRelationshipScan(publications, existingRelations, setRelationshipScanProgress);
+      setRelationshipSuggestions((prev) => {
+        const existingKeys = new Set(prev.map(suggestionKey));
+        return [...prev, ...result.suggestions.filter((s) => !existingKeys.has(suggestionKey(s)))];
+      });
+    } catch (error) {
+      showError('Could not scan for relationships', error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+      setScanningRelationships(false);
+    }
+  };
+
+  const handleApproveRelationshipSuggestion = async (suggestion: RelationshipSuggestion) => {
+    if (!user) return;
+    setApprovingRelationshipKey(suggestionKey(suggestion));
+    try {
+      const { error } = await supabase.from('publication_relations').insert({
+        publication_id: suggestion.sourcePublicationId,
+        related_publication_id: suggestion.targetPublicationId,
+        relation_type: 'cites',
+        created_by: user.id,
+      });
+
+      if (error) {
+        if (error.code === '23505') {
+          showError('Already linked', 'These papers are already linked.');
+        } else if (error.code === '42501' || error.message?.includes('row-level security')) {
+          showError('Permission denied', "You don't have permission to link papers in this vault.");
+        } else {
+          showError('Could not save relationship', error.message);
+        }
+        return;
+      }
+
+      setRelationshipSuggestions((prev) => prev.filter((s) => suggestionKey(s) !== suggestionKey(suggestion)));
+    } finally {
+      setApprovingRelationshipKey(null);
+    }
+  };
+
+  const handleDismissRelationshipSuggestion = (suggestion: RelationshipSuggestion) => {
+    setRelationshipSuggestions((prev) => prev.filter((s) => suggestionKey(s) !== suggestionKey(suggestion)));
+  };
+
   // Handle dialog close with unsaved changes check
   const handleDialogClose = useCallback((newOpen: boolean) => {
     if (newOpen) {
       onOpenChange(true);
       return;
     }
-    
-    // Dialog wants to close - check for unsaved changes
+
+    // Dialog wants to close - check for unsaved changes, then pending relationship suggestions
     if (hasUnsavedChanges) {
       setShowUnsavedDialog(true);
+    } else if (relationshipSuggestions.length > 0) {
+      setShowPendingRelationshipsDialog(true);
     } else {
       onOpenChange(false);
     }
-  }, [hasUnsavedChanges, onOpenChange]);
+  }, [hasUnsavedChanges, relationshipSuggestions.length, onOpenChange]);
 
   // Handle discard changes
   const handleDiscardChanges = useCallback(() => {
@@ -891,6 +961,17 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
         title="Unsaved Changes"
         description="You have unsaved changes to this vault. Would you like to save them before closing?"
       />
+      <UnsavedChangesDialog
+        open={showPendingRelationshipsDialog}
+        title="Pending Relationship Suggestions"
+        description={`You have ${relationshipSuggestions.length} unreviewed relationship suggestion${relationshipSuggestions.length === 1 ? '' : 's'}. Review them now, or discard?`}
+        onDiscard={() => {
+          setRelationshipSuggestions([]);
+          setShowPendingRelationshipsDialog(false);
+          onOpenChange(false);
+        }}
+        onCancel={() => setShowPendingRelationshipsDialog(false)}
+      />
       <Dialog open={open} onOpenChange={handleDialogClose}>
         <DialogContent className="dialog-mobile max-w-[100vw] sm:rounded-2xl sm:h-auto sm:w-[95vw] sm:max-w-3xl border-2 bg-card/95 backdrop-blur-xl sm:max-h-[90vh] overflow-hidden flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4">
@@ -930,11 +1011,11 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                 });
                 return;
               }
-              setActiveTab(value as 'settings' | 'sections');
+              setActiveTab(value as 'settings' | 'sections' | 'relationships');
             }}
           >
             <div ref={sectionsHintAnchorRef}>
-              <TabsList className={`grid h-auto w-full ${vault ? 'grid-cols-2' : 'grid-cols-1'} gap-1 rounded-2xl border border-border/70 bg-muted/60 p-1 font-mono dark:border-white/8 dark:bg-[#1a1722]`}>
+              <TabsList className={`grid h-auto w-full ${vault ? 'grid-cols-3' : 'grid-cols-1'} gap-1 rounded-2xl border border-border/70 bg-muted/60 p-1 font-mono dark:border-white/8 dark:bg-[#1a1722]`}>
                 <TabsTrigger
                   value="settings"
                   aria-label="Vault settings"
@@ -956,6 +1037,16 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                     <span className="truncate">sections</span>
                   </TabsTrigger>
                 )}
+                {vault && (
+                  <TabsTrigger
+                    value="relationships"
+                    aria-label="Relationship suggestions"
+                    className="min-h-10 min-w-0 justify-center gap-2 rounded-xl px-2 text-center text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md sm:min-h-11 sm:px-3 sm:text-sm"
+                  >
+                    <Link2 className="w-4 h-4 shrink-0" />
+                    <span className="truncate">relationships</span>
+                  </TabsTrigger>
+                )}
               </TabsList>
             </div>
             {vault && (
@@ -963,6 +1054,19 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                 <VaultSectionsPanel
                   vault={vault}
                   onPublicationsChange={onPublicationsChange}
+                />
+              </TabsContent>
+            )}
+            {vault && (
+              <TabsContent value="relationships">
+                <VaultRelationshipsPanel
+                  suggestions={relationshipSuggestions}
+                  scanning={scanningRelationships}
+                  progress={relationshipScanProgress}
+                  approvingKey={approvingRelationshipKey}
+                  onScan={handleScanRelationships}
+                  onApprove={handleApproveRelationshipSuggestion}
+                  onDismiss={handleDismissRelationshipSuggestion}
                 />
               </TabsContent>
             )}
