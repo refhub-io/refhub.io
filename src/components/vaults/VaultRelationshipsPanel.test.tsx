@@ -15,7 +15,7 @@ describe('VaultRelationshipsPanel', () => {
     const onScan = vi.fn();
     render(
       <VaultRelationshipsPanel
-        suggestions={[]} scanning={false} progress={null} approvingKey={null}
+        suggestions={[]} scanning={false} progress={null} approvingKey={null} canForceRescan={false}
         onScan={onScan} onApprove={() => {}} onDismiss={() => {}}
       />,
     );
@@ -23,11 +23,21 @@ describe('VaultRelationshipsPanel', () => {
     expect(onScan).toHaveBeenCalledWith(false);
   });
 
-  it('calls onScan(true) when the force_rescan button is clicked, bypassing the skip-cache', () => {
+  it('hides force_rescan until a scan has actually skipped something', () => {
+    render(
+      <VaultRelationshipsPanel
+        suggestions={[]} scanning={false} progress={null} approvingKey={null} canForceRescan={false}
+        onScan={() => {}} onApprove={() => {}} onDismiss={() => {}}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: /force_rescan/i })).not.toBeInTheDocument();
+  });
+
+  it('shows force_rescan and calls onScan(true) when a scan has skipped cached papers', () => {
     const onScan = vi.fn();
     render(
       <VaultRelationshipsPanel
-        suggestions={[]} scanning={false} progress={null} approvingKey={null}
+        suggestions={[]} scanning={false} progress={null} approvingKey={null} canForceRescan
         onScan={onScan} onApprove={() => {}} onDismiss={() => {}}
       />,
     );
@@ -38,7 +48,7 @@ describe('VaultRelationshipsPanel', () => {
   it('renders suggestions passed in as props', () => {
     render(
       <VaultRelationshipsPanel
-        suggestions={[makeSuggestion()]} scanning={false} progress={null} approvingKey={null}
+        suggestions={[makeSuggestion()]} scanning={false} progress={null} approvingKey={null} canForceRescan={false}
         onScan={() => {}} onApprove={() => {}} onDismiss={() => {}}
       />,
     );
@@ -49,7 +59,7 @@ describe('VaultRelationshipsPanel', () => {
   it('disables the scan button and shows progress while scanning', () => {
     render(
       <VaultRelationshipsPanel
-        suggestions={[]} scanning={true} progress={{ completed: 1, total: 4, active: 1, succeeded: 1, failed: 0, rateLimited: 0 }} approvingKey={null}
+        suggestions={[]} scanning={true} progress={{ completed: 1, total: 4, active: 1, succeeded: 1, failed: 0, rateLimited: 0 }} approvingKey={null} canForceRescan={false}
         onScan={() => {}} onApprove={() => {}} onDismiss={() => {}}
       />,
     );
@@ -63,7 +73,7 @@ describe('VaultRelationshipsPanel', () => {
     const suggestion = makeSuggestion();
     render(
       <VaultRelationshipsPanel
-        suggestions={[suggestion]} scanning={false} progress={null} approvingKey={null}
+        suggestions={[suggestion]} scanning={false} progress={null} approvingKey={null} canForceRescan={false}
         onScan={() => {}} onApprove={onApprove} onDismiss={onDismiss}
       />,
     );

@@ -154,6 +154,10 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   const [relationshipScanProgress, setRelationshipScanProgress] = useState<SemanticScholarQueueProgress | null>(null);
   const [approvingRelationshipKey, setApprovingRelationshipKey] = useState<string | null>(null);
   const [showPendingRelationshipsDialog, setShowPendingRelationshipsDialog] = useState(false);
+  // Only meaningful once a plain scan has actually skipped something —
+  // offering "force" before that would bypass a cache that has nothing to
+  // bypass yet.
+  const [canForceRescan, setCanForceRescan] = useState(false);
   const isArchived = !!vault?.archived_at;
   const slugCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadRef = useRef(true);
@@ -637,6 +641,11 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
         newCount = added.length;
         return [...prev, ...added];
       });
+      // Only meaningful to offer bypassing the skip-cache when this scan
+      // actually skipped something — a force-rescan (skipRecentMs: 0) can
+      // never itself have a nonzero skippedCount, so this self-clears once
+      // the user actually forces a check.
+      setCanForceRescan(result.skippedCount > 0);
       // A scan can legitimately turn up nothing new because everything eligible
       // was already checked recently (skip-cache) — without this, that looks
       // identical to the scan silently doing nothing.
@@ -1104,6 +1113,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                   scanning={scanningRelationships}
                   progress={relationshipScanProgress}
                   approvingKey={approvingRelationshipKey}
+                  canForceRescan={canForceRescan}
                   onScan={handleScanRelationships}
                   onApprove={handleApproveRelationshipSuggestion}
                   onDismiss={handleDismissRelationshipSuggestion}

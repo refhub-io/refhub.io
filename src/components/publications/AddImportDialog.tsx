@@ -497,7 +497,7 @@ export function AddImportDialog({
                     <Library className="w-4 h-4" />
                     <span className="hidden sm:inline">library</span>
                   </TabsTrigger>
-                </TooltipTrigger><TooltipContent>Search &amp; add existing papers</TooltipContent></Tooltip>
+                </TooltipTrigger><TooltipContent className="font-mono">search_and_add_existing_papers</TooltipContent></Tooltip>
                 <Tooltip><TooltipTrigger asChild>
                   <TabsTrigger value="doi" className={cn("gap-2 text-xs sm:text-sm font-mono", activeTab === 'doi' && "bg-primary text-primary-foreground shadow-md")}>
                     <Link className="w-4 h-4" />
