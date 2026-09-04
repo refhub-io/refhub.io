@@ -21,6 +21,7 @@ import { SidebarDndBoundary } from '@/components/layout/SidebarDndBoundary';
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationViewDialog } from '@/components/publications/PublicationViewDialog';
+import { ExportDialog } from '@/components/publications/ExportDialog';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { VaultDialog } from '@/components/vaults/VaultDialog';
 import { LoadingSpinner } from '@/components/ui/loading';
@@ -61,6 +62,7 @@ export default function CodexTopic() {
   const [sortMode, setSortMode] = useState<TopicSortMode>('relevance');
   const [vaultPopularity, setVaultPopularity] = useState<Record<string, VaultPopularity>>({});
   const [viewingPublication, setViewingPublication] = useState<Publication | null>(null);
+  const [exportPublications, setExportPublications] = useState<Publication[]>([]);
 
   useEffect(() => {
     if (!topic) return;
@@ -330,7 +332,10 @@ export default function CodexTopic() {
               selectedVault={null}
               listTitle={topic}
               onOpenPublication={(pub) => setViewingPublication(pub)}
-              onExportBibtex={() => {}}
+              publicationActionLabel="view"
+              onExportBibtex={(pubs) => {
+                if (pubs.length > 0) setExportPublications(pubs);
+              }}
               onMobileMenuOpen={() => setIsMobileSidebarOpen(true)}
             />
           </>
@@ -344,7 +349,11 @@ export default function CodexTopic() {
                 cited by a direct match — not tagged or keyworded with "{topic}" itself
               </p>
             </div>
-            <MatchProvenanceList matches={citationOnlyMatches} onOpenPublication={(pub) => setViewingPublication(pub)} />
+            <MatchProvenanceList
+              matches={citationOnlyMatches}
+              curatorsByOwnerId={curatorsByOwnerId}
+              onOpenPublication={(pub) => setViewingPublication(pub)}
+            />
             <PublicationList
               publications={citationOnlyMatches.map((m) => m.publication)}
               tags={tagsForList}
@@ -355,7 +364,10 @@ export default function CodexTopic() {
               selectedVault={null}
               listTitle={`related to ${topic}`}
               onOpenPublication={(pub) => setViewingPublication(pub)}
-              onExportBibtex={() => {}}
+              publicationActionLabel="view"
+              onExportBibtex={(pubs) => {
+                if (pubs.length > 0) setExportPublications(pubs);
+              }}
               onMobileMenuOpen={() => setIsMobileSidebarOpen(true)}
             />
           </div>
@@ -370,6 +382,16 @@ export default function CodexTopic() {
         publication={viewingPublication}
         tags={[]}
         allTags={[]}
+        onExport={(publication) => setExportPublications([publication])}
+      />
+
+      <ExportDialog
+        open={exportPublications.length > 0}
+        onOpenChange={(open) => {
+          if (!open) setExportPublications([]);
+        }}
+        publications={exportPublications}
+        vaultName={topic}
       />
 
       <ProfileDialog
