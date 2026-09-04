@@ -333,8 +333,10 @@ export default function VaultDetail() {
       // Create publicationVaultsMap to track which vaults each publication belongs to
       const newPublicationVaultsMap: Record<string, string[]> = {};
 
-      // Initialize all publications with empty arrays
-      allPublications.forEach(pub => {
+      // Initialize all publications with empty arrays. Read the freshly-fetched
+      // local, not the allPublications *state* — that's still last render's
+      // value here (setAllPublications above hasn't committed yet).
+      publications.forEach(pub => {
         newPublicationVaultsMap[pub.id] = [];
       });
 
@@ -360,9 +362,25 @@ export default function VaultDetail() {
       setPublicationVaultsMap(newPublicationVaultsMap);
     } catch (error) {
       logger.error('VaultDetail', 'Error fetching all publications:', error);
+      // Unlike Dashboard's equivalent fetch, this failure was previously silent —
+      // indistinguishable from "no papers exist," which is exactly what a direct/
+      // hard load into a vault (session still restoring) was hitting.
+      toast({
+        title: 'Could not load your library',
+        description: 'RefHub could not load your papers for adding to this vault. Please refresh the page.',
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: null,
+      });
     }
+  // Depend on user?.id, not the user object itself — Supabase's
+  // onAuthStateChange fires with a new `user` object of the same id on every
+  // token refresh, and depending on the object reference meant a transient
+  // failure during session restoration (most likely right after a direct/
+  // hard load) never got a real retry once the session settled, since the
+  // object reference had no reason to change again. Same fix already applied
+  // in useAllPublications.ts.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user?.id]);
 
   // Initialize and update vault content when vaultId changes
   useEffect(() => {
@@ -376,7 +394,7 @@ export default function VaultDetail() {
     if (user) {
       fetchAllPublications();
     }
-  }, [user, fetchAllPublications]);
+  }, [user?.id, fetchAllPublications]);
 
   // Fetch favorites and forks count for the current vault
   useEffect(() => {
