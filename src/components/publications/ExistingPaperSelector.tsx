@@ -198,7 +198,7 @@ export function ExistingPaperSelector({
 
           {/* Vault Selection */}
           <div className="space-y-2">
-            <Label className="font-semibold">Add to Vaults</Label>
+            <Label className="font-semibold font-mono">add_to_vaults</Label>
             <p className="text-xs text-muted-foreground font-mono mb-2">
               // select one or more vaults to add this paper
             </p>
@@ -262,7 +262,7 @@ export function ExistingPaperSelector({
                   Adding...
                 </>
               ) : (
-                `Add to ${selectedVaultIds.size} Vault${selectedVaultIds.size !== 1 ? 's' : ''}`
+                `add_to_${selectedVaultIds.size}_vault${selectedVaultIds.size !== 1 ? 's' : ''}`
               )}
             </Button>
           </div>

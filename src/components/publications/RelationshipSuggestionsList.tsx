@@ -22,12 +22,14 @@ export function RelationshipSuggestionsList({ suggestions, approvingKey, onAppro
       {suggestions.map((suggestion) => {
         const key = suggestionKey(suggestion);
         return (
-          <div key={key} className="flex items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 p-2 text-sm">
-            <span className="min-w-0 flex-1 truncate">
-              <span className="font-medium">{suggestion.sourceTitle}</span>
-              <span className="text-muted-foreground"> cites </span>
-              <span className="font-medium">{suggestion.targetTitle}</span>
-            </span>
+          <div key={key} className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 p-2 text-sm overflow-hidden">
+            <div className="min-w-0 flex-1 space-y-0.5 overflow-hidden">
+              <p className="truncate font-medium" title={suggestion.sourceTitle}>{suggestion.sourceTitle}</p>
+              <p className="truncate" title={suggestion.targetTitle}>
+                <span className="text-muted-foreground">cites </span>
+                <span className="font-medium">{suggestion.targetTitle}</span>
+              </p>
+            </div>
             <div className="flex items-center gap-1 shrink-0">
               <Button
                 type="button"

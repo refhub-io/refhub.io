@@ -621,10 +621,31 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     setRelationshipScanProgress(null);
     try {
       const result = await runVaultRelationshipScan(publications, existingRelations, setRelationshipScanProgress);
+      let newCount = 0;
       setRelationshipSuggestions((prev) => {
         const existingKeys = new Set(prev.map(suggestionKey));
-        return [...prev, ...result.suggestions.filter((s) => !existingKeys.has(suggestionKey(s)))];
+        const added = result.suggestions.filter((s) => !existingKeys.has(suggestionKey(s)));
+        newCount = added.length;
+        return [...prev, ...added];
       });
+      // A scan can legitimately turn up nothing new because everything eligible
+      // was already checked recently (skip-cache) — without this, that looks
+      // identical to the scan silently doing nothing.
+      if (newCount === 0) {
+        if (result.skippedCount > 0) {
+          toast({
+            title: 'No new suggestions',
+            description: `${result.skippedCount} paper${result.skippedCount === 1 ? '' : 's'} already checked in the last 24 hours — they'll be re-checked automatically after that.`,
+            feedbackSeverity: 'info',
+          });
+        } else {
+          toast({
+            title: 'No relationships found',
+            description: "Scanned this vault's papers with a DOI and found no new citation relationships.",
+            feedbackSeverity: 'info',
+          });
+        }
+      }
     } catch (error) {
       showError('Could not scan for relationships', error instanceof Error ? error.message : 'Unknown error');
     } finally {
