@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { logger } from '@/lib/logger';
-import { Vault, VaultShare, VAULT_CATEGORIES } from '@/types/database';
+import { Vault, VaultShare, VAULT_CATEGORIES, Publication } from '@/types/database';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -24,9 +24,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { VaultSectionsPanel } from './VaultSectionsPanel';
 import { useKeyboardContext } from '@/contexts/KeyboardContext';
 import { useHotkeys } from '@/hooks/useKeyboardNavigation';
-import { Lock, Users, Globe, Mail, Trash2, Copy, Check, Link2, X, Save, Plus, Bell, ChevronDown, Archive } from 'lucide-react';
+import { Lock, Users, Globe, Mail, Trash2, Copy, Check, Link2, X, Save, Plus, Bell, ChevronDown, Archive, Settings, Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createVaultPublicSlugCandidate, normalizeVaultPublicSlug } from '@/lib/vaultSlug';
 
@@ -81,15 +83,26 @@ interface VaultDialogProps {
   onUpdate?: () => void;
   onDelete?: (vault: Vault) => void;
   onArchive?: (vault: Vault) => void;
+  onPublicationsChange?: (next: Publication[]) => void;
 }
 
-export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSave, onUpdate, onDelete, onArchive }: VaultDialogProps) {
+export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSave, onUpdate, onDelete, onArchive, onPublicationsChange }: VaultDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const shareFormRef = useRef<HTMLFormElement>(null);
   const publicLinkButtonRef = useRef<HTMLDivElement>(null);
+  // Anchored to the TabsList (a plain block element), not the individual
+  // trigger — that trigger is a grid item inside a `grid grid-cols-2`
+  // TabsList, and quoterm's inline render mode inserts the toast as a DOM
+  // sibling of its source, which turned it into an extra grid cell and blew
+  // up the layout. Anchoring one level up keeps it outside the grid.
+  const sectionsHintAnchorRef = useRef<HTMLDivElement>(null);
+  // Tracks the currently-shown "must be public" hint so repeated clicks on
+  // the disabled tab replace it instead of stacking duplicates.
+  const sectionsHintHandleRef = useRef<ReturnType<typeof toast> | null>(null);
   const kbCtx = useKeyboardContext();
 
+  const [activeTab, setActiveTab] = useState<'settings' | 'sections'>('settings');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState(VAULT_COLORS[0]);
@@ -904,6 +917,56 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
         </DialogHeader>
 
         <form ref={shareFormRef} onSubmit={handleFormSubmit} className="flex-1 overflow-y-auto space-y-5 px-6 pb-6">
+          <Tabs
+            value={activeTab}
+            onValueChange={(value) => {
+              if (value === 'sections' && visibility !== 'public') {
+                sectionsHintHandleRef.current?.dismiss();
+                sectionsHintHandleRef.current = toast({
+                  title: 'vault must be public',
+                  description: 'set this vault to public to curate sections',
+                  feedbackSeverity: 'info',
+                  source: sectionsHintAnchorRef,
+                });
+                return;
+              }
+              setActiveTab(value as 'settings' | 'sections');
+            }}
+          >
+            <div ref={sectionsHintAnchorRef}>
+              <TabsList className={`grid h-auto w-full ${vault ? 'grid-cols-2' : 'grid-cols-1'} gap-1 rounded-2xl border border-border/70 bg-muted/60 p-1 font-mono dark:border-white/8 dark:bg-[#1a1722]`}>
+                <TabsTrigger
+                  value="settings"
+                  aria-label="Vault settings"
+                  className="min-h-10 min-w-0 justify-center gap-2 rounded-xl px-2 text-center text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md sm:min-h-11 sm:px-3 sm:text-sm"
+                >
+                  <Settings className="w-4 h-4 shrink-0" />
+                  <span className="truncate">settings</span>
+                </TabsTrigger>
+                {vault && (
+                  <TabsTrigger
+                    value="sections"
+                    aria-label="Curated sections"
+                    className={cn(
+                      "min-h-10 min-w-0 justify-center gap-2 rounded-xl px-2 text-center text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md sm:min-h-11 sm:px-3 sm:text-sm",
+                      visibility !== 'public' && "opacity-50"
+                    )}
+                  >
+                    <Layers className="w-4 h-4 shrink-0" />
+                    <span className="truncate">sections</span>
+                  </TabsTrigger>
+                )}
+              </TabsList>
+            </div>
+            {vault && (
+              <TabsContent value="sections">
+                <VaultSectionsPanel
+                  vault={vault}
+                  onPublicationsChange={onPublicationsChange}
+                />
+              </TabsContent>
+            )}
+            <TabsContent value="settings">
           {isArchived && (
             <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs font-mono text-muted-foreground" data-testid="vault-archived-notice">
               this vault is archived — read-only, cannot be edited
@@ -1314,6 +1377,8 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
           )}
 
           </fieldset>
+            </TabsContent>
+          </Tabs>
 
           <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 pt-3 sm:pt-4 border-t border-border w-full box-border">
             <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">

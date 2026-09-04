@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import MatchProvenanceList from '../MatchProvenanceList';
 import type { TopicMatch } from '@/lib/codexDiscovery';
 import type { Publication, Vault } from '@/types/database';
@@ -59,13 +60,21 @@ function makePublication(id: string, title: string): Publication {
   };
 }
 
+function renderList(props: Omit<Parameters<typeof MatchProvenanceList>[0], 'curatorsByOwnerId'> & { curatorsByOwnerId?: Parameters<typeof MatchProvenanceList>[0]['curatorsByOwnerId'] }) {
+  return render(
+    <MemoryRouter>
+      <MatchProvenanceList curatorsByOwnerId={{}} {...props} />
+    </MemoryRouter>,
+  );
+}
+
 function openDisclosure() {
   fireEvent.click(screen.getByRole('button', { name: /why_these_matched/ }));
 }
 
 describe('MatchProvenanceList', () => {
   it('renders an empty state / nothing for an empty match list', () => {
-    const { container } = render(<MatchProvenanceList matches={[]} onOpenPublication={() => {}} />);
+    const { container } = renderList({ matches: [], onOpenPublication: () => {} });
     expect(container).toBeEmptyDOMElement();
   });
 
@@ -75,7 +84,7 @@ describe('MatchProvenanceList', () => {
       vault,
       signals: [{ type: 'tag', value: 'graph drawing' }],
     };
-    render(<MatchProvenanceList matches={[match]} onOpenPublication={() => {}} />);
+    renderList({ matches: [match], onOpenPublication: () => {} });
     expect(screen.getByText('// why_these_matched')).toBeInTheDocument();
     expect(screen.getByText('1')).toBeInTheDocument();
     expect(screen.queryByText('Paper One')).not.toBeInTheDocument();
@@ -87,7 +96,7 @@ describe('MatchProvenanceList', () => {
       vault,
       signals: [{ type: 'tag', value: 'graph drawing' }],
     };
-    render(<MatchProvenanceList matches={[match]} onOpenPublication={() => {}} />);
+    renderList({ matches: [match], onOpenPublication: () => {} });
     openDisclosure();
     expect(screen.getByText('Paper One')).toBeInTheDocument();
     expect(screen.getByText('tag: graph drawing')).toBeInTheDocument();
@@ -103,7 +112,7 @@ describe('MatchProvenanceList', () => {
         { type: 'notes', snippet: 'a very long note about graph drawing techniques, history, and applications across many fields' },
       ],
     };
-    render(<MatchProvenanceList matches={[match]} onOpenPublication={() => {}} />);
+    renderList({ matches: [match], onOpenPublication: () => {} });
     openDisclosure();
     expect(screen.getByText('tag: graph drawing')).toBeInTheDocument();
     expect(screen.getByText('keyword: graph drawing')).toBeInTheDocument();
@@ -117,7 +126,7 @@ describe('MatchProvenanceList', () => {
       vault,
       signals: [{ type: 'notes', snippet: longSnippet }],
     };
-    render(<MatchProvenanceList matches={[match]} onOpenPublication={() => {}} />);
+    renderList({ matches: [match], onOpenPublication: () => {} });
     openDisclosure();
     expect(screen.getByText('mentioned in notes')).toBeInTheDocument();
     expect(screen.queryByText(longSnippet)).not.toBeInTheDocument();
@@ -130,7 +139,7 @@ describe('MatchProvenanceList', () => {
       vault,
       signals: [{ type: 'citation', viaPublicationId: 'p1' }],
     };
-    render(<MatchProvenanceList matches={[match]} onOpenPublication={() => {}} />);
+    renderList({ matches: [match], onOpenPublication: () => {} });
     openDisclosure();
     expect(screen.getByText('cited by a related match')).toBeInTheDocument();
     expect(screen.queryByText(/p1/)).not.toBeInTheDocument();
@@ -140,7 +149,7 @@ describe('MatchProvenanceList', () => {
     const onOpenPublication = vi.fn();
     const publication = makePublication('p1', 'Paper One');
     const match: TopicMatch = { publication, vault, signals: [{ type: 'keyword', value: 'graph drawing' }] };
-    render(<MatchProvenanceList matches={[match]} onOpenPublication={onOpenPublication} />);
+    renderList({ matches: [match], onOpenPublication });
     openDisclosure();
     fireEvent.click(screen.getByText('Paper One'));
     expect(onOpenPublication).toHaveBeenCalledWith(publication);
@@ -151,9 +160,47 @@ describe('MatchProvenanceList', () => {
       { publication: makePublication('p1', 'Paper One'), vault, signals: [{ type: 'tag', value: 'graph drawing' }] },
       { publication: makePublication('p2', 'Paper Two'), vault, signals: [{ type: 'keyword', value: 'graph drawing' }] },
     ];
-    render(<MatchProvenanceList matches={matches} onOpenPublication={() => {}} />);
+    renderList({ matches, onOpenPublication: () => {} });
     openDisclosure();
     expect(screen.getByText('Paper One')).toBeInTheDocument();
     expect(screen.getByText('Paper Two')).toBeInTheDocument();
+  });
+
+  it('shows which vault a match belongs to, linked to its public page', () => {
+    const match: TopicMatch = {
+      publication: makePublication('p1', 'Paper One'),
+      vault,
+      signals: [{ type: 'tag', value: 'graph drawing' }],
+    };
+    renderList({ matches: [match], onOpenPublication: () => {} });
+    openDisclosure();
+    const vaultLink = screen.getByRole('link', { name: 'Vault One' });
+    expect(vaultLink).toHaveAttribute('href', '/public/vault-one');
+  });
+
+  it('shows the curator name for a match when one is known for its vault owner', () => {
+    const match: TopicMatch = {
+      publication: makePublication('p1', 'Paper One'),
+      vault,
+      signals: [{ type: 'tag', value: 'graph drawing' }],
+    };
+    renderList({
+      matches: [match],
+      curatorsByOwnerId: { u1: { display_name: 'Ada Lovelace', username: 'ada' } },
+      onOpenPublication: () => {},
+    });
+    openDisclosure();
+    expect(screen.getByText(/curated by Ada Lovelace/)).toBeInTheDocument();
+  });
+
+  it('omits the curator note when no curator is known for the match', () => {
+    const match: TopicMatch = {
+      publication: makePublication('p1', 'Paper One'),
+      vault,
+      signals: [{ type: 'tag', value: 'graph drawing' }],
+    };
+    renderList({ matches: [match], onOpenPublication: () => {} });
+    openDisclosure();
+    expect(screen.queryByText(/curated by/)).not.toBeInTheDocument();
   });
 });

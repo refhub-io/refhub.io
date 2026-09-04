@@ -1985,12 +1985,13 @@ export default function VaultDetail() {
                                 description: existingRequest.requested_role === 'editor'
                                   ? 'Your edit access request is pending approval.'
                                   : 'You already have an access request pending approval.',
+                                source: null,
                               });
                               return;
                             }
 
                             if (existingRequest?.status === 'approved') {
-                              toast({ title: 'Access Approved', description: 'Refreshing...' });
+                              toast({ title: 'Access Approved', description: 'Refreshing...', source: null });
                               refresh();
                               return;
                             }
@@ -2003,6 +2004,7 @@ export default function VaultDetail() {
                             toast({
                               title: 'Edit Access Requested',
                               description: 'The vault owner has been notified.',
+                              source: null,
                             });
                             refresh();
                           } catch (error) {
@@ -2011,6 +2013,7 @@ export default function VaultDetail() {
                               title: 'Error',
                               description: (error as Error).message,
                               variant: 'destructive', feedbackSeverity: 'error',
+                              source: null,
                             });
                           }
                         }}
@@ -2170,6 +2173,7 @@ export default function VaultDetail() {
             setIsVaultDialogOpen(open);
           }}
           vault={editingVault}
+          onPublicationsChange={setPublications}
           onSave={!editingVault || isOwner ? handleSaveVault : undefined}
           onUpdate={refetchVault}
           onDelete={isOwner ? (vault) => {

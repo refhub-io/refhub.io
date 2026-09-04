@@ -15,6 +15,8 @@ import { useVaultAccess, requestVaultAccess } from '@/hooks/useVaultAccess';
 import { getForkSourceHref, getForkSourceLabel, getVaultForkInfo, VaultForkInfo } from '@/lib/vaultFork';
 import { SidebarDndBoundary } from '@/components/layout/SidebarDndBoundary';
 import { PublicationList } from '@/components/publications/PublicationList';
+import { PublicVaultSectionsView } from '@/components/vaults/PublicVaultSectionsView';
+import { useVaultSections } from '@/hooks/useVaultSections';
 import type { FilterField } from '@/components/publications/FilterBuilder';
 import { PublicationViewDialog } from '@/components/publications/PublicationViewDialog';
 import { CollectionAnalytics } from '@/components/publications/CollectionAnalytics';
@@ -76,6 +78,9 @@ export default function PublicVault() {
   const { canEdit, isOwner, userRole } = useVaultAccess(vault?.id || '');
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
   const [pendingRequestRole, setPendingRequestRole] = useState<'viewer' | 'editor' | null>(null);
+  const [viewMode, setViewMode] = useState<'curated' | 'all_papers'>('curated');
+  const { sections } = useVaultSections(vault?.id ?? null);
+  const hasSections = sections.length > 0;
 
   const publicationTagsMap = useMemo(() => {
     const vaultPubTagsMap: Record<string, string[]> = {};
@@ -277,6 +282,10 @@ export default function PublicVault() {
           created_at: vp.created_at,
           updated_at: vp.updated_at,
           original_publication_id: vp.original_publication_id,
+          section_id: vp.section_id ?? null,
+          section_position: vp.section_position ?? 0,
+          featured: vp.featured ?? false,
+          featured_note: vp.featured_note ?? null,
         }));
         setPublications(pubsData);
 
@@ -643,12 +652,13 @@ export default function PublicVault() {
                                   description: existingRequest.requested_role === 'editor'
                                     ? 'Your edit access request is pending approval.'
                                     : 'You already have an access request pending approval.',
+                                  source: null,
                                 });
                                 return;
                               }
 
                               if (existingRequest?.status === 'approved') {
-                                toast({ title: 'Access Approved', description: 'You already have approved access.' });
+                                toast({ title: 'Access Approved', description: 'You already have approved access.', source: null });
                                 return;
                               }
 
@@ -660,12 +670,14 @@ export default function PublicVault() {
                               toast({
                                 title: 'Edit Access Requested',
                                 description: 'The vault owner has been notified.',
+                                source: null,
                               });
                             } catch (error) {
                               toast({
                                 title: 'Error',
                                 description: (error as Error).message,
                                 variant: 'destructive', feedbackSeverity: 'error',
+                                source: null,
                               });
                             }
                           }}
@@ -688,8 +700,42 @@ export default function PublicVault() {
           </div>
         )}
 
+        {vault && hasSections && (
+          <div className="flex items-center gap-2 px-4 pt-4">
+            <button
+              type="button"
+              onClick={() => setViewMode('curated')}
+              className={`text-xs font-mono px-3 py-1.5 rounded-full border transition-colors ${viewMode === 'curated' ? 'bg-primary/20 border-primary/50 text-primary' : 'border-border text-muted-foreground hover:text-foreground'}`}
+            >
+              curated
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('all_papers')}
+              className={`text-xs font-mono px-3 py-1.5 rounded-full border transition-colors ${viewMode === 'all_papers' ? 'bg-primary/20 border-primary/50 text-primary' : 'border-border text-muted-foreground hover:text-foreground'}`}
+            >
+              all_papers
+            </button>
+          </div>
+        )}
+
+        {vault && hasSections && viewMode === 'curated' && (
+          <PublicVaultSectionsView
+            vault={vault}
+            sections={sections}
+            publications={publications}
+            tags={tags}
+            vaultOwnerName={vaultOwner?.display_name || vaultOwner?.username || undefined}
+            onOpenPublication={(pub) => setViewingPublication(pub)}
+            onExportBibtex={(pub) => setExportPublications([pub])}
+            onOpenGraph={() => setIsGraphOpen(true)}
+            onMobileMenuOpen={() => setIsMobileSidebarOpen(true)}
+            onVaultUpdate={() => {}}
+          />
+        )}
+
         {/* PublicationList - READ-ONLY mode */}
-        {vault && (
+        {vault && (!hasSections || viewMode === 'all_papers') && (
           <PublicationList
             publications={publications}
             tags={tags}
@@ -757,6 +803,7 @@ export default function PublicVault() {
           vault={editingVault}
           onSave={handleSaveVault}
           onUpdate={() => {}}
+          onPublicationsChange={setPublications}
         />
 
         <CollectionAnalytics

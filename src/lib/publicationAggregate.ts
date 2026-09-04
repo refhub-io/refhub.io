@@ -131,6 +131,10 @@ export function buildAllPublications(
     created_at: vp.created_at,
     updated_at: vp.updated_at,
     original_publication_id: vp.original_publication_id,
+    section_id: vp.section_id ?? null,
+    section_position: vp.section_position ?? 0,
+    featured: vp.featured ?? false,
+    featured_note: vp.featured_note ?? null,
   })) as (Publication & { original_publication_id: string | null })[];
 
   const allPublicationsMap: Record<string, Publication> = {};
