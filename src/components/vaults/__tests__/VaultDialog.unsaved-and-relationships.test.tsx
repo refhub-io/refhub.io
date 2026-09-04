@@ -3,7 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { KeyboardProvider } from '@/contexts/KeyboardContext';
 import { Vault } from '@/types/database';
 import type { RelationshipSuggestion } from '@/lib/relationshipSuggestions';
+import { runVaultRelationshipScan } from '@/lib/vaultRelationshipScan';
 import { VaultDialog } from '../VaultDialog';
+
+vi.mock('@/lib/vaultRelationshipScan', () => ({
+  runVaultRelationshipScan: vi.fn(),
+}));
 
 vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({
@@ -65,38 +70,52 @@ const renderDialog = (overrides: Record<string, unknown> = {}) => render(
   </KeyboardProvider>,
 );
 
+/** Switches to the relationships tab, runs a scan (mocked to resolve one suggestion), and
+ * waits for it to render, then switches back to the settings tab so a name edit can be made. */
+async function scanForOneSuggestionThenReturnToSettings() {
+  vi.mocked(runVaultRelationshipScan).mockResolvedValue({
+    suggestions: [mockSuggestion],
+    skippedCount: 0,
+  });
+
+  fireEvent.mouseDown(screen.getByRole('tab', { name: /relationship suggestions/i }));
+
+  const scanButton = await screen.findByRole('button', { name: /scan for relationships/i });
+  fireEvent.click(scanButton);
+
+  await waitFor(() => {
+    expect(screen.getByText('Source Paper')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /approve/i })).toBeInTheDocument();
+  });
+
+  fireEvent.mouseDown(screen.getByRole('tab', { name: /vault settings/i }));
+}
+
 describe('VaultDialog unsaved changes + relationship suggestions guard', () => {
+  beforeEach(() => {
+    vi.mocked(runVaultRelationshipScan).mockReset();
+  });
+
+  // These two tests drive a full tab-switch + scan + tab-switch-back + edit + discard/save
+  // sequence, which does noticeably more work than the suite average and can run close to
+  // the default testTimeout under parallel load; give them more headroom.
   it('shows pending-relationships dialog instead of closing when discarding unsaved changes with pending suggestions', async () => {
     const onOpenChange = vi.fn();
 
-    const { rerender } = renderDialog({
+    renderDialog({
       onOpenChange,
       vault: { ...mockVault, name: 'Original Name' },
     });
+
+    await scanForOneSuggestionThenReturnToSettings();
 
     // Simulate unsaved changes by changing the vault name
     const nameInput = screen.getByDisplayValue('Original Name');
     fireEvent.change(nameInput, { target: { value: 'Modified Name' } });
 
-    // Wait for unsaved changes to be detected
     await waitFor(() => {
       expect(nameInput).toHaveValue('Modified Name');
     });
-
-    // Now rerender with relationship suggestions present
-    rerender(
-      <KeyboardProvider>
-        <VaultDialog
-          open
-          onOpenChange={onOpenChange}
-          vault={{ ...mockVault, name: 'Original Name' }}
-          onSave={vi.fn().mockResolvedValue(undefined)}
-          publications={[]}
-          existingRelations={[]}
-          // We'll simulate this by checking internal state after making changes
-        />
-      </KeyboardProvider>,
-    );
 
     // Click cancel button which should trigger handleDialogClose
     fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
@@ -106,23 +125,17 @@ describe('VaultDialog unsaved changes + relationship suggestions guard', () => {
       expect(screen.getByText(/unsaved_changes/i)).toBeInTheDocument();
     });
 
-    // Now we need to test that when we have both unsaved changes AND pending suggestions,
-    // discarding the unsaved changes dialog should show the pending relationships dialog instead of closing.
-    // This requires directly testing the handleDiscardChanges callback behavior.
-    // Since the callback is internal, we'll verify this by checking the internal state.
-
     // Click the discard button on the unsaved changes dialog
     fireEvent.click(screen.getByRole('button', { name: /discard/i }));
 
-    // If we had relationship suggestions, the pending relationships dialog would appear
-    // and onOpenChange(false) would NOT have been called. For this test to properly work,
-    // we'd need to inject relationship suggestions into the component state, which requires
-    // more advanced testing setup. This test verifies the basic flow works.
-
+    // With pending relationship suggestions, discarding must surface the pending-relationships
+    // dialog instead of closing the vault dialog outright.
     await waitFor(() => {
-      expect(onOpenChange).toHaveBeenCalled();
+      expect(screen.getByText(/unreviewed relationship suggestion/i)).toBeInTheDocument();
     });
-  });
+
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  }, 15000);
 
   it('shows pending-relationships dialog after successfully saving with unsaved changes', async () => {
     const onOpenChange = vi.fn();
@@ -133,6 +146,8 @@ describe('VaultDialog unsaved changes + relationship suggestions guard', () => {
       onSave,
       vault: { ...mockVault, name: 'Original Name' },
     });
+
+    await scanForOneSuggestionThenReturnToSettings();
 
     // Simulate unsaved changes
     const nameInput = screen.getByDisplayValue('Original Name');
@@ -154,14 +169,19 @@ describe('VaultDialog unsaved changes + relationship suggestions guard', () => {
     const saveAndCloseButton = screen.getAllByRole('button').find(
       (btn) => btn.textContent?.includes('save') && !btn.textContent?.includes('saving')
     );
+    expect(saveAndCloseButton).toBeDefined();
+    fireEvent.click(saveAndCloseButton!);
 
-    if (saveAndCloseButton) {
-      fireEvent.click(saveAndCloseButton);
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalled();
+    });
 
-      // Wait for the save to complete
-      await waitFor(() => {
-        expect(onSave).toHaveBeenCalled();
-      });
-    }
-  });
+    // With pending relationship suggestions, saving must surface the pending-relationships
+    // dialog afterward instead of closing the vault dialog outright.
+    await waitFor(() => {
+      expect(screen.getByText(/unreviewed relationship suggestion/i)).toBeInTheDocument();
+    });
+
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  }, 15000);
 });
