@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import { topicToSlug } from '@/lib/codexDiscovery';
 import type { Vault } from '@/types/database';
 
@@ -18,9 +19,15 @@ interface TopicSummaryPanelProps {
   curators: Curator[];
   newInLast30Days: number;
   matchingVaults?: MatchingVault[];
+  /** Keeps each group (matching vaults / related topics / curators) on one
+   * line instead of wrapping — used for the desktop single-row header,
+   * which scrolls horizontally instead of growing to a second row. */
+  nowrap?: boolean;
 }
 
-export default function TopicSummaryPanel({ relatedTopics, curators, newInLast30Days, matchingVaults = [] }: TopicSummaryPanelProps) {
+export default function TopicSummaryPanel({ relatedTopics, curators, newInLast30Days, matchingVaults = [], nowrap = false }: TopicSummaryPanelProps) {
+  const groupClass = cn('flex items-center gap-1.5', nowrap ? 'flex-nowrap shrink-0' : 'flex-wrap');
+
   return (
     <>
       {newInLast30Days > 0 && (
@@ -30,7 +37,7 @@ export default function TopicSummaryPanel({ relatedTopics, curators, newInLast30
       )}
 
       {matchingVaults.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className={groupClass}>
           <span className="text-xs text-muted-foreground/60 font-mono shrink-0">// matching_vaults</span>
           {matchingVaults.map(({ vault, count }) => {
             const content = (
@@ -44,14 +51,14 @@ export default function TopicSummaryPanel({ relatedTopics, curators, newInLast30
               <Link
                 key={vault.id}
                 to={`/public/${vault.public_slug}`}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-border bg-card/50 hover:border-primary/30 transition-colors text-xs font-mono"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-border bg-card/50 hover:border-primary/30 transition-colors text-xs font-mono shrink-0"
               >
                 {content}
               </Link>
             ) : (
               <span
                 key={vault.id}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-border bg-card/30 text-xs font-mono opacity-70"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-border bg-card/30 text-xs font-mono opacity-70 shrink-0"
               >
                 {content}
               </span>
@@ -60,29 +67,29 @@ export default function TopicSummaryPanel({ relatedTopics, curators, newInLast30
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div className={groupClass}>
         <span className="text-xs text-muted-foreground/60 font-mono shrink-0">// related_topics</span>
         {relatedTopics.length > 0 ? (
           relatedTopics.map((topic) => (
-            <Link key={topic} to={`/codex/topic/${topicToSlug(topic)}`}>
+            <Link key={topic} to={`/codex/topic/${topicToSlug(topic)}`} className="shrink-0">
               <Badge variant="secondary" className="font-mono text-xs">{topic}</Badge>
             </Link>
           ))
         ) : (
-          <span className="text-sm text-muted-foreground font-mono">// no_related_topics_yet</span>
+          <span className="text-sm text-muted-foreground font-mono shrink-0">// no_related_topics_yet</span>
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div className={groupClass}>
         <span className="text-xs text-muted-foreground/60 font-mono shrink-0">// curators</span>
         {curators.length > 0 ? (
           curators.map((curator, index) => (
-            <Badge key={`${curator.username}-${index}`} variant="outline" className="font-mono text-xs">
+            <Badge key={`${curator.username}-${index}`} variant="outline" className="font-mono text-xs shrink-0">
               {curator.display_name || curator.username}
             </Badge>
           ))
         ) : (
-          <span className="text-sm text-muted-foreground font-mono">// no_curators_yet</span>
+          <span className="text-sm text-muted-foreground font-mono shrink-0">// no_curators_yet</span>
         )}
       </div>
     </>

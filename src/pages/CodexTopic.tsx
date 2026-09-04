@@ -34,7 +34,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import TopicSummaryPanel from '@/components/codex/TopicSummaryPanel';
 import MatchProvenanceList from '@/components/codex/MatchProvenanceList';
-import { ArrowLeft, ChevronDown, ChevronRight, Scroll } from 'lucide-react';
+import { ArrowLeft, ArrowUpDown, ChevronDown, ChevronRight, Scroll } from 'lucide-react';
 import type { Publication, Vault, Tag } from '@/types/database';
 
 export default function CodexTopic() {
@@ -237,7 +237,7 @@ export default function CodexTopic() {
       )}
       <div className={`flex-1 min-w-0 flex flex-col min-h-screen ${user ? 'lg:pl-72' : ''}`}>
         <div className="border-b border-border bg-card/50 backdrop-blur-xl px-4 py-3">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 shrink-0">
               <Link
                 to="/codex"
@@ -251,11 +251,22 @@ export default function CodexTopic() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              {/* Mobile: the topic context (matching vaults, related topics,
-                  curators) is collapsed by default so it doesn't push the
-                  actual paper list below the fold — it's context, not the
-                  main event. Desktop keeps it always expanded (see below). */}
+            {/* Desktop: topic context inline on the same line, scrolling
+                horizontally instead of wrapping to a second row. Mobile
+                gets its own collapsible row below (see the toggle button
+                and panel further down) so it doesn't push the paper list
+                below the fold. */}
+            <div className="hidden lg:flex flex-1 min-w-0 items-center gap-x-5 overflow-x-auto scrollbar-thin py-0.5">
+              <TopicSummaryPanel
+                relatedTopics={relatedTopics}
+                curators={curators}
+                newInLast30Days={newInLast30Days}
+                matchingVaults={matchingVaultsForPanel}
+                nowrap
+              />
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0 lg:ml-auto">
               <button
                 type="button"
                 onClick={() => setTopicContextOpen((o) => !o)}
@@ -271,8 +282,12 @@ export default function CodexTopic() {
 
               {directMatches.length > 0 && (
                 <Select value={sortMode} onValueChange={(value) => setSortMode(value as TopicSortMode)}>
-                  <SelectTrigger className="h-7 w-auto rounded-full text-xs font-mono shrink-0">
-                    <SelectValue />
+                  <SelectTrigger
+                    aria-label="Sort topic papers"
+                    className="h-7 w-auto gap-1.5 rounded-full text-xs font-mono shrink-0 px-2 lg:px-3"
+                  >
+                    <ArrowUpDown className="w-3.5 h-3.5 shrink-0" />
+                    <span className="hidden lg:inline"><SelectValue /></span>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="relevance" className="text-xs font-mono">sort: relevance</SelectItem>
@@ -285,9 +300,11 @@ export default function CodexTopic() {
             </div>
           </div>
 
+          {/* Mobile-only: collapsible topic context, still allowed to wrap
+              since mobile has no room for a scrolling single line. */}
           <div className={cn(
-            "flex flex-wrap items-center gap-x-5 gap-y-2 mt-3",
-            !topicContextOpen && "hidden lg:flex"
+            "lg:hidden flex flex-wrap items-center gap-x-5 gap-y-2 mt-3",
+            !topicContextOpen && "hidden"
           )}>
             <TopicSummaryPanel
               relatedTopics={relatedTopics}
