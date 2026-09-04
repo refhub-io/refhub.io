@@ -28,7 +28,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { VaultSectionsPanel } from './VaultSectionsPanel';
 import { useKeyboardContext } from '@/contexts/KeyboardContext';
 import { useHotkeys } from '@/hooks/useKeyboardNavigation';
-import { Lock, Users, Globe, Mail, Trash2, Copy, Check, Link2, X, Save, Plus, Bell, ChevronDown, Archive } from 'lucide-react';
+import { Lock, Users, Globe, Mail, Trash2, Copy, Check, Link2, X, Save, Plus, Bell, ChevronDown, Archive, Settings, Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createVaultPublicSlugCandidate, normalizeVaultPublicSlug } from '@/lib/vaultSlug';
 
@@ -84,9 +84,10 @@ interface VaultDialogProps {
   onDelete?: (vault: Vault) => void;
   onArchive?: (vault: Vault) => void;
   publications?: Publication[];
+  onPublicationsChange?: (next: Publication[]) => void;
 }
 
-export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSave, onUpdate, onDelete, onArchive, publications = [] }: VaultDialogProps) {
+export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSave, onUpdate, onDelete, onArchive, publications = [], onPublicationsChange }: VaultDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const shareFormRef = useRef<HTMLFormElement>(null);
@@ -908,11 +909,24 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
 
         <form ref={shareFormRef} onSubmit={handleFormSubmit} className="flex-1 overflow-y-auto space-y-5 px-6 pb-6">
           <Tabs defaultValue="settings">
-            <TabsList className="w-auto h-8">
-              <TabsTrigger value="settings" className="text-xs font-mono h-6 px-3">settings</TabsTrigger>
+            <TabsList className={`grid h-auto w-full ${vault ? 'grid-cols-2' : 'grid-cols-1'} gap-1 rounded-2xl border border-border/70 bg-muted/60 p-1 font-mono dark:border-white/8 dark:bg-[#1a1722]`}>
+              <TabsTrigger
+                value="settings"
+                aria-label="Vault settings"
+                className="min-h-10 min-w-0 justify-center gap-2 rounded-xl px-2 text-center text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md sm:min-h-11 sm:px-3 sm:text-sm"
+              >
+                <Settings className="w-4 h-4 shrink-0" />
+                <span className="truncate">settings</span>
+              </TabsTrigger>
               {vault && (
-                <TabsTrigger value="sections" className="text-xs font-mono h-6 px-3" disabled={visibility !== 'public'}>
-                  sections
+                <TabsTrigger
+                  value="sections"
+                  aria-label="Curated sections"
+                  disabled={visibility !== 'public'}
+                  className="min-h-10 min-w-0 justify-center gap-2 rounded-xl px-2 text-center text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md sm:min-h-11 sm:px-3 sm:text-sm"
+                >
+                  <Layers className="w-4 h-4 shrink-0" />
+                  <span className="truncate">sections</span>
                 </TabsTrigger>
               )}
             </TabsList>
@@ -926,7 +940,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                 <VaultSectionsPanel
                   vaultId={vault.id}
                   publications={publications}
-                  onPublicationsChange={() => {}}
+                  onPublicationsChange={onPublicationsChange ?? (() => {})}
                 />
               </TabsContent>
             )}

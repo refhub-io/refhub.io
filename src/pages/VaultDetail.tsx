@@ -2171,6 +2171,7 @@ export default function VaultDetail() {
           }}
           vault={editingVault}
           publications={publications}
+          onPublicationsChange={setPublications}
           onSave={!editingVault || isOwner ? handleSaveVault : undefined}
           onUpdate={refetchVault}
           onDelete={isOwner ? (vault) => {

@@ -717,14 +717,16 @@ export default function PublicVault() {
         )}
 
         {vault && hasSections && viewMode === 'curated' && (
-          <div className="px-4 py-6">
-            <PublicVaultSectionsView
-              vault={vault}
-              publications={publications}
-              tags={tags}
-              onOpenPublication={(pub) => setViewingPublication(pub)}
-            />
-          </div>
+          <PublicVaultSectionsView
+            vault={vault}
+            publications={publications}
+            tags={tags}
+            vaultOwnerName={vaultOwner?.display_name || vaultOwner?.username || undefined}
+            onOpenPublication={(pub) => setViewingPublication(pub)}
+            onOpenGraph={() => setIsGraphOpen(true)}
+            onMobileMenuOpen={() => setIsMobileSidebarOpen(true)}
+            onVaultUpdate={() => {}}
+          />
         )}
 
         {/* PublicationList - READ-ONLY mode */}

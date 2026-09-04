@@ -9,6 +9,9 @@ vi.mock('@/lib/vaultSections', () => ({
   fetchVaultSections: (...args: unknown[]) => mockFetch(...args),
 }));
 vi.mock('@/integrations/supabase/client', () => ({ supabase: {} }));
+vi.mock('@/components/notifications/NotificationDropdown', () => ({
+  NotificationDropdown: () => null,
+}));
 
 function makeVault(overrides: Partial<Vault> = {}): Vault {
   return {
