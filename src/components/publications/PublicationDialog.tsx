@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback, type RefObject } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, type RefObject } from 'react';
 import { logger } from '@/lib/logger';
-import { Publication, Vault, Tag, PUBLICATION_TYPES } from '@/types/database';
+import { Publication, PublicationRelation, Vault, Tag, PUBLICATION_TYPES } from '@/types/database';
 import { UnsavedChangesDialog } from '@/components/ui/unsaved-changes-dialog';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 import { useHotkeys } from '@/hooks/useKeyboardNavigation';
@@ -32,8 +32,12 @@ import { ReadingProgressControl, ImportantToggle } from './ReadingStateControl';
 import { HierarchicalTagSelector } from '@/components/tags/HierarchicalTagSelector';
 import { usePublicationRelations } from '@/hooks/usePublicationRelations';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
 import { uploadPublicationDrivePdf, uploadVaultPublicationDrivePdf } from '@/lib/pdfUpload';
 import { fetchGoogleDriveStatus, GoogleDriveStatus } from '@/lib/googleDrive';
+import { findRelationshipSuggestions, RelationshipSuggestion } from '@/lib/relationshipSuggestions';
+import { suggestionKey } from './RelationshipSuggestionsList';
+import { formatSemanticScholarErrorMessage } from '@/lib/semanticScholar';
 
 
 function getValidHttpUrl(value: string | null | undefined): string | null {
@@ -105,6 +109,72 @@ export function PublicationDialog({
     addRelation,
     removeRelation,
   } = usePublicationRelations(publication?.id || null, user?.id || null);
+  const { toast } = useToast();
+  const [relationshipSuggestions, setRelationshipSuggestions] = useState<RelationshipSuggestion[]>([]);
+  const [checkingRelationships, setCheckingRelationships] = useState(false);
+  const [approvingSuggestionKey, setApprovingSuggestionKey] = useState<string | null>(null);
+
+  // usePublicationRelations exposes `relations` as the *joined* related-publication
+  // rows (RelatedPublication[] — the other paper's own fields plus relation_type/
+  // relation_id), not the raw publication_relations junction rows that
+  // findRelationshipSuggestions' dedup logic expects. Reconstruct the junction-row
+  // shape here; direction doesn't matter for that dedup check (it's symmetric).
+  const existingRelationsForSuggestions = useMemo<PublicationRelation[]>(() => {
+    if (!publication?.id) return [];
+    return relations.map((rel) => ({
+      id: rel.relation_id,
+      publication_id: publication.id as string,
+      related_publication_id: rel.id,
+      relation_type: rel.relation_type,
+      created_at: rel.created_at,
+      created_by: rel.user_id,
+    }));
+  }, [relations, publication?.id]);
+
+  const handleCheckRelationships = useCallback(async () => {
+    if (!publication?.id || !publication.doi) return;
+    setCheckingRelationships(true);
+    try {
+      const found = await findRelationshipSuggestions(
+        { id: publication.id, doi: publication.doi, title: publication.title },
+        vaultPublications || allPublications,
+        existingRelationsForSuggestions,
+      );
+      setRelationshipSuggestions((prev) => {
+        const existingKeys = new Set(prev.map(suggestionKey));
+        return [...prev, ...found.filter((s) => !existingKeys.has(suggestionKey(s)))];
+      });
+    } catch (error) {
+      toast({
+        title: 'Could not check for relationships',
+        description: formatSemanticScholarErrorMessage(error),
+        variant: 'destructive', feedbackSeverity: 'error',
+      });
+    } finally {
+      setCheckingRelationships(false);
+    }
+  }, [publication, vaultPublications, allPublications, existingRelationsForSuggestions, toast]);
+
+  const handleApproveSuggestion = useCallback(async (suggestion: RelationshipSuggestion) => {
+    if (!publication?.id) return;
+    setApprovingSuggestionKey(suggestionKey(suggestion));
+    try {
+      const isCurrentSource = suggestion.sourcePublicationId === publication.id;
+      const otherId = isCurrentSource ? suggestion.targetPublicationId : suggestion.sourcePublicationId;
+      const direction = isCurrentSource ? 'outgoing' : 'incoming';
+      const success = await addRelation(otherId, 'cites', direction);
+      if (success) {
+        setRelationshipSuggestions((prev) => prev.filter((s) => suggestionKey(s) !== suggestionKey(suggestion)));
+      }
+    } finally {
+      setApprovingSuggestionKey(null);
+    }
+  }, [publication, addRelation]);
+
+  const handleDismissSuggestion = useCallback((suggestion: RelationshipSuggestion) => {
+    setRelationshipSuggestions((prev) => prev.filter((s) => suggestionKey(s) !== suggestionKey(suggestion)));
+  }, []);
+
   const [formData, setFormData] = useState<Partial<Publication>>({
     title: '',
     authors: [],
@@ -1748,6 +1818,12 @@ export function PublicationDialog({
                 loading={relationsLoading}
                 onAddRelation={addRelation}
                 onRemoveRelation={removeRelation}
+                suggestions={relationshipSuggestions}
+                checkingRelationships={checkingRelationships}
+                approvingSuggestionKey={approvingSuggestionKey}
+                onCheckRelationships={handleCheckRelationships}
+                onApproveSuggestion={handleApproveSuggestion}
+                onDismissSuggestion={handleDismissSuggestion}
               />
             )}
 
