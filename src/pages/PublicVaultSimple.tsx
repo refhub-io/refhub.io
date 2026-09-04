@@ -554,7 +554,14 @@ export default function PublicVault() {
             style={{ borderBottomColor: vault.color, boxShadow: `0 1px 24px -4px ${vault.color}66` }}
           >
             <div className="px-4 py-3">
-              <div className="flex items-center justify-between gap-2">
+              {/* flex-wrap: the action-button group (now up to 4 icons with
+                  cite_collection added) and the badge group both need real
+                  room. Forcing them onto one line via shrink-0 on the button
+                  group pushed the badges into an increasingly narrow, wrapped
+                  column and left the two groups fighting for vertical
+                  alignment on mobile — letting the whole row wrap gives the
+                  button group its own line instead. */}
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0 flex-wrap">
                   <Badge variant="secondary" className="gap-1 font-mono text-xs shrink-0">
                     <Globe className="w-3 h-3" />
