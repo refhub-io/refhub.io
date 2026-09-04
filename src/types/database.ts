@@ -214,6 +214,25 @@ export interface VaultFork {
   created_at: string;
 }
 
+export type InboxItemStatus = 'pending' | 'accepted' | 'rejected' | 'merged';
+export type InboxSourceType = 'doi' | 'arxiv' | 's2_url' | 'bibtex' | 'pdf' | 'manual';
+
+export interface InboxItem {
+  id: string;
+  user_id: string;
+  status: InboxItemStatus;
+  source_type: InboxSourceType;
+  source_ref: string;
+  parsed_fields: Partial<Publication>;
+  suggested_vault_id: string | null;
+  suggested_tag_ids: string[] | null;
+  duplicate_of_publication_id: string | null;
+  filed_publication_id: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export const RELATION_TYPES = [
   { value: 'cites', label: 'Cites' },
   { value: 'extends', label: 'Extends' },
