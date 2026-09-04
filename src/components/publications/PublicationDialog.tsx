@@ -662,7 +662,7 @@ export function PublicationDialog({
     const built = buildSuggestionsFromCitationGraph(
       { id: publication.id, title: publication.title },
       pendingCitationGraph,
-      allPublications,
+      vaultPublications || allPublications,
       // existingRelationsForSuggestions, not `relations` — buildSuggestionsFromCitationGraph
       // expects raw PublicationRelation[] junction rows, while `relations` from
       // usePublicationRelations is the joined RelatedPublication[] shape (see the
@@ -674,7 +674,7 @@ export function PublicationDialog({
       return [...prev, ...built.filter((s) => !existingKeys.has(suggestionKey(s)))];
     });
     setPendingCitationGraph(null);
-  }, [publication, pendingCitationGraph, allPublications, existingRelationsForSuggestions]);
+  }, [publication, pendingCitationGraph, allPublications, vaultPublications, existingRelationsForSuggestions]);
 
   // Track which fields have been modified by the user
   const [modifiedFields, setModifiedFields] = useState<Set<string>>(new Set());
