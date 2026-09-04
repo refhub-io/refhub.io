@@ -468,7 +468,7 @@ export function Sidebar({
                               className="w-3 h-3 rounded-md shrink-0 shadow-sm"
                               style={{ backgroundColor: vault.color }}
                             />
-                            <span className="truncate font-medium flex-1 min-w-0">{vault.name}</span>
+                            <span className="truncate font-medium flex-1 min-w-0 text-left">{vault.name}</span>
                             {vault.visibility === 'public' ? (
                               <Globe className="w-3 h-3 text-muted-foreground shrink-0" />
                             ) : vault.visibility === 'protected' ? (
@@ -592,7 +592,7 @@ export function Sidebar({
                                   className="w-3 h-3 rounded-md shrink-0 shadow-sm"
                                   style={{ backgroundColor: vault.color || '#6366f1' }}
                                 />
-                                <span className="truncate font-medium flex-1 min-w-0">{vault.name}</span>
+                                <span className="truncate font-medium flex-1 min-w-0 text-left">{vault.name}</span>
                                 <Share2 className="w-3 h-3 text-blue-400 shrink-0" />
                               </Link>
                             </div>
@@ -684,7 +684,7 @@ export function Sidebar({
                                     className="w-3 h-3 rounded-md shrink-0 shadow-sm"
                                     style={{ backgroundColor: vault.color || '#6366f1' }}
                                   />
-                                  <span className="truncate font-medium flex-1 min-w-0">{vault.name}</span>
+                                  <span className="truncate font-medium flex-1 min-w-0 text-left">{vault.name}</span>
                                   {vault.public_slug ? (
                                     <Globe className="w-3 h-3 text-muted-foreground shrink-0" />
                                   ) : (
@@ -759,7 +759,7 @@ export function Sidebar({
                           className="w-3 h-3 rounded-md shrink-0 shadow-sm"
                           style={{ backgroundColor: vault.color || '#6366f1' }}
                         />
-                        <span className="truncate font-medium flex-1 min-w-0">{vault.name}</span>
+                        <span className="truncate font-medium flex-1 min-w-0 text-left">{vault.name}</span>
                         {vault.visibility === 'public' ? (
                           <Globe className="w-3 h-3 text-muted-foreground shrink-0" />
                         ) : vault.visibility === 'protected' ? (
