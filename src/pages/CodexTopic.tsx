@@ -55,7 +55,9 @@ export default function CodexTopic() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [matches, setMatches] = useState<TopicMatch[]>([]);
-  const [curators, setCurators] = useState<{ display_name: string | null; username: string | null }[]>([]);
+  // Keyed by vault owner id so MatchProvenanceList can show "curated by ..."
+  // next to each individual match, instead of a topic-wide dedup'd list.
+  const [curatorsByOwnerId, setCuratorsByOwnerId] = useState<Record<string, { display_name: string | null; username: string | null }>>({});
   const [sortMode, setSortMode] = useState<TopicSortMode>('relevance');
   const [vaultPopularity, setVaultPopularity] = useState<Record<string, VaultPopularity>>({});
   const [viewingPublication, setViewingPublication] = useState<Publication | null>(null);
@@ -72,7 +74,7 @@ export default function CodexTopic() {
       // leave the PREVIOUS topic's curators/popularity rendered under the
       // new topic's heading while the new topic's fetch is still in flight
       // or if the new topic simply has none of its own.
-      setCurators([]);
+      setCuratorsByOwnerId({});
       setVaultPopularity({});
       try {
         const { corpus, relations } = await fetchPublicCodexPublications(supabase);
@@ -92,7 +94,11 @@ export default function CodexTopic() {
             .select('user_id, display_name, username')
             .in('user_id', ownerIds);
           if (profilesError) throw profilesError;
-          if (!cancelled) setCurators((profiles || []).map((p) => ({ display_name: p.display_name, username: p.username })));
+          if (!cancelled) {
+            setCuratorsByOwnerId(
+              Object.fromEntries((profiles || []).map((p) => [p.user_id, { display_name: p.display_name, username: p.username }])),
+            );
+          }
         }
 
         const matchedVaultIds = [...new Set(computedMatches.map((m) => m.vault.id))];
@@ -152,12 +158,6 @@ export default function CodexTopic() {
     return map;
   }, [directMatches]);
 
-  const vaultMatchCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    directMatches.forEach((m) => { counts[m.vault.id] = (counts[m.vault.id] || 0) + 1; });
-    return counts;
-  }, [directMatches]);
-
   const citationOnlyMatches = useMemo(
     () => matches.filter((m) => m.signals.length > 0 && m.signals.every((s) => s.type === 'citation')),
     [matches],
@@ -177,11 +177,6 @@ export default function CodexTopic() {
 
   const relatedTopics = useMemo(() => deriveRelatedTopics(topic, directMatches), [topic, directMatches]);
   const newInLast30Days = useMemo(() => countNewInLastDays(directMatches, 30), [directMatches]);
-
-  const matchingVaultsForPanel = useMemo(
-    () => matchedVaults.map((vault) => ({ vault, count: vaultMatchCounts[vault.id] || 0 })),
-    [matchedVaults, vaultMatchCounts],
-  );
 
   // Tag badges on this page come from each match's `signals`, not FilterBuilder's tag picker.
   const tagsForList: Tag[] = [];
@@ -259,9 +254,7 @@ export default function CodexTopic() {
             <div className="hidden lg:flex flex-1 min-w-0 items-center gap-x-5 overflow-x-auto scrollbar-thin py-0.5">
               <TopicSummaryPanel
                 relatedTopics={relatedTopics}
-                curators={curators}
                 newInLast30Days={newInLast30Days}
-                matchingVaults={matchingVaultsForPanel}
                 nowrap
               />
             </div>
@@ -276,7 +269,7 @@ export default function CodexTopic() {
                 {topicContextOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                 // context
                 <Badge variant="outline" className="font-mono text-[10px]">
-                  {matchingVaultsForPanel.length + relatedTopics.length + curators.length}
+                  {relatedTopics.length}
                 </Badge>
               </button>
 
@@ -308,9 +301,7 @@ export default function CodexTopic() {
           )}>
             <TopicSummaryPanel
               relatedTopics={relatedTopics}
-              curators={curators}
               newInLast30Days={newInLast30Days}
-              matchingVaults={matchingVaultsForPanel}
             />
           </div>
         </div>
@@ -324,7 +315,11 @@ export default function CodexTopic() {
           </div>
         ) : (
           <>
-            <MatchProvenanceList matches={sortedDirectMatches} onOpenPublication={(pub) => setViewingPublication(pub)} />
+            <MatchProvenanceList
+              matches={sortedDirectMatches}
+              curatorsByOwnerId={curatorsByOwnerId}
+              onOpenPublication={(pub) => setViewingPublication(pub)}
+            />
             <PublicationList
               publications={sortedDirectMatches.map((m) => m.publication)}
               tags={tagsForList}

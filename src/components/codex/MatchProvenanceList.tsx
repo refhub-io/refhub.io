@@ -1,11 +1,20 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { TopicMatch, TopicMatchSignal } from '@/lib/codexDiscovery';
 import type { Publication } from '@/types/database';
 
+interface Curator {
+  display_name: string | null;
+  username: string | null;
+}
+
 interface MatchProvenanceListProps {
   matches: TopicMatch[];
+  /** Vault owner id -> curator profile, so each row can show who curated
+   * the vault its match lives in without a per-row fetch. */
+  curatorsByOwnerId: Record<string, Curator>;
   onOpenPublication: (publication: Publication) => void;
 }
 
@@ -36,7 +45,7 @@ function signalLabel(signal: TopicMatchSignal): string {
  * signal provenance (spec: "fully inspectable — no black-box scoring")
  * actually visible to a visitor, instead of only existing internally.
  */
-export default function MatchProvenanceList({ matches, onOpenPublication }: MatchProvenanceListProps) {
+export default function MatchProvenanceList({ matches, curatorsByOwnerId, onOpenPublication }: MatchProvenanceListProps) {
   const [open, setOpen] = useState(false);
   if (matches.length === 0) return null;
 
@@ -57,25 +66,50 @@ export default function MatchProvenanceList({ matches, onOpenPublication }: Matc
         <Badge variant="outline" className="font-mono text-[10px]">{matches.length}</Badge>
       </button>
       {open && (
-        <ul className="space-y-2 px-4 pb-3">
-          {matches.map((match) => (
-            <li key={match.publication.id} className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => onOpenPublication(match.publication)}
-                className="text-sm font-semibold text-left text-foreground hover:text-primary hover:underline"
-              >
-                {match.publication.title}
-              </button>
-              <div className="flex flex-wrap gap-1">
-                {match.signals.map((signal, index) => (
-                  <Badge key={`${signal.type}-${index}`} variant="outline" className="font-mono text-[10px]">
-                    {signalLabel(signal)}
-                  </Badge>
-                ))}
-              </div>
-            </li>
-          ))}
+        <ul className="space-y-2.5 px-4 pb-3">
+          {matches.map((match) => {
+            const curator = curatorsByOwnerId[match.vault.user_id];
+            return (
+              <li key={match.publication.id} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <button
+                  type="button"
+                  onClick={() => onOpenPublication(match.publication)}
+                  className="text-sm font-semibold text-left text-foreground hover:text-primary hover:underline"
+                >
+                  {match.publication.title}
+                </button>
+
+                {match.vault.public_slug ? (
+                  <Link
+                    to={`/public/${match.vault.public_slug}`}
+                    className="inline-flex items-center gap-1 text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: match.vault.color }} />
+                    {match.vault.name}
+                  </Link>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-mono text-muted-foreground/70 shrink-0">
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: match.vault.color }} />
+                    {match.vault.name}
+                  </span>
+                )}
+
+                {curator && (curator.display_name || curator.username) && (
+                  <span className="text-[10px] font-mono text-muted-foreground/50 shrink-0">
+                    curated by {curator.display_name || curator.username}
+                  </span>
+                )}
+
+                <div className="flex flex-wrap gap-1">
+                  {match.signals.map((signal, index) => (
+                    <Badge key={`${signal.type}-${index}`} variant="outline" className="font-mono text-[10px]">
+                      {signalLabel(signal)}
+                    </Badge>
+                  ))}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
