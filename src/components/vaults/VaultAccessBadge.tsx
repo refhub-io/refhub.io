@@ -1,63 +1,51 @@
 import React from 'react';
-import { Shield, Eye, Edit, Crown } from 'lucide-react';
+import { Eye, Edit, Crown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { useVaultAccess } from '@/hooks/useVaultAccess';
+import type { VaultRole } from '@/types/vault-extensions';
 
 interface VaultAccessBadgeProps {
-  vaultId: string;
+  /**
+   * The viewer's already-resolved permission for this vault (useVaultAccess's
+   * `permission` field, NOT its `userRole` field — the latter is left `null`
+   * for an anonymous visitor even when `permission` is 'viewer'). This is
+   * purely presentational — it used to run its own useVaultAccess fetch, a
+   * second independent access check racing the page's own. Its catch-all
+   * mapped any transient query failure to "no_access" with no way to tell
+   * that apart from an actual denial, and its own denied/pending/requestable
+   * states could never legitimately occur wherever this badge was used
+   * (protected/private vaults redirect away before this ever renders) — so
+   * it had no real access decision to make. The caller already knows the
+   * permission; pass it straight through instead of re-deriving it.
+   */
+  permission: VaultRole | null;
 }
 
-const VaultAccessBadge: React.FC<VaultAccessBadgeProps> = ({ vaultId }) => {
-  const { canEdit, permission, accessStatus } = useVaultAccess(vaultId);
-
-  if (accessStatus === 'loading') {
+const VaultAccessBadge: React.FC<VaultAccessBadgeProps> = ({ permission }) => {
+  if (permission === 'owner') {
     return (
-      <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
-        <div className="animate-pulse font-mono">checking_access...</div>
-      </div>
+      <Badge variant="outline" className="gap-1 font-mono text-xs">
+        <Crown className="w-3 h-3" />
+        owner
+      </Badge>
     );
   }
-
-  if (accessStatus === 'denied' || accessStatus === 'pending') {
+  if (permission === 'editor') {
     return (
-      <div className="flex items-center gap-2 px-3 py-2 text-sm text-red-600">
-        <Shield className="w-4 h-4" />
-        <span className="font-mono">no_access</span>
-      </div>
+      <Badge variant="outline" className="gap-1 font-mono text-xs">
+        <Edit className="w-3 h-3" />
+        editor
+      </Badge>
     );
   }
-
-  if (accessStatus === 'requestable') {
+  if (permission === 'viewer') {
     return (
-      <div className="flex items-center gap-2 px-3 py-2 text-sm text-yellow-600">
-        <Eye className="w-4 h-4" />
-        <span className="font-mono">request_access</span>
-      </div>
+      <Badge variant="outline" className="gap-1 font-mono text-xs">
+        <Eye className="w-3 h-3" />
+        viewer
+      </Badge>
     );
   }
-
-  return (
-    <div className="flex items-center gap-2">
-      {permission === 'owner' && (
-        <Badge variant="outline" className="gap-1 font-mono text-xs">
-          <Crown className="w-3 h-3" />
-          owner
-        </Badge>
-      )}
-      {permission === 'editor' && (
-        <Badge variant="outline" className="gap-1 font-mono text-xs">
-          <Edit className="w-3 h-3" />
-          editor
-        </Badge>
-      )}
-      {permission === 'viewer' && (
-        <Badge variant="outline" className="gap-1 font-mono text-xs">
-          <Eye className="w-3 h-3" />
-          viewer
-        </Badge>
-      )}
-    </div>
-  );
+  return null;
 };
 
 export default VaultAccessBadge;

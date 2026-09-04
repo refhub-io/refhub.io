@@ -75,7 +75,7 @@ export default function PublicVault() {
   const [viewingPublication, setViewingPublication] = useState<Publication | null>(null);
   const [isGraphOpen, setIsGraphOpen] = useState(false);
   const [exportPublications, setExportPublications] = useState<Publication[]>([]);
-  const { canEdit, isOwner, userRole } = useVaultAccess(vault?.id || '');
+  const { canEdit, isOwner, permission } = useVaultAccess(vault?.id || '');
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
   const [pendingRequestRole, setPendingRequestRole] = useState<'viewer' | 'editor' | null>(null);
   const [viewMode, setViewMode] = useState<'curated' | 'all_papers'>('curated');
@@ -559,7 +559,7 @@ export default function PublicVault() {
                     <Globe className="w-3 h-3" />
                     public
                   </Badge>
-                  <VaultAccessBadge vaultId={vault.id} />
+                  <VaultAccessBadge permission={permission} />
                   {vault.archived_at && (
                     <Badge variant="outline" className="gap-1 font-mono text-xs shrink-0 text-muted-foreground">
                       <Archive className="w-3 h-3" />
