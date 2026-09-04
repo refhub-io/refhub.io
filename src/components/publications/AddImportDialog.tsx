@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Publication, Vault, PUBLICATION_TYPES } from '@/types/database';
 import { cn } from '@/lib/utils';
 import {
@@ -147,6 +147,15 @@ export function AddImportDialog({
     setRelCheckLoading(false);
     setRelCheckApprovingKey(null);
   };
+
+  // Reacts to the `open` prop itself, not just this dialog's own "done"
+  // button or its Dialog's onOpenChange callback — covers every path that
+  // can flip `open` to false (X, Escape, outside click, or a parent closing
+  // it through some other route entirely), same as ExistingPaperSelector's
+  // own reset-on-close effect.
+  useEffect(() => {
+    if (!open) resetRelationshipCheck();
+  }, [open]);
 
   const handleApproveRelCheckSuggestion = async (suggestion: RelationshipSuggestion) => {
     if (!user) return;
@@ -422,17 +431,7 @@ export function AddImportDialog({
   // ─── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        // Reset on every close path (X, Escape, outside click, "done") —
-        // not just "done" — since this dialog stays mounted (forceMount)
-        // across opens and would otherwise show the same paper's stale
-        // review screen the next time it's opened, whatever tab is active.
-        if (!next) resetRelationshipCheck();
-        onOpenChange(next);
-      }}
-    >
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent forceMount className="dialog-mobile max-w-[100vw] p-0 border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col gap-0 min-h-0 sm:rounded-2xl sm:h-auto sm:w-[95vw] sm:max-w-4xl sm:max-h-[90vh] data-[state=closed]:hidden">
         <DialogHeader className="p-4 sm:p-6 pb-0">
           <DialogTitle className="text-xl sm:text-2xl font-bold font-mono">

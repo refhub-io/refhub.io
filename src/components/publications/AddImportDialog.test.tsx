@@ -98,7 +98,7 @@ const mockSuggestion: RelationshipSuggestion = {
 
 const renderDialog = (onImport = vi.fn().mockResolvedValue(['canonical-pub-id'])) => {
   const onOpenChange = vi.fn();
-  render(
+  const { rerender } = render(
     <AddImportDialog
       open
       onOpenChange={onOpenChange}
@@ -108,7 +108,17 @@ const renderDialog = (onImport = vi.fn().mockResolvedValue(['canonical-pub-id'])
       onImport={onImport}
     />,
   );
-  return { onOpenChange, onImport };
+  const setOpen = (open: boolean) => rerender(
+    <AddImportDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      vaults={[mockVault]}
+      allPublications={[]}
+      currentVaultId="vault-1"
+      onImport={onImport}
+    />,
+  );
+  return { onOpenChange, onImport, setOpen };
 };
 
 const lookupAndImportOneDoiPaper = async () => {
@@ -163,5 +173,22 @@ describe('AddImportDialog — relationship check after single-paper DOI import (
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
     expect(mockFindRelationshipSuggestions).not.toHaveBeenCalled();
+  });
+
+  it('resets its own review screen when closed via a non-"done" path (X/Escape/outside-click), not just "done"', async () => {
+    mockFindRelationshipSuggestions.mockResolvedValue([mockSuggestion]);
+    const { setOpen } = renderDialog();
+
+    await lookupAndImportOneDoiPaper();
+    await waitFor(() => expect(screen.getByText('Other Paper In Vault')).toBeInTheDocument());
+
+    // Radix forwards Escape/outside-click/X through the same onOpenChange(false)
+    // path as this dialog's wrapper intercepts — simulate that directly.
+    setOpen(false);
+    setOpen(true);
+
+    expect(screen.queryByText(/checking "Target Vault"/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('Other Paper In Vault')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /library/i })).toBeInTheDocument();
   });
 });
