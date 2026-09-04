@@ -12,6 +12,9 @@ interface CuratedSectionsBodyProps {
   tags?: Tag[];
   grouped: CuratedSectionGroup[];
   onOpenPublication: (pub: Publication) => void;
+  /** Bibtex export for a single card's menu — omit to leave it a no-op
+   * (e.g. the owner-facing settings preview, which isn't interactive). */
+  onExportBibtex?: (pub: Publication) => void;
   emptyMessage?: string;
   className?: string;
 }
@@ -19,7 +22,7 @@ interface CuratedSectionsBodyProps {
 /** Renders a vault's curated sections exactly as visitors see them on
  * /public/:slug — shared by the public curated view and the owner-facing
  * sections editor's preview, so the preview can never drift from reality. */
-export function CuratedSectionsBody({ vault, tags = [], grouped, onOpenPublication, emptyMessage = '// nothing_curated_yet', className }: CuratedSectionsBodyProps) {
+export function CuratedSectionsBody({ vault, tags = [], grouped, onOpenPublication, onExportBibtex, emptyMessage = '// nothing_curated_yet', className }: CuratedSectionsBodyProps) {
   if (grouped.length === 0) {
     return <p className="text-sm text-muted-foreground font-mono py-8 text-center">{emptyMessage}</p>;
   }
@@ -36,11 +39,14 @@ export function CuratedSectionsBody({ vault, tags = [], grouped, onOpenPublicati
           </div>
           <div className="space-y-2">
             {papers.map((pub) => (
-              <div key={pub.id}>
+              <div
+                key={pub.id}
+                className={pub.featured ? 'rounded-xl border-2 border-primary/40 bg-primary/5 p-2 space-y-2' : undefined}
+              >
                 {pub.featured && (
-                  <div className="mb-1 px-3 py-1.5 text-xs font-mono text-primary bg-primary/10 rounded-t-md border border-b-0 border-primary/30">
+                  <p className="px-1 text-xs font-mono text-primary break-words">
                     ★ featured{pub.featured_note ? ` — ${pub.featured_note}` : ''}
-                  </div>
+                  </p>
                 )}
                 <PublicationCard
                   publication={pub}
@@ -52,7 +58,8 @@ export function CuratedSectionsBody({ vault, tags = [], grouped, onOpenPublicati
                   isSelected={false}
                   onToggleSelect={() => {}}
                   onOpen={() => onOpenPublication(pub)}
-                  onExportBibtex={() => {}}
+                  primaryActionLabel="view"
+                  onExportBibtex={() => onExportBibtex?.(pub)}
                 />
               </div>
             ))}

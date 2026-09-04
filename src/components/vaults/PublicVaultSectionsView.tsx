@@ -21,6 +21,7 @@ interface PublicVaultSectionsViewProps {
   tags: Tag[];
   vaultOwnerName?: string;
   onOpenPublication: (pub: Publication) => void;
+  onExportBibtex?: (pub: Publication) => void;
   onOpenGraph?: () => void;
   onMobileMenuOpen?: () => void;
   onVaultUpdate?: () => void;
@@ -30,7 +31,7 @@ interface PublicVaultSectionsViewProps {
 // to decide whether to show the curated/all_papers tabs at all) and passed
 // down here — fetching them again on every mount was causing a loading flash
 // each time a visitor switched from all_papers back to curated.
-export function PublicVaultSectionsView({ vault, sections, publications, tags, vaultOwnerName, onOpenPublication, onOpenGraph, onMobileMenuOpen, onVaultUpdate }: PublicVaultSectionsViewProps) {
+export function PublicVaultSectionsView({ vault, sections, publications, tags, vaultOwnerName, onOpenPublication, onExportBibtex, onOpenGraph, onMobileMenuOpen, onVaultUpdate }: PublicVaultSectionsViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
 
   const grouped = useMemo(() => {
@@ -122,6 +123,7 @@ export function PublicVaultSectionsView({ vault, sections, publications, tags, v
         tags={tags}
         grouped={grouped}
         onOpenPublication={onOpenPublication}
+        onExportBibtex={onExportBibtex}
         emptyMessage={searchQuery ? '// no_results_found' : '// nothing_curated_yet'}
         className="px-3 sm:px-4 lg:px-8 py-6"
       />

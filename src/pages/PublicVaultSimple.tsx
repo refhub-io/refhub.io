@@ -652,12 +652,13 @@ export default function PublicVault() {
                                   description: existingRequest.requested_role === 'editor'
                                     ? 'Your edit access request is pending approval.'
                                     : 'You already have an access request pending approval.',
+                                  source: null,
                                 });
                                 return;
                               }
 
                               if (existingRequest?.status === 'approved') {
-                                toast({ title: 'Access Approved', description: 'You already have approved access.' });
+                                toast({ title: 'Access Approved', description: 'You already have approved access.', source: null });
                                 return;
                               }
 
@@ -669,12 +670,14 @@ export default function PublicVault() {
                               toast({
                                 title: 'Edit Access Requested',
                                 description: 'The vault owner has been notified.',
+                                source: null,
                               });
                             } catch (error) {
                               toast({
                                 title: 'Error',
                                 description: (error as Error).message,
                                 variant: 'destructive', feedbackSeverity: 'error',
+                                source: null,
                               });
                             }
                           }}
@@ -724,6 +727,7 @@ export default function PublicVault() {
             tags={tags}
             vaultOwnerName={vaultOwner?.display_name || vaultOwner?.username || undefined}
             onOpenPublication={(pub) => setViewingPublication(pub)}
+            onExportBibtex={(pub) => setExportPublications([pub])}
             onOpenGraph={() => setIsGraphOpen(true)}
             onMobileMenuOpen={() => setIsMobileSidebarOpen(true)}
             onVaultUpdate={() => {}}
