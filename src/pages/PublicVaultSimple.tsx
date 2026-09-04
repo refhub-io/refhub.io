@@ -729,14 +729,14 @@ export default function PublicVault() {
             <button
               type="button"
               onClick={() => setViewMode('curated')}
-              className={`text-xs font-mono px-3 py-1.5 rounded-full border transition-colors ${viewMode === 'curated' ? 'bg-primary/20 border-primary/50 text-primary' : 'border-border text-muted-foreground hover:text-foreground'}`}
+              className={`inline-flex items-center leading-none text-xs font-mono px-3 py-1.5 rounded-full border transition-colors ${viewMode === 'curated' ? 'bg-primary/20 border-primary/50 text-primary' : 'border-border text-muted-foreground hover:text-foreground'}`}
             >
               curated
             </button>
             <button
               type="button"
               onClick={() => setViewMode('all_papers')}
-              className={`text-xs font-mono px-3 py-1.5 rounded-full border transition-colors ${viewMode === 'all_papers' ? 'bg-primary/20 border-primary/50 text-primary' : 'border-border text-muted-foreground hover:text-foreground'}`}
+              className={`inline-flex items-center leading-none text-xs font-mono px-3 py-1.5 rounded-full border transition-colors ${viewMode === 'all_papers' ? 'bg-primary/20 border-primary/50 text-primary' : 'border-border text-muted-foreground hover:text-foreground'}`}
             >
               all_papers
             </button>
