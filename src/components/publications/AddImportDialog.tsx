@@ -34,6 +34,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { useAuth } from '@/hooks/useAuth';
+import { showError } from '@/lib/toast';
+import { supabase } from '@/integrations/supabase/client';
+import { formatVaultPublication } from '@/lib/formatVaultPublication';
+import { findRelationshipSuggestions, type RelationshipSuggestion } from '@/lib/relationshipSuggestions';
+import { RelationshipSuggestionsList, suggestionKey } from './RelationshipSuggestionsList';
 
 interface AddImportDialogProps {
   open: boolean;
@@ -120,6 +126,57 @@ export function AddImportDialog({
   // Import options
   const [targetVaultId, setTargetVaultId] = useState<string | null>(currentVaultId);
   const [importing, setImporting] = useState(false);
+
+  const { user } = useAuth();
+
+  // Entry point 2: after importing exactly one DOI-bearing paper into a
+  // vault (never for a genuine multi-paper batch — that's the bulk-import
+  // case entry point 2 is explicitly excluded from, to avoid overloading
+  // the provider), check it against that vault's publications before
+  // closing. This dialog's DialogContent uses forceMount (stays mounted
+  // across opens, only hidden via CSS), so this state must be reset
+  // explicitly at the start of each import — never left to a remount.
+  const [relCheckVaultName, setRelCheckVaultName] = useState<string | null>(null);
+  const [relCheckSuggestions, setRelCheckSuggestions] = useState<RelationshipSuggestion[]>([]);
+  const [relCheckLoading, setRelCheckLoading] = useState(false);
+  const [relCheckApprovingKey, setRelCheckApprovingKey] = useState<string | null>(null);
+
+  const resetRelationshipCheck = () => {
+    setRelCheckVaultName(null);
+    setRelCheckSuggestions([]);
+    setRelCheckLoading(false);
+    setRelCheckApprovingKey(null);
+  };
+
+  const handleApproveRelCheckSuggestion = async (suggestion: RelationshipSuggestion) => {
+    if (!user) return;
+    setRelCheckApprovingKey(suggestionKey(suggestion));
+    try {
+      const { error } = await supabase.from('publication_relations').insert({
+        publication_id: suggestion.sourcePublicationId,
+        related_publication_id: suggestion.targetPublicationId,
+        relation_type: 'cites',
+        created_by: user.id,
+      });
+      if (error) {
+        if (error.code === '23505') {
+          showError('Already linked', 'These papers are already linked.');
+        } else if (error.code === '42501' || error.message?.includes('row-level security')) {
+          showError('Permission denied', "You don't have permission to link papers in this vault.");
+        } else {
+          showError('Could not save relationship', error.message);
+        }
+        return;
+      }
+      setRelCheckSuggestions((prev) => prev.filter((s) => suggestionKey(s) !== suggestionKey(suggestion)));
+    } finally {
+      setRelCheckApprovingKey(null);
+    }
+  };
+
+  const handleDismissRelCheckSuggestion = (suggestion: RelationshipSuggestion) => {
+    setRelCheckSuggestions((prev) => prev.filter((s) => suggestionKey(s) !== suggestionKey(suggestion)));
+  };
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -243,6 +300,7 @@ export function AddImportDialog({
       toast({ title: 'No papers selected', description: 'Select at least one parsed paper from the preview before importing.', variant: 'destructive', feedbackSeverity: 'error', source: importActionGroupRef });
       return;
     }
+    resetRelationshipCheck();
     setImporting(true);
     try {
       if (!onImport) {
@@ -257,7 +315,56 @@ export function AddImportDialog({
       setSelectedIndices(new Set());
       setDoiInput('');
       setBibtexInput('');
-      onOpenChange(false);
+
+      // Entry point 2 — deliberately scoped to a single imported paper, never
+      // a genuine batch: checking N papers against the vault (and each other)
+      // is exactly the overload risk this feature was told to stay away from
+      // for bulk import.
+      const singleDoi = toImport.length === 1 ? toImport[0].doi?.trim() : null;
+      const canonicalPublicationId = insertedIds[0];
+      if (toImport.length !== 1 || !targetVaultId || !singleDoi || !canonicalPublicationId) {
+        onOpenChange(false);
+        return;
+      }
+
+      setRelCheckVaultName(targetVault?.name ?? 'this vault');
+      setRelCheckLoading(true);
+      try {
+        // handleBulkImport (both the vault and dashboard implementations)
+        // returns publications.id, not the vault_publications.id the copy
+        // actually got via the copy_publication_to_vault RPC (whose own
+        // return value is discarded) — resolve the real copy id first, same
+        // as the Library tab's onAddToVaults path.
+        const { data: newCopy } = await supabase
+          .from('vault_publications')
+          .select('id')
+          .eq('vault_id', targetVaultId)
+          .eq('original_publication_id', canonicalPublicationId)
+          .maybeSingle();
+
+        if (!newCopy) {
+          setRelCheckSuggestions([]);
+          return;
+        }
+
+        const { data: vaultPubsData } = await supabase
+          .from('vault_publications')
+          .select('*')
+          .eq('vault_id', targetVaultId);
+        const vaultPublications = (vaultPubsData || []).map(formatVaultPublication);
+
+        const found = await findRelationshipSuggestions(
+          { id: newCopy.id, doi: singleDoi, title: toImport[0].title ?? '' },
+          vaultPublications,
+          [],
+        );
+        setRelCheckSuggestions(found);
+      } catch (error) {
+        setRelCheckSuggestions([]);
+        showError('Could not check relationships', error instanceof Error ? error.message : 'Unknown error');
+      } finally {
+        setRelCheckLoading(false);
+      }
     } catch (error) {
       toast({ title: 'Import failed', description: (error as Error).message || 'RefHub could not import the selected papers. Nothing was removed from the preview.', variant: 'destructive', feedbackSeverity: 'error', source: importActionGroupRef });
     } finally {
@@ -315,7 +422,17 @@ export function AddImportDialog({
   // ─── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        // Reset on every close path (X, Escape, outside click, "done") —
+        // not just "done" — since this dialog stays mounted (forceMount)
+        // across opens and would otherwise show the same paper's stale
+        // review screen the next time it's opened, whatever tab is active.
+        if (!next) resetRelationshipCheck();
+        onOpenChange(next);
+      }}
+    >
       <DialogContent forceMount className="dialog-mobile max-w-[100vw] p-0 border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col gap-0 min-h-0 sm:rounded-2xl sm:h-auto sm:w-[95vw] sm:max-w-4xl sm:max-h-[90vh] data-[state=closed]:hidden">
         <DialogHeader className="p-4 sm:p-6 pb-0">
           <DialogTitle className="text-xl sm:text-2xl font-bold font-mono">
@@ -327,6 +444,48 @@ export function AddImportDialog({
         </DialogHeader>
 
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+          {relCheckVaultName ? (
+            <div className="p-4 sm:p-6 space-y-4">
+              <div className="space-y-2">
+                <Label className="font-semibold font-mono">check_relationships</Label>
+                <p className="text-xs text-muted-foreground font-mono">
+                  // checking "{relCheckVaultName}" for citation relationships
+                </p>
+              </div>
+
+              {relCheckLoading ? (
+                <div className="flex items-center gap-2 justify-center py-8 text-sm text-muted-foreground font-mono">
+                  <LoadingSpinner size="xs" />
+                  checking_relationships...
+                </div>
+              ) : relCheckSuggestions.length > 0 ? (
+                <RelationshipSuggestionsList
+                  suggestions={relCheckSuggestions}
+                  approvingKey={relCheckApprovingKey}
+                  onApprove={handleApproveRelCheckSuggestion}
+                  onDismiss={handleDismissRelCheckSuggestion}
+                />
+              ) : (
+                <p className="text-xs text-muted-foreground font-mono py-4">
+                  // no citation relationships found
+                </p>
+              )}
+
+              <div className="flex justify-end pt-2">
+                <Button
+                  variant="glow"
+                  onClick={() => {
+                    resetRelationshipCheck();
+                    onOpenChange(false);
+                  }}
+                  disabled={relCheckLoading}
+                >
+                  done
+                </Button>
+              </div>
+            </div>
+          ) : (
+          <>
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FlowTab)} className="p-4 sm:p-6 pt-4 overflow-x-hidden">
             <div className="mb-4">
               <BrowserExtensionInstallCard />
@@ -370,6 +529,7 @@ export function AddImportDialog({
                   if (onAddToVaults) await onAddToVaults(pubId, vaultIds);
                 }}
                 onDone={() => onOpenChange(false)}
+                open={open}
               />
             </TabsContent>
 
@@ -773,6 +933,8 @@ export function AddImportDialog({
                 </div>
               </div>
             </div>
+          )}
+          </>
           )}
         </div>
       </DialogContent>

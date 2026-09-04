@@ -125,16 +125,27 @@ const mockSuggestion: RelationshipSuggestion = {
 
 const renderSelector = (overrides: Partial<Publication> = {}, onAddToVaults = vi.fn().mockResolvedValue(undefined), onDone = vi.fn()) => {
   const publication = { ...basePublication, ...overrides };
-  render(
+  const { rerender } = render(
     <ExistingPaperSelector
       publications={[publication]}
       vaults={[mockVault]}
       currentVaultId={null}
       onAddToVaults={onAddToVaults}
       onDone={onDone}
+      open
     />,
   );
-  return { onAddToVaults, onDone, publication };
+  const setOpen = (open: boolean) => rerender(
+    <ExistingPaperSelector
+      publications={[publication]}
+      vaults={[mockVault]}
+      currentVaultId={null}
+      onAddToVaults={onAddToVaults}
+      onDone={onDone}
+      open={open}
+    />,
+  );
+  return { onAddToVaults, onDone, publication, setOpen };
 };
 
 const selectPaperAndVault = async () => {
@@ -228,6 +239,23 @@ describe('ExistingPaperSelector — relationship check after add (entry point 2)
 
     expect(screen.getByText(/search your papers/i)).toBeInTheDocument();
     expect(screen.queryByText(/checking "Target Vault"/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('Other Paper In Vault')).not.toBeInTheDocument();
+  });
+
+  it('resets the stale review screen when the host dialog closes via X/Escape/outside-click, not just "done"', async () => {
+    mockFindRelationshipSuggestions.mockResolvedValue([mockSuggestion]);
+    const { setOpen } = renderSelector();
+
+    await selectPaperAndVault();
+    fireEvent.click(screen.getByRole('button', { name: /add_to_1_vault/i }));
+    await waitFor(() => expect(screen.getByText('Other Paper In Vault')).toBeInTheDocument());
+
+    // Simulate the host dialog closing through a path that skips "done"
+    // entirely (X button, Escape, outside click all just flip `open`).
+    setOpen(false);
+    setOpen(true);
+
+    expect(screen.getByText(/search your papers/i)).toBeInTheDocument();
     expect(screen.queryByText('Other Paper In Vault')).not.toBeInTheDocument();
   });
 });

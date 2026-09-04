@@ -22,6 +22,12 @@ interface ExistingPaperSelectorProps {
   onAddToVaults: (publicationId: string, vaultIds: string[]) => Promise<void>;
   /** Called once the user is done reviewing (or there was nothing to review) — the host dialog should close. */
   onDone: () => void;
+  /** The host dialog's open state — used to reset the review screen when the
+   * dialog closes via any path (X, Escape, outside click), not just "done".
+   * The host keeps this component mounted across opens (forceMount), so
+   * without this a stale review screen from a prior add would otherwise
+   * reappear on the next open. */
+  open: boolean;
 }
 
 export function ExistingPaperSelector({
@@ -30,6 +36,7 @@ export function ExistingPaperSelector({
   currentVaultId,
   onAddToVaults,
   onDone,
+  open,
 }: ExistingPaperSelectorProps) {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
@@ -123,6 +130,13 @@ export function ExistingPaperSelector({
     setCheckingRelationships(false);
     setApprovingKey(null);
   };
+
+  // Covers close paths that skip the "done" button entirely (X, Escape,
+  // outside click) — those close the host dialog directly without ever
+  // calling onDone's own reset.
+  useEffect(() => {
+    if (!open) resetReviewState();
+  }, [open]);
 
   const handleAdd = async () => {
     if (!selectedPublication || selectedVaultIds.size === 0) return;
