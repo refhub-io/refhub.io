@@ -685,25 +685,33 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   const handleDiscardChanges = useCallback(() => {
     setShowUnsavedDialog(false);
     setHasUnsavedChanges(false);
-    onOpenChange(false);
-  }, [onOpenChange]);
+    if (relationshipSuggestions.length > 0) {
+      setShowPendingRelationshipsDialog(true);
+    } else {
+      onOpenChange(false);
+    }
+  }, [onOpenChange, relationshipSuggestions.length]);
 
   // Handle save and close
   const handleSaveAndClose = useCallback(async () => {
     if (!name.trim() || !onSave || isArchived) return;
-    
+
     setSaving(true);
     try {
       await onSave(await buildSavePayload());
       syncSavedValues();
       setShowUnsavedDialog(false);
-      onOpenChange(false);
+      if (relationshipSuggestions.length > 0) {
+        setShowPendingRelationshipsDialog(true);
+      } else {
+        onOpenChange(false);
+      }
     } catch (error) {
       // Keep dialog open on error
     } finally {
       setSaving(false);
     }
-  }, [buildSavePayload, name, onSave, onOpenChange, syncSavedValues, isArchived]);
+  }, [buildSavePayload, name, onSave, onOpenChange, syncSavedValues, isArchived, relationshipSuggestions.length]);
 
   const handleSubmit = useCallback(async () => {
     if (!open || saving || !name.trim() || !onSave || isArchived) return;
