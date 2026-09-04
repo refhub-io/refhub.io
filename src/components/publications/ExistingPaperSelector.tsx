@@ -9,12 +9,19 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Search, Check } from 'lucide-react';
 import { LoadingSpinner } from '@/components/ui/loading';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
+import { showError } from '@/lib/toast';
+import { formatVaultPublication } from '@/lib/formatVaultPublication';
+import { findRelationshipSuggestions, type RelationshipSuggestion } from '@/lib/relationshipSuggestions';
+import { RelationshipSuggestionsList, suggestionKey } from './RelationshipSuggestionsList';
 
 interface ExistingPaperSelectorProps {
   publications: Publication[];
   vaults: Vault[];
   currentVaultId: string | null;
   onAddToVaults: (publicationId: string, vaultIds: string[]) => Promise<void>;
+  /** Called once the user is done reviewing (or there was nothing to review) — the host dialog should close. */
+  onDone: () => void;
 }
 
 export function ExistingPaperSelector({
@@ -22,12 +29,23 @@ export function ExistingPaperSelector({
   vaults,
   currentVaultId,
   onAddToVaults,
+  onDone,
 }: ExistingPaperSelectorProps) {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPublication, setSelectedPublication] = useState<Publication | null>(null);
   const [selectedVaultIds, setSelectedVaultIds] = useState<Set<string>>(new Set());
   const [isAdding, setIsAdding] = useState(false);
   const [publicationVaults, setPublicationVaults] = useState<Map<string, Set<string>>>(new Map());
+
+  // Entry point 2 (Library tab): once the paper has been added, check it against
+  // the first selected vault's publications for citation relationships — the DOI
+  // is already known, so there's no reason to wait for a separate manual trigger.
+  // Non-null once an add has completed and there's something to check/review.
+  const [checkedVaultName, setCheckedVaultName] = useState<string | null>(null);
+  const [checkingRelationships, setCheckingRelationships] = useState(false);
+  const [suggestions, setSuggestions] = useState<RelationshipSuggestion[]>([]);
+  const [approvingKey, setApprovingKey] = useState<string | null>(null);
 
   // Load which vaults each publication already has a copy in. Vault content
   // lives in vault_publications (one row per vault, copied from the
@@ -96,16 +114,102 @@ export function ExistingPaperSelector({
 
   const handleAdd = async () => {
     if (!selectedPublication || selectedVaultIds.size === 0) return;
-    
+
+    const addedPublication = selectedPublication;
+    const vaultIds = Array.from(selectedVaultIds);
+
     setIsAdding(true);
     try {
-      await onAddToVaults(selectedPublication.id, Array.from(selectedVaultIds));
-      // Reset state
+      await onAddToVaults(addedPublication.id, vaultIds);
       setSelectedPublication(null);
       setSelectedVaultIds(new Set());
+
+      const doi = addedPublication.doi?.trim();
+      if (!doi) {
+        // No DOI, no citation data to check — same precondition as the other
+        // relationship-suggestion entry points.
+        onDone();
+        return;
+      }
+
+      const firstVaultId = vaultIds[0];
+      const firstVaultName = vaults.find((v) => v.id === firstVaultId)?.name ?? 'this vault';
+      setCheckedVaultName(firstVaultName);
+      setCheckingRelationships(true);
+      try {
+        // publication_relations references vault_publications.id, not the
+        // canonical publications.id we were given — resolve the copy that
+        // onAddToVaults just created in this vault before checking anything.
+        const { data: newCopy } = await supabase
+          .from('vault_publications')
+          .select('id')
+          .eq('vault_id', firstVaultId)
+          .eq('original_publication_id', addedPublication.id)
+          .maybeSingle();
+
+        if (!newCopy) {
+          setSuggestions([]);
+          return;
+        }
+
+        const { data: vaultPubsData } = await supabase
+          .from('vault_publications')
+          .select('*')
+          .eq('vault_id', firstVaultId);
+        const vaultPublications = (vaultPubsData || []).map(formatVaultPublication);
+
+        // The just-created copy can't appear in any existing publication_relations
+        // row yet (nothing could reference an id that didn't exist before this
+        // add), so there's nothing to fetch there — an empty array is exact, not
+        // an approximation.
+        const found = await findRelationshipSuggestions(
+          { id: newCopy.id, doi, title: addedPublication.title },
+          vaultPublications,
+          [],
+        );
+        setSuggestions(found);
+      } catch {
+        // Best-effort — a failed check just means nothing to review; the user
+        // can still use the manual "check_relationships" button later.
+        setSuggestions([]);
+      } finally {
+        setCheckingRelationships(false);
+      }
     } finally {
       setIsAdding(false);
     }
+  };
+
+  const handleApproveSuggestion = async (suggestion: RelationshipSuggestion) => {
+    if (!user) return;
+    setApprovingKey(suggestionKey(suggestion));
+    try {
+      const { error } = await supabase.from('publication_relations').insert({
+        publication_id: suggestion.sourcePublicationId,
+        related_publication_id: suggestion.targetPublicationId,
+        relation_type: 'cites',
+        created_by: user.id,
+      });
+
+      if (error) {
+        if (error.code === '23505') {
+          showError('Already linked', 'These papers are already linked.');
+        } else if (error.code === '42501' || error.message?.includes('row-level security')) {
+          showError('Permission denied', "You don't have permission to link papers in this vault.");
+        } else {
+          showError('Could not save relationship', error.message);
+        }
+        return;
+      }
+
+      setSuggestions((prev) => prev.filter((s) => suggestionKey(s) !== suggestionKey(suggestion)));
+    } finally {
+      setApprovingKey(null);
+    }
+  };
+
+  const handleDismissSuggestion = (suggestion: RelationshipSuggestion) => {
+    setSuggestions((prev) => prev.filter((s) => suggestionKey(s) !== suggestionKey(suggestion)));
   };
 
   const formatAuthors = (authors: string[]) => {
@@ -117,7 +221,40 @@ export function ExistingPaperSelector({
 
   return (
     <div className="space-y-4 flex flex-col min-h-[320px] sm:min-h-0 h-full">
-      {!selectedPublication ? (
+      {checkedVaultName ? (
+        <>
+          <div className="space-y-2">
+            <Label className="font-semibold font-mono">check_relationships</Label>
+            <p className="text-xs text-muted-foreground font-mono">
+              // checking "{checkedVaultName}" for citation relationships
+            </p>
+          </div>
+
+          {checkingRelationships ? (
+            <div className="flex items-center gap-2 justify-center py-8 text-sm text-muted-foreground font-mono">
+              <LoadingSpinner size="xs" />
+              checking_relationships...
+            </div>
+          ) : suggestions.length > 0 ? (
+            <RelationshipSuggestionsList
+              suggestions={suggestions}
+              approvingKey={approvingKey}
+              onApprove={handleApproveSuggestion}
+              onDismiss={handleDismissSuggestion}
+            />
+          ) : (
+            <p className="text-xs text-muted-foreground font-mono py-4">
+              // no citation relationships found
+            </p>
+          )}
+
+          <div className="flex justify-end pt-2">
+            <Button variant="glow" onClick={onDone} disabled={checkingRelationships}>
+              done
+            </Button>
+          </div>
+        </>
+      ) : !selectedPublication ? (
         <>
           <div className="space-y-2">
             <Label className="font-semibold">Search Your Papers</Label>

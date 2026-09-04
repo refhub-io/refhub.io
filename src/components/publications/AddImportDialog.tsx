@@ -368,8 +368,8 @@ export function AddImportDialog({
                 currentVaultId={currentVaultId}
                 onAddToVaults={async (pubId, vaultIds) => {
                   if (onAddToVaults) await onAddToVaults(pubId, vaultIds);
-                  onOpenChange(false);
                 }}
+                onDone={() => onOpenChange(false)}
               />
             </TabsContent>
 
