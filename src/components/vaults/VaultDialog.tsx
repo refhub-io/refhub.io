@@ -1023,7 +1023,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
             }}
           >
             <div ref={sectionsHintAnchorRef}>
-              <TabsList className={`grid h-auto w-full ${vault ? 'grid-cols-3' : 'grid-cols-1'} gap-1 rounded-2xl border border-border/70 bg-muted/60 p-1 font-mono dark:border-white/8 dark:bg-[#1a1722]`}>
+              <TabsList className={`grid h-auto w-full ${!vault ? 'grid-cols-1' : publications.length > 0 ? 'grid-cols-3' : 'grid-cols-2'} gap-1 rounded-2xl border border-border/70 bg-muted/60 p-1 font-mono dark:border-white/8 dark:bg-[#1a1722]`}>
                 <TabsTrigger
                   value="settings"
                   aria-label="Vault settings"
@@ -1045,7 +1045,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                     <span className="truncate">sections</span>
                   </TabsTrigger>
                 )}
-                {vault && (
+                {vault && publications.length > 0 && (
                   <TabsTrigger
                     value="relationships"
                     aria-label="Relationship suggestions"
@@ -1065,7 +1065,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                 />
               </TabsContent>
             )}
-            {vault && (
+            {vault && publications.length > 0 && (
               <TabsContent value="relationships">
                 <VaultRelationshipsPanel
                   suggestions={relationshipSuggestions}

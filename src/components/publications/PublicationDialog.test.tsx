@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { KeyboardProvider } from '@/contexts/KeyboardContext';
 import { Publication } from '@/types/database';
@@ -178,6 +178,125 @@ describe('PublicationDialog pending-suggestions close guard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'close' }));
     fireEvent.click(await screen.findByRole('button', { name: /discard/i }));
 
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  // These two exercise the combined "unsaved field edit + pending relationship
+  // suggestion" close sequence (Critical 1 of the final-review fix round):
+  // handleDialogClose sees modifiedFields.size > 0 first and shows the Unsaved
+  // Changes dialog, so the relationshipSuggestions check inside
+  // handleDiscardChanges/handleSaveAndClose's non-fullscreen-exit branch is what
+  // must catch the pending suggestions — not handleDialogClose's own check.
+  const openWithSuggestionsAndOverrides = async (overrides: Record<string, unknown> = {}) => {
+    renderDialogWithProps({
+      publication: existingPublicationWithSuggestions,
+      allPublications: [existingPublicationWithSuggestions],
+      ...overrides,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'check_relationships' }));
+    await screen.findByRole('button', { name: 'approve' });
+  };
+
+  it('shows the pending-suggestions dialog (not close) when discarding an unsaved field edit made after suggestions were found', async () => {
+    const onOpenChange = vi.fn();
+    await openWithSuggestionsAndOverrides({ onOpenChange });
+
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Edited Title' } });
+    await waitFor(() => expect(screen.getByLabelText(/title/i)).toHaveValue('Edited Title'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'close' }));
+
+    // modifiedFields.size > 0 wins first — the Unsaved Changes dialog shows,
+    // not the pending-suggestions dialog directly.
+    expect(await screen.findByText(/unsaved_changes/i)).toBeInTheDocument();
+
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: /discard/i }));
+
+    // Discarding the unsaved edit must still surface the pending-suggestions
+    // dialog rather than closing the dialog outright.
+    expect(await screen.findByText(/pending_relationship_suggestions/i)).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
+  it('shows the pending-suggestions dialog (not close) after saving an unsaved field edit made after suggestions were found', async () => {
+    const onOpenChange = vi.fn();
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    await openWithSuggestionsAndOverrides({ onOpenChange, onSave });
+
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Edited Title' } });
+    await waitFor(() => expect(screen.getByLabelText(/title/i)).toHaveValue('Edited Title'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'close' }));
+    expect(await screen.findByText(/unsaved_changes/i)).toBeInTheDocument();
+
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: /^save$/i }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+
+    // Saving the unsaved edit must still surface the pending-suggestions
+    // dialog rather than closing the dialog outright.
+    expect(await screen.findByText(/pending_relationship_suggestions/i)).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+});
+
+describe('PublicationDialog defensive reset on publication switch (Critical 2)', () => {
+  const mockSuggestion: RelationshipSuggestion = {
+    sourcePublicationId: existingPublicationWithSuggestions.id,
+    sourceTitle: existingPublicationWithSuggestions.title,
+    targetPublicationId: 'pub-3',
+    targetTitle: 'Cited Paper',
+    discoveredVia: 'references',
+  };
+
+  beforeEach(() => {
+    mockFindRelationshipSuggestions.mockReset();
+    mockFindRelationshipSuggestions.mockResolvedValue([mockSuggestion]);
+  });
+
+  it('clears pending relationship suggestions when the publication prop switches to a different publication', async () => {
+    const onOpenChange = vi.fn();
+    const { rerender } = render(
+      <KeyboardProvider>
+        <PublicationDialog
+          {...(baseProps as any)}
+          onOpenChange={onOpenChange}
+          publication={existingPublicationWithSuggestions}
+          allPublications={[existingPublicationWithSuggestions]}
+        />
+      </KeyboardProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'check_relationships' }));
+    await screen.findByRole('button', { name: 'approve' });
+
+    const otherPublication: Publication = {
+      ...publication,
+      id: 'pub-4',
+      title: 'A Different Paper',
+    };
+
+    rerender(
+      <KeyboardProvider>
+        <PublicationDialog
+          {...(baseProps as any)}
+          onOpenChange={onOpenChange}
+          publication={otherPublication}
+          allPublications={[otherPublication]}
+        />
+      </KeyboardProvider>,
+    );
+
+    // The stale suggestion (and its "approve" button) from the previous
+    // publication must not survive the switch.
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'approve' })).not.toBeInTheDocument();
+    });
+
+    // With suggestions cleared, closing must go straight through instead of
+    // being gated by stale state from the previous publication.
+    fireEvent.click(screen.getByRole('button', { name: 'close' }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });

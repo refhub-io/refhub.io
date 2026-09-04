@@ -543,6 +543,15 @@ export function PublicationDialog({
     // This allows realtime sync to work properly for the new publication
     setModifiedFields(new Set());
 
+    // Defense-in-depth: clear any stale relationship-suggestion state from a
+    // previously-viewed publication so it can never leak across publications.
+    setRelationshipSuggestions([]);
+    setPendingCitationGraph(null);
+    setCheckingRelationships(false);
+    setApprovingSuggestionKey(null);
+    setShowPendingSuggestionsDialog(false);
+    lastCheckedDoiRef.current = null;
+
     if (publication) {
       setFormData({
         id: publication.id, // Include id for realtime sync tracking
@@ -830,7 +839,11 @@ export function PublicationDialog({
       setModifiedFields(new Set()); // Clear dirty state
       setLastSavedAt(new Date());
       if (closeOnSave) {
-        onOpenChange(false);
+        if (relationshipSuggestions.length > 0) {
+          setShowPendingSuggestionsDialog(true);
+        } else {
+          onOpenChange(false);
+        }
       }
     } finally {
       setSaving(false);
@@ -881,9 +894,13 @@ export function PublicationDialog({
     } else {
       setModifiedFields(new Set());
       setPendingClose(false);
-      onOpenChange(false);
+      if (relationshipSuggestions.length > 0) {
+        setShowPendingSuggestionsDialog(true);
+      } else {
+        onOpenChange(false);
+      }
     }
-  }, [onOpenChange, pendingExitFullscreen]);
+  }, [onOpenChange, pendingExitFullscreen, relationshipSuggestions.length]);
 
   // Handle save and close
   const handleSaveAndClose = useCallback(async () => {
@@ -916,14 +933,18 @@ export function PublicationDialog({
         setNotesFullscreen(false);
       } else {
         setPendingClose(false);
-        onOpenChange(false);
+        if (relationshipSuggestions.length > 0) {
+          setShowPendingSuggestionsDialog(true);
+        } else {
+          onOpenChange(false);
+        }
       }
     } catch (error) {
       // Keep dialog open on error
     } finally {
       setSaving(false);
     }
-  }, [authorsInput, editorInput, keywordsInput, formData, selectedTags, selectedVaultIds, publication, onSave, onOpenChange, pendingExitFullscreen, drivePdfInput, notesFullscreen]);
+  }, [authorsInput, editorInput, keywordsInput, formData, selectedTags, selectedVaultIds, publication, onSave, onOpenChange, pendingExitFullscreen, drivePdfInput, notesFullscreen, relationshipSuggestions.length]);
 
   const toggleTag = (tagId: string) => {
     setSelectedTags(

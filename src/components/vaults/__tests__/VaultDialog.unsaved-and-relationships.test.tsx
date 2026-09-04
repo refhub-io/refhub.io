@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { KeyboardProvider } from '@/contexts/KeyboardContext';
-import { Vault } from '@/types/database';
+import { Publication, Vault } from '@/types/database';
 import type { RelationshipSuggestion } from '@/lib/relationshipSuggestions';
 import { runVaultRelationshipScan } from '@/lib/vaultRelationshipScan';
 import { VaultDialog } from '../VaultDialog';
@@ -56,6 +56,54 @@ const mockSuggestion: RelationshipSuggestion = {
   discoveredVia: 'references',
 };
 
+const basePublication: Publication = {
+  id: 'pub-1',
+  user_id: 'user-1',
+  title: 'Source Paper',
+  authors: ['Author One'],
+  year: 2020,
+  journal: null,
+  volume: null,
+  issue: null,
+  pages: null,
+  doi: null,
+  url: null,
+  abstract: null,
+  pdf_url: null,
+  bibtex_key: null,
+  publication_type: 'article',
+  notes: null,
+  booktitle: null,
+  chapter: null,
+  edition: null,
+  editor: null,
+  howpublished: null,
+  institution: null,
+  number: null,
+  organization: null,
+  publisher: null,
+  school: null,
+  series: null,
+  type: null,
+  eid: null,
+  isbn: null,
+  issn: null,
+  keywords: null,
+  reading_state: 'unread',
+  important: false,
+  created_at: '2026-01-01T00:00:00.000Z',
+  updated_at: '2026-01-01T00:00:00.000Z',
+};
+
+// The "relationships" tab is gated on `publications.length > 0` (Important 3 of the
+// final-review fix round) — most tests here drive the tab's scan flow, so they need a
+// non-empty publications array to unhide it. The empty-array default is overridden
+// where the tab-gating itself is under test.
+const mockPublications: Publication[] = [
+  basePublication,
+  { ...basePublication, id: 'pub-2', title: 'Target Paper' },
+];
+
 const renderDialog = (overrides: Record<string, unknown> = {}) => render(
   <KeyboardProvider>
     <VaultDialog
@@ -63,7 +111,7 @@ const renderDialog = (overrides: Record<string, unknown> = {}) => render(
       onOpenChange={vi.fn()}
       vault={mockVault}
       onSave={vi.fn().mockResolvedValue(undefined)}
-      publications={[]}
+      publications={mockPublications}
       existingRelations={[]}
       {...overrides}
     />
@@ -184,4 +232,24 @@ describe('VaultDialog unsaved changes + relationship suggestions guard', () => {
 
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   }, 15000);
+});
+
+describe('VaultDialog "relationships" tab gating (Important 3)', () => {
+  beforeEach(() => {
+    vi.mocked(runVaultRelationshipScan).mockReset();
+  });
+
+  it('hides the relationships tab when there is no vault-wide publication data', () => {
+    renderDialog({ publications: [] });
+
+    expect(screen.queryByRole('tab', { name: /relationship suggestions/i })).not.toBeInTheDocument();
+    // The "sections" tab is gated on `vault` alone and must remain unaffected.
+    expect(screen.getByRole('tab', { name: /curated sections/i })).toBeInTheDocument();
+  });
+
+  it('shows the relationships tab when publications are available', () => {
+    renderDialog({ publications: mockPublications });
+
+    expect(screen.getByRole('tab', { name: /relationship suggestions/i })).toBeInTheDocument();
+  });
 });
