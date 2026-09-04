@@ -79,11 +79,15 @@ export async function runVaultRelationshipScan(
 
   const successfulDois: string[] = [];
   const allSuggestions: RelationshipSuggestion[] = [];
+  const seenPairs = new Set<string>();
 
   queueResults.forEach((result, i) => {
     if (!result.ok) return;
     successfulDois.push(toCheck[i].doi!);
     for (const suggestion of result.data ?? []) {
+      const pairKey = [suggestion.sourcePublicationId, suggestion.targetPublicationId].sort().join(':');
+      if (seenPairs.has(pairKey)) continue;
+      seenPairs.add(pairKey);
       allSuggestions.push(suggestion);
     }
   });

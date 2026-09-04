@@ -52,15 +52,32 @@ describe('runVaultRelationshipScan', () => {
   });
 
   it('collects suggestions across all DOI-bearing publications', async () => {
-    mockFindRelationshipSuggestions.mockResolvedValue([
-      { sourcePublicationId: 'p1', sourceTitle: 'A Paper', targetPublicationId: 'p2', targetTitle: 'B Paper', discoveredVia: 'references' },
-    ]);
+    mockFindRelationshipSuggestions
+      .mockResolvedValueOnce([
+        { sourcePublicationId: 'p1', sourceTitle: 'A Paper', targetPublicationId: 'x1', targetTitle: 'X Paper', discoveredVia: 'references' },
+      ])
+      .mockResolvedValueOnce([
+        { sourcePublicationId: 'p2', sourceTitle: 'B Paper', targetPublicationId: 'x2', targetTitle: 'Y Paper', discoveredVia: 'references' },
+      ]);
     const pubs = [makePub({ id: 'p1', doi: '10.1/a' }), makePub({ id: 'p2', doi: '10.1/b' })];
 
     const { suggestions } = await runVaultRelationshipScan(pubs, []);
 
     expect(mockFindRelationshipSuggestions).toHaveBeenCalledTimes(2);
-    expect(suggestions).toHaveLength(2); // one from each paper's call, per the mock above
+    expect(suggestions).toHaveLength(2); // two different pairs from two different publications
+  });
+
+  it('deduplicates identical relationship pairs across publications', async () => {
+    const sharedSuggestion = { sourcePublicationId: 'p1', sourceTitle: 'A Paper', targetPublicationId: 'x1', targetTitle: 'X Paper', discoveredVia: 'references' as const };
+    mockFindRelationshipSuggestions
+      .mockResolvedValueOnce([sharedSuggestion])
+      .mockResolvedValueOnce([sharedSuggestion]);
+    const pubs = [makePub({ id: 'p1', doi: '10.1/a' }), makePub({ id: 'p2', doi: '10.1/b' })];
+
+    const { suggestions } = await runVaultRelationshipScan(pubs, []);
+
+    expect(mockFindRelationshipSuggestions).toHaveBeenCalledTimes(2);
+    expect(suggestions).toHaveLength(1); // the same pair should only appear once
   });
 
   it('skips DOIs successfully checked within the TTL window on a second run', async () => {
