@@ -925,7 +925,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                 sectionsHintHandleRef.current = toast({
                   title: 'vault must be public',
                   description: 'set this vault to public to curate sections',
-                  feedbackSeverity: 'warning',
+                  feedbackSeverity: 'info',
                   source: sectionsHintAnchorRef,
                 });
                 return;
