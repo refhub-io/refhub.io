@@ -33,6 +33,7 @@ import {
   Clock,
   PencilLine,
   Archive,
+  Quote,
 } from 'lucide-react';
 import VaultAccessBadge from '../components/vaults/VaultAccessBadge';
 import VaultAbstractBlock from '../components/vaults/VaultAbstractBlock';
@@ -75,7 +76,7 @@ export default function PublicVault() {
   const [viewingPublication, setViewingPublication] = useState<Publication | null>(null);
   const [isGraphOpen, setIsGraphOpen] = useState(false);
   const [exportPublications, setExportPublications] = useState<Publication[]>([]);
-  const { canEdit, isOwner, userRole } = useVaultAccess(vault?.id || '');
+  const { canEdit, isOwner, permission } = useVaultAccess(vault?.id || '');
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
   const [pendingRequestRole, setPendingRequestRole] = useState<'viewer' | 'editor' | null>(null);
   const [viewMode, setViewMode] = useState<'curated' | 'all_papers'>('curated');
@@ -553,13 +554,20 @@ export default function PublicVault() {
             style={{ borderBottomColor: vault.color, boxShadow: `0 1px 24px -4px ${vault.color}66` }}
           >
             <div className="px-4 py-3">
-              <div className="flex items-center justify-between gap-2">
+              {/* flex-wrap: the action-button group (now up to 4 icons with
+                  cite_collection added) and the badge group both need real
+                  room. Forcing them onto one line via shrink-0 on the button
+                  group pushed the badges into an increasingly narrow, wrapped
+                  column and left the two groups fighting for vertical
+                  alignment on mobile — letting the whole row wrap gives the
+                  button group its own line instead. */}
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0 flex-wrap">
                   <Badge variant="secondary" className="gap-1 font-mono text-xs shrink-0">
                     <Globe className="w-3 h-3" />
                     public
                   </Badge>
-                  <VaultAccessBadge vaultId={vault.id} />
+                  <VaultAccessBadge permission={permission} />
                   {vault.archived_at && (
                     <Badge variant="outline" className="gap-1 font-mono text-xs shrink-0 text-muted-foreground">
                       <Archive className="w-3 h-3" />
@@ -590,6 +598,22 @@ export default function PublicVault() {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
+                  {/* Cite/export the whole collection — visible to every visitor,
+                      signed in or not, unlike favorite/fork/collaborate below.
+                      Opens the same ExportDialog used for per-paper/selection
+                      export, just pre-loaded with every paper in the vault. */}
+                  {publications.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setExportPublications(publications)}
+                      className="font-mono h-8"
+                    >
+                      <Quote className="w-4 h-4" />
+                      <span className="ml-2 hidden md:inline">cite_collection</span>
+                    </Button>
+                  )}
+
                   {/* Fork count badge — always visible */}
                   {forkCount > 0 && (
                     <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground font-mono border border-input rounded-md px-3 h-8">
@@ -705,14 +729,14 @@ export default function PublicVault() {
             <button
               type="button"
               onClick={() => setViewMode('curated')}
-              className={`text-xs font-mono px-3 py-1.5 rounded-full border transition-colors ${viewMode === 'curated' ? 'bg-primary/20 border-primary/50 text-primary' : 'border-border text-muted-foreground hover:text-foreground'}`}
+              className={`inline-flex items-center leading-none text-xs font-mono px-3 py-1.5 rounded-full border transition-colors ${viewMode === 'curated' ? 'bg-primary/20 border-primary/50 text-primary' : 'border-border text-muted-foreground hover:text-foreground'}`}
             >
               curated
             </button>
             <button
               type="button"
               onClick={() => setViewMode('all_papers')}
-              className={`text-xs font-mono px-3 py-1.5 rounded-full border transition-colors ${viewMode === 'all_papers' ? 'bg-primary/20 border-primary/50 text-primary' : 'border-border text-muted-foreground hover:text-foreground'}`}
+              className={`inline-flex items-center leading-none text-xs font-mono px-3 py-1.5 rounded-full border transition-colors ${viewMode === 'all_papers' ? 'bg-primary/20 border-primary/50 text-primary' : 'border-border text-muted-foreground hover:text-foreground'}`}
             >
               all_papers
             </button>

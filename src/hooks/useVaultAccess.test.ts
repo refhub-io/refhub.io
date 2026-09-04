@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { dismissQuoterm, getQuotermsSnapshot } from 'quoterm';
 import { useVaultAccess } from './useVaultAccess';
+import { hasPageCache } from '../lib/pageCache';
 import type { Vault } from '../types/database';
 
 const mockSingle = vi.fn();
@@ -179,5 +180,86 @@ describe('useVaultAccess — signed-out visitor', () => {
       title: 'Could not check vault access',
       variant: 'error',
     });
+  });
+});
+
+describe('useVaultAccess — signed-in visitor with no explicit share, public vault', () => {
+  beforeEach(() => {
+    mockSingle.mockReset();
+    mockMaybeSingle.mockReset();
+    mockGetSession.mockReset();
+    mockRpc.mockReset();
+  });
+
+  it('resolves permission to viewer, not null, for a signed-in non-owner with no share row', async () => {
+    mockSignedIn('random-user-1');
+    mockSingle.mockResolvedValue({ data: makeVault({ user_id: 'owner-1', visibility: 'public' }), error: null });
+    // Same mock backs both the vault_shares and vault_access_requests
+    // lookups (and the by-email share fallback) — none of them find a row.
+    mockMaybeSingle.mockResolvedValue({ data: null, error: null });
+
+    const { result } = renderHook(() => useVaultAccess('vault-1', { enableRealtime: false }));
+
+    await waitFor(() => expect(result.current.accessStatus).toBe('granted'));
+    expect(result.current.canView).toBe(true);
+    expect(result.current.permission).toBe('viewer');
+  });
+
+  it('still grants baseline viewer permission on a public vault when the visitor has a PENDING editor request', async () => {
+    // Reproduces the exact bug: clicking "collaborate" on a public vault
+    // (requesting an editor upgrade) left permission null forever after,
+    // because a pending request unconditionally blocked canView before
+    // the code ever checked whether the vault was public.
+    mockSignedIn('random-user-1');
+    mockSingle.mockResolvedValue({ data: makeVault({ user_id: 'owner-1', visibility: 'public' }), error: null });
+    mockMaybeSingle
+      .mockResolvedValueOnce({ data: null, error: null }) // share by user id — none
+      .mockResolvedValueOnce({ data: null, error: null }) // share by email — none
+      .mockResolvedValueOnce({ data: { status: 'pending' }, error: null }); // pending editor request
+
+    const { result } = renderHook(() => useVaultAccess('vault-1', { enableRealtime: false }));
+
+    await waitFor(() => expect(result.current.accessStatus).toBe('granted'));
+    expect(result.current.canView).toBe(true);
+    expect(result.current.permission).toBe('viewer');
+  });
+
+  it('keeps a pending request blocking view on a protected (non-public) vault, unchanged', async () => {
+    mockSignedIn('random-user-1');
+    mockSingle.mockResolvedValue({ data: makeVault({ user_id: 'owner-1', visibility: 'protected' }), error: null });
+    mockMaybeSingle
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: { status: 'pending' }, error: null });
+
+    const { result } = renderHook(() => useVaultAccess('vault-1', { enableRealtime: false }));
+
+    await waitFor(() => expect(result.current.accessStatus).toBe('pending'));
+    expect(result.current.canView).toBe(false);
+    expect(result.current.permission).toBeNull();
+  });
+});
+
+describe('useVaultAccess — caching a denied result', () => {
+  beforeEach(() => {
+    mockSingle.mockReset();
+    mockMaybeSingle.mockReset();
+    mockGetSession.mockReset();
+    mockRpc.mockReset();
+  });
+
+  it('does not cache a denied result caused by an unexpected error, so a later visit can recover', async () => {
+    // Simulates the exact failure mode behind the false "no_access" badge
+    // bug: an unrelated transient error (network blip, RLS hiccup) throws
+    // partway through the check and gets mapped to accessStatus: 'denied'
+    // by the catch-all. If that got cached, every later render of this
+    // vault within the same session would restore the stale denial
+    // instead of re-checking — this must never be persisted.
+    mockGetSession.mockRejectedValue(new Error('network blip'));
+
+    const { result } = renderHook(() => useVaultAccess('vault-cache-test', { enableRealtime: false }));
+
+    await waitFor(() => expect(result.current.accessStatus).toBe('denied'));
+    expect(hasPageCache('vault-access-vault-cache-test')).toBe(false);
   });
 });

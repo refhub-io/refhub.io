@@ -57,6 +57,7 @@ export function CuratedSectionsBody({ vault, tags = [], grouped, onOpenPublicati
                   relationsCount={0}
                   isSelected={false}
                   onToggleSelect={() => {}}
+                  hideCheckbox
                   onOpen={() => onOpenPublication(pub)}
                   primaryActionLabel="view"
                   onExportBibtex={() => onExportBibtex?.(pub)}

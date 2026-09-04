@@ -96,9 +96,16 @@ export const useVaultAccess = (
     setRefreshKey(prev => prev + 1);
   };
 
-  // Save to cache whenever access status is resolved (not loading)
+  // Save to cache whenever access status is resolved to a stable outcome.
+  // 'denied' is deliberately excluded: the catch-all below maps ANY
+  // unexpected error (a transient query failure, a network hiccup) to
+  // 'denied' with no way to distinguish that from a real denial — caching
+  // it would let one bad fetch poison every later visit to this vault for
+  // the rest of the session (this module-level cache survives client-side
+  // navigation, not just this one hook instance), long after the actual
+  // access check would have succeeded on retry.
   useEffect(() => {
-    if (vaultSlug && result.accessStatus !== 'loading') {
+    if (vaultSlug && (result.accessStatus === 'granted' || result.accessStatus === 'requestable' || result.accessStatus === 'pending')) {
       setPageCache<VaultAccessCache>(cacheKey, { result });
     }
   }, [vaultSlug, result, cacheKey]);
@@ -295,8 +302,19 @@ export const useVaultAccess = (
 
           if (request && !requestError) {
             if (request.status === 'pending') {
-              accessStatus = 'pending';
-              // canView stays false for pending
+              // A pending request (typically for an editor upgrade) only
+              // blocks baseline viewing on a protected/private vault, where
+              // there's no other way to see anything while waiting. On a
+              // public vault, everyone can already view regardless of any
+              // pending upgrade request — don't let this override that.
+              if (vaultData && (vaultData as Vault).visibility === 'public') {
+                canView = true;
+                accessStatus = 'granted';
+                userRole = 'viewer';
+              } else {
+                accessStatus = 'pending';
+                // canView stays false for pending
+              }
             } else if (request.status === 'approved') {
               canView = true;
               accessStatus = 'granted';
