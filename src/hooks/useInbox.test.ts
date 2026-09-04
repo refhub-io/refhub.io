@@ -15,6 +15,7 @@ const mockItems = [
 
 const mockUpdate = vi.fn().mockResolvedValue({ data: null, error: null });
 const mockInsert = vi.fn();
+let mockUpdateError: unknown = null;
 
 vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1', email: 'user@example.com' }, session: null }),
@@ -46,7 +47,7 @@ vi.mock('@/integrations/supabase/client', () => {
           update: (...args: unknown[]) => {
             mockUpdate(...args);
             return {
-              eq: vi.fn().mockResolvedValue({ data: null, error: null })
+              eq: vi.fn().mockResolvedValue({ data: null, error: mockUpdateError })
             };
           },
         };
@@ -81,5 +82,20 @@ describe('useInbox', () => {
       expect.objectContaining({ sort_order: expect.any(Number) }),
     );
     expect(mockUpdate).not.toHaveBeenCalledWith(expect.objectContaining({ status: 'rejected' }));
+  });
+
+  it('rejectItem does not remove item if update fails', async () => {
+    const { result } = renderHook(() => useInbox());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    const initialLength = result.current.items.length;
+
+    // Set up the mock to return an error
+    mockUpdateError = new Error('RLS policy violation');
+
+    await act(async () => { await result.current.rejectItem('item-1'); });
+
+    // Item should still be in the list
+    expect(result.current.items.length).toBe(initialLength);
+    expect(result.current.items.find((i) => i.id === 'item-1')).toBeDefined();
   });
 });
