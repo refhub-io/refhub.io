@@ -31,7 +31,7 @@ CREATE POLICY "inbox_items_owner_select" ON "public"."inbox_items"
 CREATE POLICY "inbox_items_owner_insert" ON "public"."inbox_items"
     FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "inbox_items_owner_update" ON "public"."inbox_items"
-    FOR UPDATE USING (auth.uid() = user_id);
+    FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "inbox_items_owner_delete" ON "public"."inbox_items"
     FOR DELETE USING (auth.uid() = user_id);
 
