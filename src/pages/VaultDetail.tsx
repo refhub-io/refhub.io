@@ -644,6 +644,15 @@ export default function VaultDetail() {
           throw result.error || new Error('Failed to create publication');
         }
 
+        // Without this, the dialog never learns the new publication's id after a
+        // plain "Save" (as opposed to "Save & Close") — the sync effect at
+        // (search this file for "Sync editingPublication with publications array")
+        // only re-syncs an ALREADY non-null editingPublication, so a create (which
+        // starts null) would otherwise never pick up its own new record.
+        if (result.publication) {
+          setEditingPublication(result.publication);
+        }
+
         // If vaultIds are specified and include other vaults, add to those vaults too
         if (vaultIds && vaultIds.length > 0 && result.publication) {
           const otherVaultIds = vaultIds.filter(id => id !== vaultId);

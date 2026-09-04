@@ -35,7 +35,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { uploadPublicationDrivePdf, uploadVaultPublicationDrivePdf } from '@/lib/pdfUpload';
 import { fetchGoogleDriveStatus, GoogleDriveStatus } from '@/lib/googleDrive';
-import { findRelationshipSuggestions, RelationshipSuggestion } from '@/lib/relationshipSuggestions';
+import { fetchCitationGraph, buildSuggestionsFromCitationGraph, findRelationshipSuggestions, RelationshipSuggestion, CitationGraph } from '@/lib/relationshipSuggestions';
 import { suggestionKey } from './RelationshipSuggestionsList';
 import { formatSemanticScholarErrorMessage } from '@/lib/semanticScholar';
 
@@ -222,6 +222,7 @@ export function PublicationDialog({
   const [, setTick] = useState(0); // Force re-render for relative time display
   const [duplicateWarning, setDuplicateWarning] = useState<Publication | null>(null);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const [showPendingSuggestionsDialog, setShowPendingSuggestionsDialog] = useState(false);
   const [pendingClose, setPendingClose] = useState(false);
   const [pendingExitFullscreen, setPendingExitFullscreen] = useState(false);
   const [drivePdfInput, setDrivePdfInput] = useState<string>(driveUrl ?? '');
@@ -626,6 +627,55 @@ export function PublicationDialog({
     }
   }, [publication, publicationTags, open, currentVaultId]);
 
+  const [pendingCitationGraph, setPendingCitationGraph] = useState<CitationGraph | null>(null);
+  const lastCheckedDoiRef = useRef<string | null>(null);
+
+  // Entry point 2: start the citation-graph fetch the moment a DOI is known
+  // for a paper that doesn't exist yet, instead of waiting until after save
+  // — the network round trip gets a head start while the rest of the form
+  // is still being filled in. Only the fetch runs here; matching it against
+  // the vault (which needs a real publication id) happens once the paper is
+  // actually saved, in the effect below.
+  useEffect(() => {
+    if (publication) return; // only for genuinely new publications
+    const doi = formData.doi?.trim();
+    if (!doi || doi === lastCheckedDoiRef.current) return;
+
+    lastCheckedDoiRef.current = doi;
+    setCheckingRelationships(true);
+    fetchCitationGraph(doi)
+      .then((graph) => {
+        if (graph) setPendingCitationGraph(graph);
+      })
+      .catch(() => {
+        // Best-effort — a failed early check just means no suggestions after
+        // save; the user can still use the manual "check_relationships" button.
+      })
+      .finally(() => setCheckingRelationships(false));
+  }, [formData.doi, publication]);
+
+  // Once the new publication has been saved (publication now has a real id)
+  // and an early fetch already completed, build suggestions from it without
+  // a second network round trip, then clear it — it's now consumed.
+  useEffect(() => {
+    if (!publication?.id || !pendingCitationGraph) return;
+    const built = buildSuggestionsFromCitationGraph(
+      { id: publication.id, title: publication.title },
+      pendingCitationGraph,
+      allPublications,
+      // existingRelationsForSuggestions, not `relations` — buildSuggestionsFromCitationGraph
+      // expects raw PublicationRelation[] junction rows, while `relations` from
+      // usePublicationRelations is the joined RelatedPublication[] shape (see the
+      // comment on existingRelationsForSuggestions above).
+      existingRelationsForSuggestions,
+    );
+    setRelationshipSuggestions((prev) => {
+      const existingKeys = new Set(prev.map(suggestionKey));
+      return [...prev, ...built.filter((s) => !existingKeys.has(suggestionKey(s)))];
+    });
+    setPendingCitationGraph(null);
+  }, [publication, pendingCitationGraph, allPublications, existingRelationsForSuggestions]);
+
   // Track which fields have been modified by the user
   const [modifiedFields, setModifiedFields] = useState<Set<string>>(new Set());
 
@@ -806,10 +856,12 @@ export function PublicationDialog({
     if (modifiedFields.size > 0) {
       setPendingClose(true);
       setShowUnsavedDialog(true);
+    } else if (relationshipSuggestions.length > 0) {
+      setShowPendingSuggestionsDialog(true);
     } else {
       onOpenChange(false);
     }
-  }, [modifiedFields.size, onOpenChange, notesFullscreen]);
+  }, [modifiedFields.size, relationshipSuggestions.length, onOpenChange, notesFullscreen]);
 
   // Handle discard changes
   const handleDiscardChanges = useCallback(() => {
@@ -896,7 +948,19 @@ export function PublicationDialog({
         title="Unsaved Changes"
         description="You have unsaved changes to this paper. Would you like to save them before closing?"
       />
-      
+
+      <UnsavedChangesDialog
+        open={showPendingSuggestionsDialog}
+        title="Pending Relationship Suggestions"
+        description={`You have ${relationshipSuggestions.length} unreviewed relationship suggestion${relationshipSuggestions.length === 1 ? '' : 's'} for this paper. Review them now, or discard?`}
+        onDiscard={() => {
+          setRelationshipSuggestions([]);
+          setShowPendingSuggestionsDialog(false);
+          onOpenChange(false);
+        }}
+        onCancel={() => setShowPendingSuggestionsDialog(false)}
+      />
+
       {/* Fullscreen Notes Editor - rendered instead of dialog when active */}
       {notesFullscreen && open && (
         <div className="fixed inset-0 bg-background z-50">
