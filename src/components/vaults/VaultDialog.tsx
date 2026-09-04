@@ -4,7 +4,6 @@ import { Vault, VaultShare, VAULT_CATEGORIES, Publication } from '@/types/databa
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { showWarning } from '@/lib/toast';
 import { UnsavedChangesDialog } from '@/components/ui/unsaved-changes-dialog';
 import {
   Dialog,
@@ -92,7 +91,15 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   const { toast } = useToast();
   const shareFormRef = useRef<HTMLFormElement>(null);
   const publicLinkButtonRef = useRef<HTMLDivElement>(null);
-  const sectionsTabRef = useRef<HTMLButtonElement>(null);
+  // Anchored to the TabsList (a plain block element), not the individual
+  // trigger — that trigger is a grid item inside a `grid grid-cols-2`
+  // TabsList, and quoterm's inline render mode inserts the toast as a DOM
+  // sibling of its source, which turned it into an extra grid cell and blew
+  // up the layout. Anchoring one level up keeps it outside the grid.
+  const sectionsHintAnchorRef = useRef<HTMLDivElement>(null);
+  // Tracks the currently-shown "must be public" hint so repeated clicks on
+  // the disabled tab replace it instead of stacking duplicates.
+  const sectionsHintHandleRef = useRef<ReturnType<typeof toast> | null>(null);
   const kbCtx = useKeyboardContext();
 
   const [activeTab, setActiveTab] = useState<'settings' | 'sections'>('settings');
@@ -914,36 +921,43 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
             value={activeTab}
             onValueChange={(value) => {
               if (value === 'sections' && visibility !== 'public') {
-                showWarning('vault must be public', 'set this vault to public to curate sections', { source: sectionsTabRef });
+                sectionsHintHandleRef.current?.dismiss();
+                sectionsHintHandleRef.current = toast({
+                  title: 'vault must be public',
+                  description: 'set this vault to public to curate sections',
+                  feedbackSeverity: 'warning',
+                  source: sectionsHintAnchorRef,
+                });
                 return;
               }
               setActiveTab(value as 'settings' | 'sections');
             }}
           >
-            <TabsList className={`grid h-auto w-full ${vault ? 'grid-cols-2' : 'grid-cols-1'} gap-1 rounded-2xl border border-border/70 bg-muted/60 p-1 font-mono dark:border-white/8 dark:bg-[#1a1722]`}>
-              <TabsTrigger
-                value="settings"
-                aria-label="Vault settings"
-                className="min-h-10 min-w-0 justify-center gap-2 rounded-xl px-2 text-center text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md sm:min-h-11 sm:px-3 sm:text-sm"
-              >
-                <Settings className="w-4 h-4 shrink-0" />
-                <span className="truncate">settings</span>
-              </TabsTrigger>
-              {vault && (
+            <div ref={sectionsHintAnchorRef}>
+              <TabsList className={`grid h-auto w-full ${vault ? 'grid-cols-2' : 'grid-cols-1'} gap-1 rounded-2xl border border-border/70 bg-muted/60 p-1 font-mono dark:border-white/8 dark:bg-[#1a1722]`}>
                 <TabsTrigger
-                  ref={sectionsTabRef}
-                  value="sections"
-                  aria-label="Curated sections"
-                  className={cn(
-                    "min-h-10 min-w-0 justify-center gap-2 rounded-xl px-2 text-center text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md sm:min-h-11 sm:px-3 sm:text-sm",
-                    visibility !== 'public' && "opacity-50"
-                  )}
+                  value="settings"
+                  aria-label="Vault settings"
+                  className="min-h-10 min-w-0 justify-center gap-2 rounded-xl px-2 text-center text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md sm:min-h-11 sm:px-3 sm:text-sm"
                 >
-                  <Layers className="w-4 h-4 shrink-0" />
-                  <span className="truncate">sections</span>
+                  <Settings className="w-4 h-4 shrink-0" />
+                  <span className="truncate">settings</span>
                 </TabsTrigger>
-              )}
-            </TabsList>
+                {vault && (
+                  <TabsTrigger
+                    value="sections"
+                    aria-label="Curated sections"
+                    className={cn(
+                      "min-h-10 min-w-0 justify-center gap-2 rounded-xl px-2 text-center text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md sm:min-h-11 sm:px-3 sm:text-sm",
+                      visibility !== 'public' && "opacity-50"
+                    )}
+                  >
+                    <Layers className="w-4 h-4 shrink-0" />
+                    <span className="truncate">sections</span>
+                  </TabsTrigger>
+                )}
+              </TabsList>
+            </div>
             {vault && (
               <TabsContent value="sections">
                 <VaultSectionsPanel
