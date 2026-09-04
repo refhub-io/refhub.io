@@ -96,9 +96,16 @@ export const useVaultAccess = (
     setRefreshKey(prev => prev + 1);
   };
 
-  // Save to cache whenever access status is resolved (not loading)
+  // Save to cache whenever access status is resolved to a stable outcome.
+  // 'denied' is deliberately excluded: the catch-all below maps ANY
+  // unexpected error (a transient query failure, a network hiccup) to
+  // 'denied' with no way to distinguish that from a real denial — caching
+  // it would let one bad fetch poison every later visit to this vault for
+  // the rest of the session (this module-level cache survives client-side
+  // navigation, not just this one hook instance), long after the actual
+  // access check would have succeeded on retry.
   useEffect(() => {
-    if (vaultSlug && result.accessStatus !== 'loading') {
+    if (vaultSlug && (result.accessStatus === 'granted' || result.accessStatus === 'requestable' || result.accessStatus === 'pending')) {
       setPageCache<VaultAccessCache>(cacheKey, { result });
     }
   }, [vaultSlug, result, cacheKey]);
