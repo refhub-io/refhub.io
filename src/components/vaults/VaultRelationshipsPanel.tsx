@@ -9,7 +9,7 @@ interface VaultRelationshipsPanelProps {
   scanning: boolean;
   progress: SemanticScholarQueueProgress | null;
   approvingKey: string | null;
-  onScan: () => void;
+  onScan: (force?: boolean) => void;
   onApprove: (suggestion: RelationshipSuggestion) => void;
   onDismiss: (suggestion: RelationshipSuggestion) => void;
 }
@@ -24,9 +24,22 @@ export function VaultRelationshipsPanel({ suggestions, scanning, progress, appro
     <div className="space-y-4 py-4">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground font-mono">// scan_for_relationships</p>
-        <Button type="button" variant="outline" size="sm" disabled={scanning} onClick={onScan}>
-          {scanning ? 'scanning...' : 'scan for relationships'}
-        </Button>
+        <div className="flex items-center gap-1.5">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-xs text-muted-foreground"
+            disabled={scanning}
+            onClick={() => onScan(true)}
+            title="Ignore the 24h skip-cache and re-check every paper with a DOI"
+          >
+            force_rescan
+          </Button>
+          <Button type="button" variant="outline" size="sm" disabled={scanning} onClick={() => onScan(false)}>
+            {scanning ? 'scanning...' : 'scan for relationships'}
+          </Button>
+        </div>
       </div>
 
       {scanning && (

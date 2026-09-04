@@ -215,4 +215,19 @@ describe('ExistingPaperSelector — relationship check after add (entry point 2)
     expect(mockFindRelationshipSuggestions).not.toHaveBeenCalled();
     expect(screen.queryByText(/checking/i)).not.toBeInTheDocument();
   });
+
+  it('shows the search UI again after "done" is clicked, not the stale review screen — the host dialog keeps this component mounted across opens rather than remounting it', async () => {
+    mockFindRelationshipSuggestions.mockResolvedValue([mockSuggestion]);
+    renderSelector();
+
+    await selectPaperAndVault();
+    fireEvent.click(screen.getByRole('button', { name: /add_to_1_vault/i }));
+    await waitFor(() => expect(screen.getByText('Other Paper In Vault')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /done/i }));
+
+    expect(screen.getByText(/search your papers/i)).toBeInTheDocument();
+    expect(screen.queryByText(/checking "Target Vault"/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('Other Paper In Vault')).not.toBeInTheDocument();
+  });
 });

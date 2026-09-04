@@ -142,7 +142,7 @@ export function RelatedPapersSection({
               className="h-7 text-xs"
             >
               <Plus className="w-3 h-3 mr-1" />
-              Link Paper
+              link_paper
             </Button>
           )}
         </div>

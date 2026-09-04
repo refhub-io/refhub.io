@@ -115,6 +115,10 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   // Tracks the currently-shown "must be public" hint so repeated clicks on
   // the disabled tab replace it instead of stacking duplicates.
   const sectionsHintHandleRef = useRef<ReturnType<typeof toast> | null>(null);
+  // Same anchoring rule as sectionsHintAnchorRef above — wraps the whole
+  // TabsContent (a plain block), not anything inside VaultRelationshipsPanel's
+  // own flex/grid rows, so quoterm's inline insertion can't land inside one.
+  const relationshipsPanelAnchorRef = useRef<HTMLDivElement>(null);
   const kbCtx = useKeyboardContext();
 
   const [activeTab, setActiveTab] = useState<'settings' | 'sections' | 'relationships'>('settings');
@@ -616,11 +620,16 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     };
   }, [publicSlug, visibility, vault?.id]);
 
-  const handleScanRelationships = async () => {
+  const handleScanRelationships = async (force = false) => {
     setScanningRelationships(true);
     setRelationshipScanProgress(null);
     try {
-      const result = await runVaultRelationshipScan(publications, existingRelations, setRelationshipScanProgress);
+      const result = await runVaultRelationshipScan(
+        publications,
+        existingRelations,
+        setRelationshipScanProgress,
+        force ? { skipRecentMs: 0 } : undefined,
+      );
       let newCount = 0;
       setRelationshipSuggestions((prev) => {
         const existingKeys = new Set(prev.map(suggestionKey));
@@ -635,19 +644,21 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
         if (result.skippedCount > 0) {
           toast({
             title: 'No new suggestions',
-            description: `${result.skippedCount} paper${result.skippedCount === 1 ? '' : 's'} already checked in the last 24 hours — they'll be re-checked automatically after that.`,
+            description: `${result.skippedCount} paper${result.skippedCount === 1 ? '' : 's'} already checked in the last 24 hours — they'll be re-checked automatically after that, or use force_rescan to check them now.`,
             feedbackSeverity: 'info',
+            source: relationshipsPanelAnchorRef,
           });
         } else {
           toast({
             title: 'No relationships found',
             description: "Scanned this vault's papers with a DOI and found no new citation relationships.",
             feedbackSeverity: 'info',
+            source: relationshipsPanelAnchorRef,
           });
         }
       }
     } catch (error) {
-      showError('Could not scan for relationships', error instanceof Error ? error.message : 'Unknown error');
+      showError('Could not scan for relationships', error instanceof Error ? error.message : 'Unknown error', { source: relationshipsPanelAnchorRef });
     } finally {
       setScanningRelationships(false);
     }
@@ -1087,7 +1098,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
               </TabsContent>
             )}
             {vault && publications.length > 0 && (
-              <TabsContent value="relationships">
+              <TabsContent value="relationships" ref={relationshipsPanelAnchorRef}>
                 <VaultRelationshipsPanel
                   suggestions={relationshipSuggestions}
                   scanning={scanningRelationships}

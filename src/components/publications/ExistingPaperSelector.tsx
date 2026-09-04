@@ -112,12 +112,25 @@ export function ExistingPaperSelector({
     setSelectedVaultIds(newSet);
   };
 
+  // AddImportDialog keeps this component mounted across opens (its Radix
+  // TabsContent only unmounts when the tab itself goes inactive), so leftover
+  // review state from a previous add would otherwise trap every subsequent
+  // open behind the stale "checking..."/suggestions screen instead of the
+  // search UI. Reset explicitly before starting a new cycle.
+  const resetReviewState = () => {
+    setCheckedVaultName(null);
+    setSuggestions([]);
+    setCheckingRelationships(false);
+    setApprovingKey(null);
+  };
+
   const handleAdd = async () => {
     if (!selectedPublication || selectedVaultIds.size === 0) return;
 
     const addedPublication = selectedPublication;
     const vaultIds = Array.from(selectedVaultIds);
 
+    resetReviewState();
     setIsAdding(true);
     try {
       await onAddToVaults(addedPublication.id, vaultIds);
@@ -168,10 +181,9 @@ export function ExistingPaperSelector({
           [],
         );
         setSuggestions(found);
-      } catch {
-        // Best-effort — a failed check just means nothing to review; the user
-        // can still use the manual "check_relationships" button later.
+      } catch (error) {
         setSuggestions([]);
+        showError('Could not check relationships', error instanceof Error ? error.message : 'Unknown error');
       } finally {
         setCheckingRelationships(false);
       }
@@ -249,7 +261,14 @@ export function ExistingPaperSelector({
           )}
 
           <div className="flex justify-end pt-2">
-            <Button variant="glow" onClick={onDone} disabled={checkingRelationships}>
+            <Button
+              variant="glow"
+              onClick={() => {
+                resetReviewState();
+                onDone();
+              }}
+              disabled={checkingRelationships}
+            >
               done
             </Button>
           </div>
@@ -325,9 +344,9 @@ export function ExistingPaperSelector({
                     setSelectedPublication(null);
                     setSelectedVaultIds(new Set());
                   }}
-                  className="shrink-0 text-xs"
+                  className="shrink-0 text-xs font-mono"
                 >
-                  Change
+                  change
                 </Button>
               </div>
             </div>
@@ -396,7 +415,7 @@ export function ExistingPaperSelector({
               {isAdding ? (
                 <>
                   <LoadingSpinner size="xs" className="mr-2" />
-                  Adding...
+                  adding...
                 </>
               ) : (
                 `add_to_${selectedVaultIds.size}_vault${selectedVaultIds.size !== 1 ? 's' : ''}`

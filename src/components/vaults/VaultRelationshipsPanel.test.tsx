@@ -11,7 +11,7 @@ function makeSuggestion(overrides: Partial<RelationshipSuggestion> = {}): Relati
 }
 
 describe('VaultRelationshipsPanel', () => {
-  it('calls onScan when the scan button is clicked', () => {
+  it('calls onScan(false) when the scan button is clicked', () => {
     const onScan = vi.fn();
     render(
       <VaultRelationshipsPanel
@@ -20,7 +20,19 @@ describe('VaultRelationshipsPanel', () => {
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: /scan for relationships/i }));
-    expect(onScan).toHaveBeenCalled();
+    expect(onScan).toHaveBeenCalledWith(false);
+  });
+
+  it('calls onScan(true) when the force_rescan button is clicked, bypassing the skip-cache', () => {
+    const onScan = vi.fn();
+    render(
+      <VaultRelationshipsPanel
+        suggestions={[]} scanning={false} progress={null} approvingKey={null}
+        onScan={onScan} onApprove={() => {}} onDismiss={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /force_rescan/i }));
+    expect(onScan).toHaveBeenCalledWith(true);
   });
 
   it('renders suggestions passed in as props', () => {
