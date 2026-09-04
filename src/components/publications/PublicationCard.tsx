@@ -40,6 +40,10 @@ interface PublicationCardProps {
   isFocused?: boolean; // keyboard roving focus
   visibleColumns?: VisibleColumns;
   isVaultContext?: boolean; // If true, shows "remove from vault" instead of "delete"
+  /** Hides the selection checkbox entirely — for read-only contexts with no
+   * multi-select (e.g. the public curated view), where isSelected/onToggleSelect
+   * are unused no-ops and showing the checkbox would just look broken. */
+  hideCheckbox?: boolean;
   onToggleSelect: () => void;
   onOpen?: () => void;
   primaryActionLabel?: string;
@@ -65,6 +69,7 @@ export function PublicationCard({
   isFocused = false,
   visibleColumns,
   isVaultContext = false,
+  hideCheckbox = false,
   onToggleSelect,
   onOpen,
   primaryActionLabel = 'edit',
@@ -119,18 +124,20 @@ export function PublicationCard({
     >
       <CardContent className="p-3 sm:p-5">
         <div className="flex items-start gap-3 sm:gap-4">
-          <div 
-            className="pt-1"
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleSelect();
-            }}
-          >
-            <Checkbox 
-              checked={isSelected}
-              className="data-[state=checked]:bg-primary data-[state=checked]:border-primary h-5 w-5 rounded-md"
-            />
-          </div>
+          {!hideCheckbox && (
+            <div
+              className="pt-1"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleSelect();
+              }}
+            >
+              <Checkbox
+                checked={isSelected}
+                className="data-[state=checked]:bg-primary data-[state=checked]:border-primary h-5 w-5 rounded-md"
+              />
+            </div>
+          )}
 
           <div className="flex-1 min-w-0">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

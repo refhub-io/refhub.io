@@ -33,6 +33,7 @@ import {
   Clock,
   PencilLine,
   Archive,
+  Quote,
 } from 'lucide-react';
 import VaultAccessBadge from '../components/vaults/VaultAccessBadge';
 import VaultAbstractBlock from '../components/vaults/VaultAbstractBlock';
@@ -590,6 +591,22 @@ export default function PublicVault() {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
+                  {/* Cite/export the whole collection — visible to every visitor,
+                      signed in or not, unlike favorite/fork/collaborate below.
+                      Opens the same ExportDialog used for per-paper/selection
+                      export, just pre-loaded with every paper in the vault. */}
+                  {publications.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setExportPublications(publications)}
+                      className="font-mono h-8"
+                    >
+                      <Quote className="w-4 h-4" />
+                      <span className="ml-2 hidden md:inline">cite_collection</span>
+                    </Button>
+                  )}
+
                   {/* Fork count badge — always visible */}
                   {forkCount > 0 && (
                     <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground font-mono border border-input rounded-md px-3 h-8">
