@@ -38,6 +38,7 @@ import { suggestionKey } from '@/components/publications/RelationshipSuggestions
 import type { SemanticScholarQueueProgress } from '@/lib/semanticScholar';
 import type { PublicationRelation } from '@/types/database';
 import { showError } from '@/lib/toast';
+import { formatVaultPublication } from '@/lib/formatVaultPublication';
 
 type VaultVisibility = 'private' | 'protected' | 'public';
 
@@ -91,17 +92,9 @@ interface VaultDialogProps {
   onDelete?: (vault: Vault) => void;
   onArchive?: (vault: Vault) => void;
   onPublicationsChange?: (next: Publication[]) => void;
-  // Optional — most call sites don't have vault-wide publication/relation data
-  // in scope (they just rename/archive a vault). Only VaultDetail.tsx, which
-  // already loads both for the vault it's displaying, passes real values;
-  // everywhere else the "relationships" tab still renders but has nothing to
-  // scan, which is the same graceful-degradation the "sections" tab already
-  // has for those lighter pages.
-  publications?: Publication[];
-  existingRelations?: PublicationRelation[];
 }
 
-export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSave, onUpdate, onDelete, onArchive, onPublicationsChange, publications = [], existingRelations = [] }: VaultDialogProps) {
+export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSave, onUpdate, onDelete, onArchive, onPublicationsChange }: VaultDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const shareFormRef = useRef<HTMLFormElement>(null);
@@ -158,6 +151,13 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   // offering "force" before that would bypass a cache that has nothing to
   // bypass yet.
   const [canForceRescan, setCanForceRescan] = useState(false);
+  // Fetched by fetchVaultRelationshipData below, scoped to `vault.id` — never
+  // trust a caller-supplied publications/relations list here. A dialog opened
+  // for vault B from a page whose own state is scoped to vault A (e.g. the
+  // sidebar's per-vault settings gear on VaultDetail) would otherwise scan
+  // and label vault A's data as vault B's.
+  const [vaultPublications, setVaultPublications] = useState<Publication[]>([]);
+  const [vaultRelations, setVaultRelations] = useState<PublicationRelation[]>([]);
   const isArchived = !!vault?.archived_at;
   const slugCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadRef = useRef(true);
@@ -375,6 +375,45 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     }
   }, []);
 
+  // Scoped strictly to `vaultId` — this is what makes the relationships tab
+  // safe to show regardless of which page renders VaultDialog, and immune to
+  // the caller passing (or not passing) publications data for a different vault.
+  const fetchVaultRelationshipData = useCallback(async (vaultId: string) => {
+    const { data: vaultPubs, error: vaultPubsError } = await supabase
+      .from('vault_publications')
+      .select('*')
+      .eq('vault_id', vaultId);
+
+    if (vaultPubsError) {
+      logger.error('VaultDialog', 'fetchVaultRelationshipData: vault_publications fetch failed', vaultPubsError);
+      return;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows = (vaultPubs || []) as any[];
+    setVaultPublications(rows.map(formatVaultPublication));
+
+    const idsSet = new Set<string>([
+      ...rows.map((vp) => vp.id).filter(Boolean),
+      ...rows.map((vp) => vp.original_publication_id).filter(Boolean),
+    ]);
+
+    const { data: allRelations, error: relationsError } = await supabase
+      .from('publication_relations')
+      .select('*');
+
+    if (relationsError) {
+      logger.error('VaultDialog', 'fetchVaultRelationshipData: publication_relations fetch failed', relationsError);
+      return;
+    }
+
+    setVaultRelations(
+      (allRelations || []).filter(
+        (rel) => idsSet.has(rel.publication_id) || idsSet.has(rel.related_publication_id),
+      ),
+    );
+  }, []);
+
   const handleSelectUserSuggestion = useCallback((profile: UserSuggestion) => {
     setSelectedProfile(profile);
     setEmail(profile.email || '');
@@ -524,6 +563,25 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vault?.id, open, fetchShares]);
 
+  // Relationship-scan data is intentionally on its own effect, separate from
+  // the settings-form reset above: it always resets on a vault switch (never
+  // carries stale suggestions from a previously-viewed vault into this one)
+  // and only fetches when there's an actual vault to scope the query to.
+  useEffect(() => {
+    setRelationshipSuggestions([]);
+    setCanForceRescan(false);
+    setRelationshipScanProgress(null);
+    setApprovingRelationshipKey(null);
+    if (!vault || !open) {
+      setVaultPublications([]);
+      setVaultRelations([]);
+      return;
+    }
+    fetchVaultRelationshipData(vault.id).catch((err) => {
+      logger.error('VaultDialog', 'fetchVaultRelationshipData failed:', err);
+    });
+  }, [vault?.id, open, fetchVaultRelationshipData]);
+
   useEffect(() => {
     if (!vault || !open) {
       setIsForkedVault(false);
@@ -629,8 +687,8 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     setRelationshipScanProgress(null);
     try {
       const result = await runVaultRelationshipScan(
-        publications,
-        existingRelations,
+        vaultPublications,
+        vaultRelations,
         setRelationshipScanProgress,
         force ? { skipRecentMs: 0 } : undefined,
       );
@@ -1064,7 +1122,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
             }}
           >
             <div ref={sectionsHintAnchorRef}>
-              <TabsList className={`grid h-auto w-full ${!vault ? 'grid-cols-1' : publications.length > 0 ? 'grid-cols-3' : 'grid-cols-2'} gap-1 rounded-2xl border border-border/70 bg-muted/60 p-1 font-mono dark:border-white/8 dark:bg-[#1a1722]`}>
+              <TabsList className={`grid h-auto w-full ${!vault ? 'grid-cols-1' : vaultPublications.length > 0 ? 'grid-cols-3' : 'grid-cols-2'} gap-1 rounded-2xl border border-border/70 bg-muted/60 p-1 font-mono dark:border-white/8 dark:bg-[#1a1722]`}>
                 <TabsTrigger
                   value="settings"
                   aria-label="Vault settings"
@@ -1086,7 +1144,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                     <span className="truncate">sections</span>
                   </TabsTrigger>
                 )}
-                {vault && publications.length > 0 && (
+                {vault && vaultPublications.length > 0 && (
                   <TabsTrigger
                     value="relationships"
                     aria-label="Relationship suggestions"
@@ -1106,7 +1164,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                 />
               </TabsContent>
             )}
-            {vault && publications.length > 0 && (
+            {vault && vaultPublications.length > 0 && (
               <TabsContent value="relationships" ref={relationshipsPanelAnchorRef}>
                 <VaultRelationshipsPanel
                   suggestions={relationshipSuggestions}

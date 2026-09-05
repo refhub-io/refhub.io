@@ -1,10 +1,51 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { KeyboardProvider } from '@/contexts/KeyboardContext';
-import { Publication, Vault } from '@/types/database';
+import { Vault } from '@/types/database';
 import type { RelationshipSuggestion } from '@/lib/relationshipSuggestions';
 import { runVaultRelationshipScan } from '@/lib/vaultRelationshipScan';
 import { VaultDialog } from '../VaultDialog';
+
+// VaultDialog fetches its own vault-scoped publications (by vault.id) instead of trusting a
+// caller-supplied prop — see the fix for the vault-scoping bug. `mockState.vaultPublicationRows`
+// is what the mocked `vault_publications` query resolves to; tests that exercise the
+// "relationships" tab gating override it directly, everything else gets the shared default.
+const { mockState, defaultVaultPublicationRows } = vi.hoisted(() => {
+  const defaultVaultPublicationRows = [
+    {
+      id: 'pub-1',
+      vault_id: 'vault-1',
+      original_publication_id: null,
+      created_by: 'user-1',
+      title: 'Source Paper',
+      authors: ['Author One'],
+      year: 2020,
+      doi: null,
+      reading_state: 'unread',
+      important: false,
+      created_at: '2026-01-01T00:00:00.000Z',
+      updated_at: '2026-01-01T00:00:00.000Z',
+    },
+    {
+      id: 'pub-2',
+      vault_id: 'vault-1',
+      original_publication_id: null,
+      created_by: 'user-1',
+      title: 'Target Paper',
+      authors: ['Author One'],
+      year: 2020,
+      doi: null,
+      reading_state: 'unread',
+      important: false,
+      created_at: '2026-01-01T00:00:00.000Z',
+      updated_at: '2026-01-01T00:00:00.000Z',
+    },
+  ];
+  return {
+    defaultVaultPublicationRows,
+    mockState: { vaultPublicationRows: defaultVaultPublicationRows as unknown[] },
+  };
+});
 
 vi.mock('@/lib/vaultRelationshipScan', () => ({
   runVaultRelationshipScan: vi.fn(),
@@ -19,12 +60,23 @@ vi.mock('@/hooks/useAuth', () => ({
 
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
-    from: vi.fn(() => ({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-      single: vi.fn().mockResolvedValue({ data: null, error: null }),
-    })),
+    from: vi.fn((table: string) => {
+      if (table === 'vault_publications') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn(() => Promise.resolve({ data: mockState.vaultPublicationRows, error: null })),
+        };
+      }
+      if (table === 'publication_relations') {
+        return { select: vi.fn().mockResolvedValue({ data: [], error: null }) };
+      }
+      return {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+        single: vi.fn().mockResolvedValue({ data: null, error: null }),
+      };
+    }),
     channel: vi.fn(() => ({
       on: vi.fn().mockReturnThis(),
       subscribe: vi.fn().mockReturnValue(undefined),
@@ -56,54 +108,6 @@ const mockSuggestion: RelationshipSuggestion = {
   discoveredVia: 'references',
 };
 
-const basePublication: Publication = {
-  id: 'pub-1',
-  user_id: 'user-1',
-  title: 'Source Paper',
-  authors: ['Author One'],
-  year: 2020,
-  journal: null,
-  volume: null,
-  issue: null,
-  pages: null,
-  doi: null,
-  url: null,
-  abstract: null,
-  pdf_url: null,
-  bibtex_key: null,
-  publication_type: 'article',
-  notes: null,
-  booktitle: null,
-  chapter: null,
-  edition: null,
-  editor: null,
-  howpublished: null,
-  institution: null,
-  number: null,
-  organization: null,
-  publisher: null,
-  school: null,
-  series: null,
-  type: null,
-  eid: null,
-  isbn: null,
-  issn: null,
-  keywords: null,
-  reading_state: 'unread',
-  important: false,
-  created_at: '2026-01-01T00:00:00.000Z',
-  updated_at: '2026-01-01T00:00:00.000Z',
-};
-
-// The "relationships" tab is gated on `publications.length > 0` (Important 3 of the
-// final-review fix round) — most tests here drive the tab's scan flow, so they need a
-// non-empty publications array to unhide it. The empty-array default is overridden
-// where the tab-gating itself is under test.
-const mockPublications: Publication[] = [
-  basePublication,
-  { ...basePublication, id: 'pub-2', title: 'Target Paper' },
-];
-
 const renderDialog = (overrides: Record<string, unknown> = {}) => render(
   <KeyboardProvider>
     <VaultDialog
@@ -111,8 +115,6 @@ const renderDialog = (overrides: Record<string, unknown> = {}) => render(
       onOpenChange={vi.fn()}
       vault={mockVault}
       onSave={vi.fn().mockResolvedValue(undefined)}
-      publications={mockPublications}
-      existingRelations={[]}
       {...overrides}
     />
   </KeyboardProvider>,
@@ -126,7 +128,8 @@ async function scanForOneSuggestionThenReturnToSettings() {
     skippedCount: 0,
   });
 
-  fireEvent.mouseDown(screen.getByRole('tab', { name: /relationship suggestions/i }));
+  const relationshipsTab = await screen.findByRole('tab', { name: /relationship suggestions/i });
+  fireEvent.mouseDown(relationshipsTab);
 
   const scanButton = await screen.findByRole('button', { name: /scan for relationships/i });
   fireEvent.click(scanButton);
@@ -142,6 +145,7 @@ async function scanForOneSuggestionThenReturnToSettings() {
 describe('VaultDialog unsaved changes + relationship suggestions guard', () => {
   beforeEach(() => {
     vi.mocked(runVaultRelationshipScan).mockReset();
+    mockState.vaultPublicationRows = defaultVaultPublicationRows;
   });
 
   // These two tests drive a full tab-switch + scan + tab-switch-back + edit + discard/save
@@ -237,19 +241,25 @@ describe('VaultDialog unsaved changes + relationship suggestions guard', () => {
 describe('VaultDialog "relationships" tab gating (Important 3)', () => {
   beforeEach(() => {
     vi.mocked(runVaultRelationshipScan).mockReset();
+    mockState.vaultPublicationRows = defaultVaultPublicationRows;
   });
 
-  it('hides the relationships tab when there is no vault-wide publication data', () => {
-    renderDialog({ publications: [] });
+  it('hides the relationships tab when there is no vault-wide publication data', async () => {
+    mockState.vaultPublicationRows = [];
+    renderDialog();
 
-    expect(screen.queryByRole('tab', { name: /relationship suggestions/i })).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole('tab', { name: /relationship suggestions/i })).not.toBeInTheDocument();
+    });
     // The "sections" tab is gated on `vault` alone and must remain unaffected.
     expect(screen.getByRole('tab', { name: /curated sections/i })).toBeInTheDocument();
   });
 
-  it('shows the relationships tab when publications are available', () => {
-    renderDialog({ publications: mockPublications });
+  it('shows the relationships tab when publications are available', async () => {
+    renderDialog();
 
-    expect(screen.getByRole('tab', { name: /relationship suggestions/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /relationship suggestions/i })).toBeInTheDocument();
+    });
   });
 });

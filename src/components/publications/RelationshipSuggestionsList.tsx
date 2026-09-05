@@ -18,14 +18,14 @@ export function RelationshipSuggestionsList({ suggestions, approvingKey, onAppro
   if (suggestions.length === 0) return null;
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 min-w-0 max-w-full overflow-hidden">
       {suggestions.map((suggestion) => {
         const key = suggestionKey(suggestion);
         return (
-          <div key={key} className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 p-2 text-sm overflow-hidden">
-            <div className="min-w-0 flex-1 space-y-0.5 overflow-hidden">
-              <p className="truncate font-medium" title={suggestion.sourceTitle}>{suggestion.sourceTitle}</p>
-              <p className="truncate" title={suggestion.targetTitle}>
+          <div key={key} className="flex items-center gap-2 w-full min-w-0 max-w-full rounded-lg border border-primary/30 bg-primary/5 p-2 text-sm overflow-hidden">
+            <div className="min-w-0 max-w-full flex-1 space-y-0.5 overflow-hidden">
+              <p className="truncate max-w-full font-medium" title={suggestion.sourceTitle} style={{ maxWidth: '100%' }}>{suggestion.sourceTitle}</p>
+              <p className="truncate max-w-full" title={suggestion.targetTitle} style={{ maxWidth: '100%' }}>
                 <span className="text-muted-foreground">cites </span>
                 <span className="font-medium">{suggestion.targetTitle}</span>
               </p>

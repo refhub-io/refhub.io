@@ -1,9 +1,47 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { KeyboardProvider } from '@/contexts/KeyboardContext';
-import { Publication, Vault } from '@/types/database';
+import { Vault } from '@/types/database';
 import { runVaultRelationshipScan } from '@/lib/vaultRelationshipScan';
+import { formatVaultPublication } from '@/lib/formatVaultPublication';
 import { VaultDialog } from '../VaultDialog';
+
+// VaultDialog fetches its own vault-scoped publications/relations (by vault.id) rather than
+// trusting caller-supplied props — see the fix for the vault-scoping bug where opening vault
+// B's settings from a page displaying vault A scanned vault A's data. These raw DB-shape rows
+// are what the mocked `vault_publications` query below returns.
+const { mockVaultPublicationRows } = vi.hoisted(() => ({
+  mockVaultPublicationRows: [
+    {
+      id: 'pub-1',
+      vault_id: 'vault-1',
+      original_publication_id: null,
+      created_by: 'user-1',
+      title: 'Source Paper',
+      authors: ['Author One'],
+      year: 2020,
+      doi: null,
+      reading_state: 'unread',
+      important: false,
+      created_at: '2026-01-01T00:00:00.000Z',
+      updated_at: '2026-01-01T00:00:00.000Z',
+    },
+    {
+      id: 'pub-2',
+      vault_id: 'vault-1',
+      original_publication_id: null,
+      created_by: 'user-1',
+      title: 'Target Paper',
+      authors: ['Author One'],
+      year: 2020,
+      doi: null,
+      reading_state: 'unread',
+      important: false,
+      created_at: '2026-01-01T00:00:00.000Z',
+      updated_at: '2026-01-01T00:00:00.000Z',
+    },
+  ],
+}));
 
 vi.mock('@/lib/vaultRelationshipScan', () => ({
   runVaultRelationshipScan: vi.fn(),
@@ -15,12 +53,23 @@ vi.mock('@/hooks/useAuth', () => ({
 
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
-    from: vi.fn(() => ({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-      single: vi.fn().mockResolvedValue({ data: null, error: null }),
-    })),
+    from: vi.fn((table: string) => {
+      if (table === 'vault_publications') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockResolvedValue({ data: mockVaultPublicationRows, error: null }),
+        };
+      }
+      if (table === 'publication_relations') {
+        return { select: vi.fn().mockResolvedValue({ data: [], error: null }) };
+      }
+      return {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+        single: vi.fn().mockResolvedValue({ data: null, error: null }),
+      };
+    }),
     channel: vi.fn(() => ({
       on: vi.fn().mockReturnThis(),
       subscribe: vi.fn().mockReturnValue(undefined),
@@ -44,46 +93,9 @@ const mockVault: Vault = {
   updated_at: '2026-01-01T00:00:00.000Z',
 };
 
-const basePublication: Publication = {
-  id: 'pub-1',
-  user_id: 'user-1',
-  title: 'Source Paper',
-  authors: ['Author One'],
-  year: 2020,
-  journal: null,
-  volume: null,
-  issue: null,
-  pages: null,
-  doi: null,
-  url: null,
-  abstract: null,
-  pdf_url: null,
-  bibtex_key: null,
-  publication_type: 'article',
-  notes: null,
-  booktitle: null,
-  chapter: null,
-  edition: null,
-  editor: null,
-  howpublished: null,
-  institution: null,
-  number: null,
-  organization: null,
-  publisher: null,
-  school: null,
-  series: null,
-  type: null,
-  eid: null,
-  isbn: null,
-  issn: null,
-  keywords: null,
-  reading_state: 'unread',
-  important: false,
-  created_at: '2026-01-01T00:00:00.000Z',
-  updated_at: '2026-01-01T00:00:00.000Z',
-};
-
-const mockPublications: Publication[] = [basePublication, { ...basePublication, id: 'pub-2', title: 'Target Paper' }];
+// The exact publications VaultDialog will build from mockVaultPublicationRows via its own
+// fetch — computed with the real transform so this assertion can never drift from it.
+const mockPublications = mockVaultPublicationRows.map(formatVaultPublication);
 
 const renderDialog = () => render(
   <KeyboardProvider>
@@ -92,14 +104,13 @@ const renderDialog = () => render(
       onOpenChange={vi.fn()}
       vault={mockVault}
       onSave={vi.fn().mockResolvedValue(undefined)}
-      publications={mockPublications}
-      existingRelations={[]}
     />
   </KeyboardProvider>,
 );
 
-const openRelationshipsTab = () => {
-  fireEvent.mouseDown(screen.getByRole('tab', { name: /relationship suggestions/i }));
+const openRelationshipsTab = async () => {
+  const tab = await screen.findByRole('tab', { name: /relationship suggestions/i });
+  fireEvent.mouseDown(tab);
 };
 
 describe('VaultDialog — force_rescan visibility', () => {
@@ -107,15 +118,15 @@ describe('VaultDialog — force_rescan visibility', () => {
     vi.mocked(runVaultRelationshipScan).mockReset();
   });
 
-  it('hides force_rescan before any scan has run', () => {
+  it('hides force_rescan before any scan has run', async () => {
     renderDialog();
-    openRelationshipsTab();
+    await openRelationshipsTab();
     expect(screen.queryByRole('button', { name: /force_rescan/i })).not.toBeInTheDocument();
   });
 
   it('shows force_rescan after a plain scan skips cached papers, and hides it again once a force-rescan checks everything fresh', async () => {
     renderDialog();
-    openRelationshipsTab();
+    await openRelationshipsTab();
 
     vi.mocked(runVaultRelationshipScan).mockResolvedValue({ suggestions: [], skippedCount: 2 });
     fireEvent.click(screen.getByRole('button', { name: /^scan for relationships$/i }));
@@ -143,7 +154,7 @@ describe('VaultDialog — force_rescan visibility', () => {
 
   it('does not show force_rescan when a plain scan genuinely finds nothing (no skips)', async () => {
     renderDialog();
-    openRelationshipsTab();
+    await openRelationshipsTab();
 
     vi.mocked(runVaultRelationshipScan).mockResolvedValue({ suggestions: [], skippedCount: 0 });
     fireEvent.click(screen.getByRole('button', { name: /^scan for relationships$/i }));
