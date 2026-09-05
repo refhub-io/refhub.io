@@ -344,6 +344,7 @@ export type KeyboardContextName =
   | 'vault-list'
   | 'publication-list'
   | 'publication-table'
+  | 'inbox'
   | 'dialog'
   | 'search'
   | 'editor'
@@ -358,6 +359,7 @@ export const CONTEXT_PRIORITY: Record<KeyboardContextName, number> = {
   'publication-list': 50,
   'publication-table': 50,
   'vault-list': 40,
+  inbox: 40,
   global: 0,
 };
 
