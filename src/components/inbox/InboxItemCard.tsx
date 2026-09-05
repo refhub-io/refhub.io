@@ -209,18 +209,18 @@ export function InboxItemCard(props: InboxItemCardProps): JSX.Element {
             onClick={onAccept}
             disabled={!selectedVaultId}
           >
-            Accept
+            accept
           </Button>
           <Button variant="outline" size="sm" onClick={onReject}>
-            Reject
+            reject
           </Button>
           {duplicatePublicationTitle && (
             <Button variant="secondary" size="sm" onClick={onMerge}>
-              Merge
+              merge
             </Button>
           )}
           <Button variant="ghost" size="sm" onClick={onPostpone}>
-            Postpone
+            postpone
           </Button>
         </div>
       </CardContent>
