@@ -151,6 +151,13 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   // offering "force" before that would bypass a cache that has nothing to
   // bypass yet.
   const [canForceRescan, setCanForceRescan] = useState(false);
+  // Failed + rate-limited count from the most recently completed scan. A
+  // failed/rate-limited paper's DOI is never written to the skip-cache (see
+  // vaultRelationshipScan.ts), so a plain rescan already retries exactly
+  // these papers first — this only tracks the count to surface a dedicated
+  // "rescan_failed" affordance instead of leaving the user to guess whether
+  // clicking "scan for relationships" again is worth it.
+  const [lastScanFailedCount, setLastScanFailedCount] = useState(0);
   // Fetched by fetchVaultRelationshipData below, scoped to `vault.id` — never
   // trust a caller-supplied publications/relations list here. A dialog opened
   // for vault B from a page whose own state is scoped to vault A (e.g. the
@@ -572,6 +579,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     setCanForceRescan(false);
     setRelationshipScanProgress(null);
     setApprovingRelationshipKey(null);
+    setLastScanFailedCount(0);
     if (!vault || !open) {
       setVaultPublications([]);
       setVaultRelations([]);
@@ -685,15 +693,22 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   const handleScanRelationships = async (force = false) => {
     setScanningRelationships(true);
     setRelationshipScanProgress(null);
+    let finalProgress: SemanticScholarQueueProgress | null = null;
     try {
       const result = await runVaultRelationshipScan(
         vaultPublications,
         vaultRelations,
-        setRelationshipScanProgress,
+        (progress) => {
+          finalProgress = progress;
+          setRelationshipScanProgress(progress);
+        },
         force ? { skipRecentMs: 0 } : undefined,
       );
+      setLastScanFailedCount(finalProgress ? finalProgress.failed + finalProgress.rateLimited : 0);
       let newCount = 0;
+      let hadExistingSuggestions = false;
       setRelationshipSuggestions((prev) => {
+        hadExistingSuggestions = prev.length > 0;
         const existingKeys = new Set(prev.map(suggestionKey));
         const added = result.suggestions.filter((s) => !existingKeys.has(suggestionKey(s)));
         newCount = added.length;
@@ -715,10 +730,20 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
             feedbackSeverity: 'info',
             source: relationshipsPanelAnchorRef,
           });
+        } else if (hadExistingSuggestions) {
+          // Everything this scan found was already sitting in the list below
+          // (a rescan re-discovering the same suggestions) — "No relationships
+          // found" would flatly contradict the visible, non-empty list.
+          toast({
+            title: 'No new relationships found',
+            description: "Scanned this vault's papers with a DOI — nothing beyond the suggestions already listed below.",
+            feedbackSeverity: 'info',
+            source: relationshipsPanelAnchorRef,
+          });
         } else {
           toast({
             title: 'No relationships found',
-            description: "Scanned this vault's papers with a DOI and found no new citation relationships.",
+            description: "Scanned this vault's papers with a DOI and found no citation relationships.",
             feedbackSeverity: 'info',
             source: relationshipsPanelAnchorRef,
           });
@@ -1172,6 +1197,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                   progress={relationshipScanProgress}
                   approvingKey={approvingRelationshipKey}
                   canForceRescan={canForceRescan}
+                  lastScanFailedCount={lastScanFailedCount}
                   onScan={handleScanRelationships}
                   onApprove={handleApproveRelationshipSuggestion}
                   onDismiss={handleDismissRelationshipSuggestion}

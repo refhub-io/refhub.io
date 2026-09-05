@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Check, X } from 'lucide-react';
+import { Check, CheckCheck, X } from 'lucide-react';
 import type { RelationshipSuggestion } from '@/lib/relationshipSuggestions';
 
 export function suggestionKey(suggestion: RelationshipSuggestion): string {
@@ -10,15 +11,52 @@ interface RelationshipSuggestionsListProps {
   suggestions: RelationshipSuggestion[];
   /** suggestionKey() of the suggestion currently being approved, if any — disables its approve button while the insert is in flight. */
   approvingKey: string | null;
-  onApprove: (suggestion: RelationshipSuggestion) => void;
+  onApprove: (suggestion: RelationshipSuggestion) => void | Promise<void>;
   onDismiss: (suggestion: RelationshipSuggestion) => void;
 }
 
 export function RelationshipSuggestionsList({ suggestions, approvingKey, onApprove, onDismiss }: RelationshipSuggestionsListProps) {
+  const [approvingAll, setApprovingAll] = useState(false);
+
   if (suggestions.length === 0) return null;
+
+  const handleApproveAll = async () => {
+    setApprovingAll(true);
+    try {
+      // Sequential, not concurrent — avoids hammering the backend with a
+      // burst of inserts and keeps approvingKey meaningful for the duration
+      // of each row's own approval. A single bad pair (e.g. already linked)
+      // is surfaced by onApprove itself; swallow it here so the rest of the
+      // batch still goes through.
+      for (const suggestion of suggestions) {
+        try {
+          await onApprove(suggestion);
+        } catch {
+          // onApprove already reports its own error via toast.
+        }
+      }
+    } finally {
+      setApprovingAll(false);
+    }
+  };
 
   return (
     <div className="space-y-2 min-w-0 max-w-full overflow-hidden">
+      {suggestions.length > 1 && (
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="h-7 px-2 text-xs"
+            disabled={approvingAll}
+            onClick={handleApproveAll}
+          >
+            <CheckCheck className="w-3.5 h-3.5 mr-1" />
+            {approvingAll ? 'approving_all...' : `approve_all (${suggestions.length})`}
+          </Button>
+        </div>
+      )}
       {suggestions.map((suggestion) => {
         const key = suggestionKey(suggestion);
         return (
@@ -36,7 +74,7 @@ export function RelationshipSuggestionsList({ suggestions, approvingKey, onAppro
                 size="sm"
                 variant="outline"
                 className="h-7 px-2"
-                disabled={approvingKey === key}
+                disabled={approvingKey === key || approvingAll}
                 onClick={() => onApprove(suggestion)}
               >
                 <Check className="w-3.5 h-3.5 mr-1" />
@@ -47,6 +85,7 @@ export function RelationshipSuggestionsList({ suggestions, approvingKey, onAppro
                 size="sm"
                 variant="ghost"
                 className="h-7 px-2"
+                disabled={approvingAll}
                 onClick={() => onDismiss(suggestion)}
               >
                 <X className="w-3.5 h-3.5 mr-1" />

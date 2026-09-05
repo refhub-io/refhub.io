@@ -15,7 +15,7 @@ describe('VaultRelationshipsPanel', () => {
     const onScan = vi.fn();
     render(
       <VaultRelationshipsPanel
-        suggestions={[]} scanning={false} progress={null} approvingKey={null} canForceRescan={false}
+        suggestions={[]} scanning={false} progress={null} approvingKey={null} canForceRescan={false} lastScanFailedCount={0}
         onScan={onScan} onApprove={() => {}} onDismiss={() => {}}
       />,
     );
@@ -26,7 +26,7 @@ describe('VaultRelationshipsPanel', () => {
   it('hides force_rescan until a scan has actually skipped something', () => {
     render(
       <VaultRelationshipsPanel
-        suggestions={[]} scanning={false} progress={null} approvingKey={null} canForceRescan={false}
+        suggestions={[]} scanning={false} progress={null} approvingKey={null} canForceRescan={false} lastScanFailedCount={0}
         onScan={() => {}} onApprove={() => {}} onDismiss={() => {}}
       />,
     );
@@ -37,7 +37,7 @@ describe('VaultRelationshipsPanel', () => {
     const onScan = vi.fn();
     render(
       <VaultRelationshipsPanel
-        suggestions={[]} scanning={false} progress={null} approvingKey={null} canForceRescan
+        suggestions={[]} scanning={false} progress={null} approvingKey={null} canForceRescan lastScanFailedCount={0}
         onScan={onScan} onApprove={() => {}} onDismiss={() => {}}
       />,
     );
@@ -48,7 +48,7 @@ describe('VaultRelationshipsPanel', () => {
   it('renders suggestions passed in as props', () => {
     render(
       <VaultRelationshipsPanel
-        suggestions={[makeSuggestion()]} scanning={false} progress={null} approvingKey={null} canForceRescan={false}
+        suggestions={[makeSuggestion()]} scanning={false} progress={null} approvingKey={null} canForceRescan={false} lastScanFailedCount={0}
         onScan={() => {}} onApprove={() => {}} onDismiss={() => {}}
       />,
     );
@@ -59,12 +59,36 @@ describe('VaultRelationshipsPanel', () => {
   it('disables the scan button and shows progress while scanning', () => {
     render(
       <VaultRelationshipsPanel
-        suggestions={[]} scanning={true} progress={{ completed: 1, total: 4, active: 1, succeeded: 1, failed: 0, rateLimited: 0 }} approvingKey={null} canForceRescan={false}
+        suggestions={[]} scanning={true} progress={{ completed: 1, total: 4, active: 1, succeeded: 1, failed: 0, rateLimited: 0 }} approvingKey={null} canForceRescan={false} lastScanFailedCount={0}
         onScan={() => {}} onApprove={() => {}} onDismiss={() => {}}
       />,
     );
     expect(screen.getByRole('button', { name: /scanning/i })).toBeDisabled();
     expect(screen.getByText('1/4_done')).toBeInTheDocument();
+  });
+
+  it('hides rescan_failed when the last scan had no failures', () => {
+    render(
+      <VaultRelationshipsPanel
+        suggestions={[]} scanning={false} progress={null} approvingKey={null} canForceRescan={false} lastScanFailedCount={0}
+        onScan={() => {}} onApprove={() => {}} onDismiss={() => {}}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: /rescan_failed/i })).not.toBeInTheDocument();
+  });
+
+  it('shows rescan_failed with the failed count and calls onScan(false) when clicked', () => {
+    const onScan = vi.fn();
+    render(
+      <VaultRelationshipsPanel
+        suggestions={[]} scanning={false} progress={null} approvingKey={null} canForceRescan={false} lastScanFailedCount={3}
+        onScan={onScan} onApprove={() => {}} onDismiss={() => {}}
+      />,
+    );
+    const button = screen.getByRole('button', { name: /rescan_failed/i });
+    expect(button).toHaveTextContent('rescan_failed (3)');
+    fireEvent.click(button);
+    expect(onScan).toHaveBeenCalledWith(false);
   });
 
   it('calls onApprove/onDismiss with the suggestion clicked', () => {
@@ -73,7 +97,7 @@ describe('VaultRelationshipsPanel', () => {
     const suggestion = makeSuggestion();
     render(
       <VaultRelationshipsPanel
-        suggestions={[suggestion]} scanning={false} progress={null} approvingKey={null} canForceRescan={false}
+        suggestions={[suggestion]} scanning={false} progress={null} approvingKey={null} canForceRescan={false} lastScanFailedCount={0}
         onScan={() => {}} onApprove={onApprove} onDismiss={onDismiss}
       />,
     );

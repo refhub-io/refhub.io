@@ -13,6 +13,11 @@ interface VaultRelationshipsPanelProps {
    * cache — force_rescan is only offered then, since otherwise there's
    * nothing for it to bypass. */
   canForceRescan: boolean;
+  /** failed + rate-limited count from the most recently completed scan.
+   * These papers' DOIs were never cached, so a plain rescan already retries
+   * exactly them first — this only gates a dedicated "rescan_failed" button
+   * so the user isn't left guessing whether re-scanning is worth it. */
+  lastScanFailedCount: number;
   onScan: (force?: boolean) => void;
   onApprove: (suggestion: RelationshipSuggestion) => void;
   onDismiss: (suggestion: RelationshipSuggestion) => void;
@@ -23,12 +28,25 @@ function getProgressValue(progress: SemanticScholarQueueProgress | null): number
   return Math.round((progress.completed / progress.total) * 100);
 }
 
-export function VaultRelationshipsPanel({ suggestions, scanning, progress, approvingKey, canForceRescan, onScan, onApprove, onDismiss }: VaultRelationshipsPanelProps) {
+export function VaultRelationshipsPanel({ suggestions, scanning, progress, approvingKey, canForceRescan, lastScanFailedCount, onScan, onApprove, onDismiss }: VaultRelationshipsPanelProps) {
   return (
     <div className="space-y-4 py-4">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-xs text-muted-foreground font-mono">// scan_for_relationships</p>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {lastScanFailedCount > 0 && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="h-8 px-2 text-xs"
+              disabled={scanning}
+              onClick={() => onScan(false)}
+              title="Retry only the papers that failed or were rate-limited on the last scan"
+            >
+              {`rescan_failed (${lastScanFailedCount})`}
+            </Button>
+          )}
           {canForceRescan && (
             <Button
               type="button"
