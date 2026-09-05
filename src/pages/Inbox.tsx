@@ -7,6 +7,7 @@ import { findDuplicateForItem } from '@/lib/inboxDedup';
 import { suggestVaultForItem, suggestTagsForItem } from '@/lib/inboxSuggestions';
 import { InboxCaptureForm } from '@/components/inbox/InboxCaptureForm';
 import { InboxQueue } from '@/components/inbox/InboxQueue';
+import { showError } from '@/lib/toast';
 
 export function Inbox() {
   const { user } = useAuth();
@@ -46,12 +47,28 @@ export function Inbox() {
       .select()
       .single();
     if (error || !newPub) return;
-    await supabase.rpc('copy_publication_to_vault', { pub_id: newPub.id, target_vault_id: vaultId, user_id: user.id });
-    if (tagIds.length > 0) {
-      await supabase.from('publication_tags').insert(
-        tagIds.map((tagId) => ({ publication_id: newPub.id, tag_id: tagId })),
-      );
+
+    const { data: newVaultPubId, error: copyError } = await supabase.rpc('copy_publication_to_vault', {
+      pub_id: newPub.id,
+      target_vault_id: vaultId,
+      user_id: user.id,
+    });
+    if (copyError || !newVaultPubId) {
+      showError('Could not file paper into vault', copyError?.message || 'Unknown error');
+      return;
     }
+
+    if (tagIds.length > 0) {
+      const { error: tagError } = await supabase.from('publication_tags').insert(
+        tagIds.map((tagId) => ({ publication_id: null, vault_publication_id: newVaultPubId, tag_id: tagId })),
+      );
+      if (tagError) {
+        showError('Paper filed, but tags could not be saved', tagError.message);
+        // Don't return here — the paper WAS successfully filed; only the tags failed.
+        // Fall through to acceptItem so the inbox item is still correctly marked accepted.
+      }
+    }
+
     await acceptItem(id, vaultId, tagIds, newPub.id);
     refetch();
   }, [items, user, acceptItem, refetch]);
