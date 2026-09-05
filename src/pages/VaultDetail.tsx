@@ -13,6 +13,7 @@ import { generateBibtexKey } from '@/lib/bibtex';
 import { formatTimeAgo } from '@/lib/utils';
 import { logger } from '@/lib/logger';
 import { hasPageCache, clearPageCache } from '@/lib/pageCache';
+import { fetchAllRows } from '@/lib/fetchAllRows';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationDialog } from '@/components/publications/PublicationDialog';
@@ -309,32 +310,45 @@ export default function VaultDetail() {
     if (!user) return;
 
     try {
+      // .order('id') is a tiebreaker: .range() pagination isn't stable
+      // across pages without a fully deterministic sort, and created_at
+      // alone can tie between rows.
       const [pubsRes, vaultPubsRes] = await Promise.all([
-        supabase
-          .from('publications')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('vault_publications')
-          .select('*')
-          .order('created_at', { ascending: false })
+        fetchAllRows<Publication>((from, to) =>
+          supabase
+            .from('publications')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .order('id')
+            .range(from, to)
+        ),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        fetchAllRows<any>((from, to) =>
+          supabase
+            .from('vault_publications')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .order('id')
+            .range(from, to)
+        ),
       ]);
 
       if (pubsRes.error) throw pubsRes.error;
       if (vaultPubsRes.error) throw vaultPubsRes.error;
 
-      const publications = pubsRes.data as Publication[];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const vaultPublications = vaultPubsRes.data as any[];
+      const publications = pubsRes.data;
+      const vaultPublications = vaultPubsRes.data;
 
       setAllPublications(publications);
 
       // Create publicationVaultsMap to track which vaults each publication belongs to
       const newPublicationVaultsMap: Record<string, string[]> = {};
 
-      // Initialize all publications with empty arrays
-      allPublications.forEach(pub => {
+      // Initialize all publications with empty arrays. Read the freshly-fetched
+      // local, not the allPublications *state* — that's still last render's
+      // value here (setAllPublications above hasn't committed yet).
+      publications.forEach(pub => {
         newPublicationVaultsMap[pub.id] = [];
       });
 
@@ -360,9 +374,25 @@ export default function VaultDetail() {
       setPublicationVaultsMap(newPublicationVaultsMap);
     } catch (error) {
       logger.error('VaultDetail', 'Error fetching all publications:', error);
+      // Unlike Dashboard's equivalent fetch, this failure was previously silent —
+      // indistinguishable from "no papers exist," which is exactly what a direct/
+      // hard load into a vault (session still restoring) was hitting.
+      toast({
+        title: 'Could not load your library',
+        description: 'RefHub could not load your papers for adding to this vault. Please refresh the page.',
+        variant: 'destructive', feedbackSeverity: 'error',
+        source: null,
+      });
     }
+  // Depend on user?.id, not the user object itself — Supabase's
+  // onAuthStateChange fires with a new `user` object of the same id on every
+  // token refresh, and depending on the object reference meant a transient
+  // failure during session restoration (most likely right after a direct/
+  // hard load) never got a real retry once the session settled, since the
+  // object reference had no reason to change again. Same fix already applied
+  // in useAllPublications.ts.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user?.id]);
 
   // Initialize and update vault content when vaultId changes
   useEffect(() => {
@@ -376,7 +406,7 @@ export default function VaultDetail() {
     if (user) {
       fetchAllPublications();
     }
-  }, [user, fetchAllPublications]);
+  }, [user?.id, fetchAllPublications]);
 
   // Fetch favorites and forks count for the current vault
   useEffect(() => {
@@ -642,6 +672,15 @@ export default function VaultDetail() {
 
         if (!result.success) {
           throw result.error || new Error('Failed to create publication');
+        }
+
+        // Without this, the dialog never learns the new publication's id after a
+        // plain "Save" (as opposed to "Save & Close") — the sync effect at
+        // (search this file for "Sync editingPublication with publications array")
+        // only re-syncs an ALREADY non-null editingPublication, so a create (which
+        // starts null) would otherwise never pick up its own new record.
+        if (result.publication) {
+          setEditingPublication(result.publication);
         }
 
         // If vaultIds are specified and include other vaults, add to those vaults too

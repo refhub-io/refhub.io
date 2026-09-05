@@ -26,11 +26,19 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { VaultSectionsPanel } from './VaultSectionsPanel';
+import { VaultRelationshipsPanel } from './VaultRelationshipsPanel';
 import { useKeyboardContext } from '@/contexts/KeyboardContext';
 import { useHotkeys } from '@/hooks/useKeyboardNavigation';
 import { Lock, Users, Globe, Mail, Trash2, Copy, Check, Link2, X, Save, Plus, Bell, ChevronDown, Archive, Settings, Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createVaultPublicSlugCandidate, normalizeVaultPublicSlug } from '@/lib/vaultSlug';
+import type { RelationshipSuggestion } from '@/lib/relationshipSuggestions';
+import { runVaultRelationshipScan } from '@/lib/vaultRelationshipScan';
+import { suggestionKey } from '@/components/publications/RelationshipSuggestionsList';
+import type { SemanticScholarQueueProgress } from '@/lib/semanticScholar';
+import type { PublicationRelation } from '@/types/database';
+import { showError } from '@/lib/toast';
+import { formatVaultPublication } from '@/lib/formatVaultPublication';
 
 type VaultVisibility = 'private' | 'protected' | 'public';
 
@@ -100,9 +108,13 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   // Tracks the currently-shown "must be public" hint so repeated clicks on
   // the disabled tab replace it instead of stacking duplicates.
   const sectionsHintHandleRef = useRef<ReturnType<typeof toast> | null>(null);
+  // Same anchoring rule as sectionsHintAnchorRef above — wraps the whole
+  // TabsContent (a plain block), not anything inside VaultRelationshipsPanel's
+  // own flex/grid rows, so quoterm's inline insertion can't land inside one.
+  const relationshipsPanelAnchorRef = useRef<HTMLDivElement>(null);
   const kbCtx = useKeyboardContext();
 
-  const [activeTab, setActiveTab] = useState<'settings' | 'sections'>('settings');
+  const [activeTab, setActiveTab] = useState<'settings' | 'sections' | 'relationships'>('settings');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState(VAULT_COLORS[0]);
@@ -130,6 +142,29 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [isForkedVault, setIsForkedVault] = useState(false);
+  const [relationshipSuggestions, setRelationshipSuggestions] = useState<RelationshipSuggestion[]>([]);
+  const [scanningRelationships, setScanningRelationships] = useState(false);
+  const [relationshipScanProgress, setRelationshipScanProgress] = useState<SemanticScholarQueueProgress | null>(null);
+  const [approvingRelationshipKey, setApprovingRelationshipKey] = useState<string | null>(null);
+  const [showPendingRelationshipsDialog, setShowPendingRelationshipsDialog] = useState(false);
+  // Only meaningful once a plain scan has actually skipped something —
+  // offering "force" before that would bypass a cache that has nothing to
+  // bypass yet.
+  const [canForceRescan, setCanForceRescan] = useState(false);
+  // Failed + rate-limited count from the most recently completed scan. A
+  // failed/rate-limited paper's DOI is never written to the skip-cache (see
+  // vaultRelationshipScan.ts), so a plain rescan already retries exactly
+  // these papers first — this only tracks the count to surface a dedicated
+  // "rescan_failed" affordance instead of leaving the user to guess whether
+  // clicking "scan for relationships" again is worth it.
+  const [lastScanFailedCount, setLastScanFailedCount] = useState(0);
+  // Fetched by fetchVaultRelationshipData below, scoped to `vault.id` — never
+  // trust a caller-supplied publications/relations list here. A dialog opened
+  // for vault B from a page whose own state is scoped to vault A (e.g. the
+  // sidebar's per-vault settings gear on VaultDetail) would otherwise scan
+  // and label vault A's data as vault B's.
+  const [vaultPublications, setVaultPublications] = useState<Publication[]>([]);
+  const [vaultRelations, setVaultRelations] = useState<PublicationRelation[]>([]);
   const isArchived = !!vault?.archived_at;
   const slugCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadRef = useRef(true);
@@ -347,6 +382,45 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     }
   }, []);
 
+  // Scoped strictly to `vaultId` — this is what makes the relationships tab
+  // safe to show regardless of which page renders VaultDialog, and immune to
+  // the caller passing (or not passing) publications data for a different vault.
+  const fetchVaultRelationshipData = useCallback(async (vaultId: string) => {
+    const { data: vaultPubs, error: vaultPubsError } = await supabase
+      .from('vault_publications')
+      .select('*')
+      .eq('vault_id', vaultId);
+
+    if (vaultPubsError) {
+      logger.error('VaultDialog', 'fetchVaultRelationshipData: vault_publications fetch failed', vaultPubsError);
+      return;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows = (vaultPubs || []) as any[];
+    setVaultPublications(rows.map(formatVaultPublication));
+
+    const idsSet = new Set<string>([
+      ...rows.map((vp) => vp.id).filter(Boolean),
+      ...rows.map((vp) => vp.original_publication_id).filter(Boolean),
+    ]);
+
+    const { data: allRelations, error: relationsError } = await supabase
+      .from('publication_relations')
+      .select('*');
+
+    if (relationsError) {
+      logger.error('VaultDialog', 'fetchVaultRelationshipData: publication_relations fetch failed', relationsError);
+      return;
+    }
+
+    setVaultRelations(
+      (allRelations || []).filter(
+        (rel) => idsSet.has(rel.publication_id) || idsSet.has(rel.related_publication_id),
+      ),
+    );
+  }, []);
+
   const handleSelectUserSuggestion = useCallback((profile: UserSuggestion) => {
     setSelectedProfile(profile);
     setEmail(profile.email || '');
@@ -496,6 +570,26 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vault?.id, open, fetchShares]);
 
+  // Relationship-scan data is intentionally on its own effect, separate from
+  // the settings-form reset above: it always resets on a vault switch (never
+  // carries stale suggestions from a previously-viewed vault into this one)
+  // and only fetches when there's an actual vault to scope the query to.
+  useEffect(() => {
+    setRelationshipSuggestions([]);
+    setCanForceRescan(false);
+    setRelationshipScanProgress(null);
+    setApprovingRelationshipKey(null);
+    setLastScanFailedCount(0);
+    if (!vault || !open) {
+      setVaultPublications([]);
+      setVaultRelations([]);
+      return;
+    }
+    fetchVaultRelationshipData(vault.id).catch((err) => {
+      logger.error('VaultDialog', 'fetchVaultRelationshipData failed:', err);
+    });
+  }, [vault?.id, open, fetchVaultRelationshipData]);
+
   useEffect(() => {
     if (!vault || !open) {
       setIsForkedVault(false);
@@ -596,44 +690,152 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     };
   }, [publicSlug, visibility, vault?.id]);
 
+  const handleScanRelationships = async (force = false) => {
+    setScanningRelationships(true);
+    setRelationshipScanProgress(null);
+    let finalProgress: SemanticScholarQueueProgress | null = null;
+    try {
+      const result = await runVaultRelationshipScan(
+        vaultPublications,
+        vaultRelations,
+        (progress) => {
+          finalProgress = progress;
+          setRelationshipScanProgress(progress);
+        },
+        force ? { skipRecentMs: 0 } : undefined,
+      );
+      setLastScanFailedCount(finalProgress ? finalProgress.failed + finalProgress.rateLimited : 0);
+      let newCount = 0;
+      let hadExistingSuggestions = false;
+      setRelationshipSuggestions((prev) => {
+        hadExistingSuggestions = prev.length > 0;
+        const existingKeys = new Set(prev.map(suggestionKey));
+        const added = result.suggestions.filter((s) => !existingKeys.has(suggestionKey(s)));
+        newCount = added.length;
+        return [...prev, ...added];
+      });
+      // Only meaningful to offer bypassing the skip-cache when this scan
+      // actually skipped something — a force-rescan (skipRecentMs: 0) can
+      // never itself have a nonzero skippedCount, so this self-clears once
+      // the user actually forces a check.
+      setCanForceRescan(result.skippedCount > 0);
+      // A scan can legitimately turn up nothing new because everything eligible
+      // was already checked recently (skip-cache) — without this, that looks
+      // identical to the scan silently doing nothing.
+      if (newCount === 0) {
+        if (result.skippedCount > 0) {
+          toast({
+            title: 'No new suggestions',
+            description: `${result.skippedCount} paper${result.skippedCount === 1 ? '' : 's'} already checked in the last 24 hours — they'll be re-checked automatically after that, or use force_rescan to check them now.`,
+            feedbackSeverity: 'info',
+            source: relationshipsPanelAnchorRef,
+          });
+        } else if (hadExistingSuggestions) {
+          // Everything this scan found was already sitting in the list below
+          // (a rescan re-discovering the same suggestions) — "No relationships
+          // found" would flatly contradict the visible, non-empty list.
+          toast({
+            title: 'No new relationships found',
+            description: "Scanned this vault's papers with a DOI — nothing beyond the suggestions already listed below.",
+            feedbackSeverity: 'info',
+            source: relationshipsPanelAnchorRef,
+          });
+        } else {
+          toast({
+            title: 'No relationships found',
+            description: "Scanned this vault's papers with a DOI and found no citation relationships.",
+            feedbackSeverity: 'info',
+            source: relationshipsPanelAnchorRef,
+          });
+        }
+      }
+    } catch (error) {
+      showError('Could not scan for relationships', error instanceof Error ? error.message : 'Unknown error', { source: relationshipsPanelAnchorRef });
+    } finally {
+      setScanningRelationships(false);
+    }
+  };
+
+  const handleApproveRelationshipSuggestion = async (suggestion: RelationshipSuggestion) => {
+    if (!user) return;
+    setApprovingRelationshipKey(suggestionKey(suggestion));
+    try {
+      const { error } = await supabase.from('publication_relations').insert({
+        publication_id: suggestion.sourcePublicationId,
+        related_publication_id: suggestion.targetPublicationId,
+        relation_type: 'cites',
+        created_by: user.id,
+      });
+
+      if (error) {
+        if (error.code === '23505') {
+          showError('Already linked', 'These papers are already linked.');
+        } else if (error.code === '42501' || error.message?.includes('row-level security')) {
+          showError('Permission denied', "You don't have permission to link papers in this vault.");
+        } else {
+          showError('Could not save relationship', error.message);
+        }
+        return;
+      }
+
+      setRelationshipSuggestions((prev) => prev.filter((s) => suggestionKey(s) !== suggestionKey(suggestion)));
+    } finally {
+      setApprovingRelationshipKey(null);
+    }
+  };
+
+  const handleDismissRelationshipSuggestion = (suggestion: RelationshipSuggestion) => {
+    setRelationshipSuggestions((prev) => prev.filter((s) => suggestionKey(s) !== suggestionKey(suggestion)));
+  };
+
   // Handle dialog close with unsaved changes check
   const handleDialogClose = useCallback((newOpen: boolean) => {
     if (newOpen) {
       onOpenChange(true);
       return;
     }
-    
-    // Dialog wants to close - check for unsaved changes
+
+    // Dialog wants to close - check for unsaved changes, then pending relationship suggestions
     if (hasUnsavedChanges) {
       setShowUnsavedDialog(true);
+    } else if (relationshipSuggestions.length > 0) {
+      setShowPendingRelationshipsDialog(true);
     } else {
       onOpenChange(false);
     }
-  }, [hasUnsavedChanges, onOpenChange]);
+  }, [hasUnsavedChanges, relationshipSuggestions.length, onOpenChange]);
 
   // Handle discard changes
   const handleDiscardChanges = useCallback(() => {
     setShowUnsavedDialog(false);
     setHasUnsavedChanges(false);
-    onOpenChange(false);
-  }, [onOpenChange]);
+    if (relationshipSuggestions.length > 0) {
+      setShowPendingRelationshipsDialog(true);
+    } else {
+      onOpenChange(false);
+    }
+  }, [onOpenChange, relationshipSuggestions.length]);
 
   // Handle save and close
   const handleSaveAndClose = useCallback(async () => {
     if (!name.trim() || !onSave || isArchived) return;
-    
+
     setSaving(true);
     try {
       await onSave(await buildSavePayload());
       syncSavedValues();
       setShowUnsavedDialog(false);
-      onOpenChange(false);
+      if (relationshipSuggestions.length > 0) {
+        setShowPendingRelationshipsDialog(true);
+      } else {
+        onOpenChange(false);
+      }
     } catch (error) {
       // Keep dialog open on error
     } finally {
       setSaving(false);
     }
-  }, [buildSavePayload, name, onSave, onOpenChange, syncSavedValues, isArchived]);
+  }, [buildSavePayload, name, onSave, onOpenChange, syncSavedValues, isArchived, relationshipSuggestions.length]);
 
   const handleSubmit = useCallback(async () => {
     if (!open || saving || !name.trim() || !onSave || isArchived) return;
@@ -891,6 +1093,17 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
         title="Unsaved Changes"
         description="You have unsaved changes to this vault. Would you like to save them before closing?"
       />
+      <UnsavedChangesDialog
+        open={showPendingRelationshipsDialog}
+        title="Pending Relationship Suggestions"
+        description={`You have ${relationshipSuggestions.length} unreviewed relationship suggestion${relationshipSuggestions.length === 1 ? '' : 's'}. Review them now, or discard?`}
+        onDiscard={() => {
+          setRelationshipSuggestions([]);
+          setShowPendingRelationshipsDialog(false);
+          onOpenChange(false);
+        }}
+        onCancel={() => setShowPendingRelationshipsDialog(false)}
+      />
       <Dialog open={open} onOpenChange={handleDialogClose}>
         <DialogContent className="dialog-mobile max-w-[100vw] sm:rounded-2xl sm:h-auto sm:w-[95vw] sm:max-w-3xl border-2 bg-card/95 backdrop-blur-xl sm:max-h-[90vh] overflow-hidden flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4">
@@ -930,11 +1143,11 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                 });
                 return;
               }
-              setActiveTab(value as 'settings' | 'sections');
+              setActiveTab(value as 'settings' | 'sections' | 'relationships');
             }}
           >
             <div ref={sectionsHintAnchorRef}>
-              <TabsList className={`grid h-auto w-full ${vault ? 'grid-cols-2' : 'grid-cols-1'} gap-1 rounded-2xl border border-border/70 bg-muted/60 p-1 font-mono dark:border-white/8 dark:bg-[#1a1722]`}>
+              <TabsList className={`grid h-auto w-full ${!vault ? 'grid-cols-1' : vaultPublications.length > 0 ? 'grid-cols-3' : 'grid-cols-2'} gap-1 rounded-2xl border border-border/70 bg-muted/60 p-1 font-mono dark:border-white/8 dark:bg-[#1a1722]`}>
                 <TabsTrigger
                   value="settings"
                   aria-label="Vault settings"
@@ -956,6 +1169,16 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                     <span className="truncate">sections</span>
                   </TabsTrigger>
                 )}
+                {vault && vaultPublications.length > 0 && (
+                  <TabsTrigger
+                    value="relationships"
+                    aria-label="Relationship suggestions"
+                    className="min-h-10 min-w-0 justify-center gap-2 rounded-xl px-2 text-center text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md sm:min-h-11 sm:px-3 sm:text-sm"
+                  >
+                    <Link2 className="w-4 h-4 shrink-0" />
+                    <span className="truncate">relationships</span>
+                  </TabsTrigger>
+                )}
               </TabsList>
             </div>
             {vault && (
@@ -963,6 +1186,21 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                 <VaultSectionsPanel
                   vault={vault}
                   onPublicationsChange={onPublicationsChange}
+                />
+              </TabsContent>
+            )}
+            {vault && vaultPublications.length > 0 && (
+              <TabsContent value="relationships" ref={relationshipsPanelAnchorRef}>
+                <VaultRelationshipsPanel
+                  suggestions={relationshipSuggestions}
+                  scanning={scanningRelationships}
+                  progress={relationshipScanProgress}
+                  approvingKey={approvingRelationshipKey}
+                  canForceRescan={canForceRescan}
+                  lastScanFailedCount={lastScanFailedCount}
+                  onScan={handleScanRelationships}
+                  onApprove={handleApproveRelationshipSuggestion}
+                  onDismiss={handleDismissRelationshipSuggestion}
                 />
               </TabsContent>
             )}

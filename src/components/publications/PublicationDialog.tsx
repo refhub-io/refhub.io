@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback, type RefObject } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, type RefObject } from 'react';
 import { logger } from '@/lib/logger';
-import { Publication, Vault, Tag, PUBLICATION_TYPES } from '@/types/database';
+import { Publication, PublicationRelation, Vault, Tag, PUBLICATION_TYPES } from '@/types/database';
 import { UnsavedChangesDialog } from '@/components/ui/unsaved-changes-dialog';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 import { useHotkeys } from '@/hooks/useKeyboardNavigation';
@@ -32,8 +32,12 @@ import { ReadingProgressControl, ImportantToggle } from './ReadingStateControl';
 import { HierarchicalTagSelector } from '@/components/tags/HierarchicalTagSelector';
 import { usePublicationRelations } from '@/hooks/usePublicationRelations';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
 import { uploadPublicationDrivePdf, uploadVaultPublicationDrivePdf } from '@/lib/pdfUpload';
 import { fetchGoogleDriveStatus, GoogleDriveStatus } from '@/lib/googleDrive';
+import { fetchCitationGraph, buildSuggestionsFromCitationGraph, findRelationshipSuggestions, RelationshipSuggestion, CitationGraph } from '@/lib/relationshipSuggestions';
+import { suggestionKey } from './RelationshipSuggestionsList';
+import { formatSemanticScholarErrorMessage } from '@/lib/semanticScholar';
 
 
 function getValidHttpUrl(value: string | null | undefined): string | null {
@@ -105,6 +109,72 @@ export function PublicationDialog({
     addRelation,
     removeRelation,
   } = usePublicationRelations(publication?.id || null, user?.id || null);
+  const { toast } = useToast();
+  const [relationshipSuggestions, setRelationshipSuggestions] = useState<RelationshipSuggestion[]>([]);
+  const [checkingRelationships, setCheckingRelationships] = useState(false);
+  const [approvingSuggestionKey, setApprovingSuggestionKey] = useState<string | null>(null);
+
+  // usePublicationRelations exposes `relations` as the *joined* related-publication
+  // rows (RelatedPublication[] — the other paper's own fields plus relation_type/
+  // relation_id), not the raw publication_relations junction rows that
+  // findRelationshipSuggestions' dedup logic expects. Reconstruct the junction-row
+  // shape here; direction doesn't matter for that dedup check (it's symmetric).
+  const existingRelationsForSuggestions = useMemo<PublicationRelation[]>(() => {
+    if (!publication?.id) return [];
+    return relations.map((rel) => ({
+      id: rel.relation_id,
+      publication_id: publication.id as string,
+      related_publication_id: rel.id,
+      relation_type: rel.relation_type,
+      created_at: rel.created_at,
+      created_by: rel.user_id,
+    }));
+  }, [relations, publication?.id]);
+
+  const handleCheckRelationships = useCallback(async () => {
+    if (!publication?.id || !publication.doi) return;
+    setCheckingRelationships(true);
+    try {
+      const found = await findRelationshipSuggestions(
+        { id: publication.id, doi: publication.doi, title: publication.title },
+        vaultPublications || allPublications,
+        existingRelationsForSuggestions,
+      );
+      setRelationshipSuggestions((prev) => {
+        const existingKeys = new Set(prev.map(suggestionKey));
+        return [...prev, ...found.filter((s) => !existingKeys.has(suggestionKey(s)))];
+      });
+    } catch (error) {
+      toast({
+        title: 'Could not check for relationships',
+        description: formatSemanticScholarErrorMessage(error),
+        variant: 'destructive', feedbackSeverity: 'error',
+      });
+    } finally {
+      setCheckingRelationships(false);
+    }
+  }, [publication, vaultPublications, allPublications, existingRelationsForSuggestions, toast]);
+
+  const handleApproveSuggestion = useCallback(async (suggestion: RelationshipSuggestion) => {
+    if (!publication?.id) return;
+    setApprovingSuggestionKey(suggestionKey(suggestion));
+    try {
+      const isCurrentSource = suggestion.sourcePublicationId === publication.id;
+      const otherId = isCurrentSource ? suggestion.targetPublicationId : suggestion.sourcePublicationId;
+      const direction = isCurrentSource ? 'outgoing' : 'incoming';
+      const success = await addRelation(otherId, 'cites', direction);
+      if (success) {
+        setRelationshipSuggestions((prev) => prev.filter((s) => suggestionKey(s) !== suggestionKey(suggestion)));
+      }
+    } finally {
+      setApprovingSuggestionKey(null);
+    }
+  }, [publication, addRelation]);
+
+  const handleDismissSuggestion = useCallback((suggestion: RelationshipSuggestion) => {
+    setRelationshipSuggestions((prev) => prev.filter((s) => suggestionKey(s) !== suggestionKey(suggestion)));
+  }, []);
+
   const [formData, setFormData] = useState<Partial<Publication>>({
     title: '',
     authors: [],
@@ -152,6 +222,7 @@ export function PublicationDialog({
   const [, setTick] = useState(0); // Force re-render for relative time display
   const [duplicateWarning, setDuplicateWarning] = useState<Publication | null>(null);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const [showPendingSuggestionsDialog, setShowPendingSuggestionsDialog] = useState(false);
   const [pendingClose, setPendingClose] = useState(false);
   const [pendingExitFullscreen, setPendingExitFullscreen] = useState(false);
   const [drivePdfInput, setDrivePdfInput] = useState<string>(driveUrl ?? '');
@@ -472,6 +543,15 @@ export function PublicationDialog({
     // This allows realtime sync to work properly for the new publication
     setModifiedFields(new Set());
 
+    // Defense-in-depth: clear any stale relationship-suggestion state from a
+    // previously-viewed publication so it can never leak across publications.
+    setRelationshipSuggestions([]);
+    setPendingCitationGraph(null);
+    setCheckingRelationships(false);
+    setApprovingSuggestionKey(null);
+    setShowPendingSuggestionsDialog(false);
+    lastCheckedDoiRef.current = null;
+
     if (publication) {
       setFormData({
         id: publication.id, // Include id for realtime sync tracking
@@ -555,6 +635,55 @@ export function PublicationDialog({
       setSelectedTags([]);
     }
   }, [publication, publicationTags, open, currentVaultId]);
+
+  const [pendingCitationGraph, setPendingCitationGraph] = useState<CitationGraph | null>(null);
+  const lastCheckedDoiRef = useRef<string | null>(null);
+
+  // Entry point 2: start the citation-graph fetch the moment a DOI is known
+  // for a paper that doesn't exist yet, instead of waiting until after save
+  // — the network round trip gets a head start while the rest of the form
+  // is still being filled in. Only the fetch runs here; matching it against
+  // the vault (which needs a real publication id) happens once the paper is
+  // actually saved, in the effect below.
+  useEffect(() => {
+    if (publication) return; // only for genuinely new publications
+    const doi = formData.doi?.trim();
+    if (!doi || doi === lastCheckedDoiRef.current) return;
+
+    lastCheckedDoiRef.current = doi;
+    setCheckingRelationships(true);
+    fetchCitationGraph(doi)
+      .then((graph) => {
+        if (graph) setPendingCitationGraph(graph);
+      })
+      .catch(() => {
+        // Best-effort — a failed early check just means no suggestions after
+        // save; the user can still use the manual "check_relationships" button.
+      })
+      .finally(() => setCheckingRelationships(false));
+  }, [formData.doi, publication]);
+
+  // Once the new publication has been saved (publication now has a real id)
+  // and an early fetch already completed, build suggestions from it without
+  // a second network round trip, then clear it — it's now consumed.
+  useEffect(() => {
+    if (!publication?.id || !pendingCitationGraph) return;
+    const built = buildSuggestionsFromCitationGraph(
+      { id: publication.id, title: publication.title },
+      pendingCitationGraph,
+      vaultPublications || allPublications,
+      // existingRelationsForSuggestions, not `relations` — buildSuggestionsFromCitationGraph
+      // expects raw PublicationRelation[] junction rows, while `relations` from
+      // usePublicationRelations is the joined RelatedPublication[] shape (see the
+      // comment on existingRelationsForSuggestions above).
+      existingRelationsForSuggestions,
+    );
+    setRelationshipSuggestions((prev) => {
+      const existingKeys = new Set(prev.map(suggestionKey));
+      return [...prev, ...built.filter((s) => !existingKeys.has(suggestionKey(s)))];
+    });
+    setPendingCitationGraph(null);
+  }, [publication, pendingCitationGraph, allPublications, vaultPublications, existingRelationsForSuggestions]);
 
   // Track which fields have been modified by the user
   const [modifiedFields, setModifiedFields] = useState<Set<string>>(new Set());
@@ -710,7 +839,11 @@ export function PublicationDialog({
       setModifiedFields(new Set()); // Clear dirty state
       setLastSavedAt(new Date());
       if (closeOnSave) {
-        onOpenChange(false);
+        if (relationshipSuggestions.length > 0) {
+          setShowPendingSuggestionsDialog(true);
+        } else {
+          onOpenChange(false);
+        }
       }
     } finally {
       setSaving(false);
@@ -736,10 +869,12 @@ export function PublicationDialog({
     if (modifiedFields.size > 0) {
       setPendingClose(true);
       setShowUnsavedDialog(true);
+    } else if (relationshipSuggestions.length > 0) {
+      setShowPendingSuggestionsDialog(true);
     } else {
       onOpenChange(false);
     }
-  }, [modifiedFields.size, onOpenChange, notesFullscreen]);
+  }, [modifiedFields.size, relationshipSuggestions.length, onOpenChange, notesFullscreen]);
 
   // Handle discard changes
   const handleDiscardChanges = useCallback(() => {
@@ -759,9 +894,13 @@ export function PublicationDialog({
     } else {
       setModifiedFields(new Set());
       setPendingClose(false);
-      onOpenChange(false);
+      if (relationshipSuggestions.length > 0) {
+        setShowPendingSuggestionsDialog(true);
+      } else {
+        onOpenChange(false);
+      }
     }
-  }, [onOpenChange, pendingExitFullscreen]);
+  }, [onOpenChange, pendingExitFullscreen, relationshipSuggestions.length]);
 
   // Handle save and close
   const handleSaveAndClose = useCallback(async () => {
@@ -794,14 +933,18 @@ export function PublicationDialog({
         setNotesFullscreen(false);
       } else {
         setPendingClose(false);
-        onOpenChange(false);
+        if (relationshipSuggestions.length > 0) {
+          setShowPendingSuggestionsDialog(true);
+        } else {
+          onOpenChange(false);
+        }
       }
     } catch (error) {
       // Keep dialog open on error
     } finally {
       setSaving(false);
     }
-  }, [authorsInput, editorInput, keywordsInput, formData, selectedTags, selectedVaultIds, publication, onSave, onOpenChange, pendingExitFullscreen, drivePdfInput, notesFullscreen]);
+  }, [authorsInput, editorInput, keywordsInput, formData, selectedTags, selectedVaultIds, publication, onSave, onOpenChange, pendingExitFullscreen, drivePdfInput, notesFullscreen, relationshipSuggestions.length]);
 
   const toggleTag = (tagId: string) => {
     setSelectedTags(
@@ -826,7 +969,19 @@ export function PublicationDialog({
         title="Unsaved Changes"
         description="You have unsaved changes to this paper. Would you like to save them before closing?"
       />
-      
+
+      <UnsavedChangesDialog
+        open={showPendingSuggestionsDialog}
+        title="Pending Relationship Suggestions"
+        description={`You have ${relationshipSuggestions.length} unreviewed relationship suggestion${relationshipSuggestions.length === 1 ? '' : 's'} for this paper. Review them now, or discard?`}
+        onDiscard={() => {
+          setRelationshipSuggestions([]);
+          setShowPendingSuggestionsDialog(false);
+          onOpenChange(false);
+        }}
+        onCancel={() => setShowPendingSuggestionsDialog(false)}
+      />
+
       {/* Fullscreen Notes Editor - rendered instead of dialog when active */}
       {notesFullscreen && open && (
         <div className="fixed inset-0 bg-background z-50">
@@ -1748,6 +1903,12 @@ export function PublicationDialog({
                 loading={relationsLoading}
                 onAddRelation={addRelation}
                 onRemoveRelation={removeRelation}
+                suggestions={relationshipSuggestions}
+                checkingRelationships={checkingRelationships}
+                approvingSuggestionKey={approvingSuggestionKey}
+                onCheckRelationships={handleCheckRelationships}
+                onApproveSuggestion={handleApproveSuggestion}
+                onDismissSuggestion={handleDismissSuggestion}
               />
             )}
 

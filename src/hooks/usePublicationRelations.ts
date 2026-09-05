@@ -109,7 +109,7 @@ export function usePublicationRelations(publicationId: string | null, userId: st
     fetchRelations();
   }, [fetchRelations]);
 
-  const addRelation = async (relatedPublicationId: string, relationType: string) => {
+  const addRelation = async (relatedPublicationId: string, relationType: string, direction: 'outgoing' | 'incoming' = 'outgoing') => {
     if (!publicationId || !userId) {
       warn('usePublicationRelations', 'addRelation called without publicationId or userId', { publicationId, userId });
       return false;
@@ -126,13 +126,13 @@ export function usePublicationRelations(publicationId: string | null, userId: st
         return false;
       }
 
-      // Use vault_publications IDs directly — the FKs now reference vault_publications
-      const payload = {
-        publication_id: publicationId,
-        related_publication_id: relatedPublicationId,
-        relation_type: relationType,
-        created_by: userId,
-      };
+      // Use vault_publications IDs directly — the FKs now reference vault_publications.
+      // direction lets a caller say the OTHER paper is the citer (relationship
+      // suggestions discovered via this paper's citations, not its references) —
+      // every existing call site omits it and keeps today's outgoing-only behavior.
+      const payload = direction === 'outgoing'
+        ? { publication_id: publicationId, related_publication_id: relatedPublicationId, relation_type: relationType, created_by: userId }
+        : { publication_id: relatedPublicationId, related_publication_id: publicationId, relation_type: relationType, created_by: userId };
 
       debug('usePublicationRelations', 'Inserting relation', { payload, userId });
 
