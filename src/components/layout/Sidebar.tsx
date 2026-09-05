@@ -20,7 +20,8 @@ import {
   Share2,
   GripVertical,
   Sparkles,
-  Archive
+  Archive,
+  Inbox as InboxIcon
 } from 'lucide-react';
 import { SortableContext, verticalListSortingStrategy, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { DndContext, DragOverlay, PointerSensor, KeyboardSensor, useSensor, useSensors, DragStartEvent, DragEndEvent } from '@dnd-kit/core';
@@ -129,6 +130,7 @@ export function Sidebar({
 
   const isCodexActive = location.pathname === '/codex';
   const isUsersActive = location.pathname === '/users';
+  const isInboxActive = location.pathname === '/inbox';
   const isCollectionsActive = location.pathname.startsWith('/collections');
   // Dashboard is active when on /dashboard or on / without a vault selected
   const isDashboardActive = location.pathname === '/dashboard' || (location.pathname === '/' && !activeVaultId);
@@ -330,6 +332,27 @@ export function Sidebar({
               <Zap className={cn("w-4 h-4", isDashboardActive && !isCodexActive && !isUsersActive ? "text-emerald-400" : "text-emerald-500")} />
             </div>
             <span className="font-mono">all_papers</span>
+          </Link>
+
+          <Link
+            to="/inbox"
+            onClick={onMobileClose}
+            className={cn(
+              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border-2",
+              isInboxActive
+                ? "bg-gradient-to-br from-sky-500/10 to-cyan-500/10 text-sky-500 border-sky-500/30"
+                : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 border-transparent"
+            )}
+          >
+            <div className={cn(
+              "w-8 h-8 rounded-lg flex items-center justify-center",
+              isInboxActive
+                ? "bg-gradient-to-br from-sky-500/30 to-cyan-500/30"
+                : "bg-gradient-to-br from-sky-500/20 to-cyan-500/20"
+            )}>
+              <InboxIcon className={cn("w-4 h-4", isInboxActive ? "text-sky-400" : "text-sky-500")} />
+            </div>
+            <span className="font-mono">inbox</span>
           </Link>
 
           <Link
