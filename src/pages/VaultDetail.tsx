@@ -13,6 +13,7 @@ import { generateBibtexKey } from '@/lib/bibtex';
 import { formatTimeAgo } from '@/lib/utils';
 import { logger } from '@/lib/logger';
 import { hasPageCache, clearPageCache } from '@/lib/pageCache';
+import { fetchAllRows } from '@/lib/fetchAllRows';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationDialog } from '@/components/publications/PublicationDialog';
@@ -309,24 +310,35 @@ export default function VaultDetail() {
     if (!user) return;
 
     try {
+      // .order('id') is a tiebreaker: .range() pagination isn't stable
+      // across pages without a fully deterministic sort, and created_at
+      // alone can tie between rows.
       const [pubsRes, vaultPubsRes] = await Promise.all([
-        supabase
-          .from('publications')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('vault_publications')
-          .select('*')
-          .order('created_at', { ascending: false })
+        fetchAllRows<Publication>((from, to) =>
+          supabase
+            .from('publications')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .order('id')
+            .range(from, to)
+        ),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        fetchAllRows<any>((from, to) =>
+          supabase
+            .from('vault_publications')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .order('id')
+            .range(from, to)
+        ),
       ]);
 
       if (pubsRes.error) throw pubsRes.error;
       if (vaultPubsRes.error) throw vaultPubsRes.error;
 
-      const publications = pubsRes.data as Publication[];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const vaultPublications = vaultPubsRes.data as any[];
+      const publications = pubsRes.data;
+      const vaultPublications = vaultPubsRes.data;
 
       setAllPublications(publications);
 

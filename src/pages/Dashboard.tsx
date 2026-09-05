@@ -25,6 +25,7 @@ import { PhaseLoader, LoadingPhase } from '@/components/ui/loading';
 import { useToast } from '@/hooks/use-toast';
 import { Sparkles } from 'lucide-react';
 import { getPageCache, setPageCache, hasPageCache, clearPageCache } from '@/lib/pageCache';
+import { fetchAllRows } from '@/lib/fetchAllRows';
 import { buildVaultPublicationCopyPayload } from '@/lib/vaultPublicationAttribution';
 import {
   fetchSemanticScholarMetadataByDoi,
@@ -288,15 +289,27 @@ export default function Dashboard() {
       // Fetch owned vaults, shared vaults, and other data
       setPdfAssetsLoading(true);
       const [pubsRes, ownedVaultsRes, sharedVaultsRes, vaultPubsRes, relationsRes, pdfAssetsRes] = await Promise.all([
-        supabase.from('publications').select('*').order('created_at', { ascending: false }),
+        // PostgREST caps an unpaginated select at 1000 rows by default (no
+        // db-max-rows override in this repo) — a library past that many
+        // papers would silently lose everything beyond the first page.
+        // .order('id') is a tiebreaker: .range() pagination isn't stable
+        // across pages without a fully deterministic sort, and created_at
+        // alone can tie between rows.
+        fetchAllRows<Publication>((from, to) =>
+          supabase.from('publications').select('*').order('created_at', { ascending: false }).order('id').range(from, to)
+        ),
         supabase.from('vaults').select('*').eq('user_id', user.id).order('name'),
         // Fetch vaults shared with current user (via email or user_id)
         supabase
           .from('vault_shares')
           .select('vault_id, role')
           .or(`shared_with_email.eq.${user.email},shared_with_user_id.eq.${user.id}`),
-        supabase.from('vault_publications').select('*').order('created_at', { ascending: false }),
-        supabase.from('publication_relations').select('*'),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        fetchAllRows<any>((from, to) =>
+          supabase.from('vault_publications').select('*').order('created_at', { ascending: false }).order('id').range(from, to)
+        ),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        fetchAllRows<any>((from, to) => supabase.from('publication_relations').select('*').order('id').range(from, to)),
         supabase
           .from('publication_pdf_assets')
           .select('publication_id, vault_publication_id, stored_pdf_url')
@@ -465,8 +478,15 @@ export default function Dashboard() {
       setLoading(false);
       setIsInitialLoad(false);
     }
+  // Depend on user?.id, not the user object itself — Supabase's
+  // onAuthStateChange fires with a new `user` object of the same id on every
+  // token refresh, and depending on the object reference meant a transient
+  // failure during session restoration never got a real retry once the
+  // session settled, since the object reference had no reason to change
+  // again. Same fix already applied in useAllPublications.ts and
+  // VaultDetail.tsx's fetchAllPublications.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, isInitialLoad, updatePhase]);
+  }, [user?.id, isInitialLoad, updatePhase]);
 
   // Restore from cache on mount if available (for instant navigation)
   useEffect(() => {
@@ -490,7 +510,7 @@ export default function Dashboard() {
       // Always fetch fresh data (will update silently if we have cache)
       fetchData();
     }
-  }, [user, fetchData]);
+  }, [user, user?.id, fetchData]);
 
   // Open vault settings if URL contains openVault param (e.g., from a notification)
   useEffect(() => {
