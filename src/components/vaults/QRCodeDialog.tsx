@@ -22,6 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Vault } from '@/types/database';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import { LoadingSpinner } from '@/components/ui/loading';
 
 const CUSTOM_QR_ENDPOINT = 'https://refhub-qr.netlify.app/api/generate-qr';
 const CUSTOM_QR_FREEDOM = 0;

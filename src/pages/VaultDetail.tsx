@@ -1306,16 +1306,23 @@ export default function VaultDetail() {
     if (!archiveVaultConfirmation || !isOwner) return; // Only allow archiving if user is the owner
 
     try {
-      const { error } = await supabase
+      const { data: archivedVault, error } = await supabase
         .from('vaults')
         .update({ archived_at: new Date().toISOString() })
-        .eq('id', archiveVaultConfirmation.id);
+        .eq('id', archiveVaultConfirmation.id)
+        .select()
+        .single();
 
       if (error) throw error;
 
-      // useVaultAccess's realtime subscription refreshes this page's own view of
-      // the vault automatically, but the sidebar's vault list is a separate
-      // react-query cache that needs its own invalidation.
+      // useVaultAccess's realtime subscription refreshes this page's own
+      // `vault`/`isArchived` automatically, but `currentVault` in
+      // VaultContentContext (which QRCodeDialog and other content-area
+      // consumers read) is separate state with its own fetch lifecycle --
+      // it doesn't pick up the change on its own.
+      updateCurrentVault(archivedVault as Vault);
+      // The sidebar's vault list is yet another (react-query) cache that
+      // needs its own invalidation.
       void invalidateVaults();
       toast({
         title: 'Vault archived',
