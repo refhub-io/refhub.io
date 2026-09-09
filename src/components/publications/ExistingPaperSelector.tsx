@@ -84,21 +84,22 @@ export function ExistingPaperSelector({
     loadPublicationVaults();
   }, [publications]);
 
-  // Filter publications based on search - show all if no query
+  // Filter publications based on search - show all if no query. No cap here:
+  // this used to slice(0, 20) unconditionally regardless of the comment
+  // above it, which meant scrolling the (already-working) ScrollArea could
+  // never reveal a library's 21st+ paper -- a plain array filter over a
+  // few hundred publications is well within a single render's budget, no
+  // virtualization needed at that scale.
   const filteredPublications = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
-    
-    let results = publications;
-    
-    if (query) {
-      results = publications.filter((pub) => {
-        const titleMatch = pub.title.toLowerCase().includes(query);
-        const authorMatch = pub.authors?.some(a => a.toLowerCase().includes(query));
-        return titleMatch || authorMatch;
-      });
-    }
-    
-    return results.slice(0, 20); // Limit results for performance
+
+    if (!query) return publications;
+
+    return publications.filter((pub) => {
+      const titleMatch = pub.title.toLowerCase().includes(query);
+      const authorMatch = pub.authors?.some(a => a.toLowerCase().includes(query));
+      return titleMatch || authorMatch;
+    });
   }, [publications, searchQuery]);
 
   const handleSelectPublication = (pub: Publication) => {
