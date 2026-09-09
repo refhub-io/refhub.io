@@ -454,9 +454,15 @@ export function AddImportDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+        {/* A bounded flex column, not a scroller itself — the dialog header
+            above and (inside each branch below) the tab switcher/search bar
+            stay fixed, while only the actual content area scrolls. Each
+            branch below is responsible for its own overflow: the library
+            tab's own ScrollArea handles its list, everything else gets a
+            plain overflow-y-auto on its TabsContent. */}
+        <div className="flex-1 min-h-0 overflow-x-hidden flex flex-col">
           {relCheckVaultName ? (
-            <div className="p-4 sm:p-6 space-y-4">
+            <div className="p-4 sm:p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               <div className="space-y-2">
                 <Label className="font-semibold font-mono">check_relationships</Label>
                 <p className="text-xs text-muted-foreground font-mono">
@@ -497,11 +503,11 @@ export function AddImportDialog({
             </div>
           ) : (
           <>
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FlowTab)} className="p-4 sm:p-6 pt-4 overflow-x-hidden">
-            <div className="mb-4">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FlowTab)} className="p-4 sm:p-6 pt-4 overflow-x-hidden flex-1 min-h-0 flex flex-col">
+            <div className="mb-4 shrink-0">
               <BrowserExtensionInstallCard />
             </div>
-            <TabsList className="grid w-full grid-cols-4 mb-4">
+            <TabsList className="grid w-full grid-cols-4 mb-4 shrink-0">
               <TooltipProvider delayDuration={200}>
                 <Tooltip><TooltipTrigger asChild>
                   <TabsTrigger value="library" className={cn("gap-2 text-xs sm:text-sm font-mono", activeTab === 'library' && "bg-primary text-primary-foreground shadow-md")}>
@@ -531,7 +537,7 @@ export function AddImportDialog({
             </TabsList>
 
             {/* ─── Library tab ───────────────────────────────────── */}
-            <TabsContent value="library" className="space-y-4">
+            <TabsContent value="library" className="space-y-4 flex-1 min-h-0 overflow-hidden flex flex-col">
               <ExistingPaperSelector
                 publications={allPublications}
                 vaults={vaults}
@@ -545,7 +551,7 @@ export function AddImportDialog({
             </TabsContent>
 
             {/* ─── DOI tab ───────────────────────────────────────── */}
-            <TabsContent value="doi" className="space-y-4 min-w-0">
+            <TabsContent value="doi" className="space-y-4 min-w-0 flex-1 min-h-0 overflow-y-auto">
               <div className="space-y-2 min-w-0">
                 <Label className="font-semibold font-mono">enter_doi</Label>
                 <div ref={doiLookupRef} className="flex w-full flex-col gap-2">
@@ -567,7 +573,7 @@ export function AddImportDialog({
             </TabsContent>
 
             {/* ─── BibTeX tab ────────────────────────────────────── */}
-            <TabsContent value="bibtex" className="space-y-4 min-w-0">
+            <TabsContent value="bibtex" className="space-y-4 min-w-0 flex-1 min-h-0 overflow-y-auto">
               <div className="space-y-2 min-w-0">
                 <div className="flex items-center justify-between gap-2">
                   <Label className="font-semibold font-mono">bibtex_content</Label>
@@ -590,7 +596,7 @@ export function AddImportDialog({
             </TabsContent>
 
             {/* ─── Manual entry tab ──────────────────────────────── */}
-            <TabsContent value="manual" className="space-y-4 min-w-0">
+            <TabsContent value="manual" className="space-y-4 min-w-0 flex-1 min-h-0 overflow-y-auto">
               <div className="grid gap-4">
                 {/* Title */}
                 <div className="space-y-2">
