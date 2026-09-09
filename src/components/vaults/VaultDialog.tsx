@@ -39,6 +39,7 @@ import type { SemanticScholarQueueProgress } from '@/lib/semanticScholar';
 import type { PublicationRelation } from '@/types/database';
 import { showError } from '@/lib/toast';
 import { formatVaultPublication } from '@/lib/formatVaultPublication';
+import { fetchAllRows } from '@/lib/fetchAllRows';
 
 type VaultVisibility = 'private' | 'protected' | 'public';
 
@@ -386,18 +387,25 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   // safe to show regardless of which page renders VaultDialog, and immune to
   // the caller passing (or not passing) publications data for a different vault.
   const fetchVaultRelationshipData = useCallback(async (vaultId: string) => {
-    const { data: vaultPubs, error: vaultPubsError } = await supabase
-      .from('vault_publications')
-      .select('*')
-      .eq('vault_id', vaultId);
+    // .order('id') is a tiebreaker: .range() pagination isn't stable across
+    // pages without a fully deterministic sort, and created_at alone can tie.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: vaultPubs, error: vaultPubsError } = await fetchAllRows<any>((from, to) =>
+      supabase
+        .from('vault_publications')
+        .select('*')
+        .eq('vault_id', vaultId)
+        .order('created_at', { ascending: false })
+        .order('id')
+        .range(from, to)
+    );
 
     if (vaultPubsError) {
       logger.error('VaultDialog', 'fetchVaultRelationshipData: vault_publications fetch failed', vaultPubsError);
       return;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rows = (vaultPubs || []) as any[];
+    const rows = vaultPubs;
     setVaultPublications(rows.map(formatVaultPublication));
 
     const idsSet = new Set<string>([
@@ -405,9 +413,14 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       ...rows.map((vp) => vp.original_publication_id).filter(Boolean),
     ]);
 
-    const { data: allRelations, error: relationsError } = await supabase
-      .from('publication_relations')
-      .select('*');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: allRelations, error: relationsError } = await fetchAllRows<any>((from, to) =>
+      supabase
+        .from('publication_relations')
+        .select('*')
+        .order('id')
+        .range(from, to)
+    );
 
     if (relationsError) {
       logger.error('VaultDialog', 'fetchVaultRelationshipData: publication_relations fetch failed', relationsError);
@@ -705,15 +718,16 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
         force ? { skipRecentMs: 0 } : undefined,
       );
       setLastScanFailedCount(finalProgress ? finalProgress.failed + finalProgress.rateLimited : 0);
-      let newCount = 0;
-      let hadExistingSuggestions = false;
-      setRelationshipSuggestions((prev) => {
-        hadExistingSuggestions = prev.length > 0;
-        const existingKeys = new Set(prev.map(suggestionKey));
-        const added = result.suggestions.filter((s) => !existingKeys.has(suggestionKey(s)));
-        newCount = added.length;
-        return [...prev, ...added];
-      });
+      // Computed against the synchronously-known `relationshipSuggestions` closure
+      // value rather than mutated from inside the setState updater below: React
+      // doesn't guarantee that updater function runs before this line (it may run
+      // during a later render), so reading newCount/hadExistingSuggestions right
+      // after dispatching the update was reading stale (always-initial) values.
+      const hadExistingSuggestions = relationshipSuggestions.length > 0;
+      const existingKeys = new Set(relationshipSuggestions.map(suggestionKey));
+      const added = result.suggestions.filter((s) => !existingKeys.has(suggestionKey(s)));
+      const newCount = added.length;
+      setRelationshipSuggestions((prev) => [...prev, ...added]);
       // Only meaningful to offer bypassing the skip-cache when this scan
       // actually skipped something — a force-rescan (skipRecentMs: 0) can
       // never itself have a nonzero skippedCount, so this self-clears once

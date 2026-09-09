@@ -10,7 +10,20 @@ import { VaultDialog } from '../VaultDialog';
 // caller-supplied prop — see the fix for the vault-scoping bug. `mockState.vaultPublicationRows`
 // is what the mocked `vault_publications` query resolves to; tests that exercise the
 // "relationships" tab gating override it directly, everything else gets the shared default.
-const { mockState, defaultVaultPublicationRows } = vi.hoisted(() => {
+const { mockState, defaultVaultPublicationRows, makePagedChain } = vi.hoisted(() => {
+  // VaultDialog pages both queries via fetchAllRows(), which chains
+  // .select()/.eq()/.order()/.order()/.range() and awaits the final link —
+  // every method but the terminal .range() must stay chainable. Takes a
+  // thunk (not a plain array) so it re-reads mockState on every call,
+  // matching the dynamic override pattern the "relationships" tab tests use.
+  const makePagedChain = (getData: () => unknown[]) => {
+    const chain: Record<string, ReturnType<typeof vi.fn>> = {};
+    for (const method of ['select', 'eq', 'order']) {
+      chain[method] = vi.fn().mockReturnValue(chain);
+    }
+    chain.range = vi.fn(() => Promise.resolve({ data: getData(), error: null }));
+    return chain;
+  };
   const defaultVaultPublicationRows = [
     {
       id: 'pub-1',
@@ -43,6 +56,7 @@ const { mockState, defaultVaultPublicationRows } = vi.hoisted(() => {
   ];
   return {
     defaultVaultPublicationRows,
+    makePagedChain,
     mockState: { vaultPublicationRows: defaultVaultPublicationRows as unknown[] },
   };
 });
@@ -62,13 +76,10 @@ vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     from: vi.fn((table: string) => {
       if (table === 'vault_publications') {
-        return {
-          select: vi.fn().mockReturnThis(),
-          eq: vi.fn(() => Promise.resolve({ data: mockState.vaultPublicationRows, error: null })),
-        };
+        return makePagedChain(() => mockState.vaultPublicationRows);
       }
       if (table === 'publication_relations') {
-        return { select: vi.fn().mockResolvedValue({ data: [], error: null }) };
+        return makePagedChain(() => []);
       }
       return {
         select: vi.fn().mockReturnThis(),

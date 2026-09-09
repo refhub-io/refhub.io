@@ -10,7 +10,18 @@ import { VaultDialog } from '../VaultDialog';
 // trusting caller-supplied props — see the fix for the vault-scoping bug where opening vault
 // B's settings from a page displaying vault A scanned vault A's data. These raw DB-shape rows
 // are what the mocked `vault_publications` query below returns.
-const { mockVaultPublicationRows } = vi.hoisted(() => ({
+const { mockVaultPublicationRows, makePagedChain } = vi.hoisted(() => ({
+  // VaultDialog pages both queries via fetchAllRows(), which chains
+  // .select()/.eq()/.order()/.order()/.range() and awaits the final link —
+  // every method but the terminal .range() must stay chainable.
+  makePagedChain: (data: unknown[]) => {
+    const chain: Record<string, ReturnType<typeof vi.fn>> = {};
+    for (const method of ['select', 'eq', 'order']) {
+      chain[method] = vi.fn().mockReturnValue(chain);
+    }
+    chain.range = vi.fn().mockResolvedValue({ data, error: null });
+    return chain;
+  },
   mockVaultPublicationRows: [
     {
       id: 'pub-1',
@@ -55,13 +66,10 @@ vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     from: vi.fn((table: string) => {
       if (table === 'vault_publications') {
-        return {
-          select: vi.fn().mockReturnThis(),
-          eq: vi.fn().mockResolvedValue({ data: mockVaultPublicationRows, error: null }),
-        };
+        return makePagedChain(mockVaultPublicationRows);
       }
       if (table === 'publication_relations') {
-        return { select: vi.fn().mockResolvedValue({ data: [], error: null }) };
+        return makePagedChain([]);
       }
       return {
         select: vi.fn().mockReturnThis(),
