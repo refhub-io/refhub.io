@@ -132,12 +132,17 @@ export function PublicationDialog({
   }, [relations, publication?.id]);
 
   const handleCheckRelationships = useCallback(async () => {
-    if (!publication?.id || !publication.doi) return;
+    // publication_relations FKs reference vault_publications.id, not
+    // publications.id -- without a vault context (e.g. editing from
+    // Dashboard's cross-vault library view, which has no single "current
+    // vault"), there's no valid candidate set to check against or id space
+    // a resulting relation could actually be saved into.
+    if (!publication?.id || !publication.doi || !vaultPublications) return;
     setCheckingRelationships(true);
     try {
       const found = await findRelationshipSuggestions(
         { id: publication.id, doi: publication.doi, title: publication.title },
-        vaultPublications || allPublications,
+        vaultPublications,
         existingRelationsForSuggestions,
       );
       setRelationshipSuggestions((prev) => {
@@ -153,7 +158,7 @@ export function PublicationDialog({
     } finally {
       setCheckingRelationships(false);
     }
-  }, [publication, vaultPublications, allPublications, existingRelationsForSuggestions, toast]);
+  }, [publication, vaultPublications, existingRelationsForSuggestions, toast]);
 
   const handleApproveSuggestion = useCallback(async (suggestion: RelationshipSuggestion) => {
     if (!publication?.id) return;
@@ -667,11 +672,14 @@ export function PublicationDialog({
   // and an early fetch already completed, build suggestions from it without
   // a second network round trip, then clear it — it's now consumed.
   useEffect(() => {
-    if (!publication?.id || !pendingCitationGraph) return;
+    // Same vault-context requirement as handleCheckRelationships above --
+    // no vaultPublications means no valid candidate set or id space a
+    // resulting relation could be saved into.
+    if (!publication?.id || !pendingCitationGraph || !vaultPublications) return;
     const built = buildSuggestionsFromCitationGraph(
       { id: publication.id, title: publication.title },
       pendingCitationGraph,
-      vaultPublications || allPublications,
+      vaultPublications,
       // existingRelationsForSuggestions, not `relations` — buildSuggestionsFromCitationGraph
       // expects raw PublicationRelation[] junction rows, while `relations` from
       // usePublicationRelations is the joined RelatedPublication[] shape (see the
@@ -683,7 +691,7 @@ export function PublicationDialog({
       return [...prev, ...built.filter((s) => !existingKeys.has(suggestionKey(s)))];
     });
     setPendingCitationGraph(null);
-  }, [publication, pendingCitationGraph, allPublications, vaultPublications, existingRelationsForSuggestions]);
+  }, [publication, pendingCitationGraph, vaultPublications, existingRelationsForSuggestions]);
 
   // Track which fields have been modified by the user
   const [modifiedFields, setModifiedFields] = useState<Set<string>>(new Set());
@@ -1894,11 +1902,17 @@ export function PublicationDialog({
               />
             </div>
 
-            {/* Related Papers - only show when editing an existing publication */}
-            {publication && (
+            {/* Related Papers - only show when editing an existing publication
+                within a vault context. publication_relations FKs reference
+                vault_publications.id, not publications.id -- without
+                vaultPublications (e.g. Dashboard's cross-vault library view),
+                there's no valid candidate set, and any relation "saved" here
+                would reference an id that isn't actually a vault_publications
+                row. */}
+            {publication && vaultPublications && (
               <RelatedPapersSection
                 relations={relations}
-                allPublications={vaultPublications || allPublications}
+                allPublications={vaultPublications}
                 currentPublicationId={publication.id}
                 loading={relationsLoading}
                 onAddRelation={addRelation}

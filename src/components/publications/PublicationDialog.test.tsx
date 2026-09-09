@@ -152,6 +152,7 @@ describe('PublicationDialog pending-suggestions close guard', () => {
       onOpenChange,
       publication: existingPublicationWithSuggestions,
       allPublications: [existingPublicationWithSuggestions],
+      vaultPublications: [existingPublicationWithSuggestions],
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'check_relationships' }));
@@ -191,6 +192,7 @@ describe('PublicationDialog pending-suggestions close guard', () => {
     renderDialogWithProps({
       publication: existingPublicationWithSuggestions,
       allPublications: [existingPublicationWithSuggestions],
+      vaultPublications: [existingPublicationWithSuggestions],
       ...overrides,
     });
 
@@ -264,6 +266,7 @@ describe('PublicationDialog defensive reset on publication switch (Critical 2)',
           onOpenChange={onOpenChange}
           publication={existingPublicationWithSuggestions}
           allPublications={[existingPublicationWithSuggestions]}
+          vaultPublications={[existingPublicationWithSuggestions]}
         />
       </KeyboardProvider>,
     );
@@ -284,6 +287,7 @@ describe('PublicationDialog defensive reset on publication switch (Critical 2)',
           onOpenChange={onOpenChange}
           publication={otherPublication}
           allPublications={[otherPublication]}
+          vaultPublications={[otherPublication]}
         />
       </KeyboardProvider>,
     );
