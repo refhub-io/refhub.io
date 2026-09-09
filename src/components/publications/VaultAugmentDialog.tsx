@@ -14,6 +14,7 @@ import {
   runSemanticScholarQueue,
   searchPapersByTopic,
 } from '@/lib/semanticScholar';
+import { isAlreadyInVault } from '@/lib/publicationMatching';
 import {
   Dialog,
   DialogContent,
@@ -69,15 +70,6 @@ interface VaultAugmentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAddPaper: (paper: SSPaper, tab: AugmentTab, sourcePublicationIds: string[]) => Promise<void>;
-}
-
-function isAlreadyInVault(paper: SSPaper, vaultPublications: Publication[]): boolean {
-  if (paper.externalIds?.DOI) {
-    const doi = paper.externalIds.DOI.toLowerCase();
-    if (vaultPublications.some((p) => p.doi?.toLowerCase() === doi)) return true;
-  }
-  const titleLower = paper.title.toLowerCase().trim();
-  return vaultPublications.some((p) => p.title.toLowerCase().trim() === titleLower);
 }
 
 function formatAuthors(authors: { name: string }[]): string {
