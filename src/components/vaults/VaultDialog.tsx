@@ -413,11 +413,24 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       ...rows.map((vp) => vp.original_publication_id).filter(Boolean),
     ]);
 
+    if (idsSet.size === 0) {
+      setVaultRelations([]);
+      return;
+    }
+
+    // Filtered server-side to this vault's own publication ids, instead of
+    // paging the entire cross-vault publication_relations table and filtering
+    // client-side — that scan cost every relation in the account just to find
+    // the handful touching this vault, and only got worse once pagination
+    // (above) started actually fetching all of it instead of silently
+    // truncating at 1000 rows.
+    const idsList = Array.from(idsSet).join(',');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: allRelations, error: relationsError } = await fetchAllRows<any>((from, to) =>
       supabase
         .from('publication_relations')
         .select('*')
+        .or(`publication_id.in.(${idsList}),related_publication_id.in.(${idsList})`)
         .order('id')
         .range(from, to)
     );
@@ -427,6 +440,8 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       return;
     }
 
+    // Client-side filter kept as a defensive backstop against the server-side
+    // .or() scoping above, cheap since idsSet is already computed.
     setVaultRelations(
       (allRelations || []).filter(
         (rel) => idsSet.has(rel.publication_id) || idsSet.has(rel.related_publication_id),

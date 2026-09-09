@@ -18,7 +18,7 @@ const { mockState, defaultVaultPublicationRows, makePagedChain } = vi.hoisted(()
   // matching the dynamic override pattern the "relationships" tab tests use.
   const makePagedChain = (getData: () => unknown[]) => {
     const chain: Record<string, ReturnType<typeof vi.fn>> = {};
-    for (const method of ['select', 'eq', 'order']) {
+    for (const method of ['select', 'eq', 'order', 'or']) {
       chain[method] = vi.fn().mockReturnValue(chain);
     }
     chain.range = vi.fn(() => Promise.resolve({ data: getData(), error: null }));

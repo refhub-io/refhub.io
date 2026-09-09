@@ -16,7 +16,7 @@ const { mockVaultPublicationRows, makePagedChain } = vi.hoisted(() => ({
   // every method but the terminal .range() must stay chainable.
   makePagedChain: (data: unknown[]) => {
     const chain: Record<string, ReturnType<typeof vi.fn>> = {};
-    for (const method of ['select', 'eq', 'order']) {
+    for (const method of ['select', 'eq', 'order', 'or']) {
       chain[method] = vi.fn().mockReturnValue(chain);
     }
     chain.range = vi.fn().mockResolvedValue({ data, error: null });
