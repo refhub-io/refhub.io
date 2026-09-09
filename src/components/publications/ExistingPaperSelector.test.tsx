@@ -43,10 +43,11 @@ vi.mock('@/integrations/supabase/client', () => ({
             // Resolving the newly-created vault_publications copy's id.
             return { data: { id: 'new-copy-id' }, error: null };
           }
-          // Fetching the target vault's full publication list.
+          // Fetching the target vault's full publication list (scan, and
+          // the post-add copy-id resolution's own eventual re-fetch).
           return {
             data: [
-              { id: 'new-copy-id', title: 'Selected Paper', doi: '10.1/selected', created_by: 'user-1', authors: [] },
+              { id: 'existing-copy-id', title: 'Selected Paper', doi: '10.1/selected', created_by: 'user-1', authors: [] },
               { id: 'other-pub-id', title: 'Other Paper In Vault', doi: '10.1/other', created_by: 'user-1', authors: [] },
             ],
             error: null,
@@ -116,7 +117,7 @@ const mockVault: Vault = {
 };
 
 const mockSuggestion: RelationshipSuggestion = {
-  sourcePublicationId: 'new-copy-id',
+  sourcePublicationId: 'lib-pub-1',
   sourceTitle: 'Selected Paper',
   targetPublicationId: 'other-pub-id',
   targetTitle: 'Other Paper In Vault',
@@ -153,107 +154,113 @@ const selectPaperAndVault = async () => {
   fireEvent.click(await screen.findByText('Target Vault'));
 };
 
-describe('ExistingPaperSelector — relationship check after add (entry point 2)', () => {
+describe('ExistingPaperSelector — pre-add relationship scan (ephemeral, single vault)', () => {
   beforeEach(() => {
     mockFindRelationshipSuggestions.mockReset();
     mockInsert.mockReset();
     mockInsert.mockResolvedValue({ data: null, error: null });
   });
 
-  it('checks for relationships and shows a suggestion after adding a DOI-bearing paper', async () => {
-    mockFindRelationshipSuggestions.mockResolvedValue([mockSuggestion]);
-    const { onDone } = renderSelector();
-
+  it('shows a scan button once a DOI-bearing paper and exactly one vault are selected', async () => {
+    renderSelector();
     await selectPaperAndVault();
-    fireEvent.click(screen.getByRole('button', { name: /add_to_1_vault/i }));
 
-    expect(await screen.findByText(/checking "Target Vault" for citation relationships/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^scan$/i })).toBeInTheDocument();
+  });
 
-    await waitFor(() => {
-      expect(screen.getByText('Other Paper In Vault')).toBeInTheDocument();
-    });
+  it('scanning finds suggestions; approving stages them without writing to the DB yet', async () => {
+    mockFindRelationshipSuggestions.mockResolvedValue([mockSuggestion]);
+    renderSelector();
+    await selectPaperAndVault();
+
+    fireEvent.click(screen.getByRole('button', { name: /^scan$/i }));
+
+    await screen.findByText('Other Paper In Vault');
     expect(mockFindRelationshipSuggestions).toHaveBeenCalledWith(
-      { id: 'new-copy-id', doi: '10.1/selected', title: 'Selected Paper' },
+      { id: 'lib-pub-1', doi: '10.1/selected', title: 'Selected Paper' },
       expect.any(Array),
       [],
     );
-    expect(onDone).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole('button', { name: /done/i }));
-    expect(onDone).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'approve' }));
+
+    expect(mockInsert).not.toHaveBeenCalled();
+    expect(await screen.findByText(/1 staged/i)).toBeInTheDocument();
   });
 
-  it('approving a suggestion inserts a cites relation and removes it from the list', async () => {
+  it('committing a staged suggestion on add reconciles the placeholder id to the real vault copy id', async () => {
     mockFindRelationshipSuggestions.mockResolvedValue([mockSuggestion]);
-    renderSelector();
-
+    const { onDone } = renderSelector();
     await selectPaperAndVault();
+
+    fireEvent.click(screen.getByRole('button', { name: /^scan$/i }));
+    await screen.findByText('Other Paper In Vault');
+    fireEvent.click(screen.getByRole('button', { name: 'approve' }));
+
     fireEvent.click(screen.getByRole('button', { name: /add_to_1_vault/i }));
-    await waitFor(() => expect(screen.getByText('Other Paper In Vault')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: /approve/i }));
-
-    await waitFor(() => {
-      expect(mockInsert).toHaveBeenCalledWith({
+    await waitFor(() => expect(mockInsert).toHaveBeenCalledWith([
+      {
         publication_id: 'new-copy-id',
         related_publication_id: 'other-pub-id',
         relation_type: 'cites',
         created_by: 'user-1',
-      });
-    });
-    await waitFor(() => {
-      expect(screen.queryByText('Other Paper In Vault')).not.toBeInTheDocument();
-    });
-  });
-
-  it('shows a "no relationships found" message when the check finds nothing', async () => {
-    mockFindRelationshipSuggestions.mockResolvedValue([]);
-    renderSelector();
-
-    await selectPaperAndVault();
-    fireEvent.click(screen.getByRole('button', { name: /add_to_1_vault/i }));
-
-    expect(await screen.findByText(/no citation relationships found/i)).toBeInTheDocument();
-  });
-
-  it('closes immediately without checking when the added paper has no DOI', async () => {
-    const { onDone } = renderSelector({ doi: null });
-
-    await selectPaperAndVault();
-    fireEvent.click(screen.getByRole('button', { name: /add_to_1_vault/i }));
-
+      },
+    ]));
     await waitFor(() => expect(onDone).toHaveBeenCalled());
-    expect(mockFindRelationshipSuggestions).not.toHaveBeenCalled();
-    expect(screen.queryByText(/checking/i)).not.toBeInTheDocument();
   });
 
-  it('shows the search UI again after "done" is clicked, not the stale review screen — the host dialog keeps this component mounted across opens rather than remounting it', async () => {
+  it('dismissing a suggestion never stages or commits it', async () => {
     mockFindRelationshipSuggestions.mockResolvedValue([mockSuggestion]);
     renderSelector();
-
     await selectPaperAndVault();
+
+    fireEvent.click(screen.getByRole('button', { name: /^scan$/i }));
+    await screen.findByText('Other Paper In Vault');
+    fireEvent.click(screen.getByRole('button', { name: 'dismiss' }));
+
+    expect(screen.queryByText('Other Paper In Vault')).not.toBeInTheDocument();
+
     fireEvent.click(screen.getByRole('button', { name: /add_to_1_vault/i }));
-    await waitFor(() => expect(screen.getByText('Other Paper In Vault')).toBeInTheDocument());
+    await waitFor(() => expect(mockInsert).not.toHaveBeenCalled());
+  });
 
-    fireEvent.click(screen.getByRole('button', { name: /done/i }));
+  it('does not offer a scan when the selected paper has no DOI', async () => {
+    renderSelector({ doi: null });
+    await selectPaperAndVault();
 
-    expect(screen.getByText(/search your papers/i)).toBeInTheDocument();
-    expect(screen.queryByText(/checking "Target Vault"/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^scan$/i })).not.toBeInTheDocument();
+  });
+
+  it('resets scan/staged state when the host dialog closes via a non-add path (X/Escape/outside-click)', async () => {
+    mockFindRelationshipSuggestions.mockResolvedValue([mockSuggestion]);
+    const { setOpen } = renderSelector();
+    await selectPaperAndVault();
+    fireEvent.click(screen.getByRole('button', { name: /^scan$/i }));
+    await screen.findByText('Other Paper In Vault');
+    fireEvent.click(screen.getByRole('button', { name: 'approve' }));
+
+    // Simulate the host dialog closing through a path that skips "add"
+    // entirely (X button, Escape, outside click all just flip `open`).
+    // The paper/vault selection itself is a separate concern and correctly
+    // survives this — only the ephemeral scan state should clear.
+    setOpen(false);
+    setOpen(true);
+
+    expect(screen.queryByText(/staged/i)).not.toBeInTheDocument();
     expect(screen.queryByText('Other Paper In Vault')).not.toBeInTheDocument();
   });
 
-  it('resets the stale review screen when the host dialog closes via X/Escape/outside-click, not just "done"', async () => {
+  it('shows the search UI again after a successful add, not stale scan state', async () => {
     mockFindRelationshipSuggestions.mockResolvedValue([mockSuggestion]);
-    const { setOpen } = renderSelector();
-
+    const { onDone } = renderSelector();
     await selectPaperAndVault();
-    fireEvent.click(screen.getByRole('button', { name: /add_to_1_vault/i }));
-    await waitFor(() => expect(screen.getByText('Other Paper In Vault')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /^scan$/i }));
+    await screen.findByText('Other Paper In Vault');
+    fireEvent.click(screen.getByRole('button', { name: 'approve' }));
 
-    // Simulate the host dialog closing through a path that skips "done"
-    // entirely (X button, Escape, outside click all just flip `open`).
-    setOpen(false);
-    setOpen(true);
+    fireEvent.click(screen.getByRole('button', { name: /add_to_1_vault/i }));
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
 
     expect(screen.getByText(/search your papers/i)).toBeInTheDocument();
     expect(screen.queryByText('Other Paper In Vault')).not.toBeInTheDocument();

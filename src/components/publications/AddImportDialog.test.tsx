@@ -89,7 +89,7 @@ const mockVault: Vault = {
 };
 
 const mockSuggestion: RelationshipSuggestion = {
-  sourcePublicationId: 'new-copy-id',
+  sourcePublicationId: '__pending__:10.1/resolved',
   sourceTitle: 'Resolved Paper',
   targetPublicationId: 'other-pub-id',
   targetTitle: 'Other Paper In Vault',
@@ -121,74 +121,110 @@ const renderDialog = (onImport = vi.fn().mockResolvedValue(['canonical-pub-id'])
   return { onOpenChange, onImport, setOpen };
 };
 
-const lookupAndImportOneDoiPaper = async () => {
+const lookupOneDoiPaper = async () => {
   fireEvent.mouseDown(screen.getByRole('tab', { name: /doi/i }));
   fireEvent.change(screen.getByPlaceholderText(/10\.\d{4,9}|doi\.org/i), { target: { value: '10.1/resolved' } });
   fireEvent.click(screen.getByRole('button', { name: /^lookup$/i }));
   await screen.findByText('Resolved Paper');
-  fireEvent.click(screen.getByRole('button', { name: /import_1_paper/i }));
 };
 
-describe('AddImportDialog — relationship check after single-paper DOI import (entry point 2)', () => {
+describe('AddImportDialog — pre-import relationship scan (ephemeral, single paper + vault)', () => {
   beforeEach(() => {
     mockFindRelationshipSuggestions.mockReset();
     mockInsert.mockReset();
     mockInsert.mockResolvedValue({ data: null, error: null });
   });
 
-  it('checks for relationships after importing exactly one DOI-bearing paper into a vault', async () => {
+  it('shows a scan button once a single DOI-bearing paper is looked up with a target vault already chosen', async () => {
+    renderDialog();
+    await lookupOneDoiPaper();
+
+    expect(screen.getByRole('button', { name: /^scan$/i })).toBeInTheDocument();
+  });
+
+  it('scanning finds suggestions; approving stages them without writing to the DB yet', async () => {
     mockFindRelationshipSuggestions.mockResolvedValue([mockSuggestion]);
-    const { onOpenChange } = renderDialog();
+    renderDialog();
+    await lookupOneDoiPaper();
 
-    await lookupAndImportOneDoiPaper();
+    fireEvent.click(screen.getByRole('button', { name: /^scan$/i }));
 
-    expect(await screen.findByText(/checking "Target Vault" for citation relationships/i)).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText('Other Paper In Vault')).toBeInTheDocument());
+    await screen.findByText('Other Paper In Vault');
     expect(mockFindRelationshipSuggestions).toHaveBeenCalledWith(
-      { id: 'new-copy-id', doi: '10.1/resolved', title: 'Resolved Paper' },
+      { id: '__pending__:10.1/resolved', doi: '10.1/resolved', title: 'Resolved Paper' },
       expect.any(Array),
       [],
     );
-    expect(onOpenChange).not.toHaveBeenCalledWith(false);
 
-    fireEvent.click(screen.getByRole('button', { name: /done/i }));
-    expect(onOpenChange).toHaveBeenCalledWith(false);
+    fireEvent.click(screen.getByRole('button', { name: 'approve' }));
+
+    expect(mockInsert).not.toHaveBeenCalled();
+    expect(await screen.findByText(/1 staged/i)).toBeInTheDocument();
   });
 
-  it('closes immediately without checking when more than one paper is imported at once (never for a batch)', async () => {
+  it('committing a staged suggestion on import reconciles the placeholder id to the real vault copy id', async () => {
     mockFindRelationshipSuggestions.mockResolvedValue([mockSuggestion]);
-    const onImport = vi.fn().mockResolvedValue(['pub-a', 'pub-b']);
-    const { onOpenChange } = renderDialog(onImport);
+    const { onOpenChange } = renderDialog();
+    await lookupOneDoiPaper();
 
-    fireEvent.mouseDown(screen.getByRole('tab', { name: /doi/i }));
-    fireEvent.change(screen.getByPlaceholderText(/10\.\d{4,9}|doi\.org/i), { target: { value: '10.1/resolved' } });
-    fireEvent.click(screen.getByRole('button', { name: /^lookup$/i }));
-    await screen.findByText('Resolved Paper');
+    fireEvent.click(screen.getByRole('button', { name: /^scan$/i }));
+    await screen.findByText('Other Paper In Vault');
+    fireEvent.click(screen.getByRole('button', { name: 'approve' }));
+
+    fireEvent.click(screen.getByRole('button', { name: /import_1_paper/i }));
+
+    await waitFor(() => expect(mockInsert).toHaveBeenCalledWith([
+      {
+        publication_id: 'new-copy-id',
+        related_publication_id: 'other-pub-id',
+        relation_type: 'cites',
+        created_by: 'user-1',
+      },
+    ]));
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+  });
+
+  it('dismissing a suggestion never stages or commits it', async () => {
+    mockFindRelationshipSuggestions.mockResolvedValue([mockSuggestion]);
+    renderDialog();
+    await lookupOneDoiPaper();
+
+    fireEvent.click(screen.getByRole('button', { name: /^scan$/i }));
+    await screen.findByText('Other Paper In Vault');
+    fireEvent.click(screen.getByRole('button', { name: 'dismiss' }));
+
+    expect(screen.queryByText('Other Paper In Vault')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /import_1_paper/i }));
+    await waitFor(() => expect(mockInsert).not.toHaveBeenCalled());
+  });
+
+  it('does not offer a scan for a batch of more than one paper', async () => {
+    renderDialog();
+    await lookupOneDoiPaper();
     // Force a two-paper batch by re-resolving the same DOI a second time —
     // the preview list doesn't dedupe, so this queues a second entry.
     fireEvent.change(screen.getByPlaceholderText(/10\.\d{4,9}|doi\.org/i), { target: { value: '10.1/resolved' } });
     fireEvent.click(screen.getByRole('button', { name: /^lookup$/i }));
     await waitFor(() => expect(screen.getByRole('button', { name: /import_2_papers/i })).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: /import_2_papers/i }));
 
-    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
-    expect(mockFindRelationshipSuggestions).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: /^scan$/i })).not.toBeInTheDocument();
   });
 
-  it('resets its own review screen when closed via a non-"done" path (X/Escape/outside-click), not just "done"', async () => {
+  it('resets scan/staged state when the dialog is closed via a non-import path (X/Escape/outside-click)', async () => {
     mockFindRelationshipSuggestions.mockResolvedValue([mockSuggestion]);
     const { setOpen } = renderDialog();
-
-    await lookupAndImportOneDoiPaper();
-    await waitFor(() => expect(screen.getByText('Other Paper In Vault')).toBeInTheDocument());
+    await lookupOneDoiPaper();
+    fireEvent.click(screen.getByRole('button', { name: /^scan$/i }));
+    await screen.findByText('Other Paper In Vault');
+    fireEvent.click(screen.getByRole('button', { name: 'approve' }));
 
     // Radix forwards Escape/outside-click/X through the same onOpenChange(false)
     // path as this dialog's wrapper intercepts — simulate that directly.
     setOpen(false);
     setOpen(true);
 
-    expect(screen.queryByText(/checking "Target Vault"/i)).not.toBeInTheDocument();
-    expect(screen.queryByText('Other Paper In Vault')).not.toBeInTheDocument();
+    expect(screen.queryByText(/staged/i)).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /library/i })).toBeInTheDocument();
   });
 });

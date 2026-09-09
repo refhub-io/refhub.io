@@ -46,14 +46,22 @@ export function ExistingPaperSelector({
   const [isAdding, setIsAdding] = useState(false);
   const [publicationVaults, setPublicationVaults] = useState<Map<string, Set<string>>>(new Map());
 
-  // Entry point 2 (Library tab): once the paper has been added, check it against
-  // the first selected vault's publications for citation relationships — the DOI
-  // is already known, so there's no reason to wait for a separate manual trigger.
-  // Non-null once an add has completed and there's something to check/review.
-  const [checkedVaultName, setCheckedVaultName] = useState<string | null>(null);
-  const [checkingRelationships, setCheckingRelationships] = useState(false);
-  const [suggestions, setSuggestions] = useState<RelationshipSuggestion[]>([]);
-  const [approvingKey, setApprovingKey] = useState<string | null>(null);
+  // Pre-add relationship scan (Library tab): check the selected-but-not-yet-added
+  // paper against a chosen vault's existing papers, before ever committing the
+  // add. Replaces the old post-add auto-trigger (which silently did nothing
+  // whenever the underlying copy insert failed to leave a resolvable row,
+  // among other flow issues) with an explicit, user-initiated action available
+  // the moment paper + vault are both known.
+  //
+  // The paper's own canonical `publications.id` is already real and stable
+  // pre-add (unlike a not-yet-imported DOI paper), so it doubles as the
+  // suggestion's placeholder id directly — no separate placeholder scheme
+  // needed. Approved suggestions are staged locally, not persisted; handleAdd
+  // reconciles the placeholder to the real vault_publications id once the add
+  // actually completes, then inserts them for real.
+  const [ephemeralSuggestions, setEphemeralSuggestions] = useState<RelationshipSuggestion[]>([]);
+  const [stagedRelations, setStagedRelations] = useState<RelationshipSuggestion[]>([]);
+  const [scanningEphemeral, setScanningEphemeral] = useState(false);
 
   // Load which vaults each publication already has a copy in. Vault content
   // lives in vault_publications (one row per vault, copied from the
@@ -123,134 +131,125 @@ export function ExistingPaperSelector({
 
   // AddImportDialog keeps this component mounted across opens (its Radix
   // TabsContent only unmounts when the tab itself goes inactive), so leftover
-  // review state from a previous add would otherwise trap every subsequent
-  // open behind the stale "checking..."/suggestions screen instead of the
-  // search UI. Reset explicitly before starting a new cycle.
-  const resetReviewState = () => {
-    setCheckedVaultName(null);
-    setSuggestions([]);
-    setCheckingRelationships(false);
-    setApprovingKey(null);
+  // ephemeral scan state from a previous session would otherwise leak into
+  // the next one. Reset explicitly before starting a new cycle.
+  const resetEphemeralRelationships = () => {
+    setEphemeralSuggestions([]);
+    setStagedRelations([]);
+    setScanningEphemeral(false);
   };
 
-  // Covers close paths that skip the "done" button entirely (X, Escape,
-  // outside click) — those close the host dialog directly without ever
-  // calling onDone's own reset.
+  // Covers close paths that skip an explicit reset entirely (X, Escape,
+  // outside click) — those close the host dialog directly.
   useEffect(() => {
-    if (!open) resetReviewState();
+    if (!open) resetEphemeralRelationships();
   }, [open]);
+
+  // A scan is only meaningful for THIS specific paper+vault pairing -- once
+  // either changes, stale suggestions/staged approvals no longer apply.
+  const selectedVaultIdsKey = Array.from(selectedVaultIds).sort().join(',');
+  useEffect(() => {
+    resetEphemeralRelationships();
+  }, [selectedPublication?.id, selectedVaultIdsKey]);
+
+  const handleScanEphemeralRelationships = async () => {
+    const doi = selectedPublication?.doi?.trim();
+    if (!doi || selectedVaultIds.size !== 1) return;
+    const vaultId = Array.from(selectedVaultIds)[0];
+    setScanningEphemeral(true);
+    try {
+      const { data: vaultPubsData, error } = await supabase
+        .from('vault_publications')
+        .select('*')
+        .eq('vault_id', vaultId);
+      if (error) throw error;
+      const vaultPublications = (vaultPubsData || []).map(formatVaultPublication);
+      const found = await findRelationshipSuggestions(
+        { id: selectedPublication!.id, doi, title: selectedPublication!.title },
+        vaultPublications,
+        [],
+      );
+      setEphemeralSuggestions(found);
+    } catch (error) {
+      showError('Could not check relationships', error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+      setScanningEphemeral(false);
+    }
+  };
+
+  // Approving here only stages the suggestion locally -- there's no real
+  // vault_publications row for this paper yet to reference, so nothing is
+  // written to publication_relations until handleAdd resolves the real copy
+  // id after the paper is actually added.
+  const handleApproveEphemeralSuggestion = (suggestion: RelationshipSuggestion) => {
+    setStagedRelations((prev) => [...prev, suggestion]);
+    setEphemeralSuggestions((prev) => prev.filter((s) => suggestionKey(s) !== suggestionKey(suggestion)));
+  };
+
+  const handleDismissEphemeralSuggestion = (suggestion: RelationshipSuggestion) => {
+    setEphemeralSuggestions((prev) => prev.filter((s) => suggestionKey(s) !== suggestionKey(suggestion)));
+  };
 
   const handleAdd = async () => {
     if (!selectedPublication || selectedVaultIds.size === 0) return;
 
     const addedPublication = selectedPublication;
     const vaultIds = Array.from(selectedVaultIds);
+    const pendingStagedRelations = stagedRelations;
 
-    resetReviewState();
     setIsAdding(true);
     try {
       await onAddToVaults(addedPublication.id, vaultIds);
       setSelectedPublication(null);
       setSelectedVaultIds(new Set());
 
-      const doi = addedPublication.doi?.trim();
-      if (!doi) {
-        // No DOI, no citation data to check — same precondition as the other
-        // relationship-suggestion entry points.
-        onDone();
-        return;
-      }
+      // Commit any relationship suggestions staged during the pre-add scan
+      // (see handleScanEphemeralRelationships above) — only meaningful for
+      // the same single-vault pairing the scan itself was restricted to.
+      if (vaultIds.length === 1 && pendingStagedRelations.length > 0 && user) {
+        const vaultId = vaultIds[0];
+        try {
+          // publication_relations references vault_publications.id, not the
+          // canonical publications.id we were given — resolve the copy that
+          // onAddToVaults just created in this vault before linking anything.
+          const { data: newCopy, error: newCopyError } = await supabase
+            .from('vault_publications')
+            .select('id')
+            .eq('vault_id', vaultId)
+            .eq('original_publication_id', addedPublication.id)
+            .maybeSingle();
 
-      const firstVaultId = vaultIds[0];
-      const firstVaultName = vaults.find((v) => v.id === firstVaultId)?.name ?? 'this vault';
-      setCheckedVaultName(firstVaultName);
-      setCheckingRelationships(true);
-      try {
-        // publication_relations references vault_publications.id, not the
-        // canonical publications.id we were given — resolve the copy that
-        // onAddToVaults just created in this vault before checking anything.
-        const { data: newCopy, error: newCopyError } = await supabase
-          .from('vault_publications')
-          .select('id')
-          .eq('vault_id', firstVaultId)
-          .eq('original_publication_id', addedPublication.id)
-          .maybeSingle();
+          if (newCopyError) throw newCopyError;
 
-        if (newCopyError) throw newCopyError;
-
-        if (!newCopy) {
-          // This is not the "no DOI" precondition skip above — the add itself
-          // reported success, but the copy it should have just created isn't
-          // resolvable by (vault_id, original_publication_id). Silently
-          // dropping this made the whole relationship-suggestion feature look
-          // like it never ran at all, with no request ever reaching Semantic
-          // Scholar and no visible error — surface it instead.
-          logger.error('ExistingPaperSelector', 'Could not resolve the vault_publications copy just created for relationship checking', {
-            vaultId: firstVaultId,
-            originalPublicationId: addedPublication.id,
-          });
-          setSuggestions([]);
-          showError('Could not check relationships', "Added the paper, but couldn't find its new vault copy to check for citations.");
-          return;
+          if (!newCopy) {
+            logger.error('ExistingPaperSelector', 'Could not resolve the vault_publications copy to commit staged relationships', {
+              vaultId,
+              originalPublicationId: addedPublication.id,
+            });
+            showError('Paper added, but could not save its relationships', "Couldn't find its new vault copy to link against.");
+          } else {
+            const rows = pendingStagedRelations.map((s) => ({
+              publication_id: s.sourcePublicationId === addedPublication.id ? newCopy.id : s.sourcePublicationId,
+              related_publication_id: s.targetPublicationId === addedPublication.id ? newCopy.id : s.targetPublicationId,
+              relation_type: 'cites' as const,
+              created_by: user.id,
+            }));
+            const { error: insertError } = await supabase.from('publication_relations').insert(rows);
+            if (insertError) {
+              logger.error('ExistingPaperSelector', 'Failed to commit staged relationship suggestions after add', insertError);
+              showError('Paper added, but could not save its relationships', insertError.message);
+            }
+          }
+        } catch (error) {
+          showError('Paper added, but could not save its relationships', error instanceof Error ? error.message : 'Unknown error');
         }
-
-        const { data: vaultPubsData } = await supabase
-          .from('vault_publications')
-          .select('*')
-          .eq('vault_id', firstVaultId);
-        const vaultPublications = (vaultPubsData || []).map(formatVaultPublication);
-
-        // The just-created copy can't appear in any existing publication_relations
-        // row yet (nothing could reference an id that didn't exist before this
-        // add), so there's nothing to fetch there — an empty array is exact, not
-        // an approximation.
-        const found = await findRelationshipSuggestions(
-          { id: newCopy.id, doi, title: addedPublication.title },
-          vaultPublications,
-          [],
-        );
-        setSuggestions(found);
-      } catch (error) {
-        setSuggestions([]);
-        showError('Could not check relationships', error instanceof Error ? error.message : 'Unknown error');
-      } finally {
-        setCheckingRelationships(false);
       }
+
+      resetEphemeralRelationships();
+      onDone();
     } finally {
       setIsAdding(false);
     }
-  };
-
-  const handleApproveSuggestion = async (suggestion: RelationshipSuggestion) => {
-    if (!user) return;
-    setApprovingKey(suggestionKey(suggestion));
-    try {
-      const { error } = await supabase.from('publication_relations').insert({
-        publication_id: suggestion.sourcePublicationId,
-        related_publication_id: suggestion.targetPublicationId,
-        relation_type: 'cites',
-        created_by: user.id,
-      });
-
-      if (error) {
-        if (error.code === '23505') {
-          showError('Already linked', 'These papers are already linked.');
-        } else if (error.code === '42501' || error.message?.includes('row-level security')) {
-          showError('Permission denied', "You don't have permission to link papers in this vault.");
-        } else {
-          showError('Could not save relationship', error.message);
-        }
-        return;
-      }
-
-      setSuggestions((prev) => prev.filter((s) => suggestionKey(s) !== suggestionKey(suggestion)));
-    } finally {
-      setApprovingKey(null);
-    }
-  };
-
-  const handleDismissSuggestion = (suggestion: RelationshipSuggestion) => {
-    setSuggestions((prev) => prev.filter((s) => suggestionKey(s) !== suggestionKey(suggestion)));
   };
 
   const formatAuthors = (authors: string[]) => {
@@ -262,47 +261,7 @@ export function ExistingPaperSelector({
 
   return (
     <div className="space-y-4 flex flex-col min-h-[320px] sm:min-h-0 h-full">
-      {checkedVaultName ? (
-        <>
-          <div className="space-y-2">
-            <Label className="font-semibold font-mono">check_relationships</Label>
-            <p className="text-xs text-muted-foreground font-mono">
-              // checking "{checkedVaultName}" for citation relationships
-            </p>
-          </div>
-
-          {checkingRelationships ? (
-            <div className="flex items-center gap-2 justify-center py-8 text-sm text-muted-foreground font-mono">
-              <LoadingSpinner size="xs" />
-              checking_relationships...
-            </div>
-          ) : suggestions.length > 0 ? (
-            <RelationshipSuggestionsList
-              suggestions={suggestions}
-              approvingKey={approvingKey}
-              onApprove={handleApproveSuggestion}
-              onDismiss={handleDismissSuggestion}
-            />
-          ) : (
-            <p className="text-xs text-muted-foreground font-mono py-4">
-              // no citation relationships found
-            </p>
-          )}
-
-          <div className="flex justify-end pt-2">
-            <Button
-              variant="glow"
-              onClick={() => {
-                resetReviewState();
-                onDone();
-              }}
-              disabled={checkingRelationships}
-            >
-              done
-            </Button>
-          </div>
-        </>
-      ) : !selectedPublication ? (
+      {!selectedPublication ? (
         <>
           <div className="space-y-2 shrink-0">
             <Label className="font-semibold">Search Your Papers</Label>
@@ -433,6 +392,44 @@ export function ExistingPaperSelector({
               </ScrollArea>
             </div>
           </div>
+
+          {/* Pre-add relationship scan — only meaningful for a single
+              selected vault and a paper with a DOI; multiple target vaults
+              stays out of scope (see the "multi-vault relationship scan"
+              enhancement issue). */}
+          {selectedPublication.doi?.trim() && selectedVaultIds.size === 1 && (
+            <div className="space-y-2 rounded-lg border border-dashed border-border p-3">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <p className="text-xs text-muted-foreground font-mono">
+                  // scan_for_relationships
+                  {stagedRelations.length > 0 && ` (${stagedRelations.length} staged)`}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs font-mono"
+                  disabled={scanningEphemeral}
+                  onClick={handleScanEphemeralRelationships}
+                >
+                  {scanningEphemeral ? <LoadingSpinner size="xs" /> : 'scan'}
+                </Button>
+              </div>
+              {ephemeralSuggestions.length > 0 && (
+                <RelationshipSuggestionsList
+                  suggestions={ephemeralSuggestions}
+                  approvingKey={null}
+                  onApprove={handleApproveEphemeralSuggestion}
+                  onDismiss={handleDismissEphemeralSuggestion}
+                />
+              )}
+              {stagedRelations.length > 0 && (
+                <p className="text-[10px] text-muted-foreground font-mono">
+                  // will link {stagedRelations.length} relationship{stagedRelations.length === 1 ? '' : 's'} once added
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Add Button */}
           <div className="flex justify-end pt-2">
