@@ -24,6 +24,7 @@ interface VaultSectionsPanelProps {
 }
 
 export function VaultSectionsPanel({ vault, onPublicationsChange }: VaultSectionsPanelProps) {
+  const isArchived = !!vault.archived_at;
   const vaultId = vault.id;
   const { sections, loading: sectionsLoading, createSection, renameSection, deleteSection, reorderSections } = useVaultSections(vaultId);
   const [publications, setPublications] = useState<Publication[]>([]);
@@ -84,6 +85,7 @@ export function VaultSectionsPanel({ vault, onPublicationsChange }: VaultSection
   const previewGroups = useMemo(() => groups.bySection.filter((g) => g.papers.length > 0), [groups]);
 
   const patchPublication = async (pubId: string, patch: Parameters<typeof updateVaultPublicationSection>[2]) => {
+    if (isArchived) return;
     const updated = publications.map((p) => (p.id === pubId ? { ...p, ...patch } : p));
     updatePublications(updated);
     try {
@@ -94,7 +96,7 @@ export function VaultSectionsPanel({ vault, onPublicationsChange }: VaultSection
   };
 
   const handleAddSection = async () => {
-    if (!newName.trim()) return;
+    if (!newName.trim() || isArchived) return;
     const created = await createSection({ name: newName.trim(), description: newDescription.trim() || null });
     if (created) {
       setNewName('');
@@ -111,6 +113,7 @@ export function VaultSectionsPanel({ vault, onPublicationsChange }: VaultSection
   };
 
   const moveSection = (index: number, direction: -1 | 1) => {
+    if (isArchived) return;
     const targetIndex = index + direction;
     if (targetIndex < 0 || targetIndex >= sections.length) return;
     const reordered = sections.map((s) => s.id);
@@ -119,6 +122,7 @@ export function VaultSectionsPanel({ vault, onPublicationsChange }: VaultSection
   };
 
   const swapSectionPositions = async (a: Publication, b: Publication) => {
+    if (isArchived) return;
     const updated = publications.map((p) => {
       if (p.id === a.id) return { ...p, section_position: b.section_position ?? 0 };
       if (p.id === b.id) return { ...p, section_position: a.section_position ?? 0 };
@@ -156,6 +160,12 @@ export function VaultSectionsPanel({ vault, onPublicationsChange }: VaultSection
 
   return (
     <div className="space-y-6 py-4">
+      {isArchived && (
+        <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs font-mono text-muted-foreground" data-testid="vault-sections-archived-notice">
+          this vault is archived — read-only, cannot be edited
+        </div>
+      )}
+      <fieldset disabled={isArchived} className="contents">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Layers className="w-4 h-4 text-muted-foreground" />
@@ -281,6 +291,7 @@ export function VaultSectionsPanel({ vault, onPublicationsChange }: VaultSection
           </div>
         )}
       </div>
+      </fieldset>
     </div>
   );
 }

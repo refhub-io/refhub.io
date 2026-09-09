@@ -21,6 +21,8 @@ interface VaultRelationshipsPanelProps {
   onScan: (force?: boolean) => void;
   onApprove: (suggestion: RelationshipSuggestion) => void;
   onDismiss: (suggestion: RelationshipSuggestion) => void;
+  /** Archived vaults are permanently read-only -- disables scan/approve/dismiss. */
+  disabled?: boolean;
 }
 
 function getProgressValue(progress: SemanticScholarQueueProgress | null): number {
@@ -28,9 +30,15 @@ function getProgressValue(progress: SemanticScholarQueueProgress | null): number
   return Math.round((progress.completed / progress.total) * 100);
 }
 
-export function VaultRelationshipsPanel({ suggestions, scanning, progress, approvingKey, canForceRescan, lastScanFailedCount, onScan, onApprove, onDismiss }: VaultRelationshipsPanelProps) {
+export function VaultRelationshipsPanel({ suggestions, scanning, progress, approvingKey, canForceRescan, lastScanFailedCount, onScan, onApprove, onDismiss, disabled = false }: VaultRelationshipsPanelProps) {
   return (
     <div className="space-y-4 py-4">
+      {disabled && (
+        <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs font-mono text-muted-foreground" data-testid="vault-relationships-archived-notice">
+          this vault is archived — read-only, cannot be edited
+        </div>
+      )}
+      <fieldset disabled={disabled} className="contents">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-xs text-muted-foreground font-mono">// scan_for_relationships</p>
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -90,6 +98,7 @@ export function VaultRelationshipsPanel({ suggestions, scanning, progress, appro
         onApprove={onApprove}
         onDismiss={onDismiss}
       />
+      </fieldset>
     </div>
   );
 }

@@ -719,6 +719,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   }, [publicSlug, visibility, vault?.id]);
 
   const handleScanRelationships = async (force = false) => {
+    if (isArchived) return;
     setScanningRelationships(true);
     setRelationshipScanProgress(null);
     let finalProgress: SemanticScholarQueueProgress | null = null;
@@ -786,7 +787,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   };
 
   const handleApproveRelationshipSuggestion = async (suggestion: RelationshipSuggestion) => {
-    if (!user) return;
+    if (!user || isArchived) return;
     setApprovingRelationshipKey(suggestionKey(suggestion));
     try {
       const { error } = await supabase.from('publication_relations').insert({
@@ -1230,6 +1231,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                   onScan={handleScanRelationships}
                   onApprove={handleApproveRelationshipSuggestion}
                   onDismiss={handleDismissRelationshipSuggestion}
+                  disabled={isArchived}
                 />
               </TabsContent>
             )}
