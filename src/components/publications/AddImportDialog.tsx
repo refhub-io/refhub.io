@@ -130,62 +130,85 @@ export function AddImportDialog({
 
   const { user } = useAuth();
 
-  // Entry point 2: after importing exactly one DOI-bearing paper into a
-  // vault (never for a genuine multi-paper batch — that's the bulk-import
-  // case entry point 2 is explicitly excluded from, to avoid overloading
-  // the provider), check it against that vault's publications before
-  // closing. This dialog's DialogContent uses forceMount (stays mounted
-  // across opens, only hidden via CSS), so this state must be reset
-  // explicitly at the start of each import — never left to a remount.
-  const [relCheckVaultName, setRelCheckVaultName] = useState<string | null>(null);
-  const [relCheckSuggestions, setRelCheckSuggestions] = useState<RelationshipSuggestion[]>([]);
-  const [relCheckLoading, setRelCheckLoading] = useState(false);
-  const [relCheckApprovingKey, setRelCheckApprovingKey] = useState<string | null>(null);
+  // Pre-import relationship scan: check the selected-but-not-yet-imported
+  // paper against a chosen target vault's existing papers, before ever
+  // committing the import. Replaces the old post-import auto-trigger (which
+  // silently did nothing whenever the copy_publication_to_vault RPC failed
+  // to leave a resolvable row, among other flow issues) with an explicit,
+  // user-initiated action available the moment paper + vault are both known.
+  //
+  // The paper doesn't exist in `publications` yet, so suggestions are keyed
+  // by a placeholder id (its DOI) instead of a real publication id. Approved
+  // suggestions are staged locally, not persisted -- handleImport reconciles
+  // the placeholder to the real vault_publications id once the import
+  // actually completes, then inserts them for real.
+  const [ephemeralSuggestions, setEphemeralSuggestions] = useState<RelationshipSuggestion[]>([]);
+  const [stagedRelations, setStagedRelations] = useState<RelationshipSuggestion[]>([]);
+  const [scanningEphemeral, setScanningEphemeral] = useState(false);
 
-  const resetRelationshipCheck = () => {
-    setRelCheckVaultName(null);
-    setRelCheckSuggestions([]);
-    setRelCheckLoading(false);
-    setRelCheckApprovingKey(null);
+  const pendingRelationId = (doi: string) => `__pending__:${doi}`;
+
+  const singleSelectedIndex = selectedIndices.size === 1 ? Array.from(selectedIndices)[0] : null;
+  const singleSelectedPub = singleSelectedIndex !== null ? parsedPublications[singleSelectedIndex] : null;
+
+  const resetEphemeralRelationships = () => {
+    setEphemeralSuggestions([]);
+    setStagedRelations([]);
+    setScanningEphemeral(false);
   };
+
+  // A scan is only meaningful for THIS specific paper+vault pairing -- once
+  // either changes, stale suggestions/staged approvals no longer apply.
+  useEffect(() => {
+    resetEphemeralRelationships();
+  }, [singleSelectedPub?.doi, targetVaultId]);
 
   // Reacts to the `open` prop itself, not just this dialog's own "done"
   // button or its Dialog's onOpenChange callback — covers every path that
   // can flip `open` to false (X, Escape, outside click, or a parent closing
   // it through some other route entirely), same as ExistingPaperSelector's
-  // own reset-on-close effect.
+  // own reset-on-close effect. This dialog's DialogContent uses forceMount
+  // (stays mounted across opens, only hidden via CSS), so this state must be
+  // reset explicitly — never left to a remount.
   useEffect(() => {
-    if (!open) resetRelationshipCheck();
+    if (!open) resetEphemeralRelationships();
   }, [open]);
 
-  const handleApproveRelCheckSuggestion = async (suggestion: RelationshipSuggestion) => {
-    if (!user) return;
-    setRelCheckApprovingKey(suggestionKey(suggestion));
+  const handleScanEphemeralRelationships = async () => {
+    const doi = singleSelectedPub?.doi?.trim();
+    if (!doi || !targetVaultId) return;
+    setScanningEphemeral(true);
     try {
-      const { error } = await supabase.from('publication_relations').insert({
-        publication_id: suggestion.sourcePublicationId,
-        related_publication_id: suggestion.targetPublicationId,
-        relation_type: 'cites',
-        created_by: user.id,
-      });
-      if (error) {
-        if (error.code === '23505') {
-          showError('Already linked', 'These papers are already linked.');
-        } else if (error.code === '42501' || error.message?.includes('row-level security')) {
-          showError('Permission denied', "You don't have permission to link papers in this vault.");
-        } else {
-          showError('Could not save relationship', error.message);
-        }
-        return;
-      }
-      setRelCheckSuggestions((prev) => prev.filter((s) => suggestionKey(s) !== suggestionKey(suggestion)));
+      const { data: vaultPubsData, error } = await supabase
+        .from('vault_publications')
+        .select('*')
+        .eq('vault_id', targetVaultId);
+      if (error) throw error;
+      const vaultPublications = (vaultPubsData || []).map(formatVaultPublication);
+      const found = await findRelationshipSuggestions(
+        { id: pendingRelationId(doi), doi, title: singleSelectedPub?.title ?? '' },
+        vaultPublications,
+        [],
+      );
+      setEphemeralSuggestions(found);
+    } catch (error) {
+      showError('Could not check relationships', error instanceof Error ? error.message : 'Unknown error');
     } finally {
-      setRelCheckApprovingKey(null);
+      setScanningEphemeral(false);
     }
   };
 
-  const handleDismissRelCheckSuggestion = (suggestion: RelationshipSuggestion) => {
-    setRelCheckSuggestions((prev) => prev.filter((s) => suggestionKey(s) !== suggestionKey(suggestion)));
+  // Approving here only stages the suggestion locally -- there's no real
+  // vault_publications row for this paper yet to reference, so nothing is
+  // written to publication_relations until handleImport resolves the real
+  // copy id after the paper is actually imported.
+  const handleApproveEphemeralSuggestion = (suggestion: RelationshipSuggestion) => {
+    setStagedRelations((prev) => [...prev, suggestion]);
+    setEphemeralSuggestions((prev) => prev.filter((s) => suggestionKey(s) !== suggestionKey(suggestion)));
+  };
+
+  const handleDismissEphemeralSuggestion = (suggestion: RelationshipSuggestion) => {
+    setEphemeralSuggestions((prev) => prev.filter((s) => suggestionKey(s) !== suggestionKey(suggestion)));
   };
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -310,7 +333,6 @@ export function AddImportDialog({
       toast({ title: 'No papers selected', description: 'Select at least one parsed paper from the preview before importing.', variant: 'destructive', feedbackSeverity: 'error', source: importActionGroupRef });
       return;
     }
-    resetRelationshipCheck();
     setImporting(true);
     try {
       if (!onImport) {
@@ -320,72 +342,62 @@ export function AddImportDialog({
       const insertedIds = await onImport(toImport, targetVaultId);
       const targetVault = vaults.find(v => v.id === targetVaultId);
       toast({ title: `Imported ${insertedIds.length} paper${insertedIds.length === 1 ? '' : 's'} ✨`, description: targetVault ? `Added to ${targetVault.name}` : undefined, source: importActionGroupRef });
+
+      // Commit any relationship suggestions staged during the pre-import
+      // scan (see handleScanEphemeralRelationships above) — only meaningful
+      // for the same single-paper+target-vault pairing the scan itself was
+      // restricted to.
+      const canonicalPublicationId = insertedIds[0];
+      if (toImport.length === 1 && targetVaultId && canonicalPublicationId && stagedRelations.length > 0 && user) {
+        try {
+          // onImport returns publications.id, not the vault_publications.id
+          // the copy actually got via the copy_publication_to_vault RPC —
+          // resolve the real copy id first, same as the Library tab's
+          // onAddToVaults path.
+          const { data: newCopy, error: newCopyError } = await supabase
+            .from('vault_publications')
+            .select('id')
+            .eq('vault_id', targetVaultId)
+            .eq('original_publication_id', canonicalPublicationId)
+            .maybeSingle();
+
+          if (newCopyError) throw newCopyError;
+
+          if (!newCopy) {
+            logger.error('AddImportDialog', 'Could not resolve the vault_publications copy to commit staged relationships', {
+              vaultId: targetVaultId,
+              canonicalPublicationId,
+            });
+            showError('Paper imported, but could not save its relationships', "Couldn't find its new vault copy to link against.");
+          } else {
+            const doi = toImport[0].doi?.trim() ?? '';
+            const placeholder = pendingRelationId(doi);
+            const rows = stagedRelations.map((s) => ({
+              publication_id: s.sourcePublicationId === placeholder ? newCopy.id : s.sourcePublicationId,
+              related_publication_id: s.targetPublicationId === placeholder ? newCopy.id : s.targetPublicationId,
+              relation_type: 'cites' as const,
+              created_by: user.id,
+            }));
+            const { error: insertError } = await supabase.from('publication_relations').insert(rows);
+            if (insertError) {
+              logger.error('AddImportDialog', 'Failed to commit staged relationship suggestions after import', insertError);
+              showError('Paper imported, but could not save its relationships', insertError.message);
+            } else {
+              toast({ title: `Linked ${rows.length} relationship${rows.length === 1 ? '' : 's'} ✨`, source: importActionGroupRef });
+            }
+          }
+        } catch (error) {
+          showError('Paper imported, but could not save its relationships', error instanceof Error ? error.message : 'Unknown error');
+        }
+      }
+
       // Reset
       setParsedPublications([]);
       setSelectedIndices(new Set());
       setDoiInput('');
       setBibtexInput('');
-
-      // Entry point 2 — deliberately scoped to a single imported paper, never
-      // a genuine batch: checking N papers against the vault (and each other)
-      // is exactly the overload risk this feature was told to stay away from
-      // for bulk import.
-      const singleDoi = toImport.length === 1 ? toImport[0].doi?.trim() : null;
-      const canonicalPublicationId = insertedIds[0];
-      if (toImport.length !== 1 || !targetVaultId || !singleDoi || !canonicalPublicationId) {
-        onOpenChange(false);
-        return;
-      }
-
-      setRelCheckVaultName(targetVault?.name ?? 'this vault');
-      setRelCheckLoading(true);
-      try {
-        // handleBulkImport (both the vault and dashboard implementations)
-        // returns publications.id, not the vault_publications.id the copy
-        // actually got via the copy_publication_to_vault RPC — resolve the
-        // real copy id first, same as the Library tab's onAddToVaults path.
-        const { data: newCopy, error: newCopyError } = await supabase
-          .from('vault_publications')
-          .select('id')
-          .eq('vault_id', targetVaultId)
-          .eq('original_publication_id', canonicalPublicationId)
-          .maybeSingle();
-
-        if (newCopyError) throw newCopyError;
-
-        if (!newCopy) {
-          // The import itself already reported success by this point (the
-          // canonical publications row exists) — this means the RPC that
-          // should have copied it into targetVaultId didn't leave a
-          // resolvable row. Previously silent: no error, no request to
-          // Semantic Scholar, nothing to indicate the check never ran.
-          logger.error('AddImportDialog', 'Could not resolve the vault_publications copy just created for relationship checking', {
-            vaultId: targetVaultId,
-            canonicalPublicationId,
-          });
-          setRelCheckSuggestions([]);
-          showError('Could not check relationships', "Imported the paper, but couldn't find its new vault copy to check for citations.");
-          return;
-        }
-
-        const { data: vaultPubsData } = await supabase
-          .from('vault_publications')
-          .select('*')
-          .eq('vault_id', targetVaultId);
-        const vaultPublications = (vaultPubsData || []).map(formatVaultPublication);
-
-        const found = await findRelationshipSuggestions(
-          { id: newCopy.id, doi: singleDoi, title: toImport[0].title ?? '' },
-          vaultPublications,
-          [],
-        );
-        setRelCheckSuggestions(found);
-      } catch (error) {
-        setRelCheckSuggestions([]);
-        showError('Could not check relationships', error instanceof Error ? error.message : 'Unknown error');
-      } finally {
-        setRelCheckLoading(false);
-      }
+      resetEphemeralRelationships();
+      onOpenChange(false);
     } catch (error) {
       toast({ title: 'Import failed', description: (error as Error).message || 'RefHub could not import the selected papers. Nothing was removed from the preview.', variant: 'destructive', feedbackSeverity: 'error', source: importActionGroupRef });
     } finally {
@@ -461,48 +473,6 @@ export function AddImportDialog({
             tab's own ScrollArea handles its list, everything else gets a
             plain overflow-y-auto on its TabsContent. */}
         <div className="flex-1 min-h-0 overflow-x-hidden flex flex-col">
-          {relCheckVaultName ? (
-            <div className="p-4 sm:p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
-              <div className="space-y-2">
-                <Label className="font-semibold font-mono">check_relationships</Label>
-                <p className="text-xs text-muted-foreground font-mono">
-                  // checking "{relCheckVaultName}" for citation relationships
-                </p>
-              </div>
-
-              {relCheckLoading ? (
-                <div className="flex items-center gap-2 justify-center py-8 text-sm text-muted-foreground font-mono">
-                  <LoadingSpinner size="xs" />
-                  checking_relationships...
-                </div>
-              ) : relCheckSuggestions.length > 0 ? (
-                <RelationshipSuggestionsList
-                  suggestions={relCheckSuggestions}
-                  approvingKey={relCheckApprovingKey}
-                  onApprove={handleApproveRelCheckSuggestion}
-                  onDismiss={handleDismissRelCheckSuggestion}
-                />
-              ) : (
-                <p className="text-xs text-muted-foreground font-mono py-4">
-                  // no citation relationships found
-                </p>
-              )}
-
-              <div className="flex justify-end pt-2">
-                <Button
-                  variant="glow"
-                  onClick={() => {
-                    resetRelationshipCheck();
-                    onOpenChange(false);
-                  }}
-                  disabled={relCheckLoading}
-                >
-                  done
-                </Button>
-              </div>
-            </div>
-          ) : (
-          <>
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FlowTab)} className="p-4 sm:p-6 pt-4 overflow-x-hidden flex-1 min-h-0 flex flex-col">
             <div className="mb-4 shrink-0">
               <BrowserExtensionInstallCard />
@@ -940,6 +910,44 @@ export function AddImportDialog({
                 </Select>
               </div>
 
+              {/* Pre-import relationship scan — only meaningful for a single
+                  selected paper with a DOI and a chosen target vault; a
+                  genuine multi-paper batch stays out of scope, matching the
+                  scan's own single-paper restriction. */}
+              {singleSelectedPub?.doi?.trim() && targetVaultId && (
+                <div className="space-y-2 rounded-lg border border-dashed border-border p-3">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <p className="text-xs text-muted-foreground font-mono">
+                      // scan_for_relationships
+                      {stagedRelations.length > 0 && ` (${stagedRelations.length} staged)`}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs font-mono"
+                      disabled={scanningEphemeral}
+                      onClick={handleScanEphemeralRelationships}
+                    >
+                      {scanningEphemeral ? <LoadingSpinner size="xs" /> : 'scan'}
+                    </Button>
+                  </div>
+                  {ephemeralSuggestions.length > 0 && (
+                    <RelationshipSuggestionsList
+                      suggestions={ephemeralSuggestions}
+                      approvingKey={null}
+                      onApprove={handleApproveEphemeralSuggestion}
+                      onDismiss={handleDismissEphemeralSuggestion}
+                    />
+                  )}
+                  {stagedRelations.length > 0 && (
+                    <p className="text-[10px] text-muted-foreground font-mono">
+                      // will link {stagedRelations.length} relationship{stagedRelations.length === 1 ? '' : 's'} once imported
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* Import button */}
               <div ref={importActionGroupRef} className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t-2 border-border">
                 <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto font-mono">cancel</Button>
@@ -950,8 +958,6 @@ export function AddImportDialog({
                 </div>
               </div>
             </div>
-          )}
-          </>
           )}
         </div>
       </DialogContent>

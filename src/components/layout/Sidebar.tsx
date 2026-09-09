@@ -257,13 +257,19 @@ export function Sidebar({
         description: 'Open vault settings',
         handler: () => {
           if (!activeVaultId || !onEditVault) return false;
-          const vault = vaults.find((v) => v.id === activeVaultId);
+          // Search the same owned+shared+favorited union archivedVaults itself
+          // is built from (see above) -- vaults alone is owned-only, so a
+          // shared or favorited-but-not-owned vault (still eligible for the
+          // archived section) would otherwise never resolve here even when
+          // its settings dialog is legitimately reachable (e.g. read-only
+          // viewing for a share).
+          const vault = [...vaults, ...sharedVaults, ...favoriteVaults].find((v) => v.id === activeVaultId);
           if (vault) { onEditVault(vault); return true; }
           return false;
         },
       },
     ],
-    [activeVaultId, vaults, onEditVault],
+    [activeVaultId, vaults, sharedVaults, favoriteVaults, onEditVault],
   );
 
   return (
@@ -745,30 +751,60 @@ export function Sidebar({
               {isArchivedExpanded && (
                 <div className="mt-2 space-y-1">
                   {visibleArchivedVaults.map((vault) => {
-                    const href = vault.public_slug
-                      ? `/public/${vault.public_slug}`
-                      : `/vault/${vault.id}`;
                     return (
-                      <Link
+                      <div
                         key={vault.id}
-                        to={href}
-                        onClick={onMobileClose}
-                        className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm transition-all duration-200 hover:bg-sidebar-accent/50 text-sidebar-foreground/70 border-2 border-transparent"
-                      >
-                        <div
-                          className="w-3 h-3 rounded-md shrink-0 shadow-sm"
-                          style={{ backgroundColor: vault.color || '#6366f1' }}
-                        />
-                        <span className="truncate font-medium flex-1 min-w-0 text-left">{vault.name}</span>
-                        {vault.visibility === 'public' ? (
-                          <Globe className="w-3 h-3 text-muted-foreground shrink-0" />
-                        ) : vault.visibility === 'protected' ? (
-                          <Shield className="w-3 h-3 text-muted-foreground shrink-0" />
-                        ) : (
-                          <Lock className="w-3 h-3 text-muted-foreground shrink-0" />
+                        className={cn(
+                          "w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm transition-all duration-200 group",
+                          activeVaultId === vault.id
+                            ? "bg-gradient-to-br from-primary/15 to-violet-500/10 text-primary border-2 border-primary/30"
+                            : "hover:bg-sidebar-accent/50 text-sidebar-foreground/70 border-2 border-transparent"
                         )}
-                        <Archive className="w-3 h-3 text-muted-foreground shrink-0" aria-label="archived" />
-                      </Link>
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // Always the owner-management page, never the
+                            // public-facing /public/:slug view even when the
+                            // vault has a public_slug -- this is the owner's
+                            // own sidebar, not a share link. Landing on the
+                            // public page instead left archived vaults with
+                            // no settings gear and no "o" shortcut, since
+                            // that page mounts none of the owner keybinds.
+                            navigate(`/vault/${vault.id}`);
+                            onMobileClose();
+                          }}
+                          className="flex items-center gap-2 flex-1 min-w-0"
+                        >
+                          <div
+                            className="w-3 h-3 rounded-md shrink-0 shadow-sm"
+                            style={{ backgroundColor: vault.color || '#6366f1' }}
+                          />
+                          <span className="truncate font-medium flex-1 min-w-0 text-left">{vault.name}</span>
+                          {vault.visibility === 'public' ? (
+                            <Globe className="w-3 h-3 text-muted-foreground shrink-0" />
+                          ) : vault.visibility === 'protected' ? (
+                            <Shield className="w-3 h-3 text-muted-foreground shrink-0" />
+                          ) : (
+                            <Lock className="w-3 h-3 text-muted-foreground shrink-0" />
+                          )}
+                          <Archive className="w-3 h-3 text-muted-foreground shrink-0" aria-label="archived" />
+                        </button>
+
+                        {onEditVault && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-muted-foreground hover:text-primary shrink-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEditVault(vault);
+                            }}
+                          >
+                            <Settings className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+                      </div>
                     );
                   })}
                   {hiddenArchivedVaultCount > 0 && (
