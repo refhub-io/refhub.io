@@ -950,11 +950,21 @@ export default function Dashboard() {
         // If a target vault is specified, add the papers to that vault
         if (targetVaultId) {
           for (const pub of insertedPubs) {
-            await supabase.rpc('copy_publication_to_vault', {
+            // Its own return value (the new vault_publications row) is still
+            // discarded — handleImport/AddImportDialog re-resolves that row
+            // by (vault_id, original_publication_id) afterward anyway — but
+            // the error was being discarded too. An RPC failure here left
+            // the canonical publications row inserted with no matching vault
+            // copy, while the caller still saw insertedIds as a full success:
+            // the "Imported ✨" toast fired, and every downstream consumer of
+            // that vault copy (relationship-suggestion checking, first) then
+            // silently found nothing to work with.
+            const { error: copyError } = await supabase.rpc('copy_publication_to_vault', {
               pub_id: pub.id,
               target_vault_id: targetVaultId,
               user_id: user.id
             });
+            if (copyError) throw copyError;
           }
         }
       }

@@ -11,6 +11,7 @@ import { LoadingSpinner } from '@/components/ui/loading';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { showError } from '@/lib/toast';
+import { logger } from '@/lib/logger';
 import { formatVaultPublication } from '@/lib/formatVaultPublication';
 import { findRelationshipSuggestions, type RelationshipSuggestion } from '@/lib/relationshipSuggestions';
 import { RelationshipSuggestionsList, suggestionKey } from './RelationshipSuggestionsList';
@@ -167,15 +168,28 @@ export function ExistingPaperSelector({
         // publication_relations references vault_publications.id, not the
         // canonical publications.id we were given — resolve the copy that
         // onAddToVaults just created in this vault before checking anything.
-        const { data: newCopy } = await supabase
+        const { data: newCopy, error: newCopyError } = await supabase
           .from('vault_publications')
           .select('id')
           .eq('vault_id', firstVaultId)
           .eq('original_publication_id', addedPublication.id)
           .maybeSingle();
 
+        if (newCopyError) throw newCopyError;
+
         if (!newCopy) {
+          // This is not the "no DOI" precondition skip above — the add itself
+          // reported success, but the copy it should have just created isn't
+          // resolvable by (vault_id, original_publication_id). Silently
+          // dropping this made the whole relationship-suggestion feature look
+          // like it never ran at all, with no request ever reaching Semantic
+          // Scholar and no visible error — surface it instead.
+          logger.error('ExistingPaperSelector', 'Could not resolve the vault_publications copy just created for relationship checking', {
+            vaultId: firstVaultId,
+            originalPublicationId: addedPublication.id,
+          });
           setSuggestions([]);
+          showError('Could not check relationships', "Added the paper, but couldn't find its new vault copy to check for citations.");
           return;
         }
 

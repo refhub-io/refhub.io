@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/tooltip';
 import { useAuth } from '@/hooks/useAuth';
 import { showError } from '@/lib/toast';
+import { logger } from '@/lib/logger';
 import { supabase } from '@/integrations/supabase/client';
 import { formatVaultPublication } from '@/lib/formatVaultPublication';
 import { findRelationshipSuggestions, type RelationshipSuggestion } from '@/lib/relationshipSuggestions';
@@ -341,18 +342,29 @@ export function AddImportDialog({
       try {
         // handleBulkImport (both the vault and dashboard implementations)
         // returns publications.id, not the vault_publications.id the copy
-        // actually got via the copy_publication_to_vault RPC (whose own
-        // return value is discarded) — resolve the real copy id first, same
-        // as the Library tab's onAddToVaults path.
-        const { data: newCopy } = await supabase
+        // actually got via the copy_publication_to_vault RPC — resolve the
+        // real copy id first, same as the Library tab's onAddToVaults path.
+        const { data: newCopy, error: newCopyError } = await supabase
           .from('vault_publications')
           .select('id')
           .eq('vault_id', targetVaultId)
           .eq('original_publication_id', canonicalPublicationId)
           .maybeSingle();
 
+        if (newCopyError) throw newCopyError;
+
         if (!newCopy) {
+          // The import itself already reported success by this point (the
+          // canonical publications row exists) — this means the RPC that
+          // should have copied it into targetVaultId didn't leave a
+          // resolvable row. Previously silent: no error, no request to
+          // Semantic Scholar, nothing to indicate the check never ran.
+          logger.error('AddImportDialog', 'Could not resolve the vault_publications copy just created for relationship checking', {
+            vaultId: targetVaultId,
+            canonicalPublicationId,
+          });
           setRelCheckSuggestions([]);
+          showError('Could not check relationships', "Imported the paper, but couldn't find its new vault copy to check for citations.");
           return;
         }
 

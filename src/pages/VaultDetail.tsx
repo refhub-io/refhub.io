@@ -314,11 +314,17 @@ export default function VaultDetail() {
       // across pages without a fully deterministic sort, and created_at
       // alone can tie between rows.
       const [pubsRes, vaultPubsRes] = await Promise.all([
+        // No .eq('user_id', ...) filter here, deliberately — matching
+        // Dashboard's equivalent fetch. RLS already scopes this to
+        // publications the user owns or can reach via an owned/shared vault;
+        // filtering by user_id client-side additionally excluded every
+        // publication a collaborator created in a shared vault, so the
+        // add-paper library picker (fed by allPublications, below) silently
+        // showed fewer papers here than the same account's Dashboard did.
         fetchAllRows<Publication>((from, to) =>
           supabase
             .from('publications')
             .select('*')
-            .eq('user_id', user.id)
             .order('created_at', { ascending: false })
             .order('id')
             .range(from, to)
@@ -821,11 +827,21 @@ export default function VaultDetail() {
       // Add imported publications to the target vault using the copy-based model
       if (insertedPubs && effectiveVaultId) {
         for (const pub of insertedPubs) {
-          await supabase.rpc('copy_publication_to_vault', {
+          // Its own return value (the new vault_publications row) is still
+          // discarded — handleImport/AddImportDialog re-resolves that row
+          // by (vault_id, original_publication_id) afterward anyway — but
+          // the error was being discarded too. An RPC failure here left the
+          // canonical publications row inserted with no matching vault copy,
+          // while the caller still saw insertedIds as a full success: the
+          // "Imported ✨" toast fired, and every downstream consumer of that
+          // vault copy (relationship-suggestion checking, first) then
+          // silently found nothing to work with.
+          const { error: copyError } = await supabase.rpc('copy_publication_to_vault', {
             pub_id: pub.id,
             target_vault_id: effectiveVaultId,
             user_id: user.id
           });
+          if (copyError) throw copyError;
           insertedIds.push(pub.id);
         }
 
