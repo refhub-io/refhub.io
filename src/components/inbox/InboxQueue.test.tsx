@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { KeyboardProvider } from '@/contexts/KeyboardContext';
 import { InboxQueue } from './InboxQueue';
@@ -63,5 +64,82 @@ describe('InboxQueue', () => {
     fireEvent.keyDown(document, { key: 'j' });
     fireEvent.keyDown(document, { key: 'x' });
     expect(onReject).toHaveBeenCalledWith('item-2');
+  });
+
+  it('seeds the vault/tag selection from a computed suggestion once it appears on the item', () => {
+    // Regression test: the card's own local `selections` state used to always
+    // default to { vaultId: null, tagIds: [] } regardless of what
+    // suggestVaultForItem/suggestTagsForItem had already computed and written
+    // onto the item -- so a correctly-scored suggestion never actually showed
+    // up in the vault/tag selects.
+    const onAccept = vi.fn();
+    const item = { ...makeItem('item-1', 'First'), suggested_vault_id: 'vault-1', suggested_tag_ids: ['tag-1'] };
+    const tag: Tag = { id: 'tag-1', user_id: 'user-1', name: 'Important', color: '#f00', parent_id: null, depth: 0, created_at: '2026-01-01T00:00:00.000Z' };
+    render(
+      <KeyboardProvider>
+        <InboxQueue
+          items={[item]}
+          duplicateTitles={{}} vaults={[vault]} tags={[tag]}
+          onAccept={onAccept} onReject={() => {}} onMerge={() => {}} onPostpone={() => {}}
+        />
+      </KeyboardProvider>,
+    );
+    expect(screen.getByText('My Vault')).toBeInTheDocument();
+    expect(screen.getByText('1 tag_selected')).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'a' });
+    expect(onAccept).toHaveBeenCalledWith('item-1', 'vault-1', ['tag-1']);
+  });
+
+  it('does not clobber a selection the user already changed once a (different) suggestion arrives', async () => {
+    const user = userEvent.setup();
+    const otherVault: Vault = { ...vault, id: 'vault-2', name: 'Other Vault' };
+    const item = makeItem('item-1', 'First');
+    const onAccept = vi.fn();
+    const { rerender } = render(
+      <KeyboardProvider>
+        <InboxQueue
+          items={[item]}
+          duplicateTitles={{}} vaults={[vault, otherVault]} tags={[]}
+          onAccept={onAccept} onReject={() => {}} onMerge={() => {}} onPostpone={() => {}}
+        />
+      </KeyboardProvider>,
+    );
+    // User picks a vault manually before any suggestion has arrived.
+    await user.click(screen.getByRole('combobox'));
+    await user.click(await screen.findByRole('option', { name: 'My Vault' }));
+
+    // A suggestion for a *different* vault now lands on the item -- the
+    // user's own choice must win, not get silently overwritten.
+    rerender(
+      <KeyboardProvider>
+        <InboxQueue
+          items={[{ ...item, suggested_vault_id: 'vault-2', suggested_tag_ids: [] }]}
+          duplicateTitles={{}} vaults={[vault, otherVault]} tags={[]}
+          onAccept={onAccept} onReject={() => {}} onMerge={() => {}} onPostpone={() => {}}
+        />
+      </KeyboardProvider>,
+    );
+    fireEvent.keyDown(document, { key: 'a' });
+    expect(onAccept).toHaveBeenCalledWith('item-1', 'vault-1', []);
+  });
+
+  it('toggles between card and list view via the toolbar buttons and the "v" shortcut', () => {
+    render(
+      <KeyboardProvider>
+        <InboxQueue
+          items={[makeItem('item-1', 'First')]}
+          duplicateTitles={{}} vaults={[vault]} tags={[]}
+          onAccept={() => {}} onReject={() => {}} onMerge={() => {}} onPostpone={() => {}}
+        />
+      </KeyboardProvider>,
+    );
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /list view/i }));
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /title/i })).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: 'v' });
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 });

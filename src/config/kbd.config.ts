@@ -155,6 +155,10 @@ const kbdConfig: KbdConfig = {
 
   // ─── Inbox ──────────────────────────────────────────────────────────────
   inbox: {
+    toggleView: {
+      combo: 'v',
+      description: 'Toggle card/list view',
+    },
     moveDown: {
       combo: 'j',
       description: 'Next item',
