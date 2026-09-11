@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useInbox } from '@/hooks/useInbox';
 import { useAllPublications } from '@/hooks/useAllPublications';
@@ -46,9 +46,24 @@ export function Inbox() {
   };
 
   // Score each not-yet-scored item once the library data is available.
+  //
+  // "Already scored" can't be read back from suggested_vault_id/
+  // duplicate_of_publication_id being non-null -- a legitimate "no match
+  // found" result leaves both null, indistinguishable from "never scored".
+  // Without a separate marker, updateItemHints's own write changes `items`'
+  // reference, which re-triggers this effect, which finds the same
+  // apparently-unscored item and writes the same null hints again --
+  // an infinite loop (and, in the browser, a pegged render loop that made
+  // every button/keybind on the page appear completely unresponsive).
+  const scoredItemIdsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     items.forEach((item) => {
-      if (item.suggested_vault_id !== null || item.duplicate_of_publication_id !== null) return;
+      if (scoredItemIdsRef.current.has(item.id)) return;
+      if (item.suggested_vault_id !== null || item.duplicate_of_publication_id !== null) {
+        scoredItemIdsRef.current.add(item.id);
+        return;
+      }
+      scoredItemIdsRef.current.add(item.id);
       const duplicate = findDuplicateForItem(item.parsed_fields, publications);
       const suggestedVaultId = suggestVaultForItem(item.parsed_fields, publications, vaults, publicationVaultsMap);
       const suggestedTagIds = suggestTagsForItem(item.parsed_fields, suggestedVaultId, publications, publicationVaultsMap, publicationTagsMap);

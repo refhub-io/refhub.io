@@ -1,10 +1,12 @@
+import { useState } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { KeyboardProvider } from '@/contexts/KeyboardContext';
 import { Inbox } from './Inbox';
+import type { InboxItem } from '@/types/database';
 
 function renderInbox() {
   const queryClient = new QueryClient({
@@ -41,11 +43,24 @@ const mockTags = [{
 const mockAcceptItem = vi.fn();
 const mockRefetch = vi.fn();
 
+// updateItemHints is a real, stateful setter here (not a bare vi.fn()) so
+// tests can exercise the actual feedback loop between Inbox.tsx's scoring
+// effect and the items it reads back -- a bare no-op mock would hide the
+// exact bug (an infinite loop when a suggestion legitimately scores to
+// null/null) this file regression-tests below.
+let updateItemHintsCallCount = 0;
 vi.mock('@/hooks/useInbox', () => ({
-  useInbox: () => ({
-    items: mockItems, loading: false, createItem: vi.fn(), updateItemHints: vi.fn(),
-    acceptItem: mockAcceptItem, rejectItem: vi.fn(), mergeItem: vi.fn(), postponeItem: vi.fn(), refresh: vi.fn(),
-  }),
+  useInbox: () => {
+    const [items, setItems] = useState<InboxItem[]>(mockItems as InboxItem[]);
+    const updateItemHints = (id: string, hints: Partial<InboxItem>) => {
+      updateItemHintsCallCount += 1;
+      setItems((prev) => prev.map((item) => (item.id === id ? { ...item, ...hints } : item)));
+    };
+    return {
+      items, loading: false, createItem: vi.fn(), updateItemHints,
+      acceptItem: mockAcceptItem, rejectItem: vi.fn(), mergeItem: vi.fn(), postponeItem: vi.fn(), refresh: vi.fn(),
+    };
+  },
 }));
 
 vi.mock('@/hooks/useAllPublications', () => ({
@@ -94,6 +109,10 @@ vi.mock('@/integrations/supabase/client', () => ({
 }));
 
 describe('Inbox page', () => {
+  beforeEach(() => {
+    updateItemHintsCallCount = 0;
+  });
+
   it('renders the capture form and the pending queue', async () => {
     renderInbox();
     expect(screen.getByRole('tab', { name: /doi/i })).toBeInTheDocument();
@@ -101,6 +120,13 @@ describe('Inbox page', () => {
   });
 
   it('accept creates a publication, copies it to the vault, and attaches tags via vault_publication_id', async () => {
+    // Several sequential userEvent interactions each drive their own async
+    // state update through the (now-stateful, see the useInbox mock above)
+    // hook -- under full-suite parallel load this occasionally runs past the
+    // default 5s per-test timeout even though nothing is actually hung.
+    // Bumped rather than chased as a flake: isolated or small-parallel runs
+    // of this file are consistently fast.
+    //
     // Radix's Popover/Checkbox close-on-blur behavior in jsdom means fireEvent.click
     // is unreliable for driving them (the popover can close before the checkbox's own
     // click handler runs) — userEvent drives realistic pointer/focus sequences instead.
@@ -130,5 +156,22 @@ describe('Inbox page', () => {
       })]),
     ));
     await waitFor(() => expect(mockAcceptItem).toHaveBeenCalledWith('item-1', 'vault-1', ['tag-1'], 'new-pub-id'));
+  }, 15000);
+
+  it('scores an item exactly once even when no vault/tag/duplicate match is found', async () => {
+    // Regression test for an infinite-loop bug: a real "no match found"
+    // result leaves both suggested_vault_id and duplicate_of_publication_id
+    // null, indistinguishable from "not yet scored" if that's the only
+    // signal used to skip already-scored items -- updateItemHints's own
+    // write then re-triggers the scoring effect forever. mockItems / the
+    // mocked useAllPublications (publications: []) are set up so nothing
+    // can possibly match, deliberately hitting that null/null case.
+    renderInbox();
+    await waitFor(() => expect(screen.getByText('Some Paper')).toBeInTheDocument());
+    await waitFor(() => expect(updateItemHintsCallCount).toBe(1));
+
+    // Give any runaway effect a chance to fire again before asserting it stayed put.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(updateItemHintsCallCount).toBe(1);
   });
 });
