@@ -9,6 +9,7 @@ import { InboxItemCard } from './InboxItemCard';
 import { InboxItemRow } from './InboxItemRow';
 import { LayoutGrid, List as ListIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getShortcut } from '@/config/kbd.config';
 import type { InboxItem, Vault, Tag } from '@/types/database';
 
 export interface InboxQueueProps {
@@ -70,25 +71,34 @@ export function InboxQueue({ items, duplicateTitles, vaults, tags, onAccept, onR
     });
   }, [items]);
 
-  const clampedIndex = Math.min(focusedIndex, Math.max(items.length - 1, 0));
+  // Clamp to [0, items.length - 1] on both ends -- 'j' at the end of an
+  // already-empty (or about-to-empty) queue can drive focusedIndex to -1
+  // (Math.min(i + 1, items.length - 1) with items.length === 0), and without
+  // the lower clamp too, items[-1] stays undefined even after items reappear
+  // until an unrelated 'k' press happens to correct it back to 0.
+  const clampedIndex = Math.max(0, Math.min(focusedIndex, Math.max(items.length - 1, 0)));
   const focusedItem = items[clampedIndex];
 
   const getSelection = (id: string) => selections[id] ?? { vaultId: null, tagIds: [] };
 
+  // Combos/descriptions read from kbdConfig.inbox (the single source of
+  // truth the help overlay and <KbdHint>s also read from) rather than being
+  // repeated here as literals, which could silently drift from what's
+  // actually documented.
   useHotkeys('inbox', [
-    { combo: 'v', description: 'Toggle card/list view', handler: () => setViewMode((prev) => (prev === 'cards' ? 'list' : 'cards')) },
-    { combo: 'j', description: 'Next item', handler: () => setFocusedIndex((i) => Math.min(i + 1, items.length - 1)) },
-    { combo: 'k', description: 'Previous item', handler: () => setFocusedIndex((i) => Math.max(i - 1, 0)) },
-    { combo: 'a', description: 'Accept focused item', handler: () => {
+    { ...getShortcut('inbox', 'toggleView'), handler: () => setViewMode((prev) => (prev === 'cards' ? 'list' : 'cards')) },
+    { ...getShortcut('inbox', 'moveDown'), handler: () => setFocusedIndex((i) => Math.min(i + 1, items.length - 1)) },
+    { ...getShortcut('inbox', 'moveUp'), handler: () => setFocusedIndex((i) => Math.max(i - 1, 0)) },
+    { ...getShortcut('inbox', 'accept'), handler: () => {
       if (!focusedItem) return;
       const sel = getSelection(focusedItem.id);
       if (sel.vaultId) onAccept(focusedItem.id, sel.vaultId, sel.tagIds);
     } },
-    { combo: 'x', description: 'Reject focused item', handler: () => { if (focusedItem) onReject(focusedItem.id); } },
-    { combo: 'm', description: 'Merge focused item', handler: () => {
+    { ...getShortcut('inbox', 'reject'), handler: () => { if (focusedItem) onReject(focusedItem.id); } },
+    { ...getShortcut('inbox', 'merge'), handler: () => {
       if (focusedItem && duplicateTitles[focusedItem.id]) onMerge(focusedItem.id);
     } },
-    { combo: 's', description: 'Postpone focused item', handler: () => { if (focusedItem) onPostpone(focusedItem.id); } },
+    { ...getShortcut('inbox', 'postpone'), handler: () => { if (focusedItem) onPostpone(focusedItem.id); } },
   ], [items, focusedIndex, selections, duplicateTitles, onAccept, onReject, onMerge, onPostpone]);
 
   const itemProps = (item: InboxItem, index: number) => {

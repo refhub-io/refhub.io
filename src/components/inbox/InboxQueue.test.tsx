@@ -50,6 +50,39 @@ describe('InboxQueue', () => {
     expect(onReject).toHaveBeenCalledWith('item-1');
   });
 
+  it('recovers a sane focused item after "j" while the queue was empty', () => {
+    // Regression test: clampedIndex only clamped the upper bound
+    // (Math.min(focusedIndex, ...)), not the lower one. Pressing "j" while
+    // items.length === 0 computes Math.min(0 + 1, items.length - 1) ===
+    // Math.min(1, -1) === -1, and once an item exists again, items[-1] stays
+    // undefined -- no focused item -- until an unrelated "k" happens to
+    // correct it back to 0.
+    const onReject = vi.fn();
+    const { rerender } = render(
+      <KeyboardProvider>
+        <InboxQueue
+          items={[]}
+          duplicateTitles={{}} vaults={[vault]} tags={[]}
+          onAccept={() => {}} onReject={onReject} onMerge={() => {}} onPostpone={() => {}}
+        />
+      </KeyboardProvider>,
+    );
+    fireEvent.keyDown(document, { key: 'j' });
+
+    rerender(
+      <KeyboardProvider>
+        <InboxQueue
+          items={[makeItem('item-1', 'First')]}
+          duplicateTitles={{}} vaults={[vault]} tags={[]}
+          onAccept={() => {}} onReject={onReject} onMerge={() => {}} onPostpone={() => {}}
+        />
+      </KeyboardProvider>,
+    );
+
+    fireEvent.keyDown(document, { key: 'x' });
+    expect(onReject).toHaveBeenCalledWith('item-1');
+  });
+
   it('pressing "j" moves focus to the next item before acting', () => {
     const onReject = vi.fn();
     render(
