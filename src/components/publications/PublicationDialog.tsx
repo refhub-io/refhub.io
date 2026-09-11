@@ -3,8 +3,7 @@ import { logger } from '@/lib/logger';
 import { Publication, Vault, Tag, PUBLICATION_TYPES } from '@/types/database';
 import { UnsavedChangesDialog } from '@/components/ui/unsaved-changes-dialog';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
-import { useHotkeys } from '@/hooks/useKeyboardNavigation';
-import { useKeyboardContext } from '@/contexts/KeyboardContext';
+import { useHotkeys, useDialogKeyboardContext } from '@/hooks/useKeyboardNavigation';
 import { KbdHint } from '@/components/ui/KbdHint';
 import { formatTimeAgo } from '@/lib/utils';
 import { Maximize, Minimize, Save, X, Plus, Loader2 as LoadingIcon, Upload, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react';
@@ -199,19 +198,7 @@ export function PublicationDialog({
   const notesFullscreenRef = useRef(notesFullscreen);
 
   // ─── Keyboard context for dialog ────────────────────────────────────────────
-  const kbCtx = useKeyboardContext();
-
-  // Push/pop dialog context when opened/closed
-  useEffect(() => {
-    if (open) {
-      kbCtx.saveFocus();
-      kbCtx.pushContext('dialog');
-    } else {
-      kbCtx.popContext();
-      kbCtx.restoreFocus();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  useDialogKeyboardContext(open, 'dialog');
 
   const getCurrentFormDataForSave = useCallback(() => {
     const liveNotes = notesFullscreenRef.current

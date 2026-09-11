@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo, useEffect } from 'react';
+import { useRef, useState, useMemo } from 'react';
 import { Publication, Tag, PublicationTag } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -14,7 +14,7 @@ import { Download, FileText, Copy, Check, BookOpen, Table } from 'lucide-react';
 import { exportMultipleToBibtexWithFields, publicationToBibtex, downloadBibtex, BibtexField } from '@/lib/bibtex';
 import { formatAPA, formatMultipleAPA, formatCSV, getCsvRows, buildTagKeywords, downloadTextFile, CsvField, ALL_CSV_FIELDS } from '@/lib/export';
 import { useToast } from '@/hooks/use-toast';
-import { useKeyboardContext } from '@/contexts/KeyboardContext';
+import { useDialogKeyboardContext } from '@/hooks/useKeyboardNavigation';
 import { KbdHint } from '@/components/ui/KbdHint';
 
 interface ExportDialogProps {
@@ -84,17 +84,7 @@ export function ExportDialog({
   const [copied, setCopied] = useState(false);
 
   // Push/pop keyboard context when export dialog opens/closes
-  const kbCtx = useKeyboardContext();
-  useEffect(() => {
-    if (open) {
-      kbCtx.saveFocus();
-      kbCtx.pushContext('export');
-    } else {
-      kbCtx.popContext();
-      kbCtx.restoreFocus();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  useDialogKeyboardContext(open, 'export');
 
   const toggleField = (field: BibtexField) => {
     setSelectedFields(prev =>

@@ -26,8 +26,7 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { VaultSectionsPanel } from './VaultSectionsPanel';
-import { useKeyboardContext } from '@/contexts/KeyboardContext';
-import { useHotkeys } from '@/hooks/useKeyboardNavigation';
+import { useHotkeys, useDialogKeyboardContext } from '@/hooks/useKeyboardNavigation';
 import { Lock, Users, Globe, Mail, Trash2, Copy, Check, Link2, X, Save, Plus, Bell, ChevronDown, Archive, Settings, Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createVaultPublicSlugCandidate, normalizeVaultPublicSlug } from '@/lib/vaultSlug';
@@ -100,7 +99,6 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   // Tracks the currently-shown "must be public" hint so repeated clicks on
   // the disabled tab replace it instead of stacking duplicates.
   const sectionsHintHandleRef = useRef<ReturnType<typeof toast> | null>(null);
-  const kbCtx = useKeyboardContext();
 
   const [activeTab, setActiveTab] = useState<'settings' | 'sections'>('settings');
   const [name, setName] = useState('');
@@ -149,16 +147,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
     setHasUnsavedChanges(false);
   }, [name, description, color, category, abstract, visibility, publicSlug, isForkedVault]);
 
-  useEffect(() => {
-    if (open) {
-      kbCtx.saveFocus();
-      kbCtx.pushContext('dialog');
-    } else {
-      kbCtx.popContext();
-      kbCtx.restoreFocus();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  useDialogKeyboardContext(open, 'dialog');
 
   // Fetch access requests for owners and enrich with display names when possible
   async function fetchAccessRequests() {

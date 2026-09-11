@@ -46,6 +46,43 @@ export function useHotkeys(
   }, [enabled, context, registerShortcuts, ...deps]);
 }
 
+// ─── useDialogKeyboardContext ────────────────────────────────────────────────
+
+/**
+ * Push a keyboard context (and save focus) while a dialog/overlay is open;
+ * pop it (and restore focus) when it closes.
+ *
+ * Every dialog that did this inline (`useEffect(() => { if (open) {push} else
+ * {pop} }, [open])`) shared the same bug: that effect also runs on the
+ * dialog's very first mount, and a dialog that starts out closed hits the
+ * "else" branch immediately -- popping a context it never pushed. On a page
+ * that pushes its own context once on mount (e.g. a stack-based page like
+ * Inbox, rather than one that keeps re-asserting via setActiveContext), a
+ * dialog mounted closed right after that page's own push silently pops it
+ * straight back off, and every keyboard shortcut on the page goes dead with
+ * no visible symptom pointing at why.
+ *
+ * Tracking whether *this* effect actually pushed makes the pop conditional
+ * on a genuine open -> close transition instead.
+ */
+export function useDialogKeyboardContext(open: boolean, context: KeyboardContextName) {
+  const kb = useKeyboardContext();
+  const hasPushedRef = useRef(false);
+
+  useEffect(() => {
+    if (open) {
+      kb.saveFocus();
+      kb.pushContext(context);
+      hasPushedRef.current = true;
+    } else if (hasPushedRef.current) {
+      kb.popContext();
+      kb.restoreFocus();
+      hasPushedRef.current = false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+}
+
 // ─── useKeyboardNavigation ───────────────────────────────────────────────────
 
 export interface UseKeyboardNavigationOptions {
