@@ -1,26 +1,27 @@
 // src/lib/inboxSuggestions.ts
-import { normalizeBiblioString, lastNameJaccard } from './dupeDetection';
+import { scorePair, DUPE_PRESETS } from './dupeDetection';
 import type { Publication, Vault } from '@/types/database';
 
-const MIN_VAULT_SCORE = 0.25;
-
-function titleTokenOverlap(a: string, b: string): number {
-  const tokensA = new Set(normalizeBiblioString(a).split(' ').filter(Boolean));
-  const tokensB = new Set(normalizeBiblioString(b).split(' ').filter(Boolean));
-  if (tokensA.size === 0 || tokensB.size === 0) return 0;
-  let shared = 0;
-  tokensA.forEach((t) => { if (tokensB.has(t)) shared += 1; });
-  return shared / Math.max(tokensA.size, tokensB.size);
-}
+// Reuses the same weighted title/author/year/venue heuristic
+// findDuplicateForItem already relies on (via DUPE_PRESETS), instead of the
+// separate, much cruder token-overlap scorer this file used to compute on
+// its own -- that mismatch between two different similarity functions was
+// exactly why a paper could be correctly flagged as a duplicate but still
+// get no vault/tag suggestion at all: the two functions disagreed on how
+// similar the same pair of papers actually was.
+//
+// A lower bar than DUPE_PRESETS.loose's own 0.6 threshold on purpose: this
+// is a suggestion the user reviews and can freely override, not a duplicate
+// verdict, so a false positive here is cheap while a false negative just
+// looks like the feature doing nothing.
+const SUGGESTION_THRESHOLD = 0.35;
 
 function itemPublicationScore(parsedFields: Partial<Publication>, pub: Publication): number {
-  const authorScore = lastNameJaccard(parsedFields.authors, pub.authors);
-  const titleScore = titleTokenOverlap(parsedFields.title || '', pub.title || '');
-  return authorScore * 0.5 + titleScore * 0.5;
+  return scorePair(parsedFields, pub, DUPE_PRESETS.loose).score;
 }
 
 /** Scores each vault by its best-matching existing publication; returns the
- * top vault if its score clears MIN_VAULT_SCORE, else null. */
+ * top vault if its score clears SUGGESTION_THRESHOLD, else null. */
 export function suggestVaultForItem(
   parsedFields: Partial<Publication>,
   publications: Publication[],
@@ -41,7 +42,7 @@ export function suggestVaultForItem(
     }
   }
 
-  return bestScore >= MIN_VAULT_SCORE ? bestVaultId : null;
+  return bestScore >= SUGGESTION_THRESHOLD ? bestVaultId : null;
 }
 
 /** Tags already applied to the most-similar publication in the suggested vault. */
@@ -65,6 +66,6 @@ export function suggestTagsForItem(
     }
   }
 
-  if (!bestPub) return [];
+  if (!bestPub || bestScore < SUGGESTION_THRESHOLD) return [];
   return publicationTagsMap[bestPub.id] ?? [];
 }

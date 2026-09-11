@@ -1,6 +1,7 @@
 // src/lib/inboxSuggestions.test.ts
 import { describe, expect, it } from 'vitest';
 import { suggestVaultForItem, suggestTagsForItem } from './inboxSuggestions';
+import { findDuplicateForItem } from './inboxDedup';
 import type { Publication, Vault } from '@/types/database';
 
 function makePublication(overrides: Partial<Publication> = {}): Publication {
@@ -76,5 +77,38 @@ describe('suggestTagsForItem', () => {
 
   it('returns an empty array when suggestedVaultId is null', () => {
     expect(suggestTagsForItem({ title: 'X' }, null, [], {}, {})).toEqual([]);
+  });
+});
+
+describe('vault/tag suggestion agrees with duplicate detection', () => {
+  // Regression test: suggestVaultForItem/suggestTagsForItem used to run
+  // their own separate, cruder token-overlap scorer instead of the same
+  // scorePair heuristic findDuplicateForItem uses -- so a paper correctly
+  // flagged as a duplicate could still get no vault/tag suggestion at all,
+  // because the two functions disagreed on how similar the papers were.
+  it('a paper findDuplicateForItem flags as a duplicate also gets a vault suggestion from the same match', () => {
+    const pub = makePublication({
+      id: 'pub-1',
+      title: 'Deep Learning for Natural Language Processing',
+      authors: ['Ada Lovelace', 'Grace Hopper'],
+      year: 2020,
+    });
+    const parsedFields: Partial<Publication> = {
+      title: 'Deep Learning for Natural Language Processing',
+      authors: ['Ada Lovelace', 'Grace Hopper'],
+      year: 2020,
+    };
+    const vaults = [makeVault({ id: 'vault-1' })];
+    const publicationVaultsMap = { 'pub-1': ['vault-1'] };
+    const publicationTagsMap = { 'pub-1': ['tag-nlp'] };
+
+    const duplicate = findDuplicateForItem(parsedFields, [pub]);
+    expect(duplicate?.id).toBe('pub-1');
+
+    const suggestedVaultId = suggestVaultForItem(parsedFields, [pub], vaults, publicationVaultsMap);
+    expect(suggestedVaultId).toBe('vault-1');
+
+    const suggestedTags = suggestTagsForItem(parsedFields, suggestedVaultId, [pub], publicationVaultsMap, publicationTagsMap);
+    expect(suggestedTags).toEqual(['tag-nlp']);
   });
 });
