@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useInbox } from '@/hooks/useInbox';
 import { useAllPublications } from '@/hooks/useAllPublications';
@@ -15,22 +15,37 @@ import { SidebarDndBoundary } from '@/components/layout/SidebarDndBoundary';
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { VaultDialog } from '@/components/vaults/VaultDialog';
+import { LoadingSpinner } from '@/components/ui/loading';
 import { Inbox as InboxIcon, AlertCircle, Compass } from 'lucide-react';
 import type { Vault } from '@/types/database';
 
 export function Inbox() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { profile, refetch: refetchProfile } = useProfile();
-  const { ownedVaults, sharedVaults } = useVaults();
+  const { ownedVaults, sharedVaults, sharedVaultRoles } = useVaults();
   const invalidateVaults = useInvalidateVaults();
   const { items, acceptItem, rejectItem, mergeItem, postponeItem, updateItemHints, refresh } = useInbox();
-  const { publications, vaults, tags, publicationVaultsMap, publicationTagsMap, refetch } = useAllPublications();
+  const { publications, tags, publicationVaultsMap, publicationTagsMap, refetch } = useAllPublications();
   const [duplicateTitles, setDuplicateTitles] = useState<Record<string, string>>({});
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
   const [editingVault, setEditingVault] = useState<Vault | null>(null);
+
+  useEffect(() => {
+    if (!authLoading && !user) navigate('/');
+  }, [user, authLoading, navigate]);
+
+  // Filing a paper requires write access -- a viewer-only shared vault would
+  // let the RPC fail after the canonical publication has already been
+  // inserted, leaving an orphaned publication with the inbox item still
+  // pending. Also used for the suggestion effect below, so a suggestion
+  // never points at a vault the user couldn't actually file into.
+  const fileableVaults = useMemo(
+    () => [...ownedVaults, ...sharedVaults.filter((v) => sharedVaultRoles[v.id] !== 'viewer')],
+    [ownedVaults, sharedVaults, sharedVaultRoles],
+  );
 
   const handleSaveVault = async (data: Partial<Vault>) => {
     if (!editingVault) return;
@@ -61,11 +76,20 @@ export function Inbox() {
       if (scoredItemIdsRef.current.has(item.id)) return;
       if (item.suggested_vault_id !== null || item.duplicate_of_publication_id !== null) {
         scoredItemIdsRef.current.add(item.id);
+        // A duplicate found in an earlier session persists on the item
+        // (duplicate_of_publication_id), but duplicateTitles is local-only
+        // state that starts empty on every fresh mount -- without
+        // repopulating it here too, the duplicate banner and "m" merge
+        // action silently become unavailable for this item after a reload.
+        if (item.duplicate_of_publication_id) {
+          const existing = publications.find((p) => p.id === item.duplicate_of_publication_id);
+          if (existing) setDuplicateTitles((prev) => ({ ...prev, [item.id]: existing.title }));
+        }
         return;
       }
       scoredItemIdsRef.current.add(item.id);
       const duplicate = findDuplicateForItem(item.parsed_fields, publications);
-      const suggestedVaultId = suggestVaultForItem(item.parsed_fields, publications, vaults, publicationVaultsMap);
+      const suggestedVaultId = suggestVaultForItem(item.parsed_fields, publications, fileableVaults, publicationVaultsMap);
       const suggestedTagIds = suggestTagsForItem(item.parsed_fields, suggestedVaultId, publications, publicationVaultsMap, publicationTagsMap);
       if (duplicate) setDuplicateTitles((prev) => ({ ...prev, [item.id]: duplicate.title }));
       updateItemHints(item.id, {
@@ -75,7 +99,7 @@ export function Inbox() {
       });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, publications, vaults, publicationVaultsMap, publicationTagsMap]);
+  }, [items, publications, fileableVaults, publicationVaultsMap, publicationTagsMap]);
 
   // useCallback here matters beyond the usual perf reasoning: InboxQueue
   // registers these as keyboard-shortcut handlers ('a'/'x'/'m'/'s') via
@@ -91,7 +115,10 @@ export function Inbox() {
       .insert([{ ...item.parsed_fields, user_id: user.id, authors: item.parsed_fields.authors || [] }])
       .select()
       .single();
-    if (error || !newPub) return;
+    if (error || !newPub) {
+      showError('Could not add paper to your library', error?.message || 'Unknown error');
+      return;
+    }
 
     const { data: newVaultPubId, error: copyError } = await supabase.rpc('copy_publication_to_vault', {
       pub_id: newPub.id,
@@ -104,13 +131,27 @@ export function Inbox() {
     }
 
     if (tagIds.length > 0) {
-      const { error: tagError } = await supabase.from('publication_tags').insert(
-        tagIds.map((tagId) => ({ publication_id: null, vault_publication_id: newVaultPubId, tag_id: tagId })),
-      );
-      if (tagError) {
-        showError('Paper filed, but tags could not be saved', tagError.message);
-        // Don't return here — the paper WAS successfully filed; only the tags failed.
-        // Fall through to acceptItem so the inbox item is still correctly marked accepted.
+      // `tags` aggregates every tag the user can see across all accessible
+      // vaults, so a stale/leftover selection could otherwise attach a tag
+      // from a different vault (or a global one) to this vault's copy --
+      // validate against the target vault first, same as
+      // useSharedVaultOperations.ts's own tag-attach path.
+      const { data: validTags, error: tagValidationError } = await supabase
+        .from('tags')
+        .select('id')
+        .in('id', tagIds)
+        .eq('vault_id', vaultId);
+      const validTagIds = tagValidationError ? [] : (validTags ?? []).map((t) => t.id);
+
+      if (validTagIds.length > 0) {
+        const { error: tagError } = await supabase.from('publication_tags').insert(
+          validTagIds.map((tagId) => ({ publication_id: null, vault_publication_id: newVaultPubId, tag_id: tagId })),
+        );
+        if (tagError) {
+          showError('Paper filed, but tags could not be saved', tagError.message);
+          // Don't return here — the paper WAS successfully filed; only the tags failed.
+          // Fall through to acceptItem so the inbox item is still correctly marked accepted.
+        }
       }
     }
 
@@ -123,8 +164,24 @@ export function Inbox() {
   const handlePostpone = useCallback((id: string) => { postponeItem(id); }, [postponeItem]);
   const handleCreated = useCallback(() => { refresh(); }, [refresh]);
 
-  const duplicateCount = Object.keys(duplicateTitles).length;
+  // duplicateTitles is never pruned as items leave the queue (accept/reject/
+  // merge/postpone all just filter `items`), so counting its keys directly
+  // would keep inflating this stat for the rest of the page session --
+  // count only entries whose item is still actually pending.
+  const duplicateCount = items.filter((item) => duplicateTitles[item.id]).length;
   const readyToFileCount = items.filter((item) => item.suggested_vault_id !== null).length;
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen bg-background items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -185,7 +242,7 @@ export function Inbox() {
           <InboxQueue
             items={items}
             duplicateTitles={duplicateTitles}
-            vaults={vaults}
+            vaults={fileableVaults}
             tags={tags}
             onAccept={handleAccept}
             onReject={handleReject}

@@ -77,7 +77,7 @@ vi.mock('@/hooks/useProfile', () => ({
 }));
 
 vi.mock('@/hooks/useVaults', () => ({
-  useVaults: () => ({ ownedVaults: mockVaults, sharedVaults: [], loading: false }),
+  useVaults: () => ({ ownedVaults: mockVaults, sharedVaults: [], sharedVaultRoles: {}, loading: false }),
   useInvalidateVaults: () => vi.fn(),
 }));
 
@@ -101,6 +101,18 @@ vi.mock('@/integrations/supabase/client', () => ({
       }
       if (table === 'publication_tags') {
         return { insert: (...args: unknown[]) => { mockInsert(...args); return Promise.resolve({ data: null, error: null }); } };
+      }
+      if (table === 'tags') {
+        // Validates every selected tag belongs to the target vault before
+        // inserting -- 'tag-1' is the only tag mockTags offers, so it's
+        // always "valid" here.
+        return {
+          select: () => ({
+            in: () => ({
+              eq: () => Promise.resolve({ data: [{ id: 'tag-1' }], error: null }),
+            }),
+          }),
+        };
       }
       return { insert: vi.fn(), select: vi.fn() };
     },
