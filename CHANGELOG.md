@@ -6,6 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.14.0] - 2026-09-11
+
+### Added
+- **Paper inbox**: a staging area for papers you've found but haven't decided where to file yet, at `/inbox` (sidebar entry above `all_papers`, with a pending-count pill). Capture by DOI, BibTeX, or manual title; each item is auto-scored against your existing library for a suggested vault, suggested tags, and possible duplicates, which you can accept, adjust, or override before filing. Supports both a card view and a sortable table/list view (toggle in the toolbar or press `v`), and full keyboard-driven triage (`j`/`k` to navigate, `a` accept, `x` reject, `m` merge into a detected duplicate, `s` postpone) — all documented in the "?" help overlay.
+
+### Fixed
+- The inbox's vault/tag suggestions were computed with a separate, cruder similarity scorer than duplicate detection, so a paper correctly flagged as a duplicate could still get no vault or tag suggestion at all; both now share the same heuristic. Separately, the computed suggestion never actually reached the triage UI's vault/tag selects, which always initialized empty regardless of what had been computed — both are now fixed.
+- `useInbox` is now backed by a shared react-query cache (matching `useVaults`/`useVaultFavorites`) instead of local per-instance state, so the sidebar's pending-count pill no longer goes stale after accepting/rejecting/merging an item elsewhere in the app.
+
 ## [1.13.0] - 2026-09-03
 
 ### Added
