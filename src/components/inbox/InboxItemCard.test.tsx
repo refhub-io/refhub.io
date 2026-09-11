@@ -52,7 +52,7 @@ describe('InboxItemCard', () => {
         onAccept={onAccept} onReject={onReject} onMerge={() => {}} onPostpone={onPostpone} focused={false}
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: /^accept$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /accept/i }));
     fireEvent.click(screen.getByRole('button', { name: /reject/i }));
     fireEvent.click(screen.getByRole('button', { name: /postpone/i }));
     expect(onAccept).toHaveBeenCalled();
