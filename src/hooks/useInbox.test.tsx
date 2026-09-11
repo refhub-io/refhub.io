@@ -113,4 +113,21 @@ describe('useInbox', () => {
     expect(result.current.items.length).toBe(initialLength);
     expect(result.current.items.find((i) => i.id === 'item-1')).toBeDefined();
   });
+
+  it('mergeItem is a no-op when the item has no known duplicate target', async () => {
+    // Regression test: mergeItem used to unconditionally mark the item
+    // 'merged' with filed_publication_id defaulting to null when
+    // duplicate_of_publication_id wasn't set -- silently discarding the
+    // item with no record of what it was supposed to match. mockItems'
+    // 'item-1' has duplicate_of_publication_id: null.
+    const { result } = renderUseInbox();
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    const initialLength = result.current.items.length;
+
+    await act(async () => { await result.current.mergeItem('item-1'); });
+
+    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(result.current.items.length).toBe(initialLength);
+    expect(result.current.items.find((i) => i.id === 'item-1')).toBeDefined();
+  });
 });

@@ -96,9 +96,15 @@ export function useInbox() {
 
   const mergeItem = useCallback(async (id: string) => {
     const item = items.find((i) => i.id === id);
+    // Without a known duplicate, "merge" would file the item under a null
+    // target and still remove it from the queue -- silently discarding it
+    // with no record of what it was supposed to match. The UI only shows
+    // the merge action once a duplicate has actually been detected, but
+    // guard here too rather than trust that invariant blindly.
+    if (!item?.duplicate_of_publication_id) return;
     const { error } = await supabase.from('inbox_items').update({
       status: 'merged',
-      filed_publication_id: item?.duplicate_of_publication_id ?? null,
+      filed_publication_id: item.duplicate_of_publication_id,
     }).eq('id', id);
     if (error) return;
     setItems((prev) => prev.filter((i) => i.id !== id));
