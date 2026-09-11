@@ -444,4 +444,5 @@ export const SHORTCUT_HELP: ShortcutHelpGroup[] = [
       { combo: kbdConfig.dialog.prevField.combo,  description: kbdConfig.dialog.prevField.description },
     ],
   },
+  { context: 'inbox',                label: 'Inbox',             shortcuts: allOf(kbdConfig.inbox) },
 ];

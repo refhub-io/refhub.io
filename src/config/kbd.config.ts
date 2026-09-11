@@ -27,6 +27,7 @@ export interface KbdConfig {
   global: ContextShortcuts;
   'vault-list': ContextShortcuts;
   'publication-list': ContextShortcuts;
+  inbox: ContextShortcuts;
   dialog: ContextShortcuts;
   editor: ContextShortcuts;
   export: ContextShortcuts;
@@ -149,6 +150,34 @@ const kbdConfig: KbdConfig = {
     delete: {
       combo: 'Delete',
       description: 'Delete selected',
+    },
+  },
+
+  // ─── Inbox ──────────────────────────────────────────────────────────────
+  inbox: {
+    moveDown: {
+      combo: 'j',
+      description: 'Next item',
+    },
+    moveUp: {
+      combo: 'k',
+      description: 'Previous item',
+    },
+    accept: {
+      combo: 'a',
+      description: 'Accept focused item',
+    },
+    reject: {
+      combo: 'x',
+      description: 'Reject focused item',
+    },
+    merge: {
+      combo: 'm',
+      description: 'Merge focused item with detected duplicate',
+    },
+    postpone: {
+      combo: 's',
+      description: 'Postpone focused item',
     },
   },
 

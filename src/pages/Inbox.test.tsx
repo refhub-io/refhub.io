@@ -1,8 +1,23 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 import { KeyboardProvider } from '@/contexts/KeyboardContext';
 import { Inbox } from './Inbox';
+
+function renderInbox() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <KeyboardProvider><Inbox /></KeyboardProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
 
 const mockItems = [{
   id: 'item-1', user_id: 'user-1', status: 'pending', source_type: 'manual', source_ref: 'Some Paper',
@@ -42,6 +57,15 @@ vi.mock('@/hooks/useAllPublications', () => ({
 
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'user-1' }, session: null }) }));
 
+vi.mock('@/hooks/useProfile', () => ({
+  useProfile: () => ({ profile: null, loading: false, refetch: vi.fn() }),
+}));
+
+vi.mock('@/hooks/useVaults', () => ({
+  useVaults: () => ({ ownedVaults: mockVaults, sharedVaults: [], loading: false }),
+  useInvalidateVaults: () => vi.fn(),
+}));
+
 // Mocks for the "accept" flow's Supabase calls: a plain publications insert, the
 // copy_publication_to_vault RPC (which returns the new vault_publications.id as a
 // scalar), and the publication_tags insert — captured so we can assert the tag
@@ -71,7 +95,7 @@ vi.mock('@/integrations/supabase/client', () => ({
 
 describe('Inbox page', () => {
   it('renders the capture form and the pending queue', async () => {
-    render(<KeyboardProvider><Inbox /></KeyboardProvider>);
+    renderInbox();
     expect(screen.getByRole('tab', { name: /doi/i })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText('Some Paper')).toBeInTheDocument());
   });
@@ -81,7 +105,7 @@ describe('Inbox page', () => {
     // is unreliable for driving them (the popover can close before the checkbox's own
     // click handler runs) — userEvent drives realistic pointer/focus sequences instead.
     const user = userEvent.setup();
-    render(<KeyboardProvider><Inbox /></KeyboardProvider>);
+    renderInbox();
     await waitFor(() => expect(screen.getByText('Some Paper')).toBeInTheDocument());
 
     // Select a vault so the "accept" button becomes enabled.
@@ -89,10 +113,10 @@ describe('Inbox page', () => {
     await user.click(await screen.findByRole('option', { name: 'My Vault' }));
 
     // Select a tag via the tag popover so the tag-insert path is exercised.
-    await user.click(screen.getByRole('button', { name: /select tags/i }));
+    await user.click(screen.getByRole('button', { name: /select_tags/i }));
     await user.click(await screen.findByRole('checkbox', { name: /important/i }));
 
-    const acceptButton = await screen.findByRole('button', { name: /^accept$/i });
+    const acceptButton = await screen.findByRole('button', { name: /accept/i });
     await waitFor(() => expect(acceptButton).not.toBeDisabled());
     await user.click(acceptButton);
 
