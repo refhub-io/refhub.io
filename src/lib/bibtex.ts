@@ -471,7 +471,7 @@ export interface DOIMetadata {
   type?: string;
 }
 
-async function getAccessToken() {
+export async function getAccessToken() {
   const { data, error } = await supabase.auth.getSession();
   if (error) throw error;
 

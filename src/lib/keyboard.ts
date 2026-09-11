@@ -344,6 +344,7 @@ export type KeyboardContextName =
   | 'vault-list'
   | 'publication-list'
   | 'publication-table'
+  | 'inbox'
   | 'dialog'
   | 'search'
   | 'editor'
@@ -358,6 +359,7 @@ export const CONTEXT_PRIORITY: Record<KeyboardContextName, number> = {
   'publication-list': 50,
   'publication-table': 50,
   'vault-list': 40,
+  inbox: 40,
   global: 0,
 };
 
@@ -442,4 +444,5 @@ export const SHORTCUT_HELP: ShortcutHelpGroup[] = [
       { combo: kbdConfig.dialog.prevField.combo,  description: kbdConfig.dialog.prevField.description },
     ],
   },
+  { context: 'inbox',                label: 'Inbox',             shortcuts: allOf(kbdConfig.inbox) },
 ];

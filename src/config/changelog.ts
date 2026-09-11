@@ -21,6 +21,25 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    id: 24,
+    date: '2026-09-11',
+    title: 'paper inbox',
+    features: [
+      {
+        tag: 'feature',
+        title: 'capture now, file later',
+        description:
+          'found a paper but don\'t know which vault it belongs in yet? drop it in your inbox (doi, bibtex, or manual title) — refhub suggests a vault, tags, and flags likely duplicates against your existing library, so filing it is a couple clicks instead of a decision.',
+      },
+      {
+        tag: 'feature',
+        title: 'keyboard-driven triage',
+        description:
+          'switch between card and list view (press v), then triage entirely from the keyboard: j/k to move, a to accept, x to reject, m to merge into a detected duplicate, s to postpone.',
+      },
+    ],
+  },
+  {
     id: 23,
     date: '2026-09-03',
     title: 'curated vault sections',
