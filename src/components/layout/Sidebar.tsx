@@ -34,6 +34,7 @@ import { Vault } from '@/types/database';
 import { ProfileAvatar } from '@/components/profile/ProfileAvatar';
 import { Profile } from '@/hooks/useProfile';
 import { useVaultFavorites } from '@/hooks/useVaultFavorites';
+import { useInbox } from '@/hooks/useInbox';
 import { useVaultFavoritesOrder } from '@/hooks/useVaultFavoritesOrder';
 import { useSidebarSectionState } from '@/hooks/useSidebarSectionState';
 import { resolveVaultDragEndAction } from '@/lib/vaultSidebarDnd';
@@ -97,6 +98,7 @@ export function Sidebar({
   const [showAllArchivedVaults, setShowAllArchivedVaults] = useState(false);
   const { user, signOut } = useAuth();
   const { favoriteVaults } = useVaultFavorites();
+  const { items: pendingInboxItems } = useInbox();
   const { orderFavorites, reorder: reorderFavorites } = useVaultFavoritesOrder(user?.id);
   const [activeFavoriteDrag, setActiveFavoriteDrag] = useState<ActiveVaultDrag | null>(null);
   const { open: whatsNewOpen, hasUnseen, onOpenChange: onWhatsNewOpenChange, openDialog: openWhatsNew } = useWhatsNew();
@@ -311,30 +313,6 @@ export function Sidebar({
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-2 min-h-0">
           <Link
-            to="/dashboard"
-            onClick={() => {
-              onSelectVault(null);
-              onMobileClose();
-            }}
-            className={cn(
-              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border-2",
-              isDashboardActive && !isCodexActive && !isUsersActive
-                ? "bg-gradient-to-br from-emerald-500/10 to-green-500/10 text-emerald-500 border-emerald-500/30"
-                : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 border-transparent"
-            )}
-          >
-            <div className={cn(
-              "w-8 h-8 rounded-lg flex items-center justify-center",
-              isDashboardActive && !isCodexActive && !isUsersActive 
-                ? "bg-gradient-to-br from-emerald-500/30 to-green-500/30" 
-                : "bg-gradient-to-br from-emerald-500/20 to-green-500/20"
-            )}>
-              <Zap className={cn("w-4 h-4", isDashboardActive && !isCodexActive && !isUsersActive ? "text-emerald-400" : "text-emerald-500")} />
-            </div>
-            <span className="font-mono">all_papers</span>
-          </Link>
-
-          <Link
             to="/inbox"
             onClick={onMobileClose}
             className={cn(
@@ -352,7 +330,36 @@ export function Sidebar({
             )}>
               <InboxIcon className={cn("w-4 h-4", isInboxActive ? "text-sky-400" : "text-sky-500")} />
             </div>
-            <span className="font-mono">inbox</span>
+            <span className="font-mono flex-1">inbox</span>
+            {pendingInboxItems.length > 0 && (
+              <span className="min-w-5 h-5 px-1 rounded-full bg-primary text-[10px] font-bold flex items-center justify-center text-primary-foreground">
+                {pendingInboxItems.length > 9 ? '9+' : pendingInboxItems.length}
+              </span>
+            )}
+          </Link>
+
+          <Link
+            to="/dashboard"
+            onClick={() => {
+              onSelectVault(null);
+              onMobileClose();
+            }}
+            className={cn(
+              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 border-2",
+              isDashboardActive && !isCodexActive && !isUsersActive
+                ? "bg-gradient-to-br from-emerald-500/10 to-green-500/10 text-emerald-500 border-emerald-500/30"
+                : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 border-transparent"
+            )}
+          >
+            <div className={cn(
+              "w-8 h-8 rounded-lg flex items-center justify-center",
+              isDashboardActive && !isCodexActive && !isUsersActive
+                ? "bg-gradient-to-br from-emerald-500/30 to-green-500/30"
+                : "bg-gradient-to-br from-emerald-500/20 to-green-500/20"
+            )}>
+              <Zap className={cn("w-4 h-4", isDashboardActive && !isCodexActive && !isUsersActive ? "text-emerald-400" : "text-emerald-500")} />
+            </div>
+            <span className="font-mono">all_papers</span>
           </Link>
 
           <Link

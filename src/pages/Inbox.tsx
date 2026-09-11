@@ -15,7 +15,7 @@ import { SidebarDndBoundary } from '@/components/layout/SidebarDndBoundary';
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { VaultDialog } from '@/components/vaults/VaultDialog';
-import { Inbox as InboxIcon } from 'lucide-react';
+import { Inbox as InboxIcon, AlertCircle, Compass } from 'lucide-react';
 import type { Vault } from '@/types/database';
 
 export function Inbox() {
@@ -108,6 +108,9 @@ export function Inbox() {
   const handlePostpone = useCallback((id: string) => { postponeItem(id); }, [postponeItem]);
   const handleCreated = useCallback(() => { refresh(); }, [refresh]);
 
+  const duplicateCount = Object.keys(duplicateTitles).length;
+  const readyToFileCount = items.filter((item) => item.suggested_vault_id !== null).length;
+
   return (
     <div className="flex min-h-screen bg-background">
       <SidebarDndBoundary
@@ -126,12 +129,40 @@ export function Inbox() {
         }}
       />
       <main className="flex-1 lg:pl-72 min-w-0 flex flex-col min-h-screen">
-        <div className="flex items-center gap-1 px-4 lg:px-8 py-2 border-b border-border shrink-0">
-          <MobileMenuButton onClick={() => setIsMobileSidebarOpen(true)} />
-          <div className="w-6 h-6 rounded-md flex items-center justify-center bg-gradient-to-br from-[hsl(var(--cyber-blue))]/20 to-[hsl(var(--neon-green))]/20 shrink-0">
-            <InboxIcon className="w-3.5 h-3.5 text-primary" />
+        {!isMobileSidebarOpen && (
+          <MobileMenuButton onClick={() => setIsMobileSidebarOpen(true)} className="fixed top-4 left-4 z-50" />
+        )}
+
+        {/* Overview header -- explains what the inbox is for (not obvious to
+            everyone) and surfaces at-a-glance stats on what needs triage,
+            same spirit as TheCodex's hero but scaled down for a utility page. */}
+        <div className="w-full border-b-2 border-border bg-gradient-to-b from-sky-500/5 via-cyan-500/5 to-background">
+          <div className="px-4 lg:px-8 py-10 sm:py-14 text-center">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-sky-500/10 to-cyan-500/10 border border-sky-500/20 mb-4">
+              <InboxIcon className="w-3.5 h-3.5 text-sky-500" />
+              <span className="text-xs font-medium text-sky-500 font-mono">staging_area</span>
+            </div>
+            <h1 className="text-3xl sm:text-4xl font-bold mb-3 font-mono">
+              <span className="bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">inbox</span>
+            </h1>
+            <p className="text-muted-foreground font-mono text-sm sm:text-base max-w-2xl mx-auto mb-6">
+              // capture a paper before you know where it belongs, then triage it here — pick a vault, add tags, and file it (or reject/merge if it turns out to be a duplicate).
+            </p>
+            <div className="flex flex-wrap justify-center gap-4 text-sm font-mono">
+              <span className="inline-flex items-center gap-1.5">
+                <InboxIcon className="w-3.5 h-3.5 text-sky-500" />
+                <strong>{items.length}</strong> pending
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-orange-600 dark:text-orange-400">
+                <AlertCircle className="w-3.5 h-3.5" />
+                <strong>{duplicateCount}</strong> possible duplicate{duplicateCount === 1 ? '' : 's'}
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-neon-green">
+                <Compass className="w-3.5 h-3.5" />
+                <strong>{readyToFileCount}</strong> ready to file
+              </span>
+            </div>
           </div>
-          <h1 className="text-sm font-mono font-semibold">inbox</h1>
         </div>
 
         <div className="max-w-4xl w-full mx-auto p-4 sm:p-6 space-y-6">
