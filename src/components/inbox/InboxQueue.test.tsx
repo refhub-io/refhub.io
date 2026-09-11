@@ -142,4 +142,44 @@ describe('InboxQueue', () => {
     fireEvent.keyDown(document, { key: 'v' });
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
+
+  it('picks up a duplicateTitles update for "m" even when items/focusedIndex/selections did not change', () => {
+    // Regression test: useHotkeys' dependency array only listed
+    // [items, focusedIndex, selections] -- duplicateTitles wasn't in it, so
+    // once a duplicate was detected asynchronously (after this component's
+    // hotkeys had already registered against an empty duplicateTitles), the
+    // "m" handler kept reading the stale, empty object forever, even though
+    // the merge button itself (driven fresh from props every render) worked.
+    const item = makeItem('item-1', 'First');
+    // Stable array reference across both renders -- a fresh `[item]` literal
+    // per render would itself change `items`' identity and mask the bug this
+    // test targets (useHotkeys would re-register anyway, for an unrelated
+    // reason, hiding the missing duplicateTitles dependency).
+    const itemsArray = [item];
+    const onMerge = vi.fn();
+    const { rerender } = render(
+      <KeyboardProvider>
+        <InboxQueue
+          items={itemsArray}
+          duplicateTitles={{}} vaults={[vault]} tags={[]}
+          onAccept={() => {}} onReject={() => {}} onMerge={onMerge} onPostpone={() => {}}
+        />
+      </KeyboardProvider>,
+    );
+
+    // A duplicate is detected for the same item, same items/selections --
+    // only duplicateTitles changes.
+    rerender(
+      <KeyboardProvider>
+        <InboxQueue
+          items={itemsArray}
+          duplicateTitles={{ 'item-1': 'Existing Paper' }} vaults={[vault]} tags={[]}
+          onAccept={() => {}} onReject={() => {}} onMerge={onMerge} onPostpone={() => {}}
+        />
+      </KeyboardProvider>,
+    );
+
+    fireEvent.keyDown(document, { key: 'm' });
+    expect(onMerge).toHaveBeenCalledWith('item-1');
+  });
 });

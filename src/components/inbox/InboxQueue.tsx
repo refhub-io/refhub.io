@@ -89,7 +89,7 @@ export function InboxQueue({ items, duplicateTitles, vaults, tags, onAccept, onR
       if (focusedItem && duplicateTitles[focusedItem.id]) onMerge(focusedItem.id);
     } },
     { combo: 's', description: 'Postpone focused item', handler: () => { if (focusedItem) onPostpone(focusedItem.id); } },
-  ], [items, focusedIndex, selections]);
+  ], [items, focusedIndex, selections, duplicateTitles, onAccept, onReject, onMerge, onPostpone]);
 
   const itemProps = (item: InboxItem, index: number) => {
     const sel = getSelection(item.id);
