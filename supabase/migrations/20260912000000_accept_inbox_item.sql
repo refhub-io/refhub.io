@@ -42,12 +42,17 @@ BEGIN
     )
     SELECT
         p_user_id,
-        v_item.parsed_fields->>'title',
-        COALESCE(
-            ARRAY(SELECT jsonb_array_elements_text(v_item.parsed_fields->'authors')),
-            '{}'
-        ),
-        NULLIF(v_item.parsed_fields->>'year', '')::int,
+        COALESCE(NULLIF(btrim(v_item.parsed_fields->>'title'), ''), v_item.source_ref, 'Untitled'),
+        CASE
+            WHEN jsonb_typeof(v_item.parsed_fields->'authors') = 'array'
+                THEN ARRAY(SELECT jsonb_array_elements_text(v_item.parsed_fields->'authors'))
+            ELSE '{}'
+        END,
+        CASE
+            WHEN (v_item.parsed_fields->>'year') ~ '^\d{1,4}$'
+                THEN (v_item.parsed_fields->>'year')::int
+            ELSE NULL
+        END,
         v_item.parsed_fields->>'journal',
         v_item.parsed_fields->>'doi',
         v_item.parsed_fields->>'url',
@@ -63,7 +68,8 @@ BEGIN
         INSERT INTO publication_tags (vault_publication_id, publication_id, tag_id)
         SELECT v_new_vault_pub_id, NULL, t.id
         FROM tags t
-        WHERE t.id = ANY(p_tag_ids) AND t.vault_id = p_target_vault_id;
+        WHERE t.id = ANY(p_tag_ids)
+            AND (t.vault_id = p_target_vault_id OR (t.vault_id IS NULL AND t.user_id = p_user_id));
     END IF;
 
     UPDATE inbox_items
