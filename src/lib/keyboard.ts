@@ -418,7 +418,6 @@ function pick(
  */
 export const SHORTCUT_HELP: ShortcutHelpGroup[] = [
   { context: 'global',               label: 'Global',            shortcuts: allOf(kbdConfig.global) },
-  { context: 'vault-list',           label: 'Vault List',        shortcuts: allOf(kbdConfig['vault-list']) },
   {
     context: 'publication-list:navigation',
     label: 'Paper Navigation',
@@ -431,7 +430,7 @@ export const SHORTCUT_HELP: ShortcutHelpGroup[] = [
   },
   {
     context: 'publication-list:popups-actions',
-    label: 'Paper Popups & Actions',
+    label: 'Vault Actions',
     shortcuts: pick(kbdConfig['publication-list'], ['filterPopup', 'sortPopup', 'propertiesPopup', 'discoverRelated', 'export', 'delete']),
   },
   {
@@ -444,5 +443,23 @@ export const SHORTCUT_HELP: ShortcutHelpGroup[] = [
       { combo: kbdConfig.dialog.prevField.combo,  description: kbdConfig.dialog.prevField.description },
     ],
   },
-  { context: 'inbox',                label: 'Inbox',             shortcuts: allOf(kbdConfig.inbox) },
+  {
+    context: 'inbox',
+    label: 'Inbox',
+    // moveDown/moveUp's functional combo stays plain 'j'/'k' in kbdConfig
+    // (InboxQueue.tsx registers that string directly as the real hotkey,
+    // unlike vault-list/publication-list whose j/k/arrow wiring is hardcoded
+    // in useKeyboardNavigation and never reads kbdConfig at all) -- ArrowDown/
+    // ArrowUp are registered as separate literal hotkeys there, so the
+    // display-only " / " alternative belongs here instead.
+    shortcuts: [
+      { combo: kbdConfig.inbox.toggleView.combo, description: kbdConfig.inbox.toggleView.description },
+      { combo: 'j / ↓', description: kbdConfig.inbox.moveDown.description },
+      { combo: 'k / ↑', description: kbdConfig.inbox.moveUp.description },
+      { combo: kbdConfig.inbox.accept.combo, description: kbdConfig.inbox.accept.description },
+      { combo: kbdConfig.inbox.reject.combo, description: kbdConfig.inbox.reject.description },
+      { combo: kbdConfig.inbox.merge.combo, description: kbdConfig.inbox.merge.description },
+      { combo: kbdConfig.inbox.postpone.combo, description: kbdConfig.inbox.postpone.description },
+    ],
+  },
 ];

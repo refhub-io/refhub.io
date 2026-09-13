@@ -25,7 +25,6 @@ export interface ContextShortcuts {
 
 export interface KbdConfig {
   global: ContextShortcuts;
-  'vault-list': ContextShortcuts;
   'publication-list': ContextShortcuts;
   inbox: ContextShortcuts;
   dialog: ContextShortcuts;
@@ -55,22 +54,6 @@ const kbdConfig: KbdConfig = {
       combo: 'o',
       description: 'Open vault settings',
     },  },
-
-  // ─── Vault List ──────────────────────────────────────────────────────────
-  'vault-list': {
-    moveDown: {
-      combo: 'j / ↓',
-      description: 'Move selection down',
-    },
-    moveUp: {
-      combo: 'k / ↑',
-      description: 'Move selection up',
-    },
-    open: {
-      combo: 'Enter',
-      description: 'Open selected vault',
-    },
-  },
 
   // ─── Publication List ────────────────────────────────────────────────────
   'publication-list': {
