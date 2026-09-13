@@ -18,15 +18,35 @@ use `add_paper` from `all_papers` or a vault to bring papers into refhub.
 - **existing papers** can be added into another vault without creating a duplicate library item.
 - **pdfs** can be attached to papers. when google drive is connected, refhub can store saved pdfs in your managed drive folder.
 
+## inbox
+
+the **inbox** is a staging area for papers you want to capture now and file properly later, instead of committing every capture straight into a vault.
+
+- capture by doi, bibtex, or manual entry — the same sources as `add_paper`, without picking a vault up front.
+- each pending item gets a suggested vault and tags where refhub can infer them; you can change either before filing.
+- refhub checks new captures against your existing library and flags likely duplicates so you don't file the same paper twice.
+- triage each item: **accept** into a vault, **reject** to discard it, **merge** into the duplicate refhub found, or **postpone** to come back to it later.
+- switch between card and list view; a full set of keyboard shortcuts drives the queue without touching the mouse (see the **keyboard** tab).
+- the inbox stays in sync in real time — a capture from a script, an agent, or another tab shows up without a manual refresh.
+
 ## organizing papers
 
 each paper has bibliographic metadata such as title, authors, year, venue, doi, url, abstract, and publication type. vaults add curation on top:
 
 - **tags** organize papers inside a vault and can be hierarchical.
 - **notes / comments** capture why a paper matters in this collection.
-- **relationships** connect papers as references, citations, or related work.
+- **relationships** connect papers as references, citations, or related work — added manually, or from a suggestion (see **augmentation & analytics** below).
+- **smart collections** are saved, named filter rules that pull matching papers live from across all of your vaults — a standing search rather than a fixed list, so newly added papers that match automatically show up. manage them from the **collections** page.
 
 paper-level metadata should describe the publication itself. vault-specific metadata should describe how that paper is used in the current vault.
+
+## augmentation & analytics
+
+refhub can look outward (semantic scholar) and inward (your own vault data) to suggest connections and flag gaps, without changing anything until you approve it.
+
+- **relationship suggestions** compare a paper's semantic scholar citation graph against your other papers and propose reference/citation links between ones you already have. run it on a single paper right after adding it, or scan an entire vault at once — a vault-wide scan is resumable, so it picks back up rather than restarting if it's interrupted. review each suggestion before it's added; nothing is linked automatically.
+- **vault health check** scans a vault's papers for missing or incomplete metadata (title, authors, year, doi, abstract, and other fields), grouped by how much each gap matters, and rolls the result up into a vault health score. it can also run one-click enrichment (via semantic scholar) to fill in what it finds.
+- see **semantic scholar tools** below for the per-paper enrich/discovery tools these features build on.
 
 ## semantic scholar tools
 
@@ -45,6 +65,8 @@ open vault settings from the vault gear or the `o` shortcut when a vault is acti
 - visibility: private, protected, or public.
 - public slug for shareable public vault urls.
 - access requests and collaborator management when sharing is enabled.
+- **curated sections** for public vaults: group papers into named, ordered sections and mark individual ones as featured with an optional note, instead of showing one flat list on the public page.
+- **archive**: freezes a vault's content and settings so nothing about it can change again. archiving is irreversible — visibility and read access stay exactly as they were, and you can still delete an archived vault outright.
 
 ## sharing and access
 
@@ -63,6 +85,11 @@ use export from a vault, public vault, or selected papers to take data out of re
 ## the codex
 
 the codex is refhub's public discovery surface. public vaults appear there so other researchers can browse, reuse, and request collaboration on curated collections.
+
+- **topic pages** gather every public paper matching a tag, keyword, or topic across all public vaults, not just one — click a tag or search a topic to open one.
+- each match shows **why it matched** (tag, keyword, note mention, or a citation link to another matching paper) and who curated it.
+- a topic page also surfaces **related-via-citation** papers and **related topics** to keep browsing from, plus sort by relevance, recent, most forked/favorited, or most connected.
+- from the codex you can **favorite** a vault to track it or **fork** it into your own account to build on.
 
 ## profile and settings
 
@@ -102,6 +129,8 @@ tags are managed where the papers live.
 
 when editing a paper, use the tag selector to assign or remove tags. in shared vaults, tag editing follows the same edit permissions as the rest of the vault.
 
+tags (and keywords) are also how a paper surfaces in **the codex**'s topic pages — see above.
+
 ### what markdown is supported in notes and help content?
 
 refhub renders markdown through `react-markdown` with github-flavored markdown and extended plugins enabled: `remark-gfm`, `remark-breaks`, `remark-footnotes`, `rehype-slug`, `rehype-autolink-headings`, `rehype-highlight`, sanitized raw html, and heading anchors.
@@ -116,6 +145,14 @@ common and extended syntax works:
 - soft line breaks are preserved.
 
 raw html is sanitized before rendering, so prefer markdown syntax for portable notes instead of relying on embedded html.
+
+### how does the inbox decide what to suggest?
+
+when refhub can infer a likely vault or tags for a captured item, it pre-fills them on the card — you can always change either before accepting. duplicate detection compares a new capture against your existing library, and merge is only offered once a duplicate is actually found; nothing is filed or merged automatically.
+
+### how do relationship suggestions get reviewed?
+
+running a suggestion scan (per-paper or vault-wide) never links anything by itself — it proposes reference/citation candidates found via semantic scholar's citation graph, and each one waits for you to approve or dismiss it. a vault-wide scan can be resumed if it's interrupted, and rescanning only revisits papers that previously failed or were skipped.
 
 ### where do i get an api key?
 
