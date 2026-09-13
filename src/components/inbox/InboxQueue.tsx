@@ -88,7 +88,13 @@ export function InboxQueue({ items, duplicateTitles, vaults, tags, onAccept, onR
   useHotkeys('inbox', [
     { ...getShortcut('inbox', 'toggleView'), handler: () => setViewMode((prev) => (prev === 'cards' ? 'list' : 'cards')) },
     { ...getShortcut('inbox', 'moveDown'), handler: () => setFocusedIndex((i) => Math.min(i + 1, items.length - 1)) },
+    // ArrowDown/ArrowUp registered separately from kbd.config's 'j'/'k' combo
+    // strings -- parseCombo() doesn't understand the " / " alternative syntax
+    // used for display elsewhere (e.g. 'j / ↓'), so each physical key needs
+    // its own hotkey entry to actually fire.
+    { combo: 'ArrowDown', description: getShortcut('inbox', 'moveDown').description, handler: () => setFocusedIndex((i) => Math.min(i + 1, items.length - 1)) },
     { ...getShortcut('inbox', 'moveUp'), handler: () => setFocusedIndex((i) => Math.max(i - 1, 0)) },
+    { combo: 'ArrowUp', description: getShortcut('inbox', 'moveUp').description, handler: () => setFocusedIndex((i) => Math.max(i - 1, 0)) },
     { ...getShortcut('inbox', 'accept'), handler: () => {
       if (!focusedItem) return;
       const sel = getSelection(focusedItem.id);

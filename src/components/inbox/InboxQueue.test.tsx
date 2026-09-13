@@ -99,6 +99,44 @@ describe('InboxQueue', () => {
     expect(onReject).toHaveBeenCalledWith('item-2');
   });
 
+  it('pressing "ArrowDown" moves focus to the next item before acting', () => {
+    // Regression test: the inbox queue registered only 'j'/'k' for
+    // navigation, wiring hotkeys straight from kbd.config's display combo
+    // strings -- ArrowDown/ArrowUp were never registered at all, unlike
+    // every other list in the app (which goes through the shared
+    // useKeyboardNavigation hook instead).
+    const onReject = vi.fn();
+    render(
+      <KeyboardProvider>
+        <InboxQueue
+          items={[makeItem('item-1', 'First'), makeItem('item-2', 'Second')]}
+          duplicateTitles={{}} vaults={[vault]} tags={[]}
+          onAccept={() => {}} onReject={onReject} onMerge={() => {}} onPostpone={() => {}}
+        />
+      </KeyboardProvider>,
+    );
+    fireEvent.keyDown(document, { key: 'ArrowDown' });
+    fireEvent.keyDown(document, { key: 'x' });
+    expect(onReject).toHaveBeenCalledWith('item-2');
+  });
+
+  it('pressing "ArrowUp" moves focus back to the previous item', () => {
+    const onReject = vi.fn();
+    render(
+      <KeyboardProvider>
+        <InboxQueue
+          items={[makeItem('item-1', 'First'), makeItem('item-2', 'Second')]}
+          duplicateTitles={{}} vaults={[vault]} tags={[]}
+          onAccept={() => {}} onReject={onReject} onMerge={() => {}} onPostpone={() => {}}
+        />
+      </KeyboardProvider>,
+    );
+    fireEvent.keyDown(document, { key: 'ArrowDown' });
+    fireEvent.keyDown(document, { key: 'ArrowUp' });
+    fireEvent.keyDown(document, { key: 'x' });
+    expect(onReject).toHaveBeenCalledWith('item-1');
+  });
+
   it('seeds the vault/tag selection from a computed suggestion once it appears on the item', () => {
     // Regression test: the card's own local `selections` state used to always
     // default to { vaultId: null, tagIds: [] } regardless of what
