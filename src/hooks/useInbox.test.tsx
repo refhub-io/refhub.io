@@ -32,6 +32,11 @@ const mockUpdate = vi.fn().mockResolvedValue({ data: null, error: null });
 const mockInsert = vi.fn();
 let mockUpdateError: unknown = null;
 
+// Captures the handler passed to each .on('postgres_changes', {event}, handler)
+// call so tests can simulate an incoming realtime event by invoking it directly.
+const realtimeHandlers: Record<string, (payload: unknown) => void> = {};
+const mockRemoveChannel = vi.fn();
+
 vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1', email: 'user@example.com' }, session: null }),
 }));
@@ -67,12 +72,30 @@ vi.mock('@/integrations/supabase/client', () => {
           },
         };
       },
+      channel: () => {
+        const chan = {
+          on: (_type: string, config: { event: string }, handler: (payload: unknown) => void) => {
+            realtimeHandlers[config.event] = handler;
+            return chan;
+          },
+          subscribe: () => chan,
+        };
+        return chan;
+      },
+      removeChannel: (...args: unknown[]) => mockRemoveChannel(...args),
     },
   };
 });
 
 describe('useInbox', () => {
-  beforeEach(() => { mockUpdate.mockClear(); mockInsert.mockClear(); });
+  beforeEach(() => {
+    mockUpdate.mockClear();
+    mockInsert.mockClear();
+    mockRemoveChannel.mockClear();
+    delete realtimeHandlers.INSERT;
+    delete realtimeHandlers.UPDATE;
+    delete realtimeHandlers.DELETE;
+  });
 
   it('loads pending items ordered by sort_order then created_at', async () => {
     const { result } = renderUseInbox();
@@ -129,5 +152,57 @@ describe('useInbox', () => {
     expect(mockUpdate).not.toHaveBeenCalled();
     expect(result.current.items.length).toBe(initialLength);
     expect(result.current.items.find((i) => i.id === 'item-1')).toBeDefined();
+  });
+
+  it('adds a pending item that arrives via realtime INSERT from outside this tab', async () => {
+    const { result } = renderUseInbox();
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    const agentItem = {
+      id: 'agent-item', user_id: 'user-1', status: 'pending', source_type: 'doi', source_ref: '10.1/c',
+      parsed_fields: { title: 'C' }, suggested_vault_id: null, suggested_tag_ids: null,
+      duplicate_of_publication_id: null, filed_publication_id: null, sort_order: 0,
+      created_at: '2026-01-03T00:00:00.000Z', updated_at: '2026-01-03T00:00:00.000Z',
+    };
+    act(() => { realtimeHandlers.INSERT({ new: agentItem }); });
+
+    await waitFor(() => expect(result.current.items.find((i) => i.id === 'agent-item')).toBeDefined());
+  });
+
+  it('ignores a realtime INSERT for a non-pending item', async () => {
+    const { result } = renderUseInbox();
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    const initialLength = result.current.items.length;
+
+    await act(async () => { realtimeHandlers.INSERT({ new: { ...mockItems[0], id: 'other-item', status: 'rejected' } }); });
+
+    expect(result.current.items.length).toBe(initialLength);
+  });
+
+  it('removes an item when a realtime UPDATE moves it out of pending', async () => {
+    const { result } = renderUseInbox();
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => { realtimeHandlers.UPDATE({ new: { ...mockItems[0], status: 'accepted' } }); });
+
+    await waitFor(() => expect(result.current.items.find((i) => i.id === 'item-2')).toBeUndefined());
+  });
+
+  it('removes an item when a realtime DELETE arrives', async () => {
+    const { result } = renderUseInbox();
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => { realtimeHandlers.DELETE({ old: { id: 'item-1' } }); });
+
+    await waitFor(() => expect(result.current.items.find((i) => i.id === 'item-1')).toBeUndefined());
+  });
+
+  it('unsubscribes the realtime channel on unmount', async () => {
+    const { result, unmount } = renderUseInbox();
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    unmount();
+
+    expect(mockRemoveChannel).toHaveBeenCalledTimes(1);
   });
 });

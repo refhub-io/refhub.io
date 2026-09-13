@@ -1,8 +1,12 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import type { InboxItem, InboxSourceType, Publication } from '@/types/database';
+
+function sortInboxItems(a: InboxItem, b: InboxItem): number {
+  return a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at);
+}
 
 export interface CreateInboxItemInput {
   sourceType: InboxSourceType;
@@ -48,6 +52,62 @@ export function useInbox() {
   const setItems = useCallback((updater: (prev: InboxItem[]) => InboxItem[]) => {
     queryClient.setQueryData(inboxItemsQueryKey(user?.id), (prev: InboxItem[] | undefined) => updater(prev ?? []));
   }, [queryClient, user?.id]);
+
+  // Mirrors useNotifications.ts's postgres_changes pattern: an inbox item
+  // captured or filed from outside this browser tab -- the CLI, an agent
+  // skill, or the /api/v1/inbox HTTP API -- has no local mutation call to
+  // update this cache after, so without a live subscription the queue and
+  // the Sidebar's pending-count pill both go stale until a manual refresh.
+  useEffect(() => {
+    if (!user) return;
+    const userId = user.id;
+
+    const channel = supabase
+      .channel(`inbox-items-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'inbox_items', filter: `user_id=eq.${userId}` },
+        (payload) => {
+          const item = payload.new as InboxItem;
+          if (item.status !== 'pending') return;
+          setItems((prev) => {
+            if (prev.some((i) => i.id === item.id)) return prev;
+            return [...prev, item].sort(sortInboxItems);
+          });
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'inbox_items', filter: `user_id=eq.${userId}` },
+        (payload) => {
+          const item = payload.new as InboxItem;
+          setItems((prev) => {
+            if (item.status !== 'pending') return prev.filter((i) => i.id !== item.id);
+            const exists = prev.some((i) => i.id === item.id);
+            const next = exists ? prev.map((i) => (i.id === item.id ? item : i)) : [...prev, item];
+            return next.sort(sortInboxItems);
+          });
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'inbox_items', filter: `user_id=eq.${userId}` },
+        (payload) => {
+          const deletedId = (payload.old as Partial<InboxItem>).id;
+          if (!deletedId) return;
+          setItems((prev) => prev.filter((i) => i.id !== deletedId));
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // Depend on user?.id, not user -- useAuth() returns a new object each
+    // render, and depending on the whole object would tear down and
+    // recreate the channel on every render instead of only on user change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, setItems]);
 
   const createItem = useCallback(async (input: CreateInboxItemInput): Promise<InboxItem | null> => {
     if (!user) return null;
