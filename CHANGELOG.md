@@ -6,6 +6,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [2.0.0] - 2026-09-14
+
+refhub's official 2.0 release. Individual features below already shipped across the 1.x line (see their own entries further down) — this marks the milestone: refhub has grown from a personal reference manager into a full research platform, with public discovery, agent/CLI tooling, and a public API surface to match.
+
+### Changed
+- Major version bump: refhub is no longer just a personal library tool. Vaults can be public, curated, discovered, and forked; papers can be found by AI agents as easily as by their owners; and the whole write surface is available outside the browser via a versioned API, CLI, and Claude/Codex-compatible skill.
+
+### Highlights since 1.x
+- **Discovery & sharing**: the Codex (public vault discovery), topic/tag/keyword search with facets and citation-aware matching, researcher profiles, vault forking and favorites, public access requests and direct collaborator sharing, branded QR sharing.
+- **Curation**: curated public-vault sections with featured papers, smart collections (saved cross-vault filters), reading state and priority tracking, vault health scoring with one-click enrichment, duplicate-resolution tooling.
+- **Capture & triage**: the paper inbox (capture by DOI/BibTeX/manual entry, suggested vault/tags, duplicate detection, keyboard-driven accept/reject/merge/postpone triage, realtime sync), CSV/BibTeX/JSON export, Google Drive PDF storage, LaTeX-rendered notes.
+- **Agentic & API access**: a versioned public API (`/api/v1`) covering vaults, items, tags, relations, sections, import, search, export, and audit; the `refhub` CLI; and a Claude Code / Codex-compatible agent skill documenting the full workflow surface.
+- **Platform**: vault archiving, relationship-suggestion scanning against Semantic Scholar's citation graph, coordinated rate limiting and provider fallback for discovery, and a guided onboarding tour.
+
 ## [1.14.0] - 2026-09-14
 
 ### Added
