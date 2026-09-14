@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [1.13.1] - 2026-09-14
+
+### Added
+- `accept_inbox_item(p_inbox_item_id, p_target_vault_id, p_tag_ids, p_user_id)` Postgres function: atomically files a pending inbox item into a vault (creates the canonical publication, copies it into the vault, attaches tags, marks the item accepted) in one transaction. Backend-only — used by the new `.netlify` `/api/v1/inbox/:id/accept` route, not by this app's own `Inbox.tsx`, which still does the same three writes separately (tracked as #225).
+
 ## [1.13.0] - 2026-09-03
 
 ### Added

@@ -12,13 +12,14 @@
 --
 -- DEPENDS ON inbox_items, which this branch does not itself define -- that
 -- table is created by 20260905000000_paper_inbox.sql on the separate
--- feature/paper-inbox branch. This migration must not merge to main ahead
--- of that one: `inbox_items%ROWTYPE` below fails to resolve (missing
--- relation) on a clean `supabase db push`/reset run against a migration
--- history that has this file without that one already applied first.
--- (Already applied to the live database, where inbox_items already exists,
--- so this ordering constraint only matters for migration history / a fresh
--- environment, not the current production state.)
+-- feature/paper-inbox branch. v_item below is declared RECORD rather than
+-- inbox_items%ROWTYPE specifically so this migration's CREATE FUNCTION
+-- still succeeds on a clean `supabase db push`/reset even when that
+-- sibling migration hasn't been applied yet -- %ROWTYPE is resolved at
+-- function-creation time (requiring the table to already exist), while
+-- RECORD is resolved at runtime, from whatever the SELECT below returns.
+-- This function will still fail if actually CALLED before inbox_items
+-- exists, but no longer blocks deployment of the schema itself.
 
 CREATE OR REPLACE FUNCTION "public"."accept_inbox_item"(
     "p_inbox_item_id" uuid,
@@ -30,7 +31,7 @@ CREATE OR REPLACE FUNCTION "public"."accept_inbox_item"(
     SET "search_path" TO 'public'
     AS $$
 DECLARE
-    v_item inbox_items%ROWTYPE;
+    v_item RECORD;
     v_new_pub_id uuid;
     v_new_vault_pub_id uuid;
 BEGIN
