@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Publication, Vault, PUBLICATION_TYPES } from '@/types/database';
 import { cn } from '@/lib/utils';
 import {
@@ -34,6 +34,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { useAuth } from '@/hooks/useAuth';
+import { showError } from '@/lib/toast';
+import { logger } from '@/lib/logger';
+import { supabase } from '@/integrations/supabase/client';
+import { formatVaultPublication } from '@/lib/formatVaultPublication';
+import { findRelationshipSuggestions, type RelationshipSuggestion } from '@/lib/relationshipSuggestions';
+import { RelationshipSuggestionsList, suggestionKey } from './RelationshipSuggestionsList';
 
 interface AddImportDialogProps {
   open: boolean;
@@ -120,6 +127,89 @@ export function AddImportDialog({
   // Import options
   const [targetVaultId, setTargetVaultId] = useState<string | null>(currentVaultId);
   const [importing, setImporting] = useState(false);
+
+  const { user } = useAuth();
+
+  // Pre-import relationship scan: check the selected-but-not-yet-imported
+  // paper against a chosen target vault's existing papers, before ever
+  // committing the import. Replaces the old post-import auto-trigger (which
+  // silently did nothing whenever the copy_publication_to_vault RPC failed
+  // to leave a resolvable row, among other flow issues) with an explicit,
+  // user-initiated action available the moment paper + vault are both known.
+  //
+  // The paper doesn't exist in `publications` yet, so suggestions are keyed
+  // by a placeholder id (its DOI) instead of a real publication id. Approved
+  // suggestions are staged locally, not persisted -- handleImport reconciles
+  // the placeholder to the real vault_publications id once the import
+  // actually completes, then inserts them for real.
+  const [ephemeralSuggestions, setEphemeralSuggestions] = useState<RelationshipSuggestion[]>([]);
+  const [stagedRelations, setStagedRelations] = useState<RelationshipSuggestion[]>([]);
+  const [scanningEphemeral, setScanningEphemeral] = useState(false);
+
+  const pendingRelationId = (doi: string) => `__pending__:${doi}`;
+
+  const singleSelectedIndex = selectedIndices.size === 1 ? Array.from(selectedIndices)[0] : null;
+  const singleSelectedPub = singleSelectedIndex !== null ? parsedPublications[singleSelectedIndex] : null;
+
+  const resetEphemeralRelationships = () => {
+    setEphemeralSuggestions([]);
+    setStagedRelations([]);
+    setScanningEphemeral(false);
+  };
+
+  // A scan is only meaningful for THIS specific paper+vault pairing -- once
+  // either changes, stale suggestions/staged approvals no longer apply.
+  useEffect(() => {
+    resetEphemeralRelationships();
+  }, [singleSelectedPub?.doi, targetVaultId]);
+
+  // Reacts to the `open` prop itself, not just this dialog's own "done"
+  // button or its Dialog's onOpenChange callback — covers every path that
+  // can flip `open` to false (X, Escape, outside click, or a parent closing
+  // it through some other route entirely), same as ExistingPaperSelector's
+  // own reset-on-close effect. This dialog's DialogContent uses forceMount
+  // (stays mounted across opens, only hidden via CSS), so this state must be
+  // reset explicitly — never left to a remount.
+  useEffect(() => {
+    if (!open) resetEphemeralRelationships();
+  }, [open]);
+
+  const handleScanEphemeralRelationships = async () => {
+    const doi = singleSelectedPub?.doi?.trim();
+    if (!doi || !targetVaultId) return;
+    setScanningEphemeral(true);
+    try {
+      const { data: vaultPubsData, error } = await supabase
+        .from('vault_publications')
+        .select('*')
+        .eq('vault_id', targetVaultId);
+      if (error) throw error;
+      const vaultPublications = (vaultPubsData || []).map(formatVaultPublication);
+      const found = await findRelationshipSuggestions(
+        { id: pendingRelationId(doi), doi, title: singleSelectedPub?.title ?? '' },
+        vaultPublications,
+        [],
+      );
+      setEphemeralSuggestions(found);
+    } catch (error) {
+      showError('Could not check relationships', error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+      setScanningEphemeral(false);
+    }
+  };
+
+  // Approving here only stages the suggestion locally -- there's no real
+  // vault_publications row for this paper yet to reference, so nothing is
+  // written to publication_relations until handleImport resolves the real
+  // copy id after the paper is actually imported.
+  const handleApproveEphemeralSuggestion = (suggestion: RelationshipSuggestion) => {
+    setStagedRelations((prev) => [...prev, suggestion]);
+    setEphemeralSuggestions((prev) => prev.filter((s) => suggestionKey(s) !== suggestionKey(suggestion)));
+  };
+
+  const handleDismissEphemeralSuggestion = (suggestion: RelationshipSuggestion) => {
+    setEphemeralSuggestions((prev) => prev.filter((s) => suggestionKey(s) !== suggestionKey(suggestion)));
+  };
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -252,11 +342,61 @@ export function AddImportDialog({
       const insertedIds = await onImport(toImport, targetVaultId);
       const targetVault = vaults.find(v => v.id === targetVaultId);
       toast({ title: `Imported ${insertedIds.length} paper${insertedIds.length === 1 ? '' : 's'} ✨`, description: targetVault ? `Added to ${targetVault.name}` : undefined, source: importActionGroupRef });
+
+      // Commit any relationship suggestions staged during the pre-import
+      // scan (see handleScanEphemeralRelationships above) — only meaningful
+      // for the same single-paper+target-vault pairing the scan itself was
+      // restricted to.
+      const canonicalPublicationId = insertedIds[0];
+      if (toImport.length === 1 && targetVaultId && canonicalPublicationId && stagedRelations.length > 0 && user) {
+        try {
+          // onImport returns publications.id, not the vault_publications.id
+          // the copy actually got via the copy_publication_to_vault RPC —
+          // resolve the real copy id first, same as the Library tab's
+          // onAddToVaults path.
+          const { data: newCopy, error: newCopyError } = await supabase
+            .from('vault_publications')
+            .select('id')
+            .eq('vault_id', targetVaultId)
+            .eq('original_publication_id', canonicalPublicationId)
+            .maybeSingle();
+
+          if (newCopyError) throw newCopyError;
+
+          if (!newCopy) {
+            logger.error('AddImportDialog', 'Could not resolve the vault_publications copy to commit staged relationships', {
+              vaultId: targetVaultId,
+              canonicalPublicationId,
+            });
+            showError('Paper imported, but could not save its relationships', "Couldn't find its new vault copy to link against.");
+          } else {
+            const doi = toImport[0].doi?.trim() ?? '';
+            const placeholder = pendingRelationId(doi);
+            const rows = stagedRelations.map((s) => ({
+              publication_id: s.sourcePublicationId === placeholder ? newCopy.id : s.sourcePublicationId,
+              related_publication_id: s.targetPublicationId === placeholder ? newCopy.id : s.targetPublicationId,
+              relation_type: 'cites' as const,
+              created_by: user.id,
+            }));
+            const { error: insertError } = await supabase.from('publication_relations').insert(rows);
+            if (insertError) {
+              logger.error('AddImportDialog', 'Failed to commit staged relationship suggestions after import', insertError);
+              showError('Paper imported, but could not save its relationships', insertError.message);
+            } else {
+              toast({ title: `Linked ${rows.length} relationship${rows.length === 1 ? '' : 's'} ✨`, source: importActionGroupRef });
+            }
+          }
+        } catch (error) {
+          showError('Paper imported, but could not save its relationships', error instanceof Error ? error.message : 'Unknown error');
+        }
+      }
+
       // Reset
       setParsedPublications([]);
       setSelectedIndices(new Set());
       setDoiInput('');
       setBibtexInput('');
+      resetEphemeralRelationships();
       onOpenChange(false);
     } catch (error) {
       toast({ title: 'Import failed', description: (error as Error).message || 'RefHub could not import the selected papers. Nothing was removed from the preview.', variant: 'destructive', feedbackSeverity: 'error', source: importActionGroupRef });
@@ -316,7 +456,7 @@ export function AddImportDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent forceMount className="dialog-mobile max-w-[100vw] p-0 border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col gap-0 min-h-0 sm:rounded-2xl sm:h-auto sm:w-[95vw] sm:max-w-4xl sm:max-h-[90vh] data-[state=closed]:hidden">
+      <DialogContent forceMount className="dialog-mobile max-w-[100vw] p-0 border-2 bg-card/95 backdrop-blur-xl overflow-hidden flex flex-col gap-0 min-h-0 sm:rounded-2xl sm:h-[85vh] sm:max-h-[85vh] sm:w-[95vw] sm:max-w-4xl data-[state=closed]:hidden">
         <DialogHeader className="p-4 sm:p-6 pb-0">
           <DialogTitle className="text-xl sm:text-2xl font-bold font-mono">
             // add_<span className="text-gradient">papers</span>
@@ -326,19 +466,25 @@ export function AddImportDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FlowTab)} className="p-4 sm:p-6 pt-4 overflow-x-hidden">
-            <div className="mb-4">
+        {/* A bounded flex column, not a scroller itself — the dialog header
+            above and (inside each branch below) the tab switcher/search bar
+            stay fixed, while only the actual content area scrolls. Each
+            branch below is responsible for its own overflow: the library
+            tab's own ScrollArea handles its list, everything else gets a
+            plain overflow-y-auto on its TabsContent. */}
+        <div className="flex-1 min-h-0 overflow-x-hidden flex flex-col">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FlowTab)} className="p-4 sm:p-6 pt-4 overflow-x-hidden flex-1 min-h-0 flex flex-col">
+            <div className="mb-4 shrink-0">
               <BrowserExtensionInstallCard />
             </div>
-            <TabsList className="grid w-full grid-cols-4 mb-4">
+            <TabsList className="grid w-full grid-cols-4 mb-4 shrink-0">
               <TooltipProvider delayDuration={200}>
                 <Tooltip><TooltipTrigger asChild>
                   <TabsTrigger value="library" className={cn("gap-2 text-xs sm:text-sm font-mono", activeTab === 'library' && "bg-primary text-primary-foreground shadow-md")}>
                     <Library className="w-4 h-4" />
                     <span className="hidden sm:inline">library</span>
                   </TabsTrigger>
-                </TooltipTrigger><TooltipContent>Search &amp; add existing papers</TooltipContent></Tooltip>
+                </TooltipTrigger><TooltipContent className="font-mono">search_and_add_existing_papers</TooltipContent></Tooltip>
                 <Tooltip><TooltipTrigger asChild>
                   <TabsTrigger value="doi" className={cn("gap-2 text-xs sm:text-sm font-mono", activeTab === 'doi' && "bg-primary text-primary-foreground shadow-md")}>
                     <Link className="w-4 h-4" />
@@ -361,20 +507,21 @@ export function AddImportDialog({
             </TabsList>
 
             {/* ─── Library tab ───────────────────────────────────── */}
-            <TabsContent value="library" className="space-y-4">
+            <TabsContent value="library" className="space-y-4 flex-1 min-h-0 overflow-hidden flex flex-col">
               <ExistingPaperSelector
                 publications={allPublications}
                 vaults={vaults}
                 currentVaultId={currentVaultId}
                 onAddToVaults={async (pubId, vaultIds) => {
                   if (onAddToVaults) await onAddToVaults(pubId, vaultIds);
-                  onOpenChange(false);
                 }}
+                onDone={() => onOpenChange(false)}
+                open={open}
               />
             </TabsContent>
 
             {/* ─── DOI tab ───────────────────────────────────────── */}
-            <TabsContent value="doi" className="space-y-4 min-w-0">
+            <TabsContent value="doi" className="space-y-4 min-w-0 flex-1 min-h-0 overflow-y-auto">
               <div className="space-y-2 min-w-0">
                 <Label className="font-semibold font-mono">enter_doi</Label>
                 <div ref={doiLookupRef} className="flex w-full flex-col gap-2">
@@ -396,7 +543,7 @@ export function AddImportDialog({
             </TabsContent>
 
             {/* ─── BibTeX tab ────────────────────────────────────── */}
-            <TabsContent value="bibtex" className="space-y-4 min-w-0">
+            <TabsContent value="bibtex" className="space-y-4 min-w-0 flex-1 min-h-0 overflow-y-auto">
               <div className="space-y-2 min-w-0">
                 <div className="flex items-center justify-between gap-2">
                   <Label className="font-semibold font-mono">bibtex_content</Label>
@@ -419,7 +566,7 @@ export function AddImportDialog({
             </TabsContent>
 
             {/* ─── Manual entry tab ──────────────────────────────── */}
-            <TabsContent value="manual" className="space-y-4 min-w-0">
+            <TabsContent value="manual" className="space-y-4 min-w-0 flex-1 min-h-0 overflow-y-auto">
               <div className="grid gap-4">
                 {/* Title */}
                 <div className="space-y-2">
@@ -762,6 +909,44 @@ export function AddImportDialog({
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Pre-import relationship scan — only meaningful for a single
+                  selected paper with a DOI and a chosen target vault; a
+                  genuine multi-paper batch stays out of scope, matching the
+                  scan's own single-paper restriction. */}
+              {singleSelectedPub?.doi?.trim() && targetVaultId && (
+                <div className="space-y-2 rounded-lg border border-dashed border-border p-3">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <p className="text-xs text-muted-foreground font-mono">
+                      // scan_for_relationships
+                      {stagedRelations.length > 0 && ` (${stagedRelations.length} staged)`}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs font-mono"
+                      disabled={scanningEphemeral}
+                      onClick={handleScanEphemeralRelationships}
+                    >
+                      {scanningEphemeral ? <LoadingSpinner size="xs" /> : 'scan'}
+                    </Button>
+                  </div>
+                  {ephemeralSuggestions.length > 0 && (
+                    <RelationshipSuggestionsList
+                      suggestions={ephemeralSuggestions}
+                      approvingKey={null}
+                      onApprove={handleApproveEphemeralSuggestion}
+                      onDismiss={handleDismissEphemeralSuggestion}
+                    />
+                  )}
+                  {stagedRelations.length > 0 && (
+                    <p className="text-[10px] text-muted-foreground font-mono">
+                      // will link {stagedRelations.length} relationship{stagedRelations.length === 1 ? '' : 's'} once imported
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Import button */}
               <div ref={importActionGroupRef} className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t-2 border-border">

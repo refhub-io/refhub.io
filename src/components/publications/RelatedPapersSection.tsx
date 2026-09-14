@@ -13,6 +13,8 @@ import {
 } from '@/components/ui/select';
 import { Link2, Plus, X, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { RelationshipSuggestionsList } from './RelationshipSuggestionsList';
+import type { RelationshipSuggestion } from '@/lib/relationshipSuggestions';
 
 interface RelatedPublication extends Publication {
   relation_type: string;
@@ -24,8 +26,14 @@ interface RelatedPapersSectionProps {
   allPublications: Publication[];
   currentPublicationId: string | null;
   loading: boolean;
-  onAddRelation: (publicationId: string, relationType: string) => Promise<boolean>;
+  onAddRelation: (publicationId: string, relationType: string, direction?: 'outgoing' | 'incoming') => Promise<boolean>;
   onRemoveRelation: (relationId: string) => Promise<boolean>;
+  suggestions: RelationshipSuggestion[];
+  checkingRelationships: boolean;
+  approvingSuggestionKey: string | null;
+  onCheckRelationships: () => void;
+  onApproveSuggestion: (suggestion: RelationshipSuggestion) => void;
+  onDismissSuggestion: (suggestion: RelationshipSuggestion) => void;
 }
 
 export function RelatedPapersSection({
@@ -35,6 +43,12 @@ export function RelatedPapersSection({
   loading,
   onAddRelation,
   onRemoveRelation,
+  suggestions,
+  checkingRelationships,
+  approvingSuggestionKey,
+  onCheckRelationships,
+  onApproveSuggestion,
+  onDismissSuggestion,
 }: RelatedPapersSectionProps) {
   const [isAddingRelation, setIsAddingRelation] = useState(false);
   const [selectedPublicationId, setSelectedPublicationId] = useState<string>('');
@@ -57,6 +71,8 @@ export function RelatedPapersSection({
   );
 
   const selectedPublication = availablePublications.find((p) => p.id === selectedPublicationId);
+
+  const currentPublication = allPublications.find((p) => p.id === currentPublicationId);
 
   // Scroll highlighted item into view when using keyboard
   useEffect(() => {
@@ -103,19 +119,43 @@ export function RelatedPapersSection({
           <Link2 className="w-4 h-4 shrink-0" />
           <span className="truncate">Related Papers</span>
         </Label>
-        {!isAddingRelation && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setIsAddingRelation(true)}
-            className="h-7 text-xs shrink-0"
-          >
-            <Plus className="w-3 h-3 mr-1" />
-            Link Paper
-          </Button>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {currentPublication?.doi && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={checkingRelationships}
+              onClick={onCheckRelationships}
+              className="h-7 text-xs"
+            >
+              <Search className="w-3 h-3 mr-1" />
+              {checkingRelationships ? 'checking...' : 'check_relationships'}
+            </Button>
+          )}
+          {!isAddingRelation && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsAddingRelation(true)}
+              className="h-7 text-xs"
+            >
+              <Plus className="w-3 h-3 mr-1" />
+              link_paper
+            </Button>
+          )}
+        </div>
       </div>
+
+      {suggestions.length > 0 && (
+        <RelationshipSuggestionsList
+          suggestions={suggestions}
+          approvingKey={approvingSuggestionKey}
+          onApprove={onApproveSuggestion}
+          onDismiss={onDismissSuggestion}
+        />
+      )}
 
       {/* Existing relations */}
       {relations.length > 0 && (
