@@ -19,6 +19,7 @@ import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
 import Dashboard from "./pages/Dashboard";
+import { Inbox } from "./pages/Inbox";
 import NotFound from "./pages/NotFound";
 import PublicVault from "./pages/PublicVaultSimple";
 import VaultDetail from "./pages/VaultDetail";
@@ -106,6 +107,7 @@ const App = () => {
                   <Route path="/auth" element={<Auth />} />
                   <Route path="/auth/callback" element={<AuthCallback />} />
                   <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/inbox" element={<Inbox />} />
                   <Route path="/codex" element={<TheCodex />} />
                   <Route path="/codex/topic/:topicSlug" element={<CodexTopic />} />
                   <Route path="/users" element={<Users />} />

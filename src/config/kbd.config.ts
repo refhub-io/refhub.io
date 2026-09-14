@@ -25,8 +25,8 @@ export interface ContextShortcuts {
 
 export interface KbdConfig {
   global: ContextShortcuts;
-  'vault-list': ContextShortcuts;
   'publication-list': ContextShortcuts;
+  inbox: ContextShortcuts;
   dialog: ContextShortcuts;
   editor: ContextShortcuts;
   export: ContextShortcuts;
@@ -54,22 +54,6 @@ const kbdConfig: KbdConfig = {
       combo: 'o',
       description: 'Open vault settings',
     },  },
-
-  // ─── Vault List ──────────────────────────────────────────────────────────
-  'vault-list': {
-    moveDown: {
-      combo: 'j / ↓',
-      description: 'Move selection down',
-    },
-    moveUp: {
-      combo: 'k / ↑',
-      description: 'Move selection up',
-    },
-    open: {
-      combo: 'Enter',
-      description: 'Open selected vault',
-    },
-  },
 
   // ─── Publication List ────────────────────────────────────────────────────
   'publication-list': {
@@ -149,6 +133,38 @@ const kbdConfig: KbdConfig = {
     delete: {
       combo: 'Delete',
       description: 'Delete selected',
+    },
+  },
+
+  // ─── Inbox ──────────────────────────────────────────────────────────────
+  inbox: {
+    toggleView: {
+      combo: 'v',
+      description: 'Toggle card/list view',
+    },
+    moveDown: {
+      combo: 'j',
+      description: 'Next item',
+    },
+    moveUp: {
+      combo: 'k',
+      description: 'Previous item',
+    },
+    accept: {
+      combo: 'a',
+      description: 'Accept focused item',
+    },
+    reject: {
+      combo: 'x',
+      description: 'Reject focused item',
+    },
+    merge: {
+      combo: 'm',
+      description: 'Merge focused item with detected duplicate',
+    },
+    postpone: {
+      combo: 's',
+      description: 'Postpone focused item',
     },
   },
 
