@@ -36,6 +36,7 @@ let mockUpdateError: unknown = null;
 // call so tests can simulate an incoming realtime event by invoking it directly.
 const realtimeHandlers: Record<string, (payload: unknown) => void> = {};
 const mockRemoveChannel = vi.fn();
+const mockChannel = vi.fn();
 
 vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1', email: 'user@example.com' }, session: null }),
@@ -72,13 +73,27 @@ vi.mock('@/integrations/supabase/client', () => {
           },
         };
       },
-      channel: () => {
+      channel: (...args: unknown[]) => {
+        mockChannel(...args);
+        // Mirrors the real @supabase/realtime-js guard: calling .on() after
+        // .subscribe() has already fired on this channel throws. Faithful
+        // enough to this to have actually caught the production bug (two
+        // simultaneous useInbox() mounts each creating a channel with the
+        // identical topic name), rather than a mock that just happens not
+        // to reproduce the failure mode.
+        let subscribed = false;
         const chan = {
           on: (_type: string, config: { event: string }, handler: (payload: unknown) => void) => {
+            if (subscribed) {
+              throw new Error('cannot add `postgres_changes` callbacks after `subscribe()`.');
+            }
             realtimeHandlers[config.event] = handler;
             return chan;
           },
-          subscribe: () => chan,
+          subscribe: () => {
+            subscribed = true;
+            return chan;
+          },
         };
         return chan;
       },
@@ -92,6 +107,7 @@ describe('useInbox', () => {
     mockUpdate.mockClear();
     mockInsert.mockClear();
     mockRemoveChannel.mockClear();
+    mockChannel.mockClear();
     delete realtimeHandlers.INSERT;
     delete realtimeHandlers.UPDATE;
     delete realtimeHandlers.DELETE;
@@ -203,6 +219,41 @@ describe('useInbox', () => {
 
     unmount();
 
+    expect(mockRemoveChannel).toHaveBeenCalledTimes(1);
+  });
+
+  it('regression: two simultaneous mounts for the same user share one channel instead of crashing', async () => {
+    // Sidebar.tsx (always mounted) and the Inbox page both call useInbox()
+    // at once for the same signed-in user. Production crash: each mount
+    // independently called supabase.channel('inbox-items-<userId>').on(...),
+    // and the second one landed on a channel the first had already
+    // subscribed, throwing "cannot add postgres_changes callbacks ...
+    // after subscribe()". Both mounts here share one QueryClient, exactly
+    // like the app's single QueryClientProvider.
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+    let first: ReturnType<typeof renderHook<ReturnType<typeof useInbox>, unknown>>;
+    let second: ReturnType<typeof renderHook<ReturnType<typeof useInbox>, unknown>>;
+    expect(() => {
+      first = renderHook(() => useInbox(), { wrapper });
+      second = renderHook(() => useInbox(), { wrapper });
+    }).not.toThrow();
+
+    await waitFor(() => expect(first.result.current.loading).toBe(false));
+    await waitFor(() => expect(second.result.current.loading).toBe(false));
+
+    // One shared channel for both mounts, not one each.
+    expect(mockChannel).toHaveBeenCalledTimes(1);
+
+    // Ref-counted: the channel survives the first unmount (second mount
+    // still needs it) and is only removed once the last one unmounts.
+    first!.unmount();
+    expect(mockRemoveChannel).not.toHaveBeenCalled();
+
+    second!.unmount();
     expect(mockRemoveChannel).toHaveBeenCalledTimes(1);
   });
 });
