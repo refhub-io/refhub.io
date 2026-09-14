@@ -21,6 +21,19 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    id: 25,
+    date: '2026-09-14',
+    title: 'refhub 2.0',
+    features: [
+      {
+        tag: 'feature',
+        title: 'organize • curate • share • cite',
+        description:
+          'refhub is officially 2.0. what started as a personal reference list is now a place to organize your papers, curate the ones worth sharing, put them in front of other researchers, and cite them without leaving the app — scroll down for everything that got us here.',
+      },
+    ],
+  },
+  {
     id: 24,
     date: '2026-09-11',
     title: 'paper inbox',
