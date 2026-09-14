@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [2.0.1] - 2026-09-14
+
+### Fixed
+- Fixed a crash on the inbox: `Sidebar.tsx`'s pending-count pill and the Inbox page both subscribe to realtime updates for the same user at once, and each independently opened its own duplicate channel — the second one threw ("cannot add `postgres_changes` callbacks ... after `subscribe()`"). Now shares one ref-counted channel per user across every mounted consumer.
+
 ## [2.0.0] - 2026-09-14
 
 refhub's official 2.0 release. Individual features below already shipped across the 1.x line (see their own entries further down) — this marks the milestone: refhub has grown from a personal reference manager into a full research platform, with public discovery, agent/CLI tooling, and a public API surface to match.
