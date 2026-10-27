@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [2.0.3] - 2026-10-27
+
+### Security
+- Resolved all 17 `npm audit` findings (7 high, 6 moderate, 4 low), without the breaking downgrades `npm audit fix --force` proposes:
+  - Non-breaking lockfile updates for `vite`, `vitest`/`@vitest/mocker`, `undici`, `js-yaml`, `brace-expansion`, `browserslist`, `source-map-js`, `@humanfs/node`, `baseline-browser-mapping`.
+  - npm `overrides` point `rehype-katex`/`remark-math`'s nested `katex` at the project's patched 0.18.x, and `@tailwindcss/typography`'s pinned `postcss-selector-parser` at 6.1.5 (compiled CSS unchanged).
+  - Upgraded `zod` 3 → 4 and `@hookform/resolvers` 3 → 5; profile form validation behaves identically.
+
 ## [2.0.2] - 2026-10-27
 
 ### Fixed
