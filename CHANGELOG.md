@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [2.0.2] - 2026-10-27
+
+### Fixed
+- Fixed unreadable text in rendered markdown code blocks (help center, notes) in light mode: un-highlighted tokens inherited Tailwind Typography's light-gray `pre` text color (meant for its default dark background) on top of our `bg-muted` background. Code blocks now use the `foreground` theme token, so they read correctly in both light and dark modes.
+
 ## [2.0.1] - 2026-09-14
 
 ### Fixed

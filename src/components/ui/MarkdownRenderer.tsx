@@ -158,7 +158,7 @@ export function MarkdownRenderer({
         'prose-li:ml-0',
         // Code
         'prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:font-mono',
-        'prose-pre:bg-muted prose-pre:p-4 prose-pre:rounded-lg prose-pre:overflow-x-auto',
+        'prose-pre:bg-muted prose-pre:text-foreground prose-pre:p-4 prose-pre:rounded-lg prose-pre:overflow-x-auto',
         // prose-code padding also hits pre>code, where the inline code element
         // indents only the first line — reset it inside pre blocks.
         '[&_pre_code]:p-0 [&_pre_code]:bg-transparent',
