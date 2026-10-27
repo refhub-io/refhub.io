@@ -6,6 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [2.0.2] - 2026-10-27
+
+### Fixed
+- Fixed unreadable text in rendered markdown code blocks (help center, notes) in light mode: un-highlighted tokens inherited Tailwind Typography's light-gray `pre` text color (meant for its default dark background) on top of our `bg-muted` background. Code blocks now use the `foreground` theme token, so they read correctly in both light and dark modes.
+- Darkened string tokens in light-mode code blocks: the `--accent` green was only ~1.9:1 against `bg-muted`; it now uses the same hue at 27% lightness (~4.8:1). Dark mode is unchanged.
+
+### Changed
+- Vitest now excludes `.claude/**`, so stale agent worktrees no longer get picked up as duplicate (failing) test suites.
+
 ## [2.0.1] - 2026-09-14
 
 ### Fixed

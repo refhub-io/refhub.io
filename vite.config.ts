@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { readFileSync } from "node:fs";
 import { componentTagger } from "lovable-tagger";
+import { configDefaults } from "vitest/config";
 
 const { version } = JSON.parse(
   readFileSync(new URL("./package.json", import.meta.url), "utf-8"),
@@ -28,6 +29,8 @@ export default defineConfig(({ mode }) => ({
     environment: "jsdom",
     setupFiles: "./src/test/setup.ts",
     css: true,
+    // Agent worktrees under .claude/ hold stale copies of the test suite.
+    exclude: [...configDefaults.exclude, ".claude/**"],
   },
   build: {
     rollupOptions: {
