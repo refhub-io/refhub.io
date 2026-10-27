@@ -417,6 +417,14 @@
 .hljs-addition,
 .hljs-symbol,
 .hljs-bullet {
+  /* --accent (142 71% 45%) is only ~1.9:1 on light bg-muted; same hue darkened for AA */
+  color: hsl(142 71% 27%);
+}
+
+.dark .hljs-string,
+.dark .hljs-addition,
+.dark .hljs-symbol,
+.dark .hljs-bullet {
   color: hsl(var(--accent));
 }
 
