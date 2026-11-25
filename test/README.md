@@ -16,6 +16,35 @@ production.
 - Node 18+ (this repo's version is fine).
 - No Supabase CLI install needed — scripts run it via `npx`.
 
+## known limitation: this environment is more permissive than production for some function grants
+
+Postgres grants `EXECUTE` on every new function to `PUBLIC` by default at
+creation time — not a Supabase default-ACL setting, so `ALTER DEFAULT
+PRIVILEGES` can't prevent it. `schema.sql`'s own dumped grants clear this
+for a function only when production needed an explicit `REVOKE ... FROM
+PUBLIC` to reach its real ACL; a function whose dump is just a bare `GRANT
+... TO service_role` (no preceding revoke, e.g. `handle_new_user()`) keeps
+a broader local grant than production actually has.
+
+Tried fixing this with a blanket `REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA
+public FROM PUBLIC` after bootstrap — it visibly succeeds, but something
+in the local Supabase stack's own "auto-expose new objects to the Data API"
+behavior (`config.jsonc`'s `auto_expose_new_tables`, itself local
+scaffolding, not version-controlled) re-grants `anon`/`authenticated`
+*immediately* after, confirmed by checking `pg_proc.proacl` in the very
+next statement. Didn't find a bootstrap-script-level fix for this within
+reasonable effort, so it's not attempted — this is a real, currently
+unresolved gap in this environment's fidelity for a specific case:
+**table-level RLS is unaffected** (what this environment is actually used
+to test, including the #231/#232/RLS-hardening work) since RLS doesn't
+depend on function-level grants; but a backend-only RPC that trusts a
+caller-supplied id (e.g. `update_vault_publication_with_rollup`) will show
+as callable by `anon`/`authenticated` here even though production
+correctly restricts it to `service_role`. Don't use this environment to
+verify that a specific function is locked out for a given role — only a
+real production dump (see the PR that fixed #231 for the exact command) is
+trustworthy for that.
+
 ## quickstart
 
 ```bash
