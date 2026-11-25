@@ -17,13 +17,6 @@ COMMENT ON SCHEMA "public" IS 'standard public schema';
 
 
 
-CREATE EXTENSION IF NOT EXISTS "pg_graphql" WITH SCHEMA "graphql";
-
-
-
-
-
-
 CREATE EXTENSION IF NOT EXISTS "pg_stat_statements" WITH SCHEMA "extensions";
 
 
@@ -456,9 +449,11 @@ BEGIN
     OR NEW.featured IS DISTINCT FROM OLD.featured
     OR NEW.featured_note IS DISTINCT FROM OLD.featured_note
   THEN
-    SELECT user_id INTO v_owner_id FROM public.vaults WHERE id = OLD.vault_id;
-    IF v_owner_id IS DISTINCT FROM (select auth.uid()) THEN
-      RAISE EXCEPTION 'only the vault owner can change section/featured state';
+    IF current_user <> 'service_role' THEN
+      SELECT user_id INTO v_owner_id FROM public.vaults WHERE id = OLD.vault_id;
+      IF v_owner_id IS DISTINCT FROM (select auth.uid()) THEN
+        RAISE EXCEPTION 'only the vault owner can change section/featured state';
+      END IF;
     END IF;
   END IF;
   RETURN NEW;
@@ -1403,6 +1398,8 @@ CREATE TABLE IF NOT EXISTS "public"."inbox_items" (
     CONSTRAINT "inbox_items_source_type_check" CHECK (("source_type" = ANY (ARRAY['doi'::"text", 'arxiv'::"text", 's2_url'::"text", 'bibtex'::"text", 'pdf'::"text", 'manual'::"text"]))),
     CONSTRAINT "inbox_items_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'accepted'::"text", 'rejected'::"text", 'merged'::"text"])))
 );
+
+ALTER TABLE ONLY "public"."inbox_items" REPLICA IDENTITY FULL;
 
 
 ALTER TABLE "public"."inbox_items" OWNER TO "postgres";
@@ -3021,6 +3018,14 @@ ALTER TABLE "public"."vaults" ENABLE ROW LEVEL SECURITY;
 ALTER PUBLICATION "supabase_realtime" OWNER TO "postgres";
 
 
+
+
+
+
+ALTER PUBLICATION "supabase_realtime" ADD TABLE ONLY "public"."inbox_items";
+
+
+
 ALTER PUBLICATION "supabase_realtime" ADD TABLE ONLY "public"."notifications";
 
 
@@ -3239,9 +3244,6 @@ GRANT ALL ON TYPE "public"."vault_visibility" TO "authenticated";
 
 
 
-
-
-
 REVOKE ALL ON FUNCTION "public"."accept_inbox_item"("p_inbox_item_id" "uuid", "p_target_vault_id" "uuid", "p_tag_ids" "uuid"[], "p_user_id" "uuid") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."accept_inbox_item"("p_inbox_item_id" "uuid", "p_target_vault_id" "uuid", "p_tag_ids" "uuid"[], "p_user_id" "uuid") TO "service_role";
 
@@ -3253,13 +3255,11 @@ GRANT ALL ON FUNCTION "public"."copy_publication_to_vault"("pub_id" "uuid", "tar
 
 
 
-GRANT ALL ON FUNCTION "public"."create_user_profile"("p_user_id" "uuid", "p_email" "text", "p_display_name" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."create_user_profile"("p_user_id" "uuid", "p_email" "text", "p_display_name" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."create_user_profile"("p_user_id" "uuid", "p_email" "text", "p_display_name" "text") TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."delete_user"() TO "anon";
 GRANT ALL ON FUNCTION "public"."delete_user"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."delete_user"() TO "service_role";
 
@@ -3301,14 +3301,10 @@ GRANT ALL ON FUNCTION "public"."get_vault_metadata"("vault_id" "uuid") TO "servi
 
 
 
-GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "anon";
-GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."has_vault_access"("p_user_id" "uuid", "p_vault_id" "uuid", "p_required_role" "text") TO "anon";
-GRANT ALL ON FUNCTION "public"."has_vault_access"("p_user_id" "uuid", "p_vault_id" "uuid", "p_required_role" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."has_vault_access"("p_user_id" "uuid", "p_vault_id" "uuid", "p_required_role" "text") TO "service_role";
 
 
@@ -3325,32 +3321,22 @@ GRANT ALL ON FUNCTION "public"."increment_vault_views"("vault_uuid" "uuid") TO "
 
 
 
-GRANT ALL ON FUNCTION "public"."notify_vault_access_requested"() TO "anon";
-GRANT ALL ON FUNCTION "public"."notify_vault_access_requested"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."notify_vault_access_requested"() TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."notify_vault_access_status_changed"() TO "anon";
-GRANT ALL ON FUNCTION "public"."notify_vault_access_status_changed"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."notify_vault_access_status_changed"() TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."notify_vault_favorited"() TO "anon";
-GRANT ALL ON FUNCTION "public"."notify_vault_favorited"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."notify_vault_favorited"() TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."notify_vault_forked"() TO "anon";
-GRANT ALL ON FUNCTION "public"."notify_vault_forked"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."notify_vault_forked"() TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."notify_vault_shared"() TO "anon";
-GRANT ALL ON FUNCTION "public"."notify_vault_shared"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."notify_vault_shared"() TO "service_role";
 
 
@@ -3367,8 +3353,6 @@ GRANT ALL ON FUNCTION "public"."set_updated_at"() TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."set_vault_publication_updated_by"() TO "anon";
-GRANT ALL ON FUNCTION "public"."set_vault_publication_updated_by"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."set_vault_publication_updated_by"() TO "service_role";
 
 
@@ -3406,20 +3390,15 @@ GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "service_role";
 
 
 REVOKE ALL ON FUNCTION "public"."update_vault_publication_with_rollup"("p_vault_publication_id" "uuid", "p_vault_id" "uuid", "p_patch" "jsonb", "p_actor_user_id" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."update_vault_publication_with_rollup"("p_vault_publication_id" "uuid", "p_vault_id" "uuid", "p_patch" "jsonb", "p_actor_user_id" "uuid") TO "anon";
-GRANT ALL ON FUNCTION "public"."update_vault_publication_with_rollup"("p_vault_publication_id" "uuid", "p_vault_id" "uuid", "p_patch" "jsonb", "p_actor_user_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_vault_publication_with_rollup"("p_vault_publication_id" "uuid", "p_vault_id" "uuid", "p_patch" "jsonb", "p_actor_user_id" "uuid") TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."user_can_access_vault"("p_vault_uuid" "uuid", "p_required_permission" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."user_can_access_vault"("p_vault_uuid" "uuid", "p_required_permission" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."user_can_access_vault"("p_vault_uuid" "uuid", "p_required_permission" "text") TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."validate_username"() TO "anon";
-GRANT ALL ON FUNCTION "public"."validate_username"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."validate_username"() TO "service_role";
 
 
