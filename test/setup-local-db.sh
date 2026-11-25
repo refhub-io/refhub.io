@@ -44,12 +44,6 @@ POST_DUMP_MIGRATIONS=(
   # too; anything else should go back to zero entries once schema.sql is
   # re-dumped to include it.
   "20261125000000_wire_handle_new_user_trigger.sql"
-  # Not yet applied to production (RLS policy hardening, pending the user's
-  # go-ahead to run it live) -- schema.sql doesn't have these policy changes
-  # baked in yet, so this needs to stay here until it's applied live and
-  # schema.sql is re-dumped. Unlike the trigger above, this one SHOULD move
-  # out once that happens -- it's temporary drift, not a permanent case.
-  "20261125000003_rls_hardening_missing_ownership_checks.sql"
 )
 
 cleanup() {
