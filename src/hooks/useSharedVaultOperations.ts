@@ -463,17 +463,24 @@ export function useSharedVaultOperations({
     });
 
     try {
-      // Validate that all tag IDs exist in the current vault
+      // Validate that all tag IDs belong to this vault, or are one of the
+      // signed-in user's own personal (vault_id IS NULL) tags -- VaultContentContext's
+      // `tags` now surfaces both kinds (issue #233), so a paper that already
+      // carries a personal tag must still pass this check on any edit that
+      // resubmits the full tag set, not just the vault-scoped ones being
+      // added/removed.
       if (newTagIds.length > 0) {
-        const { data: validTags, error: validationError } = await supabase
-          .from('tags')
-          .select('id')
-          .in('id', newTagIds)
-          .eq('vault_id', vaultId);
+        const [vaultScopedRes, userScopedRes] = await Promise.all([
+          supabase.from('tags').select('id').in('id', newTagIds).eq('vault_id', vaultId),
+          supabase.from('tags').select('id').in('id', newTagIds).eq('user_id', userId).is('vault_id', null),
+        ]);
+        if (vaultScopedRes.error) throw vaultScopedRes.error;
+        if (userScopedRes.error) throw userScopedRes.error;
 
-        if (validationError) throw validationError;
-
-        const validTagIds = new Set(validTags?.map(tag => tag.id) || []);
+        const validTagIds = new Set([
+          ...(vaultScopedRes.data?.map(tag => tag.id) || []),
+          ...(userScopedRes.data?.map(tag => tag.id) || []),
+        ]);
         const invalidTags = newTagIds.filter(id => !validTagIds.has(id));
 
         if (invalidTags.length > 0) {

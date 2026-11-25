@@ -324,7 +324,8 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       // Fetch publications in this vault - prioritize vault-specific copies
       const [
         vaultPubsRes,
-        tagsRes,
+        vaultScopedTagsRes,
+        userScopedTagsRes,
         sharesRes
       ] = await Promise.all([
         supabase
@@ -333,8 +334,18 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
           .eq('vault_id', currentVaultId)
           .order('created_at', { ascending: false }),
         supabase.from('tags').select('*').eq('vault_id', currentVaultId).order('name'),
+        // Tags can be user-scoped (vault_id IS NULL) as well as vault-scoped --
+        // a paper in this vault may carry either kind via publication_tags.
+        // Omitting user-scoped tags here left them unresolvable by id (see
+        // issue #233): publication_tags rows pointing at them still existed,
+        // but nothing in `tags` could supply their name/color for display.
+        supabase.from('tags').select('*').eq('user_id', user.id).is('vault_id', null).order('name'),
         supabase.from('vault_shares').select('*').eq('vault_id', currentVaultId)
       ]);
+      const tagsRes = {
+        data: [...(vaultScopedTagsRes.data || []), ...(userScopedTagsRes.data || [])],
+        error: vaultScopedTagsRes.error || userScopedTagsRes.error,
+      };
 
       // Get the vault publication IDs to fetch specific publication tags
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -625,6 +636,11 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         {
           event: '*',
           schema: 'public',
+          // Only catches vault-scoped tag changes -- a user-scoped tag (see
+          // the fetch above) edited elsewhere while this vault is open won't
+          // live-update here; Supabase Realtime's filter string can't express
+          // "vault_id = X OR user_id = Y", and a second subscription just for
+          // that is more than this is worth right now. Known, minor gap.
           table: 'tags',
           filter: `vault_id=eq.${currentVaultId}`,
         },

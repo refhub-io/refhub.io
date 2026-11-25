@@ -171,6 +171,17 @@ export function PublicationList({
     releaseToolbarFocus();
   }, [releaseToolbarFocus]);
 
+  // manage_tags is explicitly vault-scoped ("Rename or delete tags in this
+  // vault" -- deletion cascades globally by tag id, with no vault_id
+  // filter) but `tags` now also carries the signed-in user's personal
+  // (vault_id IS NULL) tags for display purposes (issue #233). Personal
+  // tags must never reach this control: deleting one here would delete it
+  // -- and untag every paper that uses it -- everywhere, not just this
+  // vault; a vault-scoped tag whose parent is a personal one would also be
+  // invisible (RLS-blocked) to other collaborators, and TagManager's own
+  // child-count traversal has no cycle guard for a missing parent.
+  const vaultScopedTagsOnly = useMemo(() => tags.filter((t) => t.vault_id != null), [tags]);
+
   // Calculate tag usage counts
   const tagUsageCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -553,7 +564,7 @@ export function PublicationList({
                   </SheetHeader>
                   <div className="mt-6 max-h-[calc(100vh-200px)] overflow-y-auto">
                     <TagManager
-                      tags={tags}
+                      tags={vaultScopedTagsOnly}
                       canEdit={canEditTags}
                       onUpdateTag={onUpdateTag}
                       onDeleteTag={onDeleteTag}
