@@ -40,6 +40,16 @@ export function HierarchicalTagSelector({
   const tree = buildTagTree(tags);
   const flattenedTags = flattenTagTree(tree);
 
+  // Parent-tag choices when creating a new tag must stay vault-scoped: tags
+  // also includes the signed-in user's personal (vault_id IS NULL) ones for
+  // display (issue #233), but a vault-scoped tag's RLS policy makes a
+  // personal-tag parent invisible to every other collaborator, and
+  // TagManager's own child-count traversal has no guard for a missing
+  // parent. See useSharedVaultOperations/PublicationList's TagManager
+  // filtering for the matching fix on the rename/delete side.
+  const vaultScopedParentTree = buildTagTree(tags.filter((t) => t.vault_id != null));
+  const parentOptionTags = flattenTagTree(vaultScopedParentTree);
+
   const handleCreateTag = async () => {
     if (!newTagName.trim() || isCreating) return;
     
@@ -156,7 +166,7 @@ export function HierarchicalTagSelector({
             <SelectItem value="none">
               <span className="text-muted-foreground">No parent (root level)</span>
             </SelectItem>
-            {flattenedTags.map(tag => (
+            {parentOptionTags.map(tag => (
               <SelectItem key={tag.id} value={tag.id}>
                 <div className="flex items-center gap-1">
                   {'—'.repeat(tag.depth)}
