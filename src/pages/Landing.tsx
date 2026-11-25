@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useIsDarkMode } from '@/hooks/useIsDarkMode';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { PromoVideoPlayer } from '@/components/landing/PromoVideoPlayer';
 
 // `label` is the snake_case comment heading rendered above each card. It is kept
 // separate from `title` on purpose: deriving it from the human-readable title
@@ -101,16 +102,12 @@ export default function Landing() {
 
           <div className="max-w-3xl space-y-3">
             <p className="font-mono text-xs font-semibold text-muted-foreground">// see_it_in_action</p>
-            <div className="overflow-hidden rounded-lg border-2 border-border bg-card/80 shadow-xl backdrop-blur-xl">
-              <video
+            <div className="overflow-hidden rounded-lg border-2 border-border shadow-xl">
+              <PromoVideoPlayer
                 key={`${promoBase}-${promoFormat}`}
-                muted
-                controls
-                playsInline
-                preload="metadata"
                 poster={`${promoBase}/${promoFormat}-poster.jpg`}
                 src={`${promoBase}/${promoFormat}.mp4`}
-                className="aspect-[9/16] w-full object-cover md:aspect-video"
+                className="aspect-[9/16] w-full md:aspect-video"
               />
             </div>
           </div>
