@@ -44,6 +44,10 @@ POST_DUMP_MIGRATIONS=(
   # too; anything else should go back to zero entries once schema.sql is
   # re-dumped to include it.
   "20261125000000_wire_handle_new_user_trigger.sql"
+  # Not yet applied to production (pending the user's go-ahead) -- schema.sql
+  # doesn't have this policy fix baked in yet. Temporary: should move out
+  # once applied live and schema.sql is re-dumped.
+  "20261125000005_remove_public_vault_write_access.sql"
 )
 
 cleanup() {
