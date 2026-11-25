@@ -2670,15 +2670,15 @@ CREATE POLICY "Users can insert their own publication pdf assets" ON "public"."p
 
 
 
-CREATE POLICY "Users can manage own publications and publications in editable " ON "public"."publications" TO "authenticated" USING (((( SELECT "auth"."uid"() AS "uid") = "user_id") OR (EXISTS ( SELECT 1
+CREATE POLICY "Users can manage own publications and publications in editable " ON "public"."publications" TO "authenticated" USING ((("auth"."uid"() = "user_id") OR (EXISTS ( SELECT 1
    FROM (("public"."vault_papers" "vp"
      JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
-     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = ( SELECT "auth"."uid"() AS "uid")))))
-  WHERE (("vp"."publication_id" = "publications"."id") AND ("v"."archived_at" IS NULL) AND (("v"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility"))))))) WITH CHECK (((( SELECT "auth"."uid"() AS "uid") = "user_id") OR (EXISTS ( SELECT 1
+     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
+  WHERE (("vp"."publication_id" = "publications"."id") AND ("v"."archived_at" IS NULL) AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")))))))) WITH CHECK ((("auth"."uid"() = "user_id") OR (EXISTS ( SELECT 1
    FROM (("public"."vault_papers" "vp"
      JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
-     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = ( SELECT "auth"."uid"() AS "uid")))))
-  WHERE (("vp"."publication_id" = "publications"."id") AND ("v"."archived_at" IS NULL) AND (("v"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility")))))));
+     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
+  WHERE (("vp"."publication_id" = "publications"."id") AND ("v"."archived_at" IS NULL) AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission"))))))));
 
 
 
@@ -2740,11 +2740,11 @@ CREATE POLICY "Users can manage vault papers" ON "public"."vault_papers" TO "aut
 
 CREATE POLICY "Users can manage vault publications in editable vaults" ON "public"."vault_publications" TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM ("public"."vaults" "v"
-     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = ( SELECT "auth"."uid"() AS "uid")))))
-  WHERE (("v"."id" = "vault_publications"."vault_id") AND ("v"."archived_at" IS NULL) AND (("v"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility")))))) WITH CHECK ((EXISTS ( SELECT 1
+     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
+  WHERE (("v"."id" = "vault_publications"."vault_id") AND ("v"."archived_at" IS NULL) AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission"))))))) WITH CHECK ((EXISTS ( SELECT 1
    FROM ("public"."vaults" "v"
-     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = ( SELECT "auth"."uid"() AS "uid")))))
-  WHERE (("v"."id" = "vault_publications"."vault_id") AND ("v"."archived_at" IS NULL) AND (("v"."user_id" = ( SELECT "auth"."uid"() AS "uid")) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")) OR ("v"."visibility" = 'public'::"public"."vault_visibility"))))));
+     LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
+  WHERE (("v"."id" = "vault_publications"."vault_id") AND ("v"."archived_at" IS NULL) AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission")))))));
 
 
 
