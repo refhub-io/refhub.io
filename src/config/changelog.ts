@@ -9,6 +9,8 @@ export interface ChangelogFeature {
   tag: ChangelogTag;
   title: string;
   description: string;
+  /** Optional in-app path to link this feature to (rendered by WhatsNewDialog). */
+  href?: string;
 }
 
 export interface ChangelogEntry {
@@ -20,6 +22,20 @@ export interface ChangelogEntry {
 }
 
 const changelog: ChangelogEntry[] = [
+  {
+    id: 26,
+    date: '2026-11-25',
+    title: 'see refhub in action',
+    features: [
+      {
+        tag: 'feature',
+        title: 'a demo video on the landing page',
+        description:
+          'a short, narrated tour of vaults, notes, tags, citation graphs, the inbox, smart collections, and the codex — for whenever you want to show someone what refhub actually looks like.',
+        href: '/about',
+      },
+    ],
+  },
   {
     id: 25,
     date: '2026-09-14',

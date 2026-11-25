@@ -5,6 +5,8 @@ import { BrandMark } from '@/components/branding/BrandMark';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
+import { useIsDarkMode } from '@/hooks/useIsDarkMode';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 // `label` is the snake_case comment heading rendered above each card. It is kept
 // separate from `title` on purpose: deriving it from the human-readable title
@@ -39,6 +41,13 @@ const FEATURES = [
 
 export default function Landing() {
   const { user } = useAuth();
+  const isDark = useIsDarkMode();
+  const isMobile = useIsMobile();
+  const promoBase = isDark ? '/promo/dark' : '/promo/light';
+  // poster is a single attribute on <video>, unlike <source>, so it can't
+  // follow a media-query-based pick the way the sources below do - drive
+  // both from the same isMobile state instead, so they always match.
+  const promoFormat = isMobile ? 'vertical' : 'wide';
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
@@ -87,6 +96,22 @@ export default function Landing() {
               <Button asChild variant="outline" size="lg" className="font-mono">
                 <Link to="/codex">explore the codex</Link>
               </Button>
+            </div>
+          </div>
+
+          <div className="max-w-3xl space-y-3">
+            <p className="font-mono text-xs font-semibold text-muted-foreground">// see_it_in_action</p>
+            <div className="overflow-hidden rounded-lg border-2 border-border bg-card/80 shadow-xl backdrop-blur-xl">
+              <video
+                key={`${promoBase}-${promoFormat}`}
+                muted
+                controls
+                playsInline
+                preload="metadata"
+                poster={`${promoBase}/${promoFormat}-poster.jpg`}
+                src={`${promoBase}/${promoFormat}.mp4`}
+                className="aspect-[9/16] w-full object-cover md:aspect-video"
+              />
             </div>
           </div>
 

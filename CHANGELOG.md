@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [2.1.0] - 2026-11-25
+
+### Added
+- A product demo video on the `/about` landing page: a short, narrated tour of vaults, notes, tags, citation graphs, the inbox, smart collections, and the codex. Starts paused and muted, follows the visitor's dark/light mode, and switches to a portrait recording on mobile instead of cropping the widescreen one.
+
 ## [2.0.2] - 2026-10-27
 
 ### Fixed

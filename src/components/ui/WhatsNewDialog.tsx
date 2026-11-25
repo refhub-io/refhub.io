@@ -8,8 +8,9 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Sparkles, Wrench, Zap } from 'lucide-react';
+import { ArrowRight, Sparkles, Wrench, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Link } from 'react-router-dom';
 
 interface WhatsNewDialogProps {
   open: boolean;
@@ -56,6 +57,14 @@ function EntrySection({ entry }: { entry: ChangelogEntry }) {
               <div className="min-w-0 space-y-0.5">
                 <p className="text-sm font-medium leading-snug">{feat.title}</p>
                 <p className="text-xs text-muted-foreground leading-relaxed">{feat.description}</p>
+                {feat.href && (
+                  <Link
+                    to={feat.href}
+                    className="inline-flex items-center gap-1 text-xs font-mono text-primary hover:underline"
+                  >
+                    watch it <ArrowRight className="w-3 h-3" />
+                  </Link>
+                )}
               </div>
             </div>
           );
