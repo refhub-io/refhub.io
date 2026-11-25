@@ -28,9 +28,14 @@
 --    squat another user's canonical PDF-asset slot for a publication they
 --    don't own, permanently blocking the real owner from ever creating
 --    their own. The new checks mirror the existing "editable" policies
---    already applied to publications and vault_publications themselves, so
---    anything already allowed to attach to a given publication/
---    vault_publication continues to be allowed here.
+--    already applied to publications and vault_publications themselves,
+--    minus one thing: those policies also treat a merely-public vault as
+--    editable, which is a separate, broader pre-existing issue (reported,
+--    not fixed here -- it affects the publications/vault_publications
+--    tables directly, not just this one). Attaching a PDF asset is a write,
+--    so this migration deliberately drops that branch rather than inherit
+--    it: being able to view a public vault's papers is not being able to
+--    attach a PDF to them.
 
 ALTER POLICY "Authenticated users can fork public vaults" ON public.vault_forks
   WITH CHECK (
@@ -94,7 +99,6 @@ ALTER POLICY "Users can insert their own publication pdf assets" ON public.publi
           AND (
             v.user_id = auth.uid()
             OR (vs.shared_with_user_id IS NOT NULL AND vs.role IS NOT NULL AND vs.role <> 'viewer'::public.vault_permission)
-            OR v.visibility = 'public'::public.vault_visibility
           )
       )
     )
@@ -110,7 +114,6 @@ ALTER POLICY "Users can insert their own publication pdf assets" ON public.publi
           AND (
             v.user_id = auth.uid()
             OR (vs.shared_with_user_id IS NOT NULL AND vs.role IS NOT NULL AND vs.role <> 'viewer'::public.vault_permission)
-            OR v.visibility = 'public'::public.vault_visibility
           )
       )
     )
@@ -135,7 +138,6 @@ ALTER POLICY "Users can update their own publication pdf assets" ON public.publi
           AND (
             v.user_id = auth.uid()
             OR (vs.shared_with_user_id IS NOT NULL AND vs.role IS NOT NULL AND vs.role <> 'viewer'::public.vault_permission)
-            OR v.visibility = 'public'::public.vault_visibility
           )
       )
     )
@@ -151,7 +153,6 @@ ALTER POLICY "Users can update their own publication pdf assets" ON public.publi
           AND (
             v.user_id = auth.uid()
             OR (vs.shared_with_user_id IS NOT NULL AND vs.role IS NOT NULL AND vs.role <> 'viewer'::public.vault_permission)
-            OR v.visibility = 'public'::public.vault_visibility
           )
       )
     )
