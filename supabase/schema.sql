@@ -2659,10 +2659,10 @@ CREATE POLICY "Users can insert their own google drive link" ON "public"."user_g
 CREATE POLICY "Users can insert their own publication pdf assets" ON "public"."publication_pdf_assets" FOR INSERT TO "authenticated" WITH CHECK ((("user_id" = "auth"."uid"()) AND (("publication_id" IS NULL) OR (EXISTS ( SELECT 1
    FROM "public"."publications" "pub"
   WHERE (("pub"."id" = "publication_pdf_assets"."publication_id") AND ("pub"."user_id" = "auth"."uid"())))) OR (EXISTS ( SELECT 1
-   FROM (("public"."vault_papers" "vp"
+   FROM (("public"."vault_publications" "vp"
      JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
      LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-  WHERE (("vp"."publication_id" = "publication_pdf_assets"."publication_id") AND ("v"."archived_at" IS NULL) AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission"))))))) AND (("vault_publication_id" IS NULL) OR (EXISTS ( SELECT 1
+  WHERE (("vp"."original_publication_id" = "publication_pdf_assets"."publication_id") AND ("v"."archived_at" IS NULL) AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission"))))))) AND (("vault_publication_id" IS NULL) OR (EXISTS ( SELECT 1
    FROM (("public"."vault_publications" "vp"
      JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
      LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
@@ -2779,10 +2779,10 @@ CREATE POLICY "Users can update their own google drive link" ON "public"."user_g
 CREATE POLICY "Users can update their own publication pdf assets" ON "public"."publication_pdf_assets" FOR UPDATE TO "authenticated" USING (("user_id" = ( SELECT "auth"."uid"() AS "uid"))) WITH CHECK ((("user_id" = "auth"."uid"()) AND (("publication_id" IS NULL) OR (EXISTS ( SELECT 1
    FROM "public"."publications" "pub"
   WHERE (("pub"."id" = "publication_pdf_assets"."publication_id") AND ("pub"."user_id" = "auth"."uid"())))) OR (EXISTS ( SELECT 1
-   FROM (("public"."vault_papers" "vp"
+   FROM (("public"."vault_publications" "vp"
      JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
      LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
-  WHERE (("vp"."publication_id" = "publication_pdf_assets"."publication_id") AND ("v"."archived_at" IS NULL) AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission"))))))) AND (("vault_publication_id" IS NULL) OR (EXISTS ( SELECT 1
+  WHERE (("vp"."original_publication_id" = "publication_pdf_assets"."publication_id") AND ("v"."archived_at" IS NULL) AND (("v"."user_id" = "auth"."uid"()) OR (("vs"."shared_with_user_id" IS NOT NULL) AND ("vs"."role" IS NOT NULL) AND ("vs"."role" <> 'viewer'::"public"."vault_permission"))))))) AND (("vault_publication_id" IS NULL) OR (EXISTS ( SELECT 1
    FROM (("public"."vault_publications" "vp"
      JOIN "public"."vaults" "v" ON (("vp"."vault_id" = "v"."id")))
      LEFT JOIN "public"."vault_shares" "vs" ON ((("v"."id" = "vs"."vault_id") AND ("vs"."shared_with_user_id" = "auth"."uid"()))))
