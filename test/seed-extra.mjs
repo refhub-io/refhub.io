@@ -90,10 +90,11 @@ if (scErr) throw new Error(`smart_collections filter update: ${scErr.message}`);
 console.log('smart collection filter wired up');
 
 // vault-scoped tags (tags.vault_id set), as distinct from seed-local-demo.mjs's
-// user-scoped ones -- the manage_tags sheet and the vault_analytics dialog's
-// tag panel only surface vault-scoped tags (see test/BUGS.md #4), so a vault
-// with only user-scoped tags shows "no tags yet" in both. Add a couple here,
-// on alex_chen's public "transformer architectures" vault, and tag two papers.
+// user-scoped ones -- both kinds should now show up in the manage_tags sheet
+// and the vault_analytics dialog's tag panel (issue #233, fixed: both read
+// from VaultContentContext's `tags`, which used to only fetch vault-scoped
+// rows). Add a couple here, on alex_chen's public "transformer architectures"
+// vault, and tag two papers, so there's a mix of both kinds to exercise.
 const { data: transformersVault, error: tvErr } = await sb
   .from('vaults')
   .select('id')

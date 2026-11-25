@@ -17,6 +17,7 @@ project uses [Semantic Versioning](https://semver.org/). History prior to
 - Backfilled two more already-live production changes that had no migration file recording them: a `service_role` bypass in `enforce_vault_section_owner_only()`, and `inbox_items`'s realtime/`REPLICA IDENTITY FULL` wiring.
 - `.gitignore` listed `supabase/migrations`, so any new migration added normally (`git add`) was silently dropped from version control unless force-added — the likely root cause of the drift above. Recovered 13 migration files that existed on disk and were already applied in production but were never committed as a result.
 - Hardened 3 RLS policies missing ownership/edit-access checks, found by security review while fixing the drift above: `vault_forks` INSERT didn't verify the caller owns `forked_vault_id`; `publication_relations` UPDATE skipped the vault edit-access check its own INSERT policy requires; `publication_pdf_assets` INSERT/UPDATE didn't verify the caller can edit the publication/vault copy a PDF asset is being attached to.
+- The vault analytics dialog's tag panel (and the `manage_tags` sheet) only ever showed vault-scoped tags — a vault whose papers carried only personal, user-scoped tags showed "no tags yet" even with tags visibly attached in the main paper list. The vault-content fetch that feeds both only queried `tags` by `vault_id`, never including the signed-in user's own user-scoped tags (#233).
 
 ## [2.1.0] - 2026-11-25
 

@@ -57,16 +57,15 @@ service-role, local-only):
 - one `vault_forks` relationship (tom_becker forks priya_raman's public vault)
 - one `smart_collections` entry
 
-`test/fix-profiles.mjs` fills in each seeded user's `profiles` row
-(`username`, `bio`, `is_setup`) directly, because of a real gap in
-`schema.sql` — see `test/BUGS.md` #2.
+`test/fix-profiles.mjs` fills in each seeded user's demo-specific `profiles`
+fields (`username`, `bio`, `is_setup`) — the `handle_new_user()` trigger
+(issue #232, fixed) already creates a bare row per signup, this just
+enriches it.
 
 `test/seed-extra.mjs` adds markdown notes (rendered via the paper dialog's
 notes tab) to two papers, flags three as `important`, wires up `alex_chen`'s
 "high priority reads" smart collection with a real filter so it actually
-matches something, and seeds 4 pending `inbox_items`. This needs the
-post-dump migrations applied (`test/BUGS.md` #1), which `setup-local-db.sh`
-does for you.
+matches something, and seeds 4 pending `inbox_items`.
 
 Run all three (or just `test/seed.sh`, which runs them in order) after a
 fresh `test/setup-local-db.sh`.
@@ -98,5 +97,5 @@ as a single synthetic earliest migration and temporarily moving the real
 migration files aside for the duration of the bootstrap, then restoring
 `supabase/migrations/` exactly — so your real migration history is never
 modified or committed to. See the comment at the top of that script for the
-full breakdown, and `test/BUGS.md` for the other things this surfaced
-(including two real bugs, #231 and #232, found and fixed this way).
+full breakdown. This environment is also what surfaced issues #231, #232,
+#233 (all fixed — see `CHANGELOG.md`), and #242 (filed, not yet fixed).

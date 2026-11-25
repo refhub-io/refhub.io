@@ -37,10 +37,10 @@ async function createUsers() {
     if (error) throw new Error(`createUser ${u.email}: ${error.message}`);
     const userId = data.user.id;
     byUsername[u.username] = userId;
-    // NOTE: schema.sql ships handle_new_user() but never wires it to a trigger
-    // on auth.users (see BUGS.md) - so this update below typically matches 0
-    // rows at this point (no profiles row exists yet). Run fix-profiles.mjs
-    // after this script to upsert profiles directly instead of relying on it.
+    // handle_new_user()'s trigger on auth.users (issue #232, fixed) already
+    // created a bare profiles row for this user; this just fills in the
+    // demo-specific fields it doesn't set. fix-profiles.mjs does the same
+    // thing as a safety net in case this update ever races the trigger.
     const { error: upErr } = await sb
       .from('profiles')
       .update({ username: u.username, bio: u.bio, is_setup: true })
@@ -313,7 +313,7 @@ async function main() {
   console.log('smart_collections 1');
 
   console.log('\ndone. demo login: alex.chen@refhub.dev / ' + PASSWORD);
-  console.log('NOTE: run `node fix-profiles.mjs` next - see BUGS.md (handle_new_user has no trigger).');
+  console.log('NOTE: run `node fix-profiles.mjs` next to fill in demo-specific profile fields.');
 }
 
 main().catch((e) => {
