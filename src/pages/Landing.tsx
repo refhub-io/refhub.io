@@ -100,7 +100,7 @@ export default function Landing() {
             </div>
           </div>
 
-          <div className="max-w-3xl space-y-3">
+          <div className="space-y-3">
             <p className="font-mono text-xs font-semibold text-muted-foreground">// see_it_in_action</p>
             <div className="overflow-hidden rounded-lg border-2 border-border shadow-xl">
               <PromoVideoPlayer
