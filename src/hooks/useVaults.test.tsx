@@ -17,12 +17,12 @@ const mockedFetchUserVaults = vi.mocked(fetchUserVaults);
 const ownedVault: Vault = {
   id: 'vault-1', user_id: 'user-1', name: 'Owned', description: null,
   color: '#fff', visibility: 'private', public_slug: null, category: null,
-  abstract: null, created_at: 'now', updated_at: 'now',
+  abstract: null, archived_at: null, created_at: 'now', updated_at: 'now',
 };
 const sharedVault: Vault = {
   id: 'vault-2', user_id: 'user-2', name: 'Shared', description: null,
   color: '#000', visibility: 'private', public_slug: null, category: null,
-  abstract: null, created_at: 'now', updated_at: 'now',
+  abstract: null, archived_at: null, created_at: 'now', updated_at: 'now',
 };
 
 function makeWrapper() {
@@ -59,6 +59,7 @@ describe('useVaults', () => {
       ownedVaults: [ownedVault],
       sharedVaults: [sharedVault],
       sharedVaultIds: ['vault-2'],
+      sharedVaultRoles: {},
       scopedVaultIds: ['vault-1', 'vault-2'],
     });
     const { wrapper } = makeWrapper();
@@ -75,7 +76,7 @@ describe('useVaults', () => {
   it('useInvalidateVaults() marks the cached query for this user stale', async () => {
     mockedUseAuth.mockReturnValue({ user: { id: 'user-1', email: 'a@b.com' }, loading: false } as ReturnType<typeof useAuth>);
     mockedFetchUserVaults.mockResolvedValue({
-      ownedVaults: [ownedVault], sharedVaults: [], sharedVaultIds: [], scopedVaultIds: ['vault-1'],
+      ownedVaults: [ownedVault], sharedVaults: [], sharedVaultIds: [], sharedVaultRoles: {}, scopedVaultIds: ['vault-1'],
     });
     const { wrapper, queryClient } = makeWrapper();
 
@@ -88,7 +89,7 @@ describe('useVaults', () => {
 
     mockedFetchUserVaults.mockResolvedValue({
       ownedVaults: [ownedVault, { ...ownedVault, id: 'vault-3', name: 'New' }],
-      sharedVaults: [], sharedVaultIds: [], scopedVaultIds: ['vault-1', 'vault-3'],
+      sharedVaults: [], sharedVaultIds: [], sharedVaultRoles: {}, scopedVaultIds: ['vault-1', 'vault-3'],
     });
     await result.current.invalidate();
 

@@ -48,12 +48,12 @@ function makeClient(data: {
 const ownedVault: Vault = {
   id: 'vault-1', user_id: 'user-1', name: 'Owned', description: null,
   color: '#fff', visibility: 'private', public_slug: null, category: null,
-  abstract: null, created_at: 'now', updated_at: 'now',
+  abstract: null, archived_at: null, created_at: 'now', updated_at: 'now',
 };
 const sharedVault: Vault = {
   id: 'vault-2', user_id: 'user-2', name: 'Shared', description: null,
   color: '#000', visibility: 'private', public_slug: null, category: null,
-  abstract: null, created_at: 'now', updated_at: 'now',
+  abstract: null, archived_at: null, created_at: 'now', updated_at: 'now',
 };
 
 describe('fetchUserVaults', () => {

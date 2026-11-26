@@ -127,7 +127,7 @@ describe('fetchAllPublicationsData', () => {
     const ownedVault: Vault = {
       id: 'vault-1', user_id: 'user-1', name: 'My Vault', description: null,
       color: '#fff', visibility: 'private', public_slug: null, category: null,
-      abstract: null, created_at: 'now', updated_at: 'now',
+      abstract: null, archived_at: null, created_at: 'now', updated_at: 'now',
     };
     const vp: RawVaultPublicationRow = {
       id: 'vp1', vault_id: 'vault-1', created_by: 'user-1', title: 'Paper',
@@ -158,12 +158,12 @@ describe('fetchAllPublicationsData', () => {
     const ownedVault: Vault = {
       id: 'vault-1', user_id: 'user-1', name: 'Owned', description: null,
       color: '#fff', visibility: 'private', public_slug: null, category: null,
-      abstract: null, created_at: 'now', updated_at: 'now',
+      abstract: null, archived_at: null, created_at: 'now', updated_at: 'now',
     };
     const sharedVault: Vault = {
       id: 'vault-2', user_id: 'user-2', name: 'Shared', description: null,
       color: '#000', visibility: 'private', public_slug: null, category: null,
-      abstract: null, created_at: 'now', updated_at: 'now',
+      abstract: null, archived_at: null, created_at: 'now', updated_at: 'now',
     };
     const personalTag: Tag = {
       id: 'tag-1', user_id: 'user-1', name: 'Personal', color: '#111',
@@ -218,7 +218,7 @@ describe('fetchAllPublicationsData', () => {
     const ownedVault: Vault = {
       id: 'vault-1', user_id: 'user-1', name: 'Owned', description: null,
       color: '#fff', visibility: 'private', public_slug: null, category: null,
-      abstract: null, created_at: 'now', updated_at: 'now',
+      abstract: null, archived_at: null, created_at: 'now', updated_at: 'now',
     };
     const canonical: Publication = {
       id: 'p1', user_id: 'user-1', title: 'Paper', authors: ['A'], year: 2020,
