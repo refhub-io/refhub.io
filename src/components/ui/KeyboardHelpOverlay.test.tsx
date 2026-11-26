@@ -9,7 +9,6 @@ import { KeyboardHelpOverlay } from './KeyboardHelpOverlay';
 beforeAll(() => {
   if (!('ResizeObserver' in globalThis)) {
     // jsdom doesn't implement ResizeObserver; Radix ScrollArea needs it to mount.
-    // @ts-expect-error test-only polyfill
     globalThis.ResizeObserver = class {
       observe() {}
       unobserve() {}
