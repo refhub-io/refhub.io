@@ -8,7 +8,7 @@ import { warn } from '@/lib/logger';
  * Uses idb-keyval for simple key-value storage in IndexedDB
  */
 const createIDBPersister = (idbValidKey: IDBValidKey = 'refhub-query-cache') => ({
-  persistClient: async (client: Parameters<typeof persistQueryClient>[0]['persister']['persistClient'][0]) => {
+  persistClient: async (client: Parameters<Parameters<typeof persistQueryClient>[0]['persister']['persistClient']>[0]) => {
     try {
       await set(idbValidKey, client);
     } catch (error) {

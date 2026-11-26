@@ -182,7 +182,14 @@ export interface VaultShare {
 export interface Notification {
   id: string;
   user_id: string;
-  type: 'vault_shared' | 'vault_forked' | 'vault_favorited' | 'publication_updated';
+  type:
+    | 'vault_shared'
+    | 'vault_forked'
+    | 'vault_favorited'
+    | 'publication_updated'
+    | 'vault_access_requested'
+    | 'vault_access_approved'
+    | 'vault_access_rejected';
   title: string;
   message: string | null;
   data: Record<string, unknown> | null;

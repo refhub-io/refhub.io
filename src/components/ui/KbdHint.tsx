@@ -10,7 +10,7 @@ interface KbdHintProps {
   /** Additional class names for the outer wrapper. */
   className?: string;
   /** Size variant. */
-  size?: 'sm' | 'md';
+  size?: 'xs' | 'sm' | 'md';
 }
 
 /**
@@ -35,6 +35,7 @@ export function KbdHint({ shortcut, children, className, size = 'sm' }: KbdHintP
             className={cn(
               'inline-flex items-center justify-center rounded border border-border bg-muted/60 font-mono text-muted-foreground select-none',
               'shadow-[0_1px_0_1px_rgba(0,0,0,0.04)]',
+              size === 'xs' && 'min-w-[1rem] h-4 px-1 text-[10px] leading-none',
               size === 'sm' && 'min-w-[1.25rem] h-5 px-1 text-[10px] leading-none',
               size === 'md' && 'min-w-[1.5rem] h-6 px-1.5 text-xs leading-none',
             )}

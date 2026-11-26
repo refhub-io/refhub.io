@@ -517,17 +517,17 @@ export function applyFilters(
       switch (operator) {
         case 'contains':
           if (field === 'tags' || field === 'vault') {
-            return fieldValue.includes(value);
+            return (fieldValue as string[]).includes(value);
           }
           return String(fieldValue).toLowerCase().includes(value.toLowerCase());
         case 'not_contains':
           if (field === 'tags' || field === 'vault') {
-            return !fieldValue.includes(value);
+            return !(fieldValue as string[]).includes(value);
           }
           return !String(fieldValue).toLowerCase().includes(value.toLowerCase());
         case 'equals':
           if (field === 'tags' || field === 'vault') {
-            return fieldValue.includes(value);
+            return (fieldValue as string[]).includes(value);
           }
           if (field === 'year') {
             return fieldValue === parseInt(value, 10);
@@ -535,7 +535,7 @@ export function applyFilters(
           return String(fieldValue).toLowerCase() === value.toLowerCase();
         case 'not_equals':
           if (field === 'tags' || field === 'vault') {
-            return !fieldValue.includes(value);
+            return !(fieldValue as string[]).includes(value);
           }
           if (field === 'year') {
             return fieldValue !== parseInt(value, 10);
@@ -543,18 +543,20 @@ export function applyFilters(
           return String(fieldValue).toLowerCase() !== value.toLowerCase();
         case 'is_empty':
           if (field === 'tags' || field === 'vault') {
-            return fieldValue.length === 0;
+            return (fieldValue as string[]).length === 0;
           }
           return !fieldValue || String(fieldValue).trim() === '';
         case 'is_not_empty':
           if (field === 'tags' || field === 'vault') {
-            return fieldValue.length > 0;
+            return (fieldValue as string[]).length > 0;
           }
           return fieldValue && String(fieldValue).trim() !== '';
         case 'greater_than':
-          return fieldValue > parseInt(value, 10);
+          // Only meaningful for numeric fields (year); the filter UI
+          // doesn't offer this operator for tags/vault (string[]) fields.
+          return (fieldValue as number) > parseInt(value, 10);
         case 'less_than':
-          return fieldValue < parseInt(value, 10);
+          return (fieldValue as number) < parseInt(value, 10);
         default:
           return true;
       }

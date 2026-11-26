@@ -31,7 +31,7 @@ export interface RawVaultPublicationRow {
   booktitle: string | null;
   chapter: string | null;
   edition: string | null;
-  editor: string | null;
+  editor: string[] | null;
   howpublished: string | null;
   institution: string | null;
   number: string | null;
@@ -49,6 +49,10 @@ export interface RawVaultPublicationRow {
   created_at: string;
   updated_at: string;
   original_publication_id: string | null;
+  section_id?: string | null;
+  section_position?: number | null;
+  featured?: boolean | null;
+  featured_note?: string | null;
 }
 
 type PublicationDisplayField = keyof Pick<
