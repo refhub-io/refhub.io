@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [2.1.2] - 2026-11-26
+
+### Fixed
+- `src/integrations/supabase/types.ts` had been an empty stub (every table typed as `never`) since January, after a `supabase gen types` run against a disconnected project silently returned nothing — zero runtime impact, but total loss of autocomplete and compile-time safety on every Supabase query. Regenerated from the live production project (#203).
+- `npx tsc --noEmit -p .` had been a no-op this whole time (the root `tsconfig.json`'s `files: []` + references-only setup skips diagnostics without `-b`); added a real `typecheck` script (#203).
+- Fixed the real bugs that script surfaced: Codex discovery double-wrapped a paper's editors into a nested array; the vault-create optimistic UI set `slug` instead of `public_slug` so it never reflected the chosen slug until the server round-trip corrected it; accepting an inbox item with no title would have hit a raw DB constraint error instead of the graceful fallback the backend's own accept flow already has; a Semantic Scholar sync diff could have written raw author objects into a publication's `authors` field instead of plain names; the vault augment dialog's topic-search de-dup cache was silently a no-op, so repeat topic searches always re-fetched; notification click-handling for access-request/approved/rejected notifications was correct but untyped; a dead `onSave` prop on the profile dialog was removed.
+- Fixed flaky timeouts in 4 `PublicationDialog` tests that raced vitest's default 5s timeout under full-suite CPU load — not a logic bug, confirmed via repeated isolated runs.
+
 ## [2.1.1] - 2026-11-25
 
 ### Added

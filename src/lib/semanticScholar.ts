@@ -154,7 +154,14 @@ export function isSemanticScholarRequestError(error: unknown): error is Semantic
   return error instanceof Error && 'code' in error && 'status' in error;
 }
 
-export function isSemanticScholarRateLimitError(error: unknown): error is SemanticScholarRequestError {
+// Deliberately returns a plain boolean, not a type predicate: it asserts the
+// same SemanticScholarRequestError shape isSemanticScholarRequestError
+// already does, just with extra runtime conditions on top. A predicate
+// claiming that same type here made TypeScript's negative narrowing (the
+// implicit "if this check is false" branch) treat the fall-through as
+// `never`, since it tried to subtract SemanticScholarRequestError from
+// itself.
+export function isSemanticScholarRateLimitError(error: unknown): boolean {
   return isSemanticScholarRequestError(error)
     && (error.status === 429 || error.code === 'semantic_scholar_rate_limited' || error.code === 'rate_limit_exceeded');
 }
@@ -221,7 +228,7 @@ export function formatSemanticScholarErrorMessage(error: unknown, fallback = 'Se
   return fallback;
 }
 
-function normalizeMetadataAuthors(authors: SemanticScholarMetadata['authors'] | undefined | null): string[] {
+export function normalizeMetadataAuthors(authors: SemanticScholarMetadata['authors'] | undefined | null): string[] {
   if (!Array.isArray(authors)) return [];
 
   return authors

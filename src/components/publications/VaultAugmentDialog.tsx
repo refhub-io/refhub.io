@@ -377,6 +377,10 @@ export function VaultAugmentDialog({
   const [acknowledgedTabs, setAcknowledgedTabs] = useState<Set<AugmentTab>>(new Set());
 
   const fetchedTabs = useRef<Set<AugmentTab>>(new Set());
+  // Separate from fetchedTabs: 'topic' is re-searchable with a different
+  // query each time, so de-duping needs the composite "topic:<query>" key,
+  // not the bare AugmentTab literal fetchedTabs tracks for the other tabs.
+  const fetchedTopicQueries = useRef<Set<string>>(new Set());
   const resolvedPaperIds = useRef<ResolvedPaper[]>([]);
   // Guards against overlapping invocations of fetchRelated/fetchTabData/
   // fetchTopicData for the same tab (e.g. a retry fired while the original
@@ -533,7 +537,7 @@ export function VaultAugmentDialog({
     }
 
     const fetchKey = `topic:${query.toLowerCase()}`;
-    if (!force && fetchedTabs.current.has(fetchKey)) return;
+    if (!force && fetchedTopicQueries.current.has(fetchKey)) return;
 
     const generation = ++fetchGenerations.current.topic;
     const isStale = () => fetchGenerations.current.topic !== generation;
@@ -567,7 +571,7 @@ export function VaultAugmentDialog({
     }));
     setTopicResults(papers);
     updateTabStatus('topic', { state: 'ready', failures: [] });
-    fetchedTabs.current.add(fetchKey);
+    fetchedTopicQueries.current.add(fetchKey);
   }, [topicQuery, updateTabStatus]);
 
   const fetchTabData = useCallback(async (tab: 'references' | 'citations', force = false) => {
@@ -652,6 +656,7 @@ export function VaultAugmentDialog({
     }
     if (!open) {
       fetchedTabs.current = new Set();
+      fetchedTopicQueries.current = new Set();
       resolvedPaperIds.current = [];
       setActiveTab(isTopicDiscovery ? 'topic' : 'related');
       setReferences([]);

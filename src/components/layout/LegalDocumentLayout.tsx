@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 interface LegalSection {
   heading: string;
-  body: string[];
+  body: readonly string[];
 }
 
 interface LegalDocumentLayoutProps {

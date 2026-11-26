@@ -6,6 +6,7 @@ import { useProfile } from '@/hooks/useProfile';
 import { useInvalidateVaults } from '@/hooks/useVaults';
 import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag, PublicationRelation } from '@/types/database';
+import type { Database } from '@/integrations/supabase/types';
 import { VaultRole } from '@/types/vault-extensions';
 import { DndContext, DragOverlay } from '@dnd-kit/core';
 import { snapCenterToCursor } from '@dnd-kit/modifiers';
@@ -296,7 +297,7 @@ export default function Dashboard() {
         // across pages without a fully deterministic sort, and created_at
         // alone can tie between rows.
         fetchAllRows<Publication>((from, to) =>
-          supabase.from('publications').select('*').order('created_at', { ascending: false }).order('id').range(from, to)
+          supabase.from('publications').select('*').order('created_at', { ascending: false }).order('id').range(from, to).returns<Publication[]>()
         ),
         supabase.from('vaults').select('*').eq('user_id', user.id).order('name'),
         // Fetch vaults shared with current user (via email or user_id)
@@ -988,7 +989,10 @@ export default function Dashboard() {
       // The publicationId might be a vault_publications.id (when viewing a vault)
       // or a publications.id (when viewing the library). We need to resolve it.
       let sourcePublicationId = publicationId;
-      let sourcePublication: Record<string, unknown> | null = null;
+      let sourcePublication:
+        | Database['public']['Tables']['vault_publications']['Row']
+        | Database['public']['Tables']['publications']['Row']
+        | null = null;
 
       // First, check if this ID is a vault_publication
       const { data: vaultPub } = await supabase
@@ -1520,7 +1524,10 @@ export default function Dashboard() {
           name: data.name || '',
           description: data.description || null,
           color: data.color || '#3b82f6',
-          slug: data.slug || null,
+          public_slug: data.public_slug || null,
+          category: data.category || null,
+          abstract: data.abstract || null,
+          archived_at: null,
           visibility: data.visibility || 'private',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),

@@ -5,6 +5,7 @@ import { useProfile } from '@/hooks/useProfile';
 import { useVaults, useInvalidateVaults } from '@/hooks/useVaults';
 import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag, PublicationRelation, VaultShare } from '@/types/database';
+import type { Database } from '@/integrations/supabase/types';
 import { DndContext, DragOverlay } from '@dnd-kit/core';
 import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import { useVaultDragAndDrop } from '@/hooks/useVaultDragAndDrop';
@@ -328,6 +329,7 @@ export default function VaultDetail() {
             .order('created_at', { ascending: false })
             .order('id')
             .range(from, to)
+            .returns<Publication[]>()
         ),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         fetchAllRows<any>((from, to) =>
@@ -1038,7 +1040,10 @@ export default function VaultDetail() {
       // The publicationId might be a vault_publications.id (when viewing a vault)
       // or a publications.id (when viewing the library). We need to resolve it.
       let sourcePublicationId = publicationId;
-      let sourcePublication: Record<string, unknown> | null = null;
+      let sourcePublication:
+        | Database['public']['Tables']['vault_publications']['Row']
+        | Database['public']['Tables']['publications']['Row']
+        | null = null;
 
       // First, check if this ID is a vault_publication
       const { data: vaultPub } = await supabase

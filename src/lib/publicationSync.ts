@@ -1,5 +1,5 @@
 import { Publication } from '@/types/database';
-import { SemanticScholarMetadata } from '@/lib/semanticScholar';
+import { SemanticScholarMetadata, normalizeMetadataAuthors } from '@/lib/semanticScholar';
 
 // Fields that are shared bibliographic data and should propagate across all copies
 // of a publication. Vault-specific fields (notes, tags) are intentionally excluded.
@@ -58,6 +58,13 @@ function normalizeComparable(value: unknown): string {
 
 function incomingValue(metadata: SemanticScholarMetadata, field: PublicationSyncField) {
   if (field === 'publication_type') return metadata.type ?? null;
+  // metadata.authors can come back as the raw Semantic Scholar shape
+  // ({ name }[]), not just string[] -- normalize before it flows into a
+  // diff/patch that assumes Publication.authors is always string[].
+  if (field === 'authors') {
+    const normalized = normalizeMetadataAuthors(metadata.authors);
+    return normalized.length > 0 ? normalized : null;
+  }
   return metadata[field] ?? null;
 }
 

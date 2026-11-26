@@ -37,9 +37,9 @@ const LATEX_SPECIAL_CHAR_MAP: Record<string, string> = {
 
 const UNICODE_TO_LATEX = new Map<string, string>(
   Object.entries(LATEX_ACCENT_MAP).flatMap(([accent, chars]) =>
-    Object.entries(chars).map(([base, unicode]) => [unicode, `{\\${accent}{${base}}}`] as const)
+    Object.entries(chars).map(([base, unicode]) => [unicode, `{\\${accent}{${base}}}`] as [string, string])
   ).concat(
-    Object.entries(LATEX_SPECIAL_CHAR_MAP).map(([command, unicode]) => [unicode, `{\\${command}}`] as const)
+    Object.entries(LATEX_SPECIAL_CHAR_MAP).map(([command, unicode]) => [unicode, `{\\${command}}`] as [string, string])
   )
 );
 

@@ -62,12 +62,20 @@ interface AccessRequest {
   requester_id: string | null;
   requester_email: string | null;
   requester_name: string | null;
-  requested_role?: 'viewer' | 'editor' | null;
+  // The app only ever creates 'viewer'/'editor' requests (createAccessRequest
+  // doesn't offer 'owner'), but the column itself is the full vault_permission
+  // enum with no narrower DB constraint, so a raw row can't be assumed to
+  // exclude 'owner'.
+  requested_role?: 'viewer' | 'editor' | 'owner' | null;
   status: 'pending' | 'approved' | 'rejected';
   note: string | null;
   created_at: string;
   display_name: string;
-  requester_profile: null;
+  // Always null right now (see the one assignment site below) -- no profile
+  // join is actually wired up yet, but the render below already reads
+  // .email/.username defensively, so the type reflects the shape it'd need
+  // once that join exists rather than a bare `null`.
+  requester_profile: { email?: string | null; username?: string | null } | null;
 }
 
 interface UserSuggestion {
@@ -217,7 +225,12 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
           displayName = r.requester_email;
         }
 
-        return { ...r, display_name: displayName, requester_profile: null };
+        return {
+          ...r,
+          display_name: displayName,
+          requester_profile: null,
+          status: r.status as AccessRequest['status'],
+        };
       });
 
       setAccessRequests(processed);

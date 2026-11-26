@@ -9,7 +9,6 @@ type VaultPublicationIdentityFields = {
   updated_by?: string | null;
   version?: number;
   notes?: string | null;
-  [key: string]: unknown;
 };
 
 type BuildVaultPublicationCopyOptions = {
@@ -26,8 +25,8 @@ type BuildVaultPublicationCopyOptions = {
  * not copied unless a caller opts in, and tags/vault membership are represented
  * elsewhere.
  */
-export function buildVaultPublicationCopyPayload(
-  vaultPublication: VaultPublicationIdentityFields,
+export function buildVaultPublicationCopyPayload<T extends VaultPublicationIdentityFields>(
+  vaultPublication: T,
   targetVaultId: string,
   actorUserId: string,
   timestamp = new Date().toISOString(),

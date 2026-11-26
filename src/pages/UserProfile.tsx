@@ -28,7 +28,7 @@ function getInitials(p: Profile): string {
 export default function UserProfile() {
   const { username } = useParams<{ username: string }>();
   const { user, loading: authLoading } = useAuth();
-  const { profile: currentProfile, refetch: refetchProfile } = useProfile();
+  const { profile: currentProfile } = useProfile();
   const navigate = useNavigate();
 
   const [researcherProfile, setResearcherProfile] = useState<Profile | null>(null);
@@ -415,7 +415,6 @@ export default function UserProfile() {
         <ProfileDialog
           open={isProfileDialogOpen}
           onOpenChange={setIsProfileDialogOpen}
-          onSave={refetchProfile}
         />
       )}
 

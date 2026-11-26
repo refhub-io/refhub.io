@@ -13,6 +13,7 @@ function makeVault(id: string, name: string): Vault {
     public_slug: null,
     category: null,
     abstract: null,
+    archived_at: null,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
   };

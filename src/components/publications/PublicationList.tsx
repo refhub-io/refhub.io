@@ -659,7 +659,7 @@ export function PublicationList({
 
           {/* Filter button with shortcut hint */}
           <div className="flex items-center">
-            <KbdHint shortcut="f" size="xs" className="hidden md:inline-flex !px-1 !py-0.5 !text-[10px] !leading-none !h-4 mr-1" />
+            <KbdHint shortcut="f" size="xs" className="hidden md:inline-flex mr-1" />
             <div className={cn(
               "relative overflow-visible",
               persistedFilters.length > 0 && 'bg-primary/10 border-primary/30 rounded-md'
@@ -681,7 +681,7 @@ export function PublicationList({
 
           {/* Sort button with shortcut hint */}
           <div className="flex items-center">
-            <KbdHint shortcut="s" size="xs" className="hidden md:inline-flex !px-1 !py-0.5 !text-[10px] !leading-none !h-4 mr-1" />
+            <KbdHint shortcut="s" size="xs" className="hidden md:inline-flex mr-1" />
             <div className="relative overflow-visible">
               <DropdownMenu open={sortDropdownOpen} onOpenChange={setSortDropdownOpen}>
                 <DropdownMenuTrigger asChild>
@@ -735,8 +735,8 @@ export function PublicationList({
             onVisibleColumnsChange={setVisibleColumns}
             isViewModeChanged={viewMode !== 'cards'}
             isVisibleColumnsChanged={JSON.stringify(visibleColumns) !== JSON.stringify(DEFAULT_VISIBLE_COLUMNS)}
-            viewHint={<KbdHint shortcut="v" size="xs" className="hidden md:inline-flex !px-1 !py-0.5 !text-[10px] !leading-none !h-4" />}
-            propertiesHint={<KbdHint shortcut="p" size="xs" className="hidden md:inline-flex !px-1 !py-0.5 !text-[10px] !leading-none !h-4" />}
+            viewHint={<KbdHint shortcut="v" size="xs" className="hidden md:inline-flex" />}
+            propertiesHint={<KbdHint shortcut="p" size="xs" className="hidden md:inline-flex" />}
             propertiesOpen={propertiesOpen}
             onPropertiesOpenChange={setPropertiesOpen}
             onPropertiesCloseAutoFocus={handleToolbarCloseAutoFocus}
@@ -744,7 +744,7 @@ export function PublicationList({
 
           {selectedIds.size > 0 && onDiscoverRelated && (
             <div className="flex items-center">
-              <KbdHint shortcut="r" size="xs" className="hidden md:inline-flex !px-1 !py-0.5 !text-[10px] !leading-none !h-4 mr-1" />
+              <KbdHint shortcut="r" size="xs" className="hidden md:inline-flex mr-1" />
               <Button
                 variant="outline"
                 size="icon"
@@ -762,7 +762,7 @@ export function PublicationList({
               <KbdHint
                 shortcut={selectedIds.size > 0 ? 'Ctrl+D' : 'Ctrl+A'}
                 size="xs"
-                className="hidden md:inline-flex !px-1 !py-0.5 !text-[10px] !leading-none !h-4 mr-1"
+                className="hidden md:inline-flex mr-1"
               />
               <Button
                 variant="outline"
@@ -782,7 +782,7 @@ export function PublicationList({
 
           {selectedIds.size > 0 && (
             <div className="flex items-center">
-              <KbdHint shortcut="Ctrl+E" size="xs" className="hidden md:inline-flex !px-1 !py-0.5 !text-[10px] !leading-none !h-4 mr-1" />
+              <KbdHint shortcut="Ctrl+E" size="xs" className="hidden md:inline-flex mr-1" />
               <Button
                 variant="accent"
                 size="icon"

@@ -14,12 +14,12 @@ const fakeUser = { id: 'user-1', email: 'a@b.com' } as User;
 
 const vaultA: Vault = {
   id: 'va', user_id: 'owner-a', name: 'Vault A', description: null, color: '#fff',
-  visibility: 'private', public_slug: null, category: null, abstract: null,
+  visibility: 'private', public_slug: null, category: null, abstract: null, archived_at: null,
   created_at: 'now', updated_at: 'now',
 };
 const vaultB: Vault = {
   id: 'vb', user_id: 'owner-b', name: 'Vault B', description: null, color: '#000',
-  visibility: 'private', public_slug: null, category: null, abstract: null,
+  visibility: 'private', public_slug: null, category: null, abstract: null, archived_at: null,
   created_at: 'now', updated_at: 'now',
 };
 const favA: VaultFavorite = { id: 'f1', vault_id: 'va', user_id: 'user-1', created_at: 'now' };

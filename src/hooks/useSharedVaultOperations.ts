@@ -638,6 +638,10 @@ export function useSharedVaultOperations({
           vault_id: vaultId,
           original_publication_id: newPub.id,
           ...data,
+          // data.title is optional (Partial<Publication>), but the insert
+          // above already succeeded against publications' NOT NULL title,
+          // so newPub.title is the authoritative, guaranteed-present value.
+          title: newPub.title,
           created_by: userId,
         })
         .select()
@@ -679,7 +683,7 @@ export function useSharedVaultOperations({
         isbn: vaultPub.isbn,
         issn: vaultPub.issn,
         keywords: vaultPub.keywords,
-        reading_state: vaultPub.reading_state || 'unread',
+        reading_state: (vaultPub.reading_state || 'unread') as Publication['reading_state'],
         important: vaultPub.important ?? false,
         created_at: vaultPub.created_at,
         updated_at: vaultPub.updated_at,

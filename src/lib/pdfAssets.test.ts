@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { replacePublicationPdfAsset, syncDrivePdfAsset, type PdfAssetRecord } from './pdfAssets';
+import { replacePublicationPdfAsset, syncDrivePdfAsset, type PdfAssetRecord, type PdfAssetClient } from './pdfAssets';
 
 function makeQuery(method: 'delete' | 'insert', calls: string[], result = { error: null }) {
   return {
@@ -36,7 +36,7 @@ function makeClient(result = { error: null }) {
     }),
   };
 
-  return { client, calls };
+  return { client: client as unknown as PdfAssetClient, calls };
 }
 
 const baseRecord: PdfAssetRecord = {
@@ -150,7 +150,7 @@ function makeSyncClient(siblingIds: string[] = []) {
     }),
   };
 
-  return { client, calls };
+  return { client: client as unknown as PdfAssetClient, calls };
 }
 
 describe('syncDrivePdfAsset', () => {

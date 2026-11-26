@@ -68,7 +68,10 @@ interface PublicationTableProps {
   onSort: (field: SortField) => void;
   // Keyboard navigation props
   focusedIndex?: number;
-  kbItemProps?: (index: number, id: string) => Record<string, unknown>;
+  kbItemProps?: (index: number, id: string) => {
+    onClick?: (e: React.MouseEvent) => void;
+    onDoubleClick?: (e: React.MouseEvent) => void;
+  } & Record<string, unknown>;
 }
 
 const EMPTY_STRING_ARRAY: string[] = [];
@@ -265,7 +268,10 @@ interface PublicationTableRowProps extends Omit<PublicationDragHandle, 'ref'> {
   syncCooldown: number;
   onCheckSync?: (pub: Publication) => void;
   onUpdateReadingState?: (pub: Publication, patch: Partial<Pick<Publication, 'reading_state' | 'important'>>) => void;
-  kbItemProps?: (index: number, id: string) => Record<string, unknown>;
+  kbItemProps?: (index: number, id: string) => {
+    onClick?: (e: React.MouseEvent) => void;
+    onDoubleClick?: (e: React.MouseEvent) => void;
+  } & Record<string, unknown>;
 }
 
 // Memoized so dragging anything else on the page (a sidebar vault, another

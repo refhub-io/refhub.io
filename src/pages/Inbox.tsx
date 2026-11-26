@@ -112,7 +112,16 @@ export function Inbox() {
     if (!item || !user) return;
     const { data: newPub, error } = await supabase
       .from('publications')
-      .insert([{ ...item.parsed_fields, user_id: user.id, authors: item.parsed_fields.authors || [] }])
+      .insert([{
+        ...item.parsed_fields,
+        // title is NOT NULL on publications; parsed_fields is a loosely-typed
+        // JSON blob and can't guarantee it's set (e.g. a malformed import) --
+        // matching the fallback the backend's accept_inbox_item() RPC already
+        // uses, rather than letting this throw a raw DB constraint error.
+        title: item.parsed_fields.title?.trim() || item.source_ref?.trim() || 'Untitled',
+        user_id: user.id,
+        authors: item.parsed_fields.authors || [],
+      }])
       .select()
       .single();
     if (error || !newPub) {

@@ -234,7 +234,7 @@ function rawRowToPublication(row: RawVaultPublicationRow): Publication {
     booktitle: row.booktitle,
     chapter: row.chapter,
     edition: row.edition,
-    editor: row.editor ? [row.editor] : null,
+    editor: row.editor,
     howpublished: row.howpublished,
     institution: row.institution,
     number: row.number,

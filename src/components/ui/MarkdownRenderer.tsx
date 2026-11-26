@@ -11,6 +11,7 @@ import rehypeHighlight from 'rehype-highlight';
 import bash from 'highlight.js/lib/languages/bash';
 import type { HLJSApi, Language } from 'highlight.js';
 import remarkMath from 'remark-math';
+import type { Plugin } from 'unified';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { Check, Copy, Github } from 'lucide-react';
@@ -181,7 +182,13 @@ export function MarkdownRenderer({
         remarkPlugins={[
           remarkGfm,
           remarkBreaks,
-          [remarkFootnotes, { inlineNotes: true }],
+          // remark-footnotes bundles its own nested vfile/vfile-message
+          // copy, a different version than the one everything else here
+          // resolves to -- the resulting type mismatch (a `position` field
+          // required in one VFileMessage but not the other) is a nominal
+          // typing artifact between two copies of the same package, not a
+          // real incompatibility; both are structurally fine at runtime.
+          [remarkFootnotes, { inlineNotes: true }] as unknown as Plugin,
           remarkMath,
         ]}
         rehypePlugins={[

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Session } from '@supabase/supabase-js';
 
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
@@ -32,6 +33,10 @@ describe('semanticScholar', () => {
       data: {
         session: {
           access_token: 'token',
+          refresh_token: 'refresh-token',
+          expires_in: 3600,
+          token_type: 'bearer',
+          user: { id: 'user-1' } as unknown as Session['user'],
         },
       },
       error: null,
