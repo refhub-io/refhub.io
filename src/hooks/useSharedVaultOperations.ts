@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Publication, Tag, PublicationTag } from '@/types/database';
 import { useToast } from '@/hooks/use-toast';
 import { extractBibliographicPatch } from '@/lib/publicationSync';
+import { logger } from '@/lib/logger';
 
 interface OptimisticUpdate<T> {
   id: string;
@@ -20,10 +21,6 @@ interface UseSharedVaultOperationsProps {
   setTags: React.Dispatch<React.SetStateAction<Tag[]>>;
   publicationTags: PublicationTag[];
   setPublicationTags: React.Dispatch<React.SetStateAction<PublicationTag[]>>;
-}
-
-interface UpdatePublicationData extends Partial<Publication> {
-  id: string;
 }
 
 /**
@@ -127,13 +124,13 @@ export function useSharedVaultOperations({
           supabase.from('publications')
             .update({ ...bibPatch, updated_at: now })
             .eq('id', originalId)
-            .then(({ error: e }) => { if (e) console.warn('[sync] canonical fan-out error:', e.message); });
+            .then(({ error: e }) => { if (e) logger.warn('sync', 'canonical fan-out error:', e.message); });
           // Sibling vault copies in other vaults
           supabase.from('vault_publications')
             .update({ ...bibPatch, updated_at: now, updated_by: userId })
             .eq('original_publication_id', originalId)
             .neq('id', publicationId)
-            .then(({ error: e }) => { if (e) console.warn('[sync] sibling fan-out error:', e.message); });
+            .then(({ error: e }) => { if (e) logger.warn('sync', 'sibling fan-out error:', e.message); });
         }
       }
 
@@ -804,159 +801,6 @@ export function useSharedVaultOperations({
     }
   }, [vaultId, userId, canEdit, publications, publicationTags, setPublications, setPublicationTags, toast]);
 
-  /**
-   * Handle incoming realtime updates from other clients
-   * This should be called when processing realtime events to properly merge
-   * with any pending optimistic updates
-   */
-  const handleRealtimePublicationUpdate = useCallback((
-    eventType: 'INSERT' | 'UPDATE' | 'DELETE',
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    payload: any
-  ) => {
-    const publicationId = payload.id;
-
-    // Check if we have a pending update for this publication
-    const hasPendingUpdate = Array.from(pendingPublicationUpdates.current.values())
-      .some(update => update.id === publicationId);
-
-    // If we have a pending update, ignore the realtime update
-    // (our local state is ahead of the server)
-    if (hasPendingUpdate) {
-      return;
-    }
-
-    // Apply the realtime update
-    if (eventType === 'INSERT') {
-      // Check if we already have this publication (from our own optimistic update)
-      setPublications(prev => {
-        if (prev.some(p => p.id === publicationId)) {
-          return prev;
-        }
-        // Convert vault publication to Publication format
-        const newPub: Publication = {
-          id: payload.id,
-          user_id: payload.created_by,
-          title: payload.title,
-          authors: payload.authors || [],
-          year: payload.year,
-          journal: payload.journal,
-          volume: payload.volume,
-          issue: payload.issue,
-          pages: payload.pages,
-          doi: payload.doi,
-          url: payload.url,
-          abstract: payload.abstract,
-          pdf_url: payload.pdf_url,
-          bibtex_key: payload.bibtex_key,
-          publication_type: payload.publication_type || 'article',
-          notes: payload.notes,
-          booktitle: payload.booktitle,
-          chapter: payload.chapter,
-          edition: payload.edition,
-          editor: payload.editor,
-          howpublished: payload.howpublished,
-          institution: payload.institution,
-          number: payload.number,
-          organization: payload.organization,
-          publisher: payload.publisher,
-          school: payload.school,
-          series: payload.series,
-          type: payload.type,
-          eid: payload.eid,
-          isbn: payload.isbn,
-          issn: payload.issn,
-          keywords: payload.keywords,
-          reading_state: payload.reading_state || 'unread',
-          important: payload.important ?? false,
-          created_at: payload.created_at,
-          updated_at: payload.updated_at,
-        };
-        return [newPub, ...prev];
-      });
-    } else if (eventType === 'UPDATE') {
-      setPublications(prev =>
-        prev.map(pub =>
-          pub.id === publicationId
-            ? {
-                ...pub,
-                ...payload,
-                user_id: pub.user_id, // Preserve original user_id
-              }
-            : pub
-        )
-      );
-    } else if (eventType === 'DELETE') {
-      setPublications(prev => prev.filter(pub => pub.id !== publicationId));
-    }
-  }, [setPublications]);
-
-  /**
-   * Handle incoming realtime tag updates from other clients
-   */
-  const handleRealtimeTagUpdate = useCallback((
-    eventType: 'INSERT' | 'UPDATE' | 'DELETE',
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    payload: any
-  ) => {
-    const tagId = payload.id;
-
-    // Check if we have a pending update for this tag
-    const hasPendingUpdate = Array.from(pendingTagUpdates.current.values())
-      .some(update => update.id === tagId);
-
-    if (hasPendingUpdate) {
-      return;
-    }
-
-    if (eventType === 'INSERT') {
-      setTags(prev => {
-        if (prev.some(t => t.id === tagId)) {
-          return prev;
-        }
-        return [...prev, payload as Tag];
-      });
-    } else if (eventType === 'UPDATE') {
-      setTags(prev => prev.map(tag => tag.id === tagId ? { ...tag, ...payload } : tag));
-    } else if (eventType === 'DELETE') {
-      setTags(prev => prev.filter(tag => tag.id !== tagId));
-    }
-  }, [setTags]);
-
-  /**
-   * Handle incoming realtime publication tag updates from other clients
-   */
-  const handleRealtimePublicationTagUpdate = useCallback((
-    eventType: 'INSERT' | 'UPDATE' | 'DELETE',
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    payload: any
-  ) => {
-    const tagAssociationId = payload.id;
-
-    // Check if we have a pending update that might conflict
-    const hasPendingUpdate = Array.from(pendingPublicationTagUpdates.current.values())
-      .some(update => update.id === payload.vault_publication_id || update.id === payload.publication_id);
-
-    if (hasPendingUpdate) {
-      return;
-    }
-
-    if (eventType === 'INSERT') {
-      setPublicationTags(prev => {
-        if (prev.some(pt => pt.id === tagAssociationId)) {
-          return prev;
-        }
-        return [...prev, payload as PublicationTag];
-      });
-    } else if (eventType === 'UPDATE') {
-      setPublicationTags(prev => 
-        prev.map(pt => pt.id === tagAssociationId ? { ...pt, ...payload } : pt)
-      );
-    } else if (eventType === 'DELETE') {
-      setPublicationTags(prev => prev.filter(pt => pt.id !== tagAssociationId));
-    }
-  }, [setPublicationTags]);
-
   return {
     // Publication operations
     updateVaultPublication,
@@ -970,10 +814,5 @@ export function useSharedVaultOperations({
     
     // Publication tag operations
     updatePublicationTags,
-    
-    // Realtime handlers
-    handleRealtimePublicationUpdate,
-    handleRealtimeTagUpdate,
-    handleRealtimePublicationTagUpdate,
   };
 }

@@ -2,6 +2,7 @@ import type { Publication, Vault, Tag, PublicationRelation } from '@/types/datab
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { RawVaultPublicationRow } from './publicationAggregate';
 import type { PublicationTag } from '@/types/database';
+import { logger } from '@/lib/logger';
 
 export function normalizeTopic(raw: string): string {
   // Hyphens are treated as word separators, same as whitespace, so a tag or
@@ -289,7 +290,7 @@ export async function fetchPublicCodexPublications(supabase: SupabaseClient): Pr
   // a slow/timed-out tags query shouldn't take down the whole discovery
   // page along with it. Degrade to "no tag signals this refresh" instead.
   if (pubTagsRes.error) {
-    console.error('Failed to fetch publication_tags for Codex discovery (tag-based matching will be incomplete):', pubTagsRes.error);
+    logger.error('codexDiscovery', 'Failed to fetch publication_tags for Codex discovery (tag-based matching will be incomplete):', pubTagsRes.error);
   }
 
   const pubTags = pubTagsRes.error ? [] : ((pubTagsRes.data as PublicationTag[]) || []);

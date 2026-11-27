@@ -204,7 +204,7 @@ function csvEscape(value: string): string {
 /**
  * Build hierarchical tag path string, e.g. "Science > Biology > Genetics"
  */
-export function getHierarchicalTagPath(tagId: string, allTags: Tag[]): string {
+function getHierarchicalTagPath(tagId: string, allTags: Tag[]): string {
   const tag = allTags.find(t => t.id === tagId);
   if (!tag) return '';
 

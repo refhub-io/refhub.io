@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchUserVaults } from '@/lib/vaults';
@@ -52,9 +52,4 @@ export function useInvalidateVaults() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   return () => queryClient.invalidateQueries({ queryKey: vaultsQueryKey(user?.id) });
-}
-
-/** Non-hook form, for use inside async handlers that already have a userId and queryClient in scope. */
-export function invalidateVaults(queryClient: QueryClient, userId: string | undefined) {
-  return queryClient.invalidateQueries({ queryKey: vaultsQueryKey(userId) });
 }

@@ -53,7 +53,6 @@ interface ApiKeyResponseRecord {
 }
 
 const API_V1_PATH = '/api/v1';
-const API_KEY_MANAGEMENT_PATH = `${API_V1_PATH}/keys`;
 const configuredApiKeyManagementBaseUrl = import.meta.env.VITE_API_KEY_MANAGEMENT_BASE_URL?.trim() || '';
 
 export class ApiKeyManagementUnavailableError extends Error {
@@ -186,10 +185,6 @@ async function apiKeyRequest<TResponse>(
   }
 
   return payload as TResponse;
-}
-
-export function isApiKeyManagementConfigured() {
-  return true;
 }
 
 export async function listApiKeys(accessToken: string) {

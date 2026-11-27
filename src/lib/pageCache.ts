@@ -20,9 +20,6 @@ type CacheKey = 'dashboard' | 'codex' | 'users' | 'sidebar-vaults' | `vault-acce
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const cache = new Map<string, CacheEntry<any>>();
 
-// Default cache TTL: 5 minutes (after which we still show cached data but mark it stale)
-const CACHE_TTL = 5 * 60 * 1000;
-
 /**
  * Get cached data for a page
  * @param key - Cache key for the page
@@ -42,15 +39,6 @@ export function getPageCache<T>(key: CacheKey, userId?: string): T | null {
   }
   
   return entry.data;
-}
-
-/**
- * Check if cached data is stale (older than TTL)
- */
-export function isCacheStale(key: CacheKey): boolean {
-  const entry = cache.get(key);
-  if (!entry) return true;
-  return Date.now() - entry.timestamp > CACHE_TTL;
 }
 
 /**

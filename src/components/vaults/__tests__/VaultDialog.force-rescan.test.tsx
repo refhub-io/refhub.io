@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { KeyboardProvider } from '@/contexts/KeyboardContext';
 import { Vault } from '@/types/database';
@@ -116,9 +116,13 @@ const renderDialog = () => render(
   </KeyboardProvider>,
 );
 
+// Returns the relationships tab panel, so later queries search only its subtree.
+// Whole-document role queries inside waitFor re-ran against the full dialog on
+// every poll, which pushed the longest test past 5 s under full-suite load.
 const openRelationshipsTab = async () => {
   const tab = await screen.findByRole('tab', { name: /relationship suggestions/i });
   fireEvent.mouseDown(tab);
+  return screen.findByRole('tabpanel');
 };
 
 describe('VaultDialog — force_rescan visibility', () => {
@@ -128,25 +132,25 @@ describe('VaultDialog — force_rescan visibility', () => {
 
   it('hides force_rescan before any scan has run', async () => {
     renderDialog();
-    await openRelationshipsTab();
-    expect(screen.queryByRole('button', { name: /force_rescan/i })).not.toBeInTheDocument();
+    const panel = await openRelationshipsTab();
+    expect(within(panel).queryByRole('button', { name: /force_rescan/i })).not.toBeInTheDocument();
   });
 
   it('shows force_rescan after a plain scan skips cached papers, and hides it again once a force-rescan checks everything fresh', async () => {
     renderDialog();
-    await openRelationshipsTab();
+    const panel = await openRelationshipsTab();
 
     vi.mocked(runVaultRelationshipScan).mockResolvedValue({ suggestions: [], skippedCount: 2 });
-    fireEvent.click(screen.getByRole('button', { name: /^scan for relationships$/i }));
+    fireEvent.click(within(panel).getByRole('button', { name: /^scan for relationships$/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /force_rescan/i })).toBeInTheDocument();
+      expect(within(panel).getByRole('button', { name: /force_rescan/i })).toBeInTheDocument();
     });
 
     // A force-rescan (skipRecentMs: 0) can never itself skip anything, so
     // the button should disappear again once it resolves.
     vi.mocked(runVaultRelationshipScan).mockResolvedValue({ suggestions: [], skippedCount: 0 });
-    fireEvent.click(screen.getByRole('button', { name: /force_rescan/i }));
+    fireEvent.click(within(panel).getByRole('button', { name: /force_rescan/i }));
 
     expect(vi.mocked(runVaultRelationshipScan)).toHaveBeenLastCalledWith(
       mockPublications,
@@ -156,20 +160,20 @@ describe('VaultDialog — force_rescan visibility', () => {
     );
 
     await waitFor(() => {
-      expect(screen.queryByRole('button', { name: /force_rescan/i })).not.toBeInTheDocument();
+      expect(within(panel).queryByRole('button', { name: /force_rescan/i })).not.toBeInTheDocument();
     });
   });
 
   it('does not show force_rescan when a plain scan genuinely finds nothing (no skips)', async () => {
     renderDialog();
-    await openRelationshipsTab();
+    const panel = await openRelationshipsTab();
 
     vi.mocked(runVaultRelationshipScan).mockResolvedValue({ suggestions: [], skippedCount: 0 });
-    fireEvent.click(screen.getByRole('button', { name: /^scan for relationships$/i }));
+    fireEvent.click(within(panel).getByRole('button', { name: /^scan for relationships$/i }));
 
     await waitFor(() => {
       expect(vi.mocked(runVaultRelationshipScan)).toHaveBeenCalled();
     });
-    expect(screen.queryByRole('button', { name: /force_rescan/i })).not.toBeInTheDocument();
+    expect(within(panel).queryByRole('button', { name: /force_rescan/i })).not.toBeInTheDocument();
   });
 });

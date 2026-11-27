@@ -44,7 +44,7 @@ export const debug = (context: string, ...args: unknown[]): void => {
  * Informational logging
  * Use for general operational messages
  */
-export const info = (context: string, ...args: unknown[]): void => {
+const info = (context: string, ...args: unknown[]): void => {
   if (shouldLog('info')) {
     console.info(`[${context}]`, ...args);
   }
@@ -69,32 +69,10 @@ export const error = (context: string, ...args: unknown[]): void => {
   console.error(`[${context}]`, ...args);
 };
 
-/**
- * Generic log function with level parameter
- */
-export const log = (level: LogLevel, context: string, ...args: unknown[]): void => {
-  switch (level) {
-    case 'debug':
-      debug(context, ...args);
-      break;
-    case 'info':
-      info(context, ...args);
-      break;
-    case 'warn':
-      warn(context, ...args);
-      break;
-    case 'error':
-      error(context, ...args);
-      break;
-  }
-};
-
 export const logger = {
   debug,
   info,
   warn,
   error,
-  log,
 };
 
-export default logger;

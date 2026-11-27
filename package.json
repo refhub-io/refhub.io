@@ -1,7 +1,7 @@
 {
   "name": "refhub.io",
   "private": true,
-  "version": "2.1.3",
+  "version": "2.2.0",
   "type": "module",
   "description": "a modern reference manager for the command line generation",
   "author": "velitchko",
@@ -13,7 +13,6 @@
     "lint": "eslint .",
     "typecheck": "tsc -b .",
     "preview": "vite preview",
-    "deploy": "bun run build && gh-pages -d dist",
     "test": "vitest run",
     "test:watch": "vitest"
   },

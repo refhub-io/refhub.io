@@ -93,7 +93,7 @@ const existingPublicationWithSuggestions: Publication = {
 // pattern (see `renderDialog` above) of stubbing everything with vi.fn()
 // and wrapping in KeyboardProvider since the component reads keyboard
 // context via useHotkeys/KbdHint.
-const baseProps = {
+const baseProps: ComponentProps<typeof PublicationDialog> = {
   open: true,
   onOpenChange: vi.fn(),
   publication,
@@ -105,9 +105,9 @@ const baseProps = {
   onCreateTag: vi.fn(),
 };
 
-const renderDialogWithProps = (overrides: Record<string, unknown> = {}) => render(
+const renderDialogWithProps = (overrides: Partial<ComponentProps<typeof PublicationDialog>> = {}) => render(
   <KeyboardProvider>
-    <PublicationDialog {...(baseProps as any)} {...overrides} />
+    <PublicationDialog {...baseProps} {...overrides} />
   </KeyboardProvider>,
 );
 
@@ -150,7 +150,7 @@ describe('PublicationDialog pending-suggestions close guard', () => {
     mockFindRelationshipSuggestions.mockResolvedValue([mockSuggestion]);
   });
 
-  const openWithSuggestions = async (onOpenChange: ReturnType<typeof vi.fn>) => {
+  const openWithSuggestions = async (onOpenChange: ComponentProps<typeof PublicationDialog>['onOpenChange']) => {
     renderDialogWithProps({
       onOpenChange,
       publication: existingPublicationWithSuggestions,
@@ -173,16 +173,7 @@ describe('PublicationDialog pending-suggestions close guard', () => {
     // underscore-joined, not space-separated, so the matcher looks for that form.
     expect(await screen.findByText(/pending_relationship_suggestions/i)).toBeInTheDocument();
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
-    // Explicit timeout (vitest's `it(name, fn, timeout)` 3rd argument --
-    // vi.setConfig doesn't retroactively affect an already-scheduled test's
-    // timer, confirmed by trying it first): this test's real async
-    // round-trip reliably finishes well under a second alone, but
-    // intermittently exceeds the default 5s when the full ~75-file suite
-    // runs concurrently and CPU contention slows both the component's
-    // effects and testing-library's own polling. Confirmed via repeated
-    // isolated runs of just this file (9/9 passing every time) that this
-    // is suite-level timing pressure, not a logic bug.
-  }, 10000);
+  });
 
   it('discarding the pending-suggestions dialog clears suggestions and closes', async () => {
     const onOpenChange = vi.fn();
@@ -192,7 +183,7 @@ describe('PublicationDialog pending-suggestions close guard', () => {
     fireEvent.click(await screen.findByRole('button', { name: /discard/i }));
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
-  }, 10000);
+  });
 
   // These two exercise the combined "unsaved field edit + pending relationship
   // suggestion" close sequence (Critical 1 of the final-review fix round):
@@ -231,7 +222,7 @@ describe('PublicationDialog pending-suggestions close guard', () => {
     // dialog rather than closing the dialog outright.
     expect(await screen.findByText(/pending_relationship_suggestions/i)).toBeInTheDocument();
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
-  }, 10000);
+  });
 
   it('shows the pending-suggestions dialog (not close) after saving an unsaved field edit made after suggestions were found', async () => {
     const onOpenChange = vi.fn();
@@ -252,7 +243,7 @@ describe('PublicationDialog pending-suggestions close guard', () => {
     // dialog rather than closing the dialog outright.
     expect(await screen.findByText(/pending_relationship_suggestions/i)).toBeInTheDocument();
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
-  }, 10000);
+  });
 });
 
 describe('PublicationDialog defensive reset on publication switch (Critical 2)', () => {
@@ -274,7 +265,7 @@ describe('PublicationDialog defensive reset on publication switch (Critical 2)',
     const { rerender } = render(
       <KeyboardProvider>
         <PublicationDialog
-          {...(baseProps as any)}
+          {...baseProps}
           onOpenChange={onOpenChange}
           publication={existingPublicationWithSuggestions}
           allPublications={[existingPublicationWithSuggestions]}
@@ -295,7 +286,7 @@ describe('PublicationDialog defensive reset on publication switch (Critical 2)',
     rerender(
       <KeyboardProvider>
         <PublicationDialog
-          {...(baseProps as any)}
+          {...baseProps}
           onOpenChange={onOpenChange}
           publication={otherPublication}
           allPublications={[otherPublication]}

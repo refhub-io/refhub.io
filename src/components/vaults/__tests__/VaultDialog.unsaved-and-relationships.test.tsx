@@ -198,7 +198,7 @@ describe('VaultDialog unsaved changes + relationship suggestions guard', () => {
     });
 
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
-  }, 15000);
+  });
 
   it('shows pending-relationships dialog after successfully saving with unsaved changes', async () => {
     const onOpenChange = vi.fn();
@@ -246,7 +246,7 @@ describe('VaultDialog unsaved changes + relationship suggestions guard', () => {
     });
 
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
-  }, 15000);
+  });
 });
 
 describe('VaultDialog "relationships" tab gating (Important 3)', () => {

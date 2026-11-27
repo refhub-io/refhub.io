@@ -6,6 +6,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [2.2.0] - 2026-11-27
+
+Phase 1 (guardrails) of the v2.5 performance and maintainability milestone (#270).
+
+### Added
+- CI: `.github/workflows/ci.yml` runs `npm run typecheck`, `eslint src`, the test suite and a production build on every pull request and every push to `main` (#247).
+
+### Changed
+- GitHub Pages deploys now run from the same workflow, only after the checks pass, and install with `npm ci` from `package-lock.json`. Before, every push to `main` deployed untested, through an unfrozen `bun install` (bun-version: latest) from a `bun.lockb` last committed in January 2025 (#247).
+- Tests: a suite-wide 15 s timeout replaces scattered per-test overrides, and the two tests that kept timing out under full-suite load now query far less (#247).
+- `@typescript-eslint/no-unused-vars` is on as a warning; what it found in the files touched here is fixed (#248).
+- The remaining `console.warn`/`console.error` calls go through `src/lib/logger.ts` (#248).
+- README and the identity guide document npm instead of bun.
+
+### Removed
+- `bun.lockb`, the old `deploy.yml` workflow, and the `deploy` script, which needed a `gh-pages` package that was never installed (#247).
+- Dead code (#248): realtime-echo guards that could never fire and three realtime handlers nothing called; `DroppableVaultRow`; the arXiv and Semantic Scholar URL lookup helpers left over from the trimmed inbox capture tabs; never-read state and an unused handler in `Dashboard`; about 20 unused exports and types; and four chicken frame PNGs in the repo root that duplicated `public/chicken/`.
+
+### Fixed
+- The 3 ESLint errors in `PublicationDialog.test.tsx` (`as any` test props), which would have failed CI (#247).
+- README told new setups to run `supabase/schema_consolidated.sql`, which no longer exists; it now names `supabase/schema.sql`.
+
 ## [2.1.3] - 2026-11-27
 
 ### Security

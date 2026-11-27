@@ -121,8 +121,6 @@ export const VAULT_CATEGORIES = [
   "Religious Studies"
 ] as const;
 
-export type VaultCategory = typeof VAULT_CATEGORIES[number];
-
 export interface Tag {
   id: string;
   user_id: string;
@@ -179,24 +177,6 @@ export interface VaultShare {
   created_at: string;
 }
 
-export interface Notification {
-  id: string;
-  user_id: string;
-  type:
-    | 'vault_shared'
-    | 'vault_forked'
-    | 'vault_favorited'
-    | 'publication_updated'
-    | 'vault_access_requested'
-    | 'vault_access_approved'
-    | 'vault_access_rejected';
-  title: string;
-  message: string | null;
-  data: Record<string, unknown> | null;
-  read: boolean;
-  created_at: string;
-}
-
 export interface PublicationRelation {
   id: string;
   publication_id: string;
@@ -210,14 +190,6 @@ export interface VaultFavorite {
   id: string;
   vault_id: string;
   user_id: string;
-  created_at: string;
-}
-
-export interface VaultFork {
-  id: string;
-  original_vault_id: string;
-  forked_vault_id: string;
-  forked_by: string;
   created_at: string;
 }
 
@@ -282,16 +254,3 @@ export const PUBLICATION_TYPES: { value: PublicationType; label: string }[] = [
   { value: 'techreport', label: 'Technical Report' },
   { value: 'unpublished', label: 'Unpublished' },
 ];
-
-export interface VaultAccessRequest {
-  id: string;
-  vault_id: string;
-  requester_id: string | null;
-  requester_email: string | null;
-  requester_name: string | null;
-  requested_role: 'viewer' | 'editor';
-  note: string | null;
-  status: 'pending' | 'approved' | 'rejected';
-  created_at: string;
-  updated_at: string;
-}

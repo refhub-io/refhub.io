@@ -168,7 +168,7 @@ describe('Inbox page', () => {
       })]),
     ));
     await waitFor(() => expect(mockAcceptItem).toHaveBeenCalledWith('item-1', 'vault-1', ['tag-1'], 'new-pub-id'));
-  }, 15000);
+  });
 
   it('scores an item exactly once even when no vault/tag/duplicate match is found', async () => {
     // Regression test for an infinite-loop bug: a real "no match found"

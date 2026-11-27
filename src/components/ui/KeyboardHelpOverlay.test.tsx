@@ -40,9 +40,14 @@ describe('KeyboardHelpOverlay new tabs', () => {
       'active',
     );
 
+    // One role query for every link, then match by href. Calling getByRole({ name })
+    // per resource recomputed every link's accessible name on each call, which made
+    // this the slowest test in the suite and pushed it past 5 s under full-suite load.
+    const links = screen.getAllByRole('link');
     for (const resource of resources) {
-      const link = screen.getByRole('link', { name: new RegExp(resource.name, 'i') });
-      expect(link).toHaveAttribute('href', resource.url);
+      const link = links.find((el) => el.getAttribute('href') === resource.url);
+      expect(link, resource.name).toBeDefined();
+      expect(link).toHaveAccessibleName(new RegExp(resource.name, 'i'));
       expect(link).toHaveAttribute('target', '_blank');
       expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'));
     }
