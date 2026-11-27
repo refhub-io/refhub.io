@@ -23,10 +23,6 @@ interface UseSharedVaultOperationsProps {
   setPublicationTags: React.Dispatch<React.SetStateAction<PublicationTag[]>>;
 }
 
-interface UpdatePublicationData extends Partial<Publication> {
-  id: string;
-}
-
 /**
  * Hook for managing shared vault operations with optimistic updates.
  * Provides methods for updating publications and tags that:

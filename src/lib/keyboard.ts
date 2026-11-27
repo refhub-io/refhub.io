@@ -15,9 +15,8 @@ export { isMac };
 
 // ─── Key normalisation ───────────────────────────────────────────────────────
 
-/** Map human-readable modifier names to a canonical order. */
-const MOD_ORDER = ['ctrl', 'alt', 'shift', 'meta'] as const;
-type Modifier = (typeof MOD_ORDER)[number];
+/** Modifier keys a shortcut combo can use. */
+type Modifier = 'ctrl' | 'alt' | 'shift' | 'meta';
 
 export interface ParsedCombo {
   modifiers: Set<Modifier>;

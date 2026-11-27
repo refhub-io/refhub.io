@@ -24,14 +24,12 @@ import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { ExportDialog } from '@/components/publications/ExportDialog';
 import { PhaseLoader, LoadingPhase } from '@/components/ui/loading';
 import { useToast } from '@/hooks/use-toast';
-import { Sparkles } from 'lucide-react';
 import { getPageCache, setPageCache, hasPageCache, clearPageCache } from '@/lib/pageCache';
 import { fetchAllRows } from '@/lib/fetchAllRows';
 import { buildVaultPublicationCopyPayload } from '@/lib/vaultPublicationAttribution';
 import {
   fetchSemanticScholarMetadataByDoi,
   formatSemanticScholarErrorMessage,
-  SemanticScholarMetadata,
 } from '@/lib/semanticScholar';
 import { createPublicationSyncPatch, extractBibliographicPatch, getPublicationSyncDiffs, PublicationSyncDiff } from '@/lib/publicationSync';
 import { updatePublicationReadingState } from '@/lib/publicationReadingState';
@@ -79,14 +77,12 @@ export default function Dashboard() {
 
   const [publications, setPublications] = useState<Publication[]>([]);
   const [vaults, setVaults] = useState<Vault[]>([]);
-  const [vaultPapers, setVaultPapers] = useState<{[key: string]: string[]}>({});
   const [tags, setTags] = useState<Tag[]>([]);
   const [publicationTags, setPublicationTags] = useState<PublicationTag[]>([]);
   const [publicationRelations, setPublicationRelations] = useState<PublicationRelation[]>([]);
   const [vaultPublicationLinks, setVaultPublicationLinks] = useState<VaultPublicationLink[]>([]);
   const [sharedVaults, setSharedVaults] = useState<Vault[]>([]);
   const [sharedVaultRoles, setSharedVaultRoles] = useState<Record<string, VaultRole>>({});
-  const [loading, setLoading] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   // Only show loader if we don't have cached data (true first visit)
   const [showLoader, setShowLoader] = useState(!hasCachedData.current);
@@ -144,7 +140,6 @@ export default function Dashboard() {
   const [archiveVaultNameInput, setArchiveVaultNameInput] = useState('');
   const [syncLoadingIds, setSyncLoadingIds] = useState<Set<string>>(new Set());
   const [syncDiffsByPublication, setSyncDiffsByPublication] = useState<Record<string, PublicationSyncDiff[]>>({});
-  const [syncMetadataByPublication, setSyncMetadataByPublication] = useState<Record<string, SemanticScholarMetadata>>({});
   const [syncPreviewPublication, setSyncPreviewPublication] = useState<Publication | null>(null);
   const [syncCooldowns, setSyncCooldowns] = useState<Record<string, number>>({});
   const [pdfAssetsMap, setPdfAssetsMap] = useState<Record<string, string | null>>({});
@@ -280,9 +275,6 @@ export default function Dashboard() {
 
   const fetchData = useCallback(async () => {
     if (!user) return;
-    if (isInitialLoad) {
-      setLoading(true);
-    }
     try {
       // Start vaults phase
       updatePhase('vaults', 'loading');
@@ -476,7 +468,6 @@ export default function Dashboard() {
         source: null,
       });
     } finally {
-      setLoading(false);
       setIsInitialLoad(false);
     }
   // Depend on user?.id, not the user object itself — Supabase's
@@ -502,7 +493,6 @@ export default function Dashboard() {
         setPublicationTags(cached.publicationTags);
         setPublicationRelations(cached.publicationRelations);
         setVaultPublicationLinks(cached.vaultPublicationLinks);
-        setLoading(false);
         setIsInitialLoad(false);
         // Skip loader animation for cached data
         setLoaderComplete(true);
@@ -1119,7 +1109,6 @@ export default function Dashboard() {
         return;
       }
       const diffs = getPublicationSyncDiffs(publication, metadata);
-      setSyncMetadataByPublication(prev => ({ ...prev, [publication.id]: metadata }));
       setSyncDiffsByPublication(prev => ({ ...prev, [publication.id]: diffs }));
       if (diffs.length > 0) {
         setSyncPreviewPublication(publication);
@@ -1459,32 +1448,6 @@ export default function Dashboard() {
       toast({
         title: 'Could not create tag',
         description: (error as Error).message || 'RefHub could not create this tag. Check the name and try again.',
-        variant: 'destructive', feedbackSeverity: 'error',
-        source: null,
-      });
-      return null;
-    }
-  };
-
-  const handleUpdateTag = async (tagId: string, updates: Partial<Tag>): Promise<Tag | null> => {
-    if (!user) return null; // Only allow updating tags if user is authenticated
-
-    try {
-      const { data, error } = await supabase
-        .from('tags')
-        .update(updates)
-        .eq('id', tagId)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      setTags(prev => prev.map(tag => tag.id === tagId ? { ...tag, ...data } as Tag : tag));
-      return data as Tag;
-    } catch (error) {
-      toast({
-        title: 'Could not update tag',
-        description: (error as Error).message || 'RefHub could not save this tag change. Refresh and try again.',
         variant: 'destructive', feedbackSeverity: 'error',
         source: null,
       });

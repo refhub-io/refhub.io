@@ -111,7 +111,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
   // state with vault A's data after vault B is already selected.
   const latestRequestedVaultIdRef = useRef<string | null>(null);
 
-  const { canView, refresh } = useVaultAccess(currentVaultId || '', { enableRealtime: false });
+  const { canView } = useVaultAccess(currentVaultId || '', { enableRealtime: false });
 
   const updateCurrentVault = useCallback((vault: Vault) => {
     setCurrentVault(vault);
@@ -576,8 +576,6 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
           const newRecord = payload.new as any;
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const oldRecord = payload.old as any;
-          const recordId = newRecord?.id || oldRecord?.id;
-
 
           if (eventType === 'INSERT') {
             // Add new publication (from another client)
@@ -643,8 +641,6 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
           const newRecord = payload.new as any;
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const oldRecord = payload.old as any;
-          const recordId = newRecord?.id || oldRecord?.id;
-
 
           if (eventType === 'INSERT') {
             setTags(prev => {
