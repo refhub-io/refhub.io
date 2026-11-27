@@ -99,4 +99,26 @@ describe('useSharedVaultOperations.createVaultPublication', () => {
       { value: expect.objectContaining({ title: 'A Better Title' }), filters: [['eq', 'id', 'pub-1']] },
     ]);
   });
+
+  it('shows a placeholder built by the same mapping until the inserted row arrives', async () => {
+    const setPublications = vi.fn();
+    const { result } = renderHook(() => useSharedVaultOperations({
+      vaultId: 'vault-1', userId: 'user-1', canEdit: true,
+      publications: [], setPublications,
+      tags: [], setTags: vi.fn(), publicationTags: [], setPublicationTags: vi.fn(),
+    }));
+
+    await act(async () => {
+      await result.current.createVaultPublication({ title: 'A Paper', authors: ['Ada Lovelace'] });
+    });
+
+    const addPlaceholder = setPublications.mock.calls[0][0] as (prev: Publication[]) => Publication[];
+    const [placeholder] = addPlaceholder([]);
+    expect(placeholder.id).toMatch(/^temp_/);
+    expect(placeholder).toMatchObject({
+      title: 'A Paper', authors: ['Ada Lovelace'], user_id: 'user-1', publication_type: 'article',
+      reading_state: 'unread', important: false, section_id: null, section_position: 0,
+    });
+  });
 });
+

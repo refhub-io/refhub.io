@@ -566,45 +566,16 @@ export function useSharedVaultOperations({
     const tempId = `temp_${operationId}`;
     const previousPublications = [...publications];
 
-    // Create optimistic publication
-    const optimisticPublication: Publication = {
+    // The placeholder goes through the same mapping as the row that replaces it.
+    const now = new Date().toISOString();
+    const optimisticPublication = formatVaultPublication({
+      ...data,
       id: tempId,
-      user_id: userId,
+      created_by: userId,
       title: data.title || '',
-      authors: data.authors || [],
-      year: data.year || null,
-      journal: data.journal || null,
-      volume: data.volume || null,
-      issue: data.issue || null,
-      pages: data.pages || null,
-      doi: data.doi || null,
-      url: data.url || null,
-      abstract: data.abstract || null,
-      pdf_url: data.pdf_url || null,
-      bibtex_key: data.bibtex_key || null,
-      publication_type: data.publication_type || 'article',
-      notes: data.notes || null,
-      booktitle: data.booktitle || null,
-      chapter: data.chapter || null,
-      edition: data.edition || null,
-      editor: data.editor || null,
-      howpublished: data.howpublished || null,
-      institution: data.institution || null,
-      number: data.number || null,
-      organization: data.organization || null,
-      publisher: data.publisher || null,
-      school: data.school || null,
-      series: data.series || null,
-      type: data.type || null,
-      eid: data.eid || null,
-      isbn: data.isbn || null,
-      issn: data.issn || null,
-      keywords: data.keywords || null,
-      reading_state: 'unread',
-      important: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+      created_at: now,
+      updated_at: now,
+    });
 
     // Store previous state for potential rollback
     pendingPublicationUpdates.current.set(operationId, {
