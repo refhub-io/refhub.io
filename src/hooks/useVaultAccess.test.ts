@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { dismissQuoterm, getQuotermsSnapshot } from 'quoterm';
 import { useVaultAccess } from './useVaultAccess';
-import { hasPageCache } from '../lib/pageCache';
+import { clearAllPageCaches, hasPageCache } from '../lib/pageCache';
 import { setCacheOwner } from '../lib/cacheOwner';
 import type { Vault } from '../types/database';
 
@@ -43,6 +43,12 @@ function mockSignedIn(userId: string) {
 function mockSignedOut() {
   mockGetSession.mockResolvedValue({ data: { session: null }, error: null });
 }
+
+// The access cache is module-level. Without this, a test starts from the previous test's cached
+// answer as a background refresh, and its assertions race that refresh.
+beforeEach(() => {
+  clearAllPageCaches();
+});
 
 describe('useVaultAccess archived-vault behavior', () => {
   beforeEach(() => {
@@ -174,8 +180,6 @@ describe('useVaultAccess — signed-out visitor', () => {
     mockSingle.mockResolvedValue({ data: null, error: { code: 'PGRST116', message: 'no rows' } });
     mockRpc.mockResolvedValue({ data: null, error: { message: 'network error' } });
 
-    // Its own vault id: an earlier test cached 'vault-1' as granted, which makes this check
-    // a background refresh, and a failed background refresh keeps the cached answer.
     const { result } = renderHook(() => useVaultAccess('vault-rpc-err', { enableRealtime: false }));
 
     await waitFor(() => expect(result.current.accessStatus).toBe('error'));
