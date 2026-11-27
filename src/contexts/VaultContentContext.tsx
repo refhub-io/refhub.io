@@ -88,9 +88,6 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
   // while the vault page wasn't mounted.
   const [visitNonce, setVisitNonce] = useState(0);
 
-  // Track pending optimistic updates to avoid overwriting them with realtime data
-  const pendingUpdatesRef = useRef<Set<string>>(new Set());
-
   // Stable ref to the latest publications array so the realtime subscription
   // callback can check relevance without causing the subscription to be torn
   // down and re-created whenever publications change.
@@ -581,11 +578,6 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
           const oldRecord = payload.old as any;
           const recordId = newRecord?.id || oldRecord?.id;
 
-          // Skip if this is from our own pending optimistic update
-          if (pendingUpdatesRef.current.has(recordId)) {
-            debug('VaultContentContext', 'Skipping realtime update for pending optimistic update:', recordId);
-            return;
-          }
 
           if (eventType === 'INSERT') {
             // Add new publication (from another client)
@@ -653,11 +645,6 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
           const oldRecord = payload.old as any;
           const recordId = newRecord?.id || oldRecord?.id;
 
-          // Skip if this is from our own pending optimistic update
-          if (pendingUpdatesRef.current.has(recordId)) {
-            debug('VaultContentContext', 'Skipping realtime tag update for pending optimistic update:', recordId);
-            return;
-          }
 
           if (eventType === 'INSERT') {
             setTags(prev => {
