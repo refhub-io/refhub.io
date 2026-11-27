@@ -34,6 +34,7 @@ import { CollectionAnalytics } from '@/components/publications/CollectionAnalyti
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { ExportDialog } from '@/components/publications/ExportDialog';
 import { PhaseLoader, LoadingPhase } from '@/components/ui/loading';
+import { storeRedirectAfterLogin } from '@/lib/authRedirect';
 import { useToast } from '@/hooks/use-toast';
 import { useVaultAccess, requestVaultAccess } from '@/hooks/useVaultAccess';
 import { useVaultFavorites } from '@/hooks/useVaultFavorites';
@@ -1773,7 +1774,7 @@ export default function VaultDetail() {
                 onClick={async () => {
                   if (!user) {
                     // Store URL and redirect to auth
-                    localStorage.setItem('redirectAfterLogin', `/vault/${vaultId}`);
+                    storeRedirectAfterLogin(`/vault/${vaultId}`);
                     navigate('/auth');
                     return;
                   }
@@ -2029,7 +2030,7 @@ export default function VaultDetail() {
                         size="sm"
                         onClick={async () => {
                           if (!user) {
-                            localStorage.setItem('redirectAfterLogin', `/vault/${vaultId}`);
+                            storeRedirectAfterLogin(`/vault/${vaultId}`);
                             navigate('/auth');
                             return;
                           }

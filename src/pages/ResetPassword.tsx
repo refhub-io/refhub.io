@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { consumeStoredRedirectAfterLogin } from '@/lib/authRedirect';
 import { logger } from '@/lib/logger';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -79,7 +80,7 @@ export default function ResetPassword() {
     };
 
     // Listen for auth state changes (handles redirect flow)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
         setIsRecovery(true);
         setCheckingSession(false);
@@ -162,16 +163,7 @@ export default function ResetPassword() {
                 // your password has been updated<br />
                 // you may now log in with your new password
               </p>
-              <Button variant="glow" className="w-full font-mono" onClick={() => {
-                // Check if there's a redirect URL stored in localStorage
-                const redirectAfterLogin = localStorage.getItem('redirectAfterLogin');
-                if (redirectAfterLogin) {
-                  localStorage.removeItem('redirectAfterLogin'); // Clean up
-                  navigate(redirectAfterLogin);
-                } else {
-                  navigate('/auth');
-                }
-              }}>
+              <Button variant="glow" className="w-full font-mono" onClick={() => navigate(consumeStoredRedirectAfterLogin() ?? '/auth')}>
                 return_to_login()
               </Button>
             </div>

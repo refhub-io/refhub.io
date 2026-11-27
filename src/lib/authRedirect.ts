@@ -21,6 +21,13 @@ function normalizeInternalPath(candidate: string | null): string | null {
   }
 }
 
+/** Remembers where to send the user after they sign in. Only same-origin paths are stored. */
+export function storeRedirectAfterLogin(path: string) {
+  if (typeof window === 'undefined') return;
+  const internal = normalizeInternalPath(path);
+  if (internal) localStorage.setItem(REDIRECT_AFTER_LOGIN_KEY, internal);
+}
+
 export function getStoredRedirectAfterLogin() {
   if (typeof window === 'undefined') return null;
   return normalizeInternalPath(localStorage.getItem(REDIRECT_AFTER_LOGIN_KEY));
