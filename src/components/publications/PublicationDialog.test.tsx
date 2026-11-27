@@ -93,7 +93,7 @@ const existingPublicationWithSuggestions: Publication = {
 // pattern (see `renderDialog` above) of stubbing everything with vi.fn()
 // and wrapping in KeyboardProvider since the component reads keyboard
 // context via useHotkeys/KbdHint.
-const baseProps = {
+const baseProps: ComponentProps<typeof PublicationDialog> = {
   open: true,
   onOpenChange: vi.fn(),
   publication,
@@ -105,9 +105,9 @@ const baseProps = {
   onCreateTag: vi.fn(),
 };
 
-const renderDialogWithProps = (overrides: Record<string, unknown> = {}) => render(
+const renderDialogWithProps = (overrides: Partial<ComponentProps<typeof PublicationDialog>> = {}) => render(
   <KeyboardProvider>
-    <PublicationDialog {...(baseProps as any)} {...overrides} />
+    <PublicationDialog {...baseProps} {...overrides} />
   </KeyboardProvider>,
 );
 
@@ -150,7 +150,7 @@ describe('PublicationDialog pending-suggestions close guard', () => {
     mockFindRelationshipSuggestions.mockResolvedValue([mockSuggestion]);
   });
 
-  const openWithSuggestions = async (onOpenChange: ReturnType<typeof vi.fn>) => {
+  const openWithSuggestions = async (onOpenChange: ComponentProps<typeof PublicationDialog>['onOpenChange']) => {
     renderDialogWithProps({
       onOpenChange,
       publication: existingPublicationWithSuggestions,
@@ -265,7 +265,7 @@ describe('PublicationDialog defensive reset on publication switch (Critical 2)',
     const { rerender } = render(
       <KeyboardProvider>
         <PublicationDialog
-          {...(baseProps as any)}
+          {...baseProps}
           onOpenChange={onOpenChange}
           publication={existingPublicationWithSuggestions}
           allPublications={[existingPublicationWithSuggestions]}
@@ -286,7 +286,7 @@ describe('PublicationDialog defensive reset on publication switch (Critical 2)',
     rerender(
       <KeyboardProvider>
         <PublicationDialog
-          {...(baseProps as any)}
+          {...baseProps}
           onOpenChange={onOpenChange}
           publication={otherPublication}
           allPublications={[otherPublication]}
