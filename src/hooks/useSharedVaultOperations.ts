@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Publication, Tag, PublicationTag } from '@/types/database';
 import { useToast } from '@/hooks/use-toast';
 import { extractBibliographicPatch } from '@/lib/publicationSync';
+import { formatVaultPublication } from '@/lib/formatVaultPublication';
 import { logger } from '@/lib/logger';
 
 interface OptimisticUpdate<T> {
@@ -646,45 +647,10 @@ export function useSharedVaultOperations({
 
       if (vaultPubError) throw vaultPubError;
 
-      // Convert vault publication to Publication format
-      const finalPublication: Publication = {
-        id: vaultPub.id,
-        user_id: userId,
-        title: vaultPub.title,
-        authors: vaultPub.authors || [],
-        year: vaultPub.year,
-        journal: vaultPub.journal,
-        volume: vaultPub.volume,
-        issue: vaultPub.issue,
-        pages: vaultPub.pages,
-        doi: vaultPub.doi,
-        url: vaultPub.url,
-        abstract: vaultPub.abstract,
-        pdf_url: vaultPub.pdf_url,
-        bibtex_key: vaultPub.bibtex_key,
-        publication_type: vaultPub.publication_type || 'article',
-        notes: vaultPub.notes,
-        booktitle: vaultPub.booktitle,
-        chapter: vaultPub.chapter,
-        edition: vaultPub.edition,
-        editor: vaultPub.editor,
-        howpublished: vaultPub.howpublished,
-        institution: vaultPub.institution,
-        number: vaultPub.number,
-        organization: vaultPub.organization,
-        publisher: vaultPub.publisher,
-        school: vaultPub.school,
-        series: vaultPub.series,
-        type: vaultPub.type,
-        eid: vaultPub.eid,
-        isbn: vaultPub.isbn,
-        issn: vaultPub.issn,
-        keywords: vaultPub.keywords,
-        reading_state: (vaultPub.reading_state || 'unread') as Publication['reading_state'],
-        important: vaultPub.important ?? false,
-        created_at: vaultPub.created_at,
-        updated_at: vaultPub.updated_at,
-      };
+      // The full row, including original_publication_id and the section/featured fields. A
+      // hand-built copy used to drop them, so the first edit in the same session found no
+      // canonical id and skipped updating the canonical copy.
+      const finalPublication = formatVaultPublication(vaultPub);
 
       // Replace temporary publication with real one
       // Also filter out any duplicates that might have been added by realtime
