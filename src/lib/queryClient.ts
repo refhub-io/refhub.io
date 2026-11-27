@@ -2,12 +2,9 @@ import { QueryClient } from '@tanstack/react-query';
 import { persistQueryClient, type PersistedClient } from '@tanstack/react-query-persist-client';
 import { get, set, del } from 'idb-keyval';
 import { warn } from '@/lib/logger';
-import { getCacheOwner } from '@/lib/cacheOwner';
+import { getCacheOwner, ownerTag } from '@/lib/cacheOwner';
 
 const PERSISTED_CACHE_KEY = 'refhub-query-cache';
-
-/** What a persisted copy is tagged with: the user it was saved for. */
-const ownerTag = (userId: string | null): string => userId ?? 'signed-out';
 
 /**
  * Custom IndexedDB persister for React Query

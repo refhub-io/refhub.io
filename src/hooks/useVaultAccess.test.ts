@@ -354,4 +354,32 @@ describe('useVaultAccess — the signed-in user changes', () => {
     await waitFor(() => expect(result.current.accessStatus).toBe('denied'));
     expect(result.current.vault).toBeNull();
   });
+
+  // Caches are cleared on every user change; this checks the scoping behind that on its own.
+  it('does not reuse an answer cached for another user, or for a signed-out reader', async () => {
+    mockSignedIn('owner-1');
+    mockSingle.mockResolvedValue({ data: makeVault({ id: 'vault-scoped' }), error: null });
+    const cacheGrantedFor = async (owner: string) => {
+      setCacheOwner(owner);
+      const { result, unmount } = renderHook(() => useVaultAccess('vault-scoped', { enableRealtime: false }));
+      await waitFor(() => expect(result.current.accessStatus).toBe('granted'));
+      unmount();
+    };
+    const firstRenderFor = (owner: string | null) => {
+      setCacheOwner(owner);
+      const { result, unmount } = renderHook(() => useVaultAccess('vault-scoped', { enableRealtime: false }));
+      const status = result.current.accessStatus;
+      unmount();
+      return status;
+    };
+
+    await cacheGrantedFor('owner-1');
+    expect(firstRenderFor('owner-1')).toBe('granted');
+
+    await cacheGrantedFor('owner-1');
+    expect(firstRenderFor('someone-else')).toBe('loading');
+
+    await cacheGrantedFor('owner-1');
+    expect(firstRenderFor(null)).toBe('loading');
+  });
 });

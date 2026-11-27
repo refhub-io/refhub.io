@@ -5,7 +5,7 @@ import { showError } from '../lib/toast';
 import { VaultVisibility, VaultRole } from '../types/vault-extensions';
 import { Vault } from '../types/database';
 import { getPageCache, setPageCache } from '../lib/pageCache';
-import { onCacheOwnerChange } from '../lib/cacheOwner';
+import { getCacheOwner, onCacheOwnerChange, ownerTag } from '../lib/cacheOwner';
 
 interface VaultAccessResult {
   canView: boolean;
@@ -56,7 +56,8 @@ export const useVaultAccess = (
 ) => {
   // Check for cached data before initializing state
   const cacheKey = `vault-access-${vaultSlug}` as const;
-  const cachedData = vaultSlug ? getPageCache<VaultAccessCache>(cacheKey) : null;
+  // Cached answers are scoped to the user they were given to.
+  const cachedData = vaultSlug ? getPageCache<VaultAccessCache>(cacheKey, ownerTag(getCacheOwner())) : null;
   const hasCachedData = useRef(!!cachedData);
   const subscriptionInstanceId = useRef(++vaultAccessSubscriptionCounter);
   
@@ -103,7 +104,7 @@ export const useVaultAccess = (
   useEffect(() => {
     if (!vaultSlug) return;
     
-    const cached = getPageCache<VaultAccessCache>(cacheKey);
+    const cached = getPageCache<VaultAccessCache>(cacheKey, ownerTag(getCacheOwner()));
     if (cached) {
       // Restore cached result immediately for instant UI update
       setResult(cached.result);
@@ -147,7 +148,7 @@ export const useVaultAccess = (
   // access check would have succeeded on retry.
   useEffect(() => {
     if (vaultSlug && (result.accessStatus === 'granted' || result.accessStatus === 'requestable' || result.accessStatus === 'pending')) {
-      setPageCache<VaultAccessCache>(cacheKey, { result });
+      setPageCache<VaultAccessCache>(cacheKey, { result }, ownerTag(getCacheOwner()));
     }
   }, [vaultSlug, result, cacheKey]);
 

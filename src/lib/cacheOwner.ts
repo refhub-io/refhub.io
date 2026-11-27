@@ -34,6 +34,12 @@ export function setCacheOwner(userId: string | null): void {
   changeListeners.forEach((listener) => listener());
 }
 
+/**
+ * Who a cached copy belongs to, for a cache entry or the persisted query cache. Signed out is a
+ * value of its own, so a copy saved for a user never matches a signed-out reader.
+ */
+export const ownerTag = (userId: string | null | undefined): string => userId ?? 'signed-out';
+
 /** Calls `listener` whenever this tab's user changes: sign-in, sign-out, or a switch made in another tab. */
 export function onCacheOwnerChange(listener: () => void): () => void {
   changeListeners.add(listener);

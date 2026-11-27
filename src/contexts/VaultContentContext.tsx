@@ -6,6 +6,7 @@ import { useVaultAccess } from '@/hooks/useVaultAccess';
 import { handleError } from '@/lib/toast';
 import { debug, warn, error as logError } from '@/lib/logger';
 import { getPageCache, setPageCache } from '@/lib/pageCache';
+import { ownerTag } from '@/lib/cacheOwner';
 import { syncDrivePdfAsset } from '@/lib/pdfAssets';
 import { formatVaultPublication } from '@/lib/formatVaultPublication';
 import { fetchAllRows, fetchAllRowsForIds } from '@/lib/fetchAllRows';
@@ -121,7 +122,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
     if (!currentVaultId) return;
 
     const cacheKey = `vault-content-${currentVaultId}` as const;
-    const cached = getPageCache<VaultContentCache>(cacheKey, user?.id);
+    const cached = getPageCache<VaultContentCache>(cacheKey, ownerTag(user?.id));
     // Once this vault's content has loaded, current state is the freshest copy (realtime and
     // recent fetches update it), so it wins; the cached arrays are only a fallback before then.
     // Preferring the cache used to put older rows back into it after every vault settings edit.
@@ -133,7 +134,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       publicationTags: preferState ? publicationTags : cached.publicationTags,
       publicationRelations: preferState ? publicationRelations : cached.publicationRelations,
       vaultShares: preferState ? vaultShares : cached.vaultShares,
-    }, user?.id);
+    }, ownerTag(user?.id));
   }, [currentVaultId, currentVault, publications, tags, publicationTags, publicationRelations, vaultShares, user?.id]);
   
   // Helper to get user display name (with caching)
@@ -436,7 +437,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         publicationTags: pubTagsRes.data as PublicationTag[],
         publicationRelations: relationsRes.data as PublicationRelation[],
         vaultShares: sharesRes.data as VaultShare[],
-      }, user?.id);
+      }, ownerTag(user?.id));
       
       // Set initial lastActivity based on most recently updated publication
       // Now uses updated_by field if available to show who made the last update
@@ -503,7 +504,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
 
     // Check cache first for instant restore
     const cacheKey = `vault-content-${vaultId}` as const;
-    const cached = getPageCache<VaultContentCache>(cacheKey, user?.id);
+    const cached = getPageCache<VaultContentCache>(cacheKey, ownerTag(user?.id));
 
     if (cached) {
       debug('VaultContentContext', 'Restoring vault content from cache:', vaultId);
