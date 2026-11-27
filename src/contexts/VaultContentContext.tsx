@@ -122,15 +122,19 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
 
     const cacheKey = `vault-content-${currentVaultId}` as const;
     const cached = getPageCache<VaultContentCache>(cacheKey);
+    // Once this vault's content has loaded, current state is the freshest copy (realtime and
+    // recent fetches update it), so it wins; the cached arrays are only a fallback before then.
+    // Preferring the cache used to put older rows back into it after every vault settings edit.
+    const preferState = currentVault?.id === currentVaultId || !cached;
     setPageCache<VaultContentCache>(cacheKey, {
       currentVault: vault,
-      publications: cached?.publications || publications,
-      tags: cached?.tags || tags,
-      publicationTags: cached?.publicationTags || publicationTags,
-      publicationRelations: cached?.publicationRelations || publicationRelations,
-      vaultShares: cached?.vaultShares || vaultShares,
+      publications: preferState ? publications : cached.publications,
+      tags: preferState ? tags : cached.tags,
+      publicationTags: preferState ? publicationTags : cached.publicationTags,
+      publicationRelations: preferState ? publicationRelations : cached.publicationRelations,
+      vaultShares: preferState ? vaultShares : cached.vaultShares,
     });
-  }, [currentVaultId, publications, tags, publicationTags, publicationRelations, vaultShares]);
+  }, [currentVaultId, currentVault, publications, tags, publicationTags, publicationRelations, vaultShares]);
   
   // Helper to get user display name (with caching)
   const getUserDisplayName = useCallback(async (userId: string): Promise<string | null> => {
@@ -455,10 +459,12 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         debug('VaultContentContext', 'Discarding stale fetch error for', requestedVaultId);
         return;
       }
-      // On error, show toast but keep existing data (graceful degradation)
-      const message = handleError(err, 'loading vault content', publications.length > 0);
+      // On error, show toast but keep existing data (graceful degradation). The ref holds the
+      // current list; this callback's own `publications` would be the stale one it closed over.
+      const hasData = publicationsRef.current.length > 0;
+      const message = handleError(err, 'loading vault content', hasData);
       // Only set error state if we have no cached data
-      if (publications.length === 0) {
+      if (!hasData) {
         setError(message);
       }
     } finally {

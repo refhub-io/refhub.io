@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
 import { useVaults, useInvalidateVaults } from '@/hooks/useVaults';
 import { supabase } from '@/integrations/supabase/client';
-import { Publication, Vault, Tag, PublicationTag, PublicationRelation, VaultShare } from '@/types/database';
+import { Publication, Vault, Tag } from '@/types/database';
 import type { Database } from '@/integrations/supabase/types';
 import { DndContext, DragOverlay } from '@dnd-kit/core';
 import { snapCenterToCursor } from '@dnd-kit/modifiers';
@@ -24,7 +24,6 @@ import {
   fetchSemanticScholarMetadataByDoi,
   formatSemanticScholarErrorMessage,
   SSPaper,
-  SemanticScholarMetadata,
 } from '@/lib/semanticScholar';
 import { createPublicationSyncPatch, getPublicationSyncDiffs, PublicationSyncDiff } from '@/lib/publicationSync';
 import { PublicationSyncDialog } from '@/components/publications/PublicationSyncDialog';
@@ -34,8 +33,7 @@ import { VaultHealthCheckDialog } from '@/components/vaults/VaultHealthCheckDial
 import { CollectionAnalytics } from '@/components/publications/CollectionAnalytics';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { ExportDialog } from '@/components/publications/ExportDialog';
-import { QRCodeDialog } from '@/components/vaults/QRCodeDialog';
-import { LoadingSpinner, PhaseLoader, LoadingPhase } from '@/components/ui/loading';
+import { PhaseLoader, LoadingPhase } from '@/components/ui/loading';
 import { useToast } from '@/hooks/use-toast';
 import { useVaultAccess, requestVaultAccess } from '@/hooks/useVaultAccess';
 import { useVaultFavorites } from '@/hooks/useVaultFavorites';
@@ -44,11 +42,9 @@ import { useVaultContent } from '@/contexts/VaultContentContext';
 import { useSharedVaultOperations } from '@/hooks/useSharedVaultOperations';
 import { getForkSourceHref, getForkSourceLabel, getVaultForkInfo, VaultForkInfo } from '@/lib/vaultFork';
 import { buildVaultPublicationCopyPayload } from '@/lib/vaultPublicationAttribution';
-import { Lock, Globe, Shield, Users, Clock, User, ExternalLink, Sparkles, Crown, Edit, Eye, Heart, GitFork, PencilLine, Stethoscope, Archive } from 'lucide-react';
+import { Lock, Globe, Shield, Clock, Crown, Edit, Eye, Heart, GitFork, PencilLine, Stethoscope, Archive, RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -72,7 +68,7 @@ export default function VaultDetail() {
   );
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { canView, canEdit, isOwner, isArchived, userRole, accessStatus, vault, error: accessError, refresh, silentRefresh } = useVaultAccess(vaultId || '');
+  const { canView, canEdit, isOwner, isArchived, userRole, accessStatus, vault, refresh, silentRefresh } = useVaultAccess(vaultId || '');
   const { isFavorite, toggleFavorite } = useVaultFavorites();
   const { forkVault } = useVaultFork();
   const [forking, setForking] = useState(false);
@@ -84,18 +80,12 @@ export default function VaultDetail() {
     tags,
     publicationTags,
     publicationRelations,
-    vaultShares,
     loading: contentLoading,
-    error: contentError,
     setCurrentVaultId,
     setPublications,
     setTags,
     setPublicationTags,
-    setPublicationRelations,
-    setVaultShares,
     updateCurrentVault,
-    refreshVaultContent,
-    isRealtimeConnected,
     lastActivity,
     updateLastActivity,
     pdfAssetsMap,
@@ -124,12 +114,10 @@ export default function VaultDetail() {
   }, [sharedVaultOps]);
 
   // Local state for UI elements
-  const [vaultPapers, setVaultPapers] = useState<{[key: string]: string[]}>({});
   const { ownedVaults: vaults, sharedVaults, sharedVaultRoles } = useVaults();
   const invalidateVaults = useInvalidateVaults();
   const [allPublications, setAllPublications] = useState<Publication[]>([]);
   const [publicationVaultsMap, setPublicationVaultsMap] = useState<Record<string, string[]>>({});
-  const [loading, setLoading] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [favoritesCount, setFavoritesCount] = useState(0);
   const [forkCount, setForkCount] = useState(0);
@@ -172,7 +160,6 @@ export default function VaultDetail() {
   const [viewingPublication, setViewingPublication] = useState<Publication | null>(null);
   const currentlyEditingPublicationId = useRef<string | null>(null);
   const [syncDiffsByPublication, setSyncDiffsByPublication] = useState<Record<string, PublicationSyncDiff[]>>({});
-  const [syncMetadataByPublication, setSyncMetadataByPublication] = useState<Record<string, SemanticScholarMetadata>>({});
   const [syncLoadingIds, setSyncLoadingIds] = useState<Set<string>>(new Set());
   const [syncPreviewPublication, setSyncPreviewPublication] = useState<Publication | null>(null);
   const [syncCooldowns, setSyncCooldowns] = useState<Record<string, number>>({});
@@ -195,7 +182,7 @@ export default function VaultDetail() {
 
   // Track loading phase updates based on access status and content
   useEffect(() => {
-    if (accessStatus === 'granted' || accessStatus === 'denied' || accessStatus === 'requestable' || accessStatus === 'pending') {
+    if (accessStatus === 'granted' || accessStatus === 'denied' || accessStatus === 'requestable' || accessStatus === 'pending' || accessStatus === 'error') {
       updatePhase('auth', 'complete');
     }
   }, [accessStatus, updatePhase]);
@@ -497,9 +484,6 @@ export default function VaultDetail() {
     }
   }, [user, vaultId, vault, refresh]);
 
-  // Combine loading states
-  const combinedLoading = authLoading || contentLoading;
-
   // Create publication tags map from the context data
   // In the copy-based model with vault-specific tags, we need to map from vault publication IDs to tags
   // by connecting vault_publications.id to publication_tags.vault_publication_id
@@ -547,22 +531,6 @@ export default function VaultDetail() {
     });
     return map;
   }, [publicationRelations, publications]);
-
-  // Update vaultPapers map based on current publications
-  useEffect(() => {
-    const papersMap: {[key: string]: string[]} = {};
-    if (currentVault?.id) {
-      papersMap[currentVault.id] = publications.map(p => p.id);
-    }
-    setVaultPapers(papersMap);
-  }, [currentVault, publications]);
-
-  // Set loading to false when content is loaded
-  useEffect(() => {
-    if (!combinedLoading) {
-      setLoading(false);
-    }
-  }, [combinedLoading]);
 
   const refetchVault = async () => {
     if (!user || !vaultId) return;
@@ -730,7 +698,7 @@ export default function VaultDetail() {
     }
   };
 
-  const handleManualCreate = async (pub: Partial<Publication>, targetVaultId?: string | null): Promise<string | null> => {
+  const handleManualCreate = async (pub: Partial<Publication>, _targetVaultId?: string | null): Promise<string | null> => {
     if (!user || !canEdit) return null;
     try {
       const dataToSave = {
@@ -927,7 +895,6 @@ export default function VaultDetail() {
       }
 
       const diffs = getPublicationSyncDiffs(publication, metadata);
-      setSyncMetadataByPublication(prev => ({ ...prev, [publication.id]: metadata }));
       setSyncDiffsByPublication(prev => ({ ...prev, [publication.id]: diffs }));
       if (diffs.length > 0) {
         setSyncPreviewPublication(publication);
@@ -1692,6 +1659,38 @@ export default function VaultDetail() {
   // Check if vault exists but access is denied/requestable
   // Only show "not found" after access check is complete and confirmed inaccessible
   const isVaultAccessible = vault || accessStatus === 'requestable' || accessStatus === 'pending';
+
+  // The access check itself failed (network, timeout): that says nothing about access, so
+  // offer a retry instead of the not-found screen below.
+  if (accessStatus === 'error' && finishedInitialLoad) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-6 p-8 max-w-md mx-4">
+          <div className="w-20 h-20 rounded-2xl bg-gradient-primary flex items-center justify-center mx-auto shadow-lg">
+            <RefreshCw className="w-10 h-10 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold mb-2 font-mono">couldnt_check_access</h1>
+            <p className="text-muted-foreground font-mono text-sm mb-4">
+              // refhub_couldnt_verify_this_vault_right_now
+            </p>
+            <div className="flex gap-2 justify-center">
+              <Button onClick={refresh} className="font-mono">
+                retry
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => navigate(user ? '/dashboard' : '/')}
+                className="font-mono"
+              >
+                {user ? 'back_to_dashboard' : 'back_to_home'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!isVaultAccessible && accessStatus === 'denied' && finishedInitialLoad) {
     return (

@@ -168,18 +168,47 @@ describe('useVaultAccess — signed-out visitor', () => {
     expect(result.current.vault).toBeNull();
   });
 
-  it('surfaces a toast when the metadata RPC itself fails, distinct from a genuine miss', async () => {
+  it('reports a failed metadata RPC as a retryable error (with a toast), not as denied', async () => {
     mockSignedOut();
     mockSingle.mockResolvedValue({ data: null, error: { code: 'PGRST116', message: 'no rows' } });
     mockRpc.mockResolvedValue({ data: null, error: { message: 'network error' } });
 
-    const { result } = renderHook(() => useVaultAccess('vault-1', { enableRealtime: false }));
+    // Its own vault id: an earlier test cached 'vault-1' as granted, which makes this check
+    // a background refresh, and a failed background refresh keeps the cached answer.
+    const { result } = renderHook(() => useVaultAccess('vault-rpc-err', { enableRealtime: false }));
 
-    await waitFor(() => expect(result.current.accessStatus).toBe('denied'));
+    await waitFor(() => expect(result.current.accessStatus).toBe('error'));
+    expect(result.current.canView).toBe(false);
     expect(getQuotermsSnapshot().items[0]).toMatchObject({
       title: 'Could not check vault access',
       variant: 'error',
     });
+  });
+});
+
+describe('useVaultAccess — failed checks are errors, not denials', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('reports a failed vault query (anything but "no rows") as error', async () => {
+    mockSignedIn('user-1');
+    mockSingle.mockResolvedValue({ data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } });
+
+    const { result } = renderHook(() => useVaultAccess('vault-err-1', { enableRealtime: false }));
+
+    await waitFor(() => expect(result.current.accessStatus).toBe('error'));
+    expect(result.current.error).toBe('Could not check vault access');
+  });
+
+  it('reports a failed share lookup as error, instead of treating it as "no share"', async () => {
+    mockSignedIn('user-1');
+    mockSingle.mockResolvedValue({ data: makeVault({ user_id: 'owner-1', visibility: 'protected' }), error: null });
+    mockMaybeSingle.mockResolvedValue({ data: null, error: { message: 'connection reset' } });
+
+    const { result } = renderHook(() => useVaultAccess('vault-err-2', { enableRealtime: false }));
+
+    await waitFor(() => expect(result.current.accessStatus).toBe('error'));
   });
 });
 
@@ -248,18 +277,17 @@ describe('useVaultAccess — caching a denied result', () => {
     mockRpc.mockReset();
   });
 
-  it('does not cache a denied result caused by an unexpected error, so a later visit can recover', async () => {
-    // Simulates the exact failure mode behind the false "no_access" badge
-    // bug: an unrelated transient error (network blip, RLS hiccup) throws
-    // partway through the check and gets mapped to accessStatus: 'denied'
-    // by the catch-all. If that got cached, every later render of this
-    // vault within the same session would restore the stale denial
-    // instead of re-checking — this must never be persisted.
+  it('does not cache a failed check, so a later visit can recover', async () => {
+    // Simulates the failure mode behind the false "no_access" badge bug: a
+    // transient error (network blip, RLS hiccup) throws partway through the
+    // check. It's reported as 'error', not 'denied', and must never be
+    // cached, or later renders in the session would restore it instead of
+    // re-checking.
     mockGetSession.mockRejectedValue(new Error('network blip'));
 
     const { result } = renderHook(() => useVaultAccess('vault-cache-test', { enableRealtime: false }));
 
-    await waitFor(() => expect(result.current.accessStatus).toBe('denied'));
+    await waitFor(() => expect(result.current.accessStatus).toBe('error'));
     expect(hasPageCache('vault-access-vault-cache-test')).toBe(false);
   });
 });
