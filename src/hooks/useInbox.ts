@@ -88,7 +88,7 @@ export interface CreateInboxItemInput {
   parsedFields: Partial<Publication>;
 }
 
-export function inboxItemsQueryKey(userId: string | undefined) {
+function inboxItemsQueryKey(userId: string | undefined) {
   return ['inbox-items', userId] as const;
 }
 

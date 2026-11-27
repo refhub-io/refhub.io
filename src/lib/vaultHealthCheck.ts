@@ -122,11 +122,6 @@ function scanFieldIssues(pub: Publication): HealthIssue[] {
     .map((def) => ({ type: def.type, publicationId: pub.id }));
 }
 
-/** 1 = required, 2 = secondary, 3 = tertiary. Lets UI group/label issue sections by importance. */
-export const ISSUE_TYPE_TIER: Partial<Record<HealthIssueType, 1 | 2 | 3>> = Object.fromEntries(
-  FIELD_CHECK_DEFS.map((def) => [def.type, def.tier]),
-);
-
 /**
  * Scans a snapshot of publications for missing-metadata issues and likely
  * duplicates. Duplicate detection reuses the same `DUPE_PRESETS.balanced`

@@ -11,19 +11,7 @@ const isMac =
 const isWindows =
   typeof navigator !== 'undefined' && /Win/.test(navigator.platform);
 
-// Only treat as touch-only when the screen is small AND there is no
-// fine pointer (i.e. no mouse / trackpad).  This avoids disabling keyboard
-// shortcuts on laptops with touchscreens.
-const isTouchOnlyDevice =
-  typeof window !== 'undefined' &&
-  'ontouchstart' in window &&
-  typeof window.matchMedia === 'function' &&
-  !window.matchMedia('(pointer: fine)').matches;
-
-/** @deprecated Use isTouchOnlyDevice — kept for backwards compat */
-const isTouchDevice = isTouchOnlyDevice;
-
-export { isMac, isWindows, isTouchDevice, isTouchOnlyDevice };
+export { isMac };
 
 // ─── Key normalisation ───────────────────────────────────────────────────────
 
@@ -150,20 +138,12 @@ export function matchesCombo(e: KeyboardEvent, combo: ParsedCombo): boolean {
   return keyMatch && ctrl && alt && shift && meta;
 }
 
-/**
- * Quick check: does the event match a raw combo string?  Convenience wrapper
- * around {@link parseCombo} + {@link matchesCombo}.
- */
-export function eventMatchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
-  return matchesCombo(e, parseCombo(shortcut));
-}
-
 // ─── Input / Focus context helpers ───────────────────────────────────────────
 
 const INPUT_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
 
 /** Returns `true` when the active element is a text-editable field. */
-export function isEditableElement(el?: Element | null): boolean {
+function isEditableElement(el?: Element | null): boolean {
   if (!el) return false;
   if (INPUT_TAGS.has(el.tagName)) return true;
   const htmlEl = el as HTMLElement;
@@ -384,8 +364,7 @@ export interface ShortcutDef {
 
 // ─── Shortcut map for help overlay ───────────────────────────────────────────
 
-import kbdConfig, { getShortcut, getCombo, getDisplayCombo } from '@/config/kbd.config';
-export { getShortcut, getCombo, getDisplayCombo };
+import kbdConfig from '@/config/kbd.config';
 
 export interface ShortcutHelpItem {
   combo: string;

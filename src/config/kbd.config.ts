@@ -233,32 +233,3 @@ export function getShortcut<C extends ContextName>(
   }
   return shortcut;
 }
-
-/**
- * Get the canonical combo string (first alternative before " / ").
- */
-export function getCombo<C extends ContextName>(
-  context: C,
-  name: keyof KbdConfig[C],
-): string {
-  const { combo } = getShortcut(context, name);
-  // Return the first alternative (before " / ")
-  return combo.split(' / ')[0].trim();
-}
-
-/**
- * Get the full display combo string (with alternatives).
- */
-export function getDisplayCombo<C extends ContextName>(
-  context: C,
-  name: keyof KbdConfig[C],
-): string {
-  return getShortcut(context, name).combo;
-}
-
-/**
- * Return the entire config. Useful for iterating over all groups.
- */
-export function getKbdConfig(): KbdConfig {
-  return kbdConfig;
-}

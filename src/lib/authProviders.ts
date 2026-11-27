@@ -10,15 +10,15 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
-export function isSupportedAuthProvider(value: unknown): value is SupportedAuthProvider {
+function isSupportedAuthProvider(value: unknown): value is SupportedAuthProvider {
   return value === 'google' || value === 'github' || value === 'email';
 }
 
-export function isSupportedOAuthProvider(value: unknown): value is SupportedOAuthProvider {
+function isSupportedOAuthProvider(value: unknown): value is SupportedOAuthProvider {
   return value === 'google' || value === 'github';
 }
 
-export function getUserAuthProvider(user: User | null | undefined): SupportedOAuthProvider | null {
+function getUserAuthProvider(user: User | null | undefined): SupportedOAuthProvider | null {
   const appProvider = user?.app_metadata?.provider;
   if (isSupportedOAuthProvider(appProvider)) {
     return appProvider;

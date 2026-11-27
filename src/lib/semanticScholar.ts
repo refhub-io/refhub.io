@@ -150,7 +150,7 @@ function getRequestIdFromPayload(payload: SemanticScholarErrorPayload | null): s
   return typeof requestId === 'string' && requestId.trim().length > 0 ? requestId.trim() : null;
 }
 
-export function isSemanticScholarRequestError(error: unknown): error is SemanticScholarRequestError {
+function isSemanticScholarRequestError(error: unknown): error is SemanticScholarRequestError {
   return error instanceof Error && 'code' in error && 'status' in error;
 }
 

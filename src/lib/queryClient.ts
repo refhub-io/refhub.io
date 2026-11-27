@@ -81,4 +81,3 @@ export const initQueryPersistence = () => {
   });
 };
 
-export default queryClient;

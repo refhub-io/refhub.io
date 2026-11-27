@@ -167,21 +167,6 @@ export function buildTagTree(tags: Tag[]): HierarchicalTag[] {
 }
 
 /**
- * Get all descendants of a tag
- */
-export function getTagDescendants(tagId: string, tags: Tag[]): Tag[] {
-  const descendants: Tag[] = [];
-  const directChildren = tags.filter(t => t.parent_id === tagId);
-  
-  directChildren.forEach(child => {
-    descendants.push(child);
-    descendants.push(...getTagDescendants(child.id, tags));
-  });
-  
-  return descendants;
-}
-
-/**
  * Get parent chain for a tag (breadcrumb)
  */
 export function getTagParentChain(tag: Tag, allTags: Tag[]): Tag[] {

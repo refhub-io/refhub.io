@@ -188,10 +188,6 @@ async function apiKeyRequest<TResponse>(
   return payload as TResponse;
 }
 
-export function isApiKeyManagementConfigured() {
-  return true;
-}
-
 export async function listApiKeys(accessToken: string) {
   const payload = await apiKeyRequest<unknown>(accessToken);
   return extractApiKeyRecords(payload).map(mapApiKey);

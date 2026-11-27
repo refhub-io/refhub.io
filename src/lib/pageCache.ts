@@ -45,15 +45,6 @@ export function getPageCache<T>(key: CacheKey, userId?: string): T | null {
 }
 
 /**
- * Check if cached data is stale (older than TTL)
- */
-export function isCacheStale(key: CacheKey): boolean {
-  const entry = cache.get(key);
-  if (!entry) return true;
-  return Date.now() - entry.timestamp > CACHE_TTL;
-}
-
-/**
  * Set cached data for a page
  * @param key - Cache key for the page
  * @param data - Data to cache
