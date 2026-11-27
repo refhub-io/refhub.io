@@ -9,10 +9,15 @@ project uses [Semantic Versioning](https://semver.org/). History prior to
 ## [2.1.3] - 2026-11-27
 
 ### Security
-- Resolved all 17 `npm audit` findings (7 high, 6 moderate, 4 low), without the breaking downgrades `npm audit fix --force` proposes:
-  - Non-breaking lockfile updates for `vite`, `vitest`/`@vitest/mocker`, `undici`, `js-yaml`, `brace-expansion`, `browserslist`, `source-map-js`, `@humanfs/node`, `baseline-browser-mapping`.
-  - npm `overrides` point `rehype-katex`/`remark-math`'s nested `katex` at the project's patched 0.18.x, and `@tailwindcss/typography`'s pinned `postcss-selector-parser` at 6.1.5 (compiled CSS unchanged).
-  - Upgraded `zod` 3 → 4 and `@hookform/resolvers` 3 → 5; profile form validation behaves identically.
+- Resolved all 26 `npm audit` findings (7 high, 15 moderate, 4 low), without the breaking downgrades `npm audit fix --force` proposes:
+  - Non-breaking lockfile updates for `vite`, `vitest`/`@vitest/mocker`, `undici`, `js-yaml`, `brace-expansion`, `browserslist`, `source-map-js`, `@humanfs/node`, `baseline-browser-mapping` and `katex` (0.18.0 → 0.18.10).
+  - For the `minimatch` and `glob` advisories published since October: `typescript-eslint` 8.38 → 8.74 and `sucrase` 3.35.0 → 3.35.1 (lint and build tooling only).
+  - npm `overrides` point `rehype-katex`/`remark-math`'s nested `katex` at the project's patched 0.18.x, and `@tailwindcss/typography`'s pinned `postcss-selector-parser` at 6.1.5 (Tailwind output unchanged).
+  - Upgraded `zod` 3 → 4 and `@hookform/resolvers` 3 → 5; the profile form accepts and rejects the same input as before. zod 4 adds about 12 KB gzipped to the main bundle.
+
+### Fixed
+- Math in notes rendered with mismatched KaTeX versions: `rehype-katex` produced KaTeX 0.16 markup while the page loaded the 0.18 stylesheet, whose rules use renamed classes. Superscripts, subscripts, limits and fractions rendered at full size, and accents such as `\vec` sat below their letter. Markup and stylesheet now both come from KaTeX 0.18.10.
+- The profile form's display-name length rule has its own error message ("Display name must be at most 100 characters") instead of zod's default, whose wording changed in zod 4.
 
 ## [2.1.2] - 2026-11-26
 
