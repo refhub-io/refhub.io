@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { dismissQuoterm, getQuotermsSnapshot } from 'quoterm';
 import { useVaultAccess } from './useVaultAccess';
 import { hasPageCache } from '../lib/pageCache';
+import { setCacheOwner } from '../lib/cacheOwner';
 import type { Vault } from '../types/database';
 
 const mockSingle = vi.fn();
@@ -326,5 +327,31 @@ describe('useVaultAccess — caching a denied result', () => {
 
     await waitFor(() => expect(result.current.accessStatus).toBe('error'));
     expect(hasPageCache('vault-access-vault-cache-test')).toBe(false);
+  });
+});
+
+describe('useVaultAccess — the signed-in user changes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // A vault page can stay open through a user switch, for example one made in another tab.
+  it("drops the previous user's answer at once and checks again for the new user", async () => {
+    setCacheOwner('owner-1');
+    mockSignedIn('owner-1');
+    mockSingle.mockResolvedValue({ data: makeVault({ id: 'vault-switch' }), error: null });
+
+    const { result } = renderHook(() => useVaultAccess('vault-switch', { enableRealtime: false }));
+    await waitFor(() => expect(result.current.accessStatus).toBe('granted'));
+
+    mockSignedIn('someone-else');
+    mockSingle.mockResolvedValue({ data: null, error: { code: 'PGRST116', message: 'no rows' } });
+    mockRpc.mockResolvedValue({ data: [], error: null });
+    act(() => setCacheOwner('someone-else'));
+
+    expect(result.current.canView).toBe(false);
+    expect(result.current.isOwner).toBe(false);
+    await waitFor(() => expect(result.current.accessStatus).toBe('denied'));
+    expect(result.current.vault).toBeNull();
   });
 });

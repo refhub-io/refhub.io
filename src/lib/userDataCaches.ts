@@ -1,8 +1,6 @@
 import { clearAllPageCaches } from '@/lib/pageCache';
+import { getCacheOwner, setCacheOwner } from '@/lib/cacheOwner';
 import { queryClient, removePersistedQueryCache } from '@/lib/queryClient';
-
-/** The user whose data is in the caches right now, kept across reloads. */
-const CACHE_OWNER_KEY = 'refhub_cache_owner';
 
 /**
  * Drops every client-side copy of user data: the in-memory page cache, React Query's cache and
@@ -20,9 +18,8 @@ export async function clearUserDataCaches(): Promise<void> {
  * them. Nothing happens while the same user stays signed in (token refreshes, reloads).
  */
 export async function syncCacheOwner(userId: string | null): Promise<void> {
-  const owner = localStorage.getItem(CACHE_OWNER_KEY);
-  if (userId === owner) return;
+  if (userId === getCacheOwner()) return;
+  // Changed first, so anything persisted from here on is tagged with the new owner.
+  setCacheOwner(userId);
   await clearUserDataCaches();
-  if (userId) localStorage.setItem(CACHE_OWNER_KEY, userId);
-  else localStorage.removeItem(CACHE_OWNER_KEY);
 }

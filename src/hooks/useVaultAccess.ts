@@ -5,6 +5,7 @@ import { showError } from '../lib/toast';
 import { VaultVisibility, VaultRole } from '../types/vault-extensions';
 import { Vault } from '../types/database';
 import { getPageCache, setPageCache } from '../lib/pageCache';
+import { onCacheOwnerChange } from '../lib/cacheOwner';
 
 interface VaultAccessResult {
   canView: boolean;
@@ -30,6 +31,18 @@ interface UseVaultAccessOptions {
   enableRealtime?: boolean;
 }
 
+const LOADING_RESULT: VaultAccessResult = {
+  canView: false,
+  canEdit: false,
+  isOwner: false,
+  isArchived: false,
+  permission: null,
+  accessStatus: 'loading',
+  vault: null,
+  userRole: null,
+  error: null,
+};
+
 let vaultAccessSubscriptionCounter = 0;
 
 // Retry callbacks of every mounted instance, by vault. VaultDetail and VaultContentContext
@@ -48,17 +61,7 @@ export const useVaultAccess = (
   const subscriptionInstanceId = useRef(++vaultAccessSubscriptionCounter);
   
   const [result, setResult] = useState<VaultAccessResult>(
-    cachedData?.result || {
-      canView: false,
-      canEdit: false,
-      isOwner: false,
-      isArchived: false,
-      permission: null,
-      accessStatus: 'loading',
-      vault: null,
-      userRole: null,
-      error: null,
-    }
+    cachedData?.result || LOADING_RESULT
   );
 
   const [refreshKey, setRefreshKey] = useState(0);
@@ -108,20 +111,18 @@ export const useVaultAccess = (
     } else {
       // No cache - reset to loading state with cleared data
       // This prevents showing old vault data while new vault loads
-      setResult({
-        canView: false,
-        canEdit: false,
-        isOwner: false,
-        isArchived: false,
-        permission: null,
-        accessStatus: 'loading',
-        vault: null,
-        userRole: null,
-        error: null,
-      });
+      setResult(LOADING_RESULT);
       setIsSilentRefresh(false);
     }
   }, [vaultSlug, cacheKey]);
+
+  // Access depends on who's asking. When this tab's user changes (sign-in, sign-out, or a switch
+  // made in another tab), the previous user's answer is dropped at once and the check runs again.
+  useEffect(() => onCacheOwnerChange(() => {
+    setResult(LOADING_RESULT);
+    setIsSilentRefresh(false);
+    setRefreshKey(prev => prev + 1);
+  }), []);
 
   // Regular refresh - shows loading state (for initial load or when user explicitly wants loading feedback)
   const refresh = () => {
