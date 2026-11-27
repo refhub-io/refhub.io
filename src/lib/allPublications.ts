@@ -8,6 +8,7 @@ import type { Publication, Vault, Tag, PublicationTag } from '@/types/database';
 import { buildAllPublications, buildPublicationVaultsMap, buildPublicationTagsMap, type RawVaultPublicationRow } from './publicationAggregate';
 import { filterDashboardTags } from './dashboardTagScope';
 import { fetchUserVaults } from './vaults';
+import { logger } from '@/lib/logger';
 
 export interface AllPublicationsData {
   publications: Publication[];
@@ -61,7 +62,7 @@ export async function fetchAllPublicationsData(
   // throws its own errors, which reject this Promise.all same as before.)
   throwOnAnyError([pubsRes, vaultPubsRes]);
   if (pubTagsRes.error) {
-    console.error('Failed to fetch publication_tags (tag data will be incomplete):', pubTagsRes.error);
+    logger.error('allPublications', 'Failed to fetch publication_tags (tag data will be incomplete):', pubTagsRes.error);
   }
 
   const { ownedVaults, sharedVaults, sharedVaultIds, scopedVaultIds } = vaultsData;

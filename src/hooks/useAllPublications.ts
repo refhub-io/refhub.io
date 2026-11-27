@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import type { Publication, Vault, Tag } from '@/types/database';
 import { fetchAllPublicationsData } from '@/lib/allPublications';
+import { logger } from '@/lib/logger';
 
 export function useAllPublications() {
   const { user } = useAuth();
@@ -40,7 +41,7 @@ export function useAllPublications() {
       // Log the error but don't crash the component tree; set loading false
       // so the UI isn't stuck in a loading state forever. Callers will see
       // empty or stale data (from previous successful load) instead of a crash.
-      console.error('Failed to fetch all publications data:', error);
+      logger.error('useAllPublications', 'Failed to fetch all publications data:', error);
     } finally {
       setLoading(false);
     }

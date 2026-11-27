@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Publication, Tag, PublicationTag } from '@/types/database';
 import { useToast } from '@/hooks/use-toast';
 import { extractBibliographicPatch } from '@/lib/publicationSync';
+import { logger } from '@/lib/logger';
 
 interface OptimisticUpdate<T> {
   id: string;
@@ -127,13 +128,13 @@ export function useSharedVaultOperations({
           supabase.from('publications')
             .update({ ...bibPatch, updated_at: now })
             .eq('id', originalId)
-            .then(({ error: e }) => { if (e) console.warn('[sync] canonical fan-out error:', e.message); });
+            .then(({ error: e }) => { if (e) logger.warn('sync', 'canonical fan-out error:', e.message); });
           // Sibling vault copies in other vaults
           supabase.from('vault_publications')
             .update({ ...bibPatch, updated_at: now, updated_by: userId })
             .eq('original_publication_id', originalId)
             .neq('id', publicationId)
-            .then(({ error: e }) => { if (e) console.warn('[sync] sibling fan-out error:', e.message); });
+            .then(({ error: e }) => { if (e) logger.warn('sync', 'sibling fan-out error:', e.message); });
         }
       }
 

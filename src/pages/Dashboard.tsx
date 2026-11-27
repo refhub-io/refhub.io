@@ -456,7 +456,7 @@ export default function Dashboard() {
 
       void pubTagsQuery.then((res) => {
         if (res.error) {
-          console.error('Failed to fetch publication_tags (tag data will be incomplete):', res.error);
+          logger.error('Dashboard', 'Failed to fetch publication_tags (tag data will be incomplete):', res.error);
           return;
         }
         const freshPublicationTags = (res.data as PublicationTag[]) || [];
@@ -640,12 +640,12 @@ export default function Dashboard() {
               supabase.from('publications')
                 .update({ ...bibPatch, updated_at: now })
                 .eq('id', vaultPub.original_publication_id)
-                .then(({ error: e }) => { if (e) console.warn('[sync] canonical fan-out error:', e.message); });
+                .then(({ error: e }) => { if (e) logger.warn('sync', 'canonical fan-out error:', e.message); });
               supabase.from('vault_publications')
                 .update({ ...bibPatch, updated_at: now, updated_by: user.id })
                 .eq('original_publication_id', vaultPub.original_publication_id)
                 .neq('id', editingPublication.id)
-                .then(({ error: e }) => { if (e) console.warn('[sync] sibling fan-out error:', e.message); });
+                .then(({ error: e }) => { if (e) logger.warn('sync', 'sibling fan-out error:', e.message); });
             }
           }
 
@@ -659,7 +659,7 @@ export default function Dashboard() {
               storedPdfUrl: driveUrl,
               originVaultPublicationId: editingPublication.id,
             }).catch((e) => {
-              console.warn('[drive] pdf asset sync:', e.message);
+              logger.warn('drive', 'pdf asset sync:', e.message);
               toast({
                 title: 'Drive PDF may not have synced everywhere',
                 description: e.message,
@@ -693,7 +693,7 @@ export default function Dashboard() {
               supabase.from('vault_publications')
                 .update({ ...bibPatch, updated_at: new Date().toISOString(), updated_by: user.id })
                 .eq('original_publication_id', editingPublication.id)
-                .then(({ error: e }) => { if (e) console.warn('[sync] vault fan-out error:', e.message); });
+                .then(({ error: e }) => { if (e) logger.warn('sync', 'vault fan-out error:', e.message); });
             }
           }
 
@@ -706,7 +706,7 @@ export default function Dashboard() {
               publicationId: editingPublication.id,
               storedPdfUrl: driveUrl,
             }).catch((e) => {
-              console.warn('[drive] pdf asset sync:', e.message);
+              logger.warn('drive', 'pdf asset sync:', e.message);
               toast({
                 title: 'Drive PDF may not have synced everywhere',
                 description: e.message,
@@ -1163,7 +1163,7 @@ export default function Dashboard() {
       supabase.from('vault_publications')
         .update({ ...bibPatch, updated_at: new Date().toISOString(), updated_by: user?.id })
         .eq('original_publication_id', syncPreviewPublication.id)
-        .then(({ error: e }) => { if (e) console.warn('[sync] vault fan-out error:', e.message); });
+        .then(({ error: e }) => { if (e) logger.warn('sync', 'vault fan-out error:', e.message); });
     }
 
     // Keep the edit dialog form in sync with the applied changes

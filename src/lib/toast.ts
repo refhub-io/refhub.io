@@ -1,4 +1,5 @@
 import { toast } from "@/hooks/use-toast";
+import { logger } from '@/lib/logger';
 
 type ToastSeverity = "success" | "error" | "warning";
 
@@ -95,7 +96,7 @@ export function handleError(
   }
   
   // Log to console for debugging
-  console.error(`[${context}]`, error);
+  logger.error(context, error);
   
   // Show toast unless silent
   if (!silent) {
