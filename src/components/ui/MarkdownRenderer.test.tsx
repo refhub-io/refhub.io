@@ -102,3 +102,20 @@ describe('MarkdownRenderer code blocks and links', () => {
     expect(external?.querySelector('svg')).toBeNull();
   });
 });
+
+// Descriptions and notes are written by users and shown to others, so link targets are filtered.
+describe('MarkdownRenderer links', () => {
+  it('drops a javascript: link target, raw HTML included', () => {
+    const { container } = render(
+      <MarkdownRenderer>{'[docs](javascript:alert(1)) and <a href="javascript:alert(2)">raw</a>'}</MarkdownRenderer>,
+    );
+    const hrefs = [...container.querySelectorAll('a')].map((a) => a.getAttribute('href') ?? '');
+    expect(hrefs.some((href) => /^\s*javascript:/i.test(href))).toBe(false);
+  });
+
+  it('keeps an https link', () => {
+    const { container } = render(<MarkdownRenderer>{'[docs](https://refhub.io/about)'}</MarkdownRenderer>);
+    expect(container.querySelector('a[href="https://refhub.io/about"]')).not.toBeNull();
+  });
+});
+

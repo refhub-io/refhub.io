@@ -16,6 +16,7 @@ import {
 import { Download, ExternalLink, FileText, Link2, Loader2 as LoadingIcon, Pencil } from 'lucide-react';
 import { GoogleDriveIcon } from '@/components/ui/GoogleDriveIcon';
 import { ReadingProgressControl, ImportantToggle } from './ReadingStateControl';
+import { getValidHttpUrl } from '@/lib/safeUrl';
 
 interface PublicationViewDialogProps {
   open: boolean;
@@ -69,6 +70,11 @@ export function PublicationViewDialog({
   showWorkflowBadges = false,
 }: PublicationViewDialogProps) {
   if (!publication) return null;
+
+  // Only http(s) URLs become links (see getValidHttpUrl).
+  const urlHref = getValidHttpUrl(publication.url);
+  const pdfHref = getValidHttpUrl(publication.pdf_url);
+  const driveHref = getValidHttpUrl(driveUrl);
 
   const metadata = DETAIL_FIELDS.filter(({ key }) => {
     const value = publication[key];
@@ -137,7 +143,7 @@ export function PublicationViewDialog({
         </DialogHeader>
 
         <div className="flex-1 min-h-0 overflow-y-auto space-y-5 sm:space-y-6 px-4 sm:px-6 py-4 sm:py-6">
-          {(publication.doi || publication.url || publication.pdf_url || driveLoading || driveUrl) && (
+          {(publication.doi || urlHref || pdfHref || driveLoading || driveHref) && (
             <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-2">
               {publication.doi && (
                 <Button asChild variant="outline" size="sm" className="w-full justify-start sm:w-auto font-mono">
@@ -151,17 +157,17 @@ export function PublicationViewDialog({
                   </a>
                 </Button>
               )}
-              {publication.url && (
+              {urlHref && (
                 <Button asChild variant="outline" size="sm" className="w-full justify-start sm:w-auto font-mono">
-                  <a href={publication.url} target="_blank" rel="noopener noreferrer">
+                  <a href={urlHref} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="w-4 h-4 mr-2" />
                     link
                   </a>
                 </Button>
               )}
-              {publication.pdf_url && (
+              {pdfHref && (
                 <Button asChild variant="outline" size="sm" className="w-full justify-start sm:w-auto font-mono">
-                  <a href={publication.pdf_url} target="_blank" rel="noopener noreferrer">
+                  <a href={pdfHref} target="_blank" rel="noopener noreferrer">
                     <FileText className="w-4 h-4 mr-2" />
                     publisher_pdf
                   </a>
@@ -173,9 +179,9 @@ export function PublicationViewDialog({
                   drive_pdf
                 </Button>
               )}
-              {!driveLoading && driveUrl && (
+              {!driveLoading && driveHref && (
                 <Button asChild variant="outline" size="sm" className="w-full justify-start sm:w-auto font-mono">
-                  <a href={driveUrl} target="_blank" rel="noopener noreferrer">
+                  <a href={driveHref} target="_blank" rel="noopener noreferrer">
                     <GoogleDriveIcon className="w-4 h-4 mr-2" />
                     drive_pdf
                   </a>
