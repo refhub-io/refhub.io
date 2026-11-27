@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { Publication, RELATION_TYPES, RelationType } from '@/types/database';
+import { Publication, RELATION_TYPES } from '@/types/database';
+import { relationColor } from '@/lib/relationColors';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -70,7 +71,6 @@ export function RelatedPapersSection({
     pub.authors.some((a) => a.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  const selectedPublication = availablePublications.find((p) => p.id === selectedPublicationId);
 
   const currentPublication = allPublications.find((p) => p.id === currentPublicationId);
 
@@ -97,16 +97,7 @@ export function RelatedPapersSection({
     return RELATION_TYPES.find((t) => t.value === type)?.label || type;
   };
 
-  const getRelationColor = (type: string): string => {
-    const colors: Record<string, string> = {
-      cites: '#22c55e',
-      extends: '#3b82f6',
-      contradicts: '#ef4444',
-      reviews: '#f97316',
-      builds_on: '#8b5cf6',
-    };
-    return colors[type] || '#22c55e';
-  };
+  const getRelationColor = relationColor;
 
   if (!currentPublicationId) {
     return null;

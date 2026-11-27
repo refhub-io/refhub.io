@@ -4,7 +4,8 @@ import { logger } from '../lib/logger';
 import { showError } from '../lib/toast';
 import { VaultVisibility, VaultRole } from '../types/vault-extensions';
 import { Vault } from '../types/database';
-import { getPageCache, setPageCache, hasPageCache } from '../lib/pageCache';
+import { getPageCache, setPageCache } from '../lib/pageCache';
+import { getCacheOwner, onCacheOwnerChange, ownerTag } from '../lib/cacheOwner';
 
 interface VaultAccessResult {
   canView: boolean;
@@ -12,7 +13,9 @@ interface VaultAccessResult {
   isOwner: boolean;
   isArchived: boolean;
   permission: VaultRole | null;
-  accessStatus: 'granted' | 'denied' | 'pending' | 'requestable' | 'loading';
+  // 'error' means the check itself failed (network, timeout, backend), which says nothing
+  // about access; 'denied' is only for a definite "no".
+  accessStatus: 'granted' | 'denied' | 'pending' | 'requestable' | 'loading' | 'error';
   vault: Vault | null;
   userRole: VaultRole | null;
   error: string | null;
@@ -28,7 +31,24 @@ interface UseVaultAccessOptions {
   enableRealtime?: boolean;
 }
 
+const LOADING_RESULT: VaultAccessResult = {
+  canView: false,
+  canEdit: false,
+  isOwner: false,
+  isArchived: false,
+  permission: null,
+  accessStatus: 'loading',
+  vault: null,
+  userRole: null,
+  error: null,
+};
+
 let vaultAccessSubscriptionCounter = 0;
+
+// Retry callbacks of every mounted instance, by vault. VaultDetail and VaultContentContext
+// each run their own check on the same vault, so a retry from one also has to re-run a
+// failed check in the other.
+const retryIfFailedByVault = new Map<string, Set<() => void>>();
 
 export const useVaultAccess = (
   vaultSlug: string,
@@ -36,32 +56,55 @@ export const useVaultAccess = (
 ) => {
   // Check for cached data before initializing state
   const cacheKey = `vault-access-${vaultSlug}` as const;
-  const cachedData = vaultSlug ? getPageCache<VaultAccessCache>(cacheKey) : null;
+  // Cached answers are scoped to the user they were given to.
+  const cachedData = vaultSlug ? getPageCache<VaultAccessCache>(cacheKey, ownerTag(getCacheOwner())) : null;
   const hasCachedData = useRef(!!cachedData);
   const subscriptionInstanceId = useRef(++vaultAccessSubscriptionCounter);
   
   const [result, setResult] = useState<VaultAccessResult>(
-    cachedData?.result || {
-      canView: false,
-      canEdit: false,
-      isOwner: false,
-      isArchived: false,
-      permission: null,
-      accessStatus: 'loading',
-      vault: null,
-      userRole: null,
-      error: null,
-    }
+    cachedData?.result || LOADING_RESULT
   );
 
   const [refreshKey, setRefreshKey] = useState(0);
   const [isSilentRefresh, setIsSilentRefresh] = useState(hasCachedData.current); // Start silent if cached
+
+  const accessStatusRef = useRef(result.accessStatus);
+  useEffect(() => {
+    accessStatusRef.current = result.accessStatus;
+  }, [result.accessStatus]);
+
+  // Re-runs this instance's check only if it failed; one that succeeded is left alone.
+  const retryIfFailed = useRef(() => {
+    if (accessStatusRef.current !== 'error') return;
+    setIsSilentRefresh(false);
+    setRefreshKey(prev => prev + 1);
+  });
+  // Calls retryIfFailed on the other instances for this vault.
+  const retryOtherInstances = useRef(() => {});
+
+  useEffect(() => {
+    if (!vaultSlug) return;
+    const retry = retryIfFailed.current;
+    const retries = retryIfFailedByVault.get(vaultSlug) ?? new Set<() => void>();
+    retries.add(retry);
+    retryIfFailedByVault.set(vaultSlug, retries);
+    retryOtherInstances.current = () => {
+      retries.forEach((other) => {
+        if (other !== retry) other();
+      });
+    };
+    return () => {
+      retryOtherInstances.current = () => {};
+      retries.delete(retry);
+      if (retries.size === 0) retryIfFailedByVault.delete(vaultSlug);
+    };
+  }, [vaultSlug]);
   
   // Restore from cache when vaultSlug changes (for switching between vaults)
   useEffect(() => {
     if (!vaultSlug) return;
     
-    const cached = getPageCache<VaultAccessCache>(cacheKey);
+    const cached = getPageCache<VaultAccessCache>(cacheKey, ownerTag(getCacheOwner()));
     if (cached) {
       // Restore cached result immediately for instant UI update
       setResult(cached.result);
@@ -69,25 +112,24 @@ export const useVaultAccess = (
     } else {
       // No cache - reset to loading state with cleared data
       // This prevents showing old vault data while new vault loads
-      setResult({
-        canView: false,
-        canEdit: false,
-        isOwner: false,
-        isArchived: false,
-        permission: null,
-        accessStatus: 'loading',
-        vault: null,
-        userRole: null,
-        error: null,
-      });
+      setResult(LOADING_RESULT);
       setIsSilentRefresh(false);
     }
   }, [vaultSlug, cacheKey]);
+
+  // Access depends on who's asking. When this tab's user changes (sign-in, sign-out, or a switch
+  // made in another tab), the previous user's answer is dropped at once and the check runs again.
+  useEffect(() => onCacheOwnerChange(() => {
+    setResult(LOADING_RESULT);
+    setIsSilentRefresh(false);
+    setRefreshKey(prev => prev + 1);
+  }), []);
 
   // Regular refresh - shows loading state (for initial load or when user explicitly wants loading feedback)
   const refresh = () => {
     setIsSilentRefresh(false);
     setRefreshKey(prev => prev + 1);
+    retryOtherInstances.current();
   };
 
   // Silent refresh - updates data in background without showing loading state
@@ -106,7 +148,7 @@ export const useVaultAccess = (
   // access check would have succeeded on retry.
   useEffect(() => {
     if (vaultSlug && (result.accessStatus === 'granted' || result.accessStatus === 'requestable' || result.accessStatus === 'pending')) {
-      setPageCache<VaultAccessCache>(cacheKey, { result });
+      setPageCache<VaultAccessCache>(cacheKey, { result }, ownerTag(getCacheOwner()));
     }
   }, [vaultSlug, result, cacheKey]);
 
@@ -161,17 +203,9 @@ export const useVaultAccess = (
             const { data: metadata, error: metadataError } = await supabase
               .rpc('get_vault_metadata', { vault_id: vaultSlug });
 
-            if (metadataError) {
-              // A genuine RPC failure (network, backend) — distinct from the
-              // RPC succeeding but finding nothing, which just means the
-              // vault doesn't exist or is private and needs no toast.
-              logger.error('useVaultAccess', 'get_vault_metadata RPC failed:', metadataError);
-              showError(
-                'Could not check vault access',
-                'RefHub could not verify this vault right now. Try refreshing the page.',
-                { source: null },
-              );
-            }
+            // A genuine RPC failure (network, backend) is not the same as the RPC
+            // succeeding but finding nothing (vault doesn't exist or is private).
+            if (metadataError) throw metadataError;
 
             if (metadata && metadata.length > 0) {
               vaultData = metadata[0];
@@ -180,7 +214,8 @@ export const useVaultAccess = (
               vaultNotFound = true;
             }
           } else {
-            // Some other error occurred (network, etc.) — continue
+            // Anything but "no rows" (network, timeout, backend) means we couldn't check.
+            throw error;
           }
         } else {
           // Successfully retrieved vault data - vault exists
@@ -282,6 +317,7 @@ export const useVaultAccess = (
           shareError = emailShareError;
         }
 
+        if (shareError) throw shareError;
         if (!mounted) return;
 
         if (share && !shareError) {
@@ -297,6 +333,7 @@ export const useVaultAccess = (
             .eq('vault_id', vaultSlug)  // Use slug directly
             .eq('requester_id', user?.id)
             .maybeSingle();  // Use maybeSingle - 0 rows is not an error
+          if (requestError) throw requestError;
 
           if (!mounted) return;
 
@@ -366,16 +403,27 @@ export const useVaultAccess = (
 
       } catch (error) {
         logger.error('useVaultAccess', 'Error checking vault access:', error);
-        if (mounted) {
-          // In case of a real error (network, etc.), we should retry or handle gracefully
-          // For now, let's set to denied without an error message to avoid showing error to user
-          // A more sophisticated approach would be to implement retry logic
-          setResult(prev => ({
-            ...prev,
-            accessStatus: 'denied',
-            error: null, // Don't show error to user - just indicate no access
-          }));
-        }
+        if (!mounted) return;
+        // A failed background refresh keeps the current answer rather than locking the
+        // user out of a vault they're already viewing.
+        if (isSilentRefresh) return;
+        // The check failed, which says nothing about access: report it as a retryable
+        // error (never cached), not as denied.
+        showError(
+          'Could not check vault access',
+          'RefHub could not verify this vault right now. Try again.',
+          { source: null },
+        );
+        setResult(prev => ({
+          ...prev,
+          canView: false,
+          canEdit: false,
+          isOwner: false,
+          permission: null,
+          userRole: null,
+          accessStatus: 'error',
+          error: 'Could not check vault access',
+        }));
       }
     };
 

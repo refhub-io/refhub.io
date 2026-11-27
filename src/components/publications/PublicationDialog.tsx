@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type RefObject } from 'react';
 import { logger } from '@/lib/logger';
+import { findDuplicate, type DuplicateMatch } from '@/lib/dupeDetection';
 import { Publication, PublicationRelation, Vault, Tag, PUBLICATION_TYPES } from '@/types/database';
 import { UnsavedChangesDialog } from '@/components/ui/unsaved-changes-dialog';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
@@ -213,10 +214,9 @@ export function PublicationDialog({
   const [notesFullscreen, setNotesFullscreen] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [, setTick] = useState(0); // Force re-render for relative time display
-  const [duplicateWarning, setDuplicateWarning] = useState<Publication | null>(null);
+  const [duplicateWarning, setDuplicateWarning] = useState<DuplicateMatch<Publication> | null>(null);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [showPendingSuggestionsDialog, setShowPendingSuggestionsDialog] = useState(false);
-  const [pendingClose, setPendingClose] = useState(false);
   const [pendingExitFullscreen, setPendingExitFullscreen] = useState(false);
   const [drivePdfInput, setDrivePdfInput] = useState<string>(driveUrl ?? '');
   const [driveUploadStatus, setDriveUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
@@ -472,30 +472,12 @@ export function PublicationDialog({
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [notesFullscreen, handleExitFullscreen]);
 
-  // Duplicate checker helper wrapped in useCallback
-  const checkForDuplicate = useCallback((checkData: Partial<Publication>) => {
-    // Don't check against the publication being edited
-    const editingId = publication?.id;
-    
-    return allPublications.find(pub => {
-      if (editingId && pub.id === editingId) return false;
-      
-      // Check DOI match (if DOI exists on both)
-      if (checkData.doi && pub.doi && checkData.doi.toLowerCase().trim() === pub.doi.toLowerCase().trim()) {
-        return true;
-      }
-      
-      // Check title match (normalize for comparison)
-      if (checkData.title && pub.title) {
-        const normalizeTitle = (title: string) => title.toLowerCase().trim().replace(/\s+/g, ' ');
-        if (normalizeTitle(checkData.title) === normalizeTitle(pub.title)) {
-          return true;
-        }
-      }
-      
-      return false;
-    });
-  }, [publication, allPublications]);
+  // The shared rule (lib/dupeDetection): same DOI = duplicate (saving is blocked), similar
+  // title/authors = warning. The paper being edited is never its own duplicate.
+  const checkForDuplicate = useCallback(
+    (checkData: Partial<Publication>) => findDuplicate(checkData, allPublications, { excludeId: publication?.id }),
+    [allPublications, publication?.id],
+  );
 
   useEffect(() => {
     // Only reset form data if dialog is opening with a different publication or opening fresh
@@ -770,7 +752,6 @@ export function PublicationDialog({
     openRef.current = open;
     if (open) {
       isInitialLoadRef.current = true;
-      setPendingClose(false);
     }
   }, [open, publication]);
 
@@ -780,9 +761,6 @@ export function PublicationDialog({
     authorsInputRef.current = authorsInput;
     selectedTagsRef.current = selectedTags;
   }, [formData, authorsInput, selectedTags]);
-
-  // Compute isDirty based on modifiedFields - only true if user has actually modified something
-  const isDirty = modifiedFields.size > 0;
 
   // Handle beforeunload when dialog is open and dirty
   useEffect(() => {
@@ -851,7 +829,6 @@ export function PublicationDialog({
     
     // Dialog wants to close
     if (modifiedFields.size > 0) {
-      setPendingClose(true);
       setShowUnsavedDialog(true);
     } else if (relationshipSuggestions.length > 0) {
       setShowPendingSuggestionsDialog(true);
@@ -877,7 +854,6 @@ export function PublicationDialog({
       setNotesFullscreen(false);
     } else {
       setModifiedFields(new Set());
-      setPendingClose(false);
       if (relationshipSuggestions.length > 0) {
         setShowPendingSuggestionsDialog(true);
       } else {
@@ -916,7 +892,6 @@ export function PublicationDialog({
         notesFullscreenRef.current = false;
         setNotesFullscreen(false);
       } else {
-        setPendingClose(false);
         if (relationshipSuggestions.length > 0) {
           setShowPendingSuggestionsDialog(true);
         } else {
@@ -945,7 +920,6 @@ export function PublicationDialog({
         onDiscard={handleDiscardChanges}
         onCancel={() => {
           setShowUnsavedDialog(false);
-          setPendingClose(false);
           setPendingExitFullscreen(false);
         }}
         onSave={handleSaveAndClose}
@@ -1132,13 +1106,23 @@ export function PublicationDialog({
           )}
         </DialogHeader>
 
-        {duplicateWarning && (
+        {duplicateWarning?.kind === 'doi' && (
+          <div className="mx-2 sm:mx-6 mb-2 bg-red-500/10 border border-red-500/30 rounded-md px-3 py-2">
+            <p className="text-xs font-mono text-red-600 dark:text-red-400">
+              <span className="text-red-500 font-bold">&gt;&gt;</span> duplicate: same doi as an existing paper
+            </p>
+            <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+              Already saved as: "{duplicateWarning.publication.title}"
+            </p>
+          </div>
+        )}
+        {duplicateWarning?.kind === 'similar' && (
           <div className="mx-2 sm:mx-6 mb-2 bg-orange-500/10 border border-orange-500/30 rounded-md px-3 py-2">
             <p className="text-xs font-mono text-orange-600 dark:text-orange-400">
               <span className="text-orange-500 font-bold">&gt;&gt;</span> warning: possible duplicate detected
             </p>
             <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
-              Similar to: "{duplicateWarning.title}"
+              Similar to: "{duplicateWarning.publication.title}"
             </p>
           </div>
         )}

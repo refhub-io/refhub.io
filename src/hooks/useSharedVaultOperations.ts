@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Publication, Tag, PublicationTag } from '@/types/database';
 import { useToast } from '@/hooks/use-toast';
 import { extractBibliographicPatch } from '@/lib/publicationSync';
+import { formatVaultPublication } from '@/lib/formatVaultPublication';
 import { logger } from '@/lib/logger';
 
 interface OptimisticUpdate<T> {
@@ -565,45 +566,16 @@ export function useSharedVaultOperations({
     const tempId = `temp_${operationId}`;
     const previousPublications = [...publications];
 
-    // Create optimistic publication
-    const optimisticPublication: Publication = {
+    // The placeholder goes through the same mapping as the row that replaces it.
+    const now = new Date().toISOString();
+    const optimisticPublication = formatVaultPublication({
+      ...data,
       id: tempId,
-      user_id: userId,
+      created_by: userId,
       title: data.title || '',
-      authors: data.authors || [],
-      year: data.year || null,
-      journal: data.journal || null,
-      volume: data.volume || null,
-      issue: data.issue || null,
-      pages: data.pages || null,
-      doi: data.doi || null,
-      url: data.url || null,
-      abstract: data.abstract || null,
-      pdf_url: data.pdf_url || null,
-      bibtex_key: data.bibtex_key || null,
-      publication_type: data.publication_type || 'article',
-      notes: data.notes || null,
-      booktitle: data.booktitle || null,
-      chapter: data.chapter || null,
-      edition: data.edition || null,
-      editor: data.editor || null,
-      howpublished: data.howpublished || null,
-      institution: data.institution || null,
-      number: data.number || null,
-      organization: data.organization || null,
-      publisher: data.publisher || null,
-      school: data.school || null,
-      series: data.series || null,
-      type: data.type || null,
-      eid: data.eid || null,
-      isbn: data.isbn || null,
-      issn: data.issn || null,
-      keywords: data.keywords || null,
-      reading_state: 'unread',
-      important: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+      created_at: now,
+      updated_at: now,
+    });
 
     // Store previous state for potential rollback
     pendingPublicationUpdates.current.set(operationId, {
@@ -646,45 +618,10 @@ export function useSharedVaultOperations({
 
       if (vaultPubError) throw vaultPubError;
 
-      // Convert vault publication to Publication format
-      const finalPublication: Publication = {
-        id: vaultPub.id,
-        user_id: userId,
-        title: vaultPub.title,
-        authors: vaultPub.authors || [],
-        year: vaultPub.year,
-        journal: vaultPub.journal,
-        volume: vaultPub.volume,
-        issue: vaultPub.issue,
-        pages: vaultPub.pages,
-        doi: vaultPub.doi,
-        url: vaultPub.url,
-        abstract: vaultPub.abstract,
-        pdf_url: vaultPub.pdf_url,
-        bibtex_key: vaultPub.bibtex_key,
-        publication_type: vaultPub.publication_type || 'article',
-        notes: vaultPub.notes,
-        booktitle: vaultPub.booktitle,
-        chapter: vaultPub.chapter,
-        edition: vaultPub.edition,
-        editor: vaultPub.editor,
-        howpublished: vaultPub.howpublished,
-        institution: vaultPub.institution,
-        number: vaultPub.number,
-        organization: vaultPub.organization,
-        publisher: vaultPub.publisher,
-        school: vaultPub.school,
-        series: vaultPub.series,
-        type: vaultPub.type,
-        eid: vaultPub.eid,
-        isbn: vaultPub.isbn,
-        issn: vaultPub.issn,
-        keywords: vaultPub.keywords,
-        reading_state: (vaultPub.reading_state || 'unread') as Publication['reading_state'],
-        important: vaultPub.important ?? false,
-        created_at: vaultPub.created_at,
-        updated_at: vaultPub.updated_at,
-      };
+      // The full row, including original_publication_id and the section/featured fields. A
+      // hand-built copy used to drop them, so the first edit in the same session found no
+      // canonical id and skipped updating the canonical copy.
+      const finalPublication = formatVaultPublication(vaultPub);
 
       // Replace temporary publication with real one
       // Also filter out any duplicates that might have been added by realtime

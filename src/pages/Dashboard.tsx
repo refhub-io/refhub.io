@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef, type RefObject } from 'react';
 import { logger } from '@/lib/logger';
+import { findDuplicate } from '@/lib/dupeDetection';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
@@ -564,29 +565,6 @@ export default function Dashboard() {
   // to ensure proper access to all required data and avoid duplication issues
   // These will be passed to the PublicationList component via state
 
-  const checkForDuplicate = (newPub: Partial<Publication>, existingPubs: Publication[], excludeId?: string) => {
-    const duplicate = existingPubs.find(pub => {
-      if (excludeId && pub.id === excludeId) return false;
-      
-      // Check DOI match (if DOI exists on both)
-      if (newPub.doi && pub.doi && newPub.doi.toLowerCase().trim() === pub.doi.toLowerCase().trim()) {
-        return true;
-      }
-      
-      // Check title match (normalize for comparison)
-      if (newPub.title && pub.title) {
-        const normalizeTitle = (title: string) => title.toLowerCase().trim().replace(/\s+/g, ' ');
-        if (normalizeTitle(newPub.title) === normalizeTitle(pub.title)) {
-          return true;
-        }
-      }
-      
-      return false;
-    });
-    
-    return duplicate;
-  };
-
   const handleSavePublication = async (data: Partial<Publication>, tagIds: string[], _vaultIds?: string[], isAutoSave = false, driveUrl?: string | null, feedbackSource?: Element | RefObject<Element | null> | null) => {
     if (!user) return;
 
@@ -843,12 +821,13 @@ export default function Dashboard() {
           toast({ title: 'Paper updated ✨', source: feedbackSource ?? null });
         }
       } else {
-        // Check for duplicates before adding
-        const duplicate = checkForDuplicate(data, publications);
-        if (duplicate) {
+        // A paper with the same DOI blocks the save. A similar title/author match only warns
+        // (PublicationDialog shows that before saving), so it can be saved on purpose.
+        const duplicate = findDuplicate(data, publications);
+        if (duplicate?.kind === 'doi') {
           toast({
             title: 'Duplicate paper detected',
-            description: `This looks like an existing paper: "${duplicate.title.substring(0, 50)}...". Open the existing record or change the DOI/title before saving.`,
+            description: `"${duplicate.publication.title.substring(0, 50)}..." has the same DOI. Open the existing record or change the DOI before saving.`,
             variant: 'destructive', feedbackSeverity: 'error',
             source: feedbackSource ?? null,
           });

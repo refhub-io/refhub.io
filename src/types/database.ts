@@ -218,6 +218,8 @@ export const RELATION_TYPES = [
   { value: 'builds_on', label: 'Builds On' },
   { value: 'contradicts', label: 'Contradicts' },
   { value: 'reviews', label: 'Reviews' },
+  // The column default, and what API/CLI-created relations use when no type is given.
+  { value: 'related', label: 'Related' },
 ] as const;
 
 export type RelationType = typeof RELATION_TYPES[number]['value'];
