@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { dismissQuoterm, getQuotermsSnapshot } from 'quoterm';
 import { useVaultAccess } from './useVaultAccess';
 import { hasPageCache } from '../lib/pageCache';
@@ -209,6 +209,43 @@ describe('useVaultAccess — failed checks are errors, not denials', () => {
     const { result } = renderHook(() => useVaultAccess('vault-err-2', { enableRealtime: false }));
 
     await waitFor(() => expect(result.current.accessStatus).toBe('error'));
+  });
+
+  // VaultDetail and VaultContentContext each run their own check on the same vault. When both
+  // fail, the retry button on the page has to recover both, or the vault opens with no papers.
+  it('retries a failed check in every instance for the vault, not only the one retried', async () => {
+    mockSignedIn('owner-1');
+    mockSingle.mockResolvedValue({ data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } });
+
+    const page = renderHook(() => useVaultAccess('vault-err-3', { enableRealtime: false }));
+    const content = renderHook(() => useVaultAccess('vault-err-3', { enableRealtime: false }));
+    await waitFor(() => expect(page.result.current.accessStatus).toBe('error'));
+    await waitFor(() => expect(content.result.current.accessStatus).toBe('error'));
+
+    mockSingle.mockResolvedValue({ data: makeVault({ id: 'vault-err-3' }), error: null });
+    act(() => page.result.current.refresh());
+
+    await waitFor(() => expect(page.result.current.accessStatus).toBe('granted'));
+    await waitFor(() => expect(content.result.current.accessStatus).toBe('granted'));
+    expect(content.result.current.canView).toBe(true);
+  });
+
+  it('leaves an instance whose check succeeded alone when another instance retries', async () => {
+    mockSignedIn('owner-1');
+    mockSingle
+      .mockResolvedValueOnce({ data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } })
+      .mockResolvedValue({ data: makeVault({ id: 'vault-err-4' }), error: null });
+
+    const page = renderHook(() => useVaultAccess('vault-err-4', { enableRealtime: false }));
+    const content = renderHook(() => useVaultAccess('vault-err-4', { enableRealtime: false }));
+    await waitFor(() => expect(page.result.current.accessStatus).toBe('error'));
+    await waitFor(() => expect(content.result.current.accessStatus).toBe('granted'));
+    const callsBeforeRetry = mockSingle.mock.calls.length;
+
+    act(() => page.result.current.refresh());
+
+    await waitFor(() => expect(page.result.current.accessStatus).toBe('granted'));
+    expect(mockSingle.mock.calls.length).toBe(callsBeforeRetry + 1);
   });
 });
 

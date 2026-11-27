@@ -32,6 +32,11 @@ interface UseVaultAccessOptions {
 
 let vaultAccessSubscriptionCounter = 0;
 
+// Retry callbacks of every mounted instance, by vault. VaultDetail and VaultContentContext
+// each run their own check on the same vault, so a retry from one also has to re-run a
+// failed check in the other.
+const retryIfFailedByVault = new Map<string, Set<() => void>>();
+
 export const useVaultAccess = (
   vaultSlug: string,
   { enableRealtime = true }: UseVaultAccessOptions = {}
@@ -58,6 +63,38 @@ export const useVaultAccess = (
 
   const [refreshKey, setRefreshKey] = useState(0);
   const [isSilentRefresh, setIsSilentRefresh] = useState(hasCachedData.current); // Start silent if cached
+
+  const accessStatusRef = useRef(result.accessStatus);
+  useEffect(() => {
+    accessStatusRef.current = result.accessStatus;
+  }, [result.accessStatus]);
+
+  // Re-runs this instance's check only if it failed; one that succeeded is left alone.
+  const retryIfFailed = useRef(() => {
+    if (accessStatusRef.current !== 'error') return;
+    setIsSilentRefresh(false);
+    setRefreshKey(prev => prev + 1);
+  });
+  // Calls retryIfFailed on the other instances for this vault.
+  const retryOtherInstances = useRef(() => {});
+
+  useEffect(() => {
+    if (!vaultSlug) return;
+    const retry = retryIfFailed.current;
+    const retries = retryIfFailedByVault.get(vaultSlug) ?? new Set<() => void>();
+    retries.add(retry);
+    retryIfFailedByVault.set(vaultSlug, retries);
+    retryOtherInstances.current = () => {
+      retries.forEach((other) => {
+        if (other !== retry) other();
+      });
+    };
+    return () => {
+      retryOtherInstances.current = () => {};
+      retries.delete(retry);
+      if (retries.size === 0) retryIfFailedByVault.delete(vaultSlug);
+    };
+  }, [vaultSlug]);
   
   // Restore from cache when vaultSlug changes (for switching between vaults)
   useEffect(() => {
@@ -90,6 +127,7 @@ export const useVaultAccess = (
   const refresh = () => {
     setIsSilentRefresh(false);
     setRefreshKey(prev => prev + 1);
+    retryOtherInstances.current();
   };
 
   // Silent refresh - updates data in background without showing loading state
