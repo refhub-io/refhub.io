@@ -81,10 +81,52 @@ export function normalizeBibtexImportText(value: string): string {
   return normalized.normalize('NFC');
 }
 
+// Keys and escaping must match the API's exporter (refhub-io/.netlify src/export.js), so web and
+// API/CLI exports agree. src/lib/bibtex-golden.json pins the shared behavior and has an identical
+// copy in that repo's tests/fixtures/; change both together.
+
+// Characters a BibTeX key can't contain: whitespace and " # % ' ( ) , = { } \ ~
+const INVALID_KEY_CHARS = /[\s"#%'(),={}\\~]/g;
+
+/**
+ * Keeps a value's braces balanced, which is what stops it from ending its field early.
+ * BibTeX counts every brace when it looks for the end of a field, with or without a
+ * backslash in front, so an unmatched brace (and its escaping backslash, if any) is
+ * replaced by \textbraceleft{} or \textbraceright{}: LaTeX prints a brace, but the
+ * replacement contains only balanced braces. Balanced braces (e.g. {GPU}) stay.
+ */
+function neutralizeUnbalancedBraces(value: string): string {
+  const chars = Array.from(value);
+  const open: number[] = [];
+  const unmatched = new Set<number>();
+  chars.forEach((char, i) => {
+    if (char === '{') open.push(i);
+    else if (char === '}') {
+      if (open.length) open.pop();
+      else unmatched.add(i);
+    }
+  });
+  open.forEach((i) => unmatched.add(i));
+
+  let out = '';
+  chars.forEach((char, i) => {
+    if (!unmatched.has(i)) {
+      out += char;
+      return;
+    }
+    const backslashes = out.match(/\\+$/)?.[0].length ?? 0;
+    if (backslashes % 2 === 1) out = out.slice(0, -1); // drop the backslash that escaped this brace
+    out += char === '{' ? '\\textbraceleft{}' : '\\textbraceright{}';
+  });
+  return out;
+}
+
 function escapeBibtexValue(value: string): string {
-  return Array.from(value.normalize('NFC'), (char) =>
+  const latex = Array.from(value.normalize('NFC'), (char) =>
     char.charCodeAt(0) > 0x7f ? UNICODE_TO_LATEX.get(char) ?? char : char
-  ).join('')
+  ).join('');
+  // Line breaks become spaces: a blank line inside a field typesets as a paragraph break.
+  return neutralizeUnbalancedBraces(latex.replace(/[\r\n]+/g, ' '))
     .replace(/[&%$#_]/g, (char) => SPECIAL_BIBTEX_CHARS[char]);
 }
 
@@ -97,11 +139,13 @@ function normalizeBibtexKeyPart(value: string): string {
 }
 
 export function generateBibtexKey(pub: Publication): string {
-  if (pub.bibtex_key) return pub.bibtex_key;
-  
+  // A stored key is kept as the user wrote it; only characters a key can't contain are dropped.
+  const stored = (pub.bibtex_key || '').replace(INVALID_KEY_CHARS, '');
+  if (stored) return stored;
+
   const firstAuthor = pub.authors[0] || 'Unknown';
   const lastName = normalizeBibtexKeyPart(firstAuthor.split(' ').pop() || 'unknown') || 'unknown';
-  const year = pub.year || 'n.d.';
+  const year = pub.year || 'nd';
   const titleWord = normalizeBibtexKeyPart(pub.title.split(' ')[0] || 'untitled') || 'untitled';
   
   return `${lastName}${year}${titleWord}`;

@@ -1,0 +1,240 @@
+{
+  "note": "Shared BibTeX export contract. An identical copy lives in refhub.io (src/lib/bibtex-golden.json) and .netlify (tests/fixtures/bibtex-golden.json); both exporters must produce exactly these citation keys and field values. Change both copies together.",
+  "cases": [
+    {
+      "name": "stored key keeps its case",
+      "publication": {
+        "bibtex_key": "Smith2020Deep",
+        "authors": [
+          "Jane Smith"
+        ],
+        "year": 2020,
+        "title": "Deep Learning"
+      },
+      "expected": {
+        "key": "Smith2020Deep",
+        "title": "Deep Learning",
+        "author": "Jane Smith"
+      }
+    },
+    {
+      "name": "stored key drops characters a BibTeX key can't contain",
+      "publication": {
+        "bibtex_key": "Smith 2020,{deep}",
+        "authors": [
+          "Jane Smith"
+        ],
+        "year": 2020,
+        "title": "Deep Learning"
+      },
+      "expected": {
+        "key": "Smith2020deep"
+      }
+    },
+    {
+      "name": "stored key keeps colons, dots and dashes",
+      "publication": {
+        "bibtex_key": "doe:2021.v2-final",
+        "authors": [
+          "John Doe"
+        ],
+        "year": 2021,
+        "title": "Final Version"
+      },
+      "expected": {
+        "key": "doe:2021.v2-final"
+      }
+    },
+    {
+      "name": "a stored key with nothing valid falls back to a generated key",
+      "publication": {
+        "bibtex_key": " ,{}",
+        "authors": [
+          "Grace Hopper"
+        ],
+        "year": 1952,
+        "title": "The Education of a Computer"
+      },
+      "expected": {
+        "key": "hopper1952the"
+      }
+    },
+    {
+      "name": "generated keys strip accents and values become LaTeX",
+      "publication": {
+        "authors": [
+          "Jürgen Müller"
+        ],
+        "year": 2019,
+        "title": "Über neuronale Netze"
+      },
+      "expected": {
+        "key": "muller2019uber",
+        "title": "{\\\"{U}}ber neuronale Netze",
+        "author": "J{\\\"{u}}rgen M{\\\"{u}}ller"
+      }
+    },
+    {
+      "name": "generated keys decode LaTeX-encoded names",
+      "publication": {
+        "authors": [
+          "Paul Erd{\\H{o}}s"
+        ],
+        "year": 1947,
+        "title": "Some remarks on the theory of graphs"
+      },
+      "expected": {
+        "key": "erdos1947some",
+        "author": "Paul Erd{\\H{o}}s"
+      }
+    },
+    {
+      "name": "a generated key without a year uses nd",
+      "publication": {
+        "authors": [
+          "Ada Lovelace"
+        ],
+        "title": "Notes on the Analytical Engine"
+      },
+      "expected": {
+        "key": "lovelacendnotes"
+      }
+    },
+    {
+      "name": "a generated key without authors uses unknown",
+      "publication": {
+        "authors": [],
+        "year": 2001,
+        "title": "Anonymous Report"
+      },
+      "expected": {
+        "key": "unknown2001anonymous"
+      }
+    },
+    {
+      "name": "BibTeX special characters are escaped",
+      "publication": {
+        "authors": [
+          "A Author"
+        ],
+        "year": 2020,
+        "title": "Fast & Furious: 100% of $5 for #1 a_b"
+      },
+      "expected": {
+        "title": "Fast \\& Furious: 100\\% of \\$5 for \\#1 a\\_b",
+        "key": "author2020fast"
+      }
+    },
+    {
+      "name": "balanced braces stay, so they still protect capitalization",
+      "publication": {
+        "authors": [
+          "A Author"
+        ],
+        "year": 2020,
+        "title": "Training {GPU} Kernels with {CUDA}"
+      },
+      "expected": {
+        "title": "Training {GPU} Kernels with {CUDA}",
+        "key": "author2020training"
+      }
+    },
+    {
+      "name": "unbalanced braces become brace commands, so they can't end the field",
+      "publication": {
+        "authors": [
+          "A Author"
+        ],
+        "year": 2020,
+        "title": "Sets} of {braces"
+      },
+      "expected": {
+        "title": "Sets\\textbraceright{} of \\textbraceleft{}braces",
+        "key": "author2020sets"
+      }
+    },
+    {
+      "name": "LaTeX commands in values pass through",
+      "publication": {
+        "authors": [
+          "A Author"
+        ],
+        "year": 2020,
+        "title": "The \\emph{best} method"
+      },
+      "expected": {
+        "title": "The \\emph{best} method",
+        "key": "author2020the"
+      }
+    },
+    {
+      "name": "Unicode letters and ampersands in a journal name",
+      "publication": {
+        "authors": [
+          "A Author"
+        ],
+        "year": 2020,
+        "title": "Report",
+        "journal": "Ångström & Co. Review"
+      },
+      "expected": {
+        "journal": "{\\AA}ngstr{\\\"{o}}m \\& Co. Review",
+        "key": "author2020report"
+      }
+    },
+    {
+      "name": "a backslash doesn't make an unmatched brace safe (BibTeX still counts it)",
+      "publication": {
+        "authors": [
+          "A Author"
+        ],
+        "year": 2020,
+        "title": "x\\}, note = {injected"
+      },
+      "expected": {
+        "key": "author2020x",
+        "title": "x\\textbraceright{}, note = \\textbraceleft{}injected"
+      }
+    },
+    {
+      "name": "an attempt to start a new entry stays inside the field",
+      "publication": {
+        "authors": [
+          "A Author"
+        ],
+        "year": 2020,
+        "title": "}\n\n@misc{evil, title={pwned}"
+      },
+      "expected": {
+        "title": "\\textbraceright{} @misc\\textbraceleft{}evil, title={pwned}"
+      }
+    },
+    {
+      "name": "balanced escaped braces are left alone",
+      "publication": {
+        "authors": [
+          "A Author"
+        ],
+        "year": 2020,
+        "title": "Literal \\{braces\\} kept"
+      },
+      "expected": {
+        "title": "Literal \\{braces\\} kept"
+      }
+    },
+    {
+      "name": "line breaks become spaces",
+      "publication": {
+        "authors": [
+          "A Author"
+        ],
+        "year": 2020,
+        "title": "Abstract test",
+        "abstract": "First line.\nSecond line.\r\n\r\nThird."
+      },
+      "expected": {
+        "abstract": "First line. Second line. Third."
+      }
+    }
+  ]
+}
