@@ -38,6 +38,7 @@ import {
 import { GoogleDriveIcon } from '@/components/ui/GoogleDriveIcon';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { getValidHttpUrl } from '@/lib/safeUrl';
 
 interface PublicationTableProps {
   publications: Publication[];
@@ -309,6 +310,9 @@ const PublicationTableRow = memo(forwardRef<HTMLTableRowElement, PublicationTabl
   attributes,
   isDragging,
 }, ref) {
+  // Only http(s) URLs become links (see getValidHttpUrl).
+  const pdfHref = getValidHttpUrl(pub.pdf_url);
+  const driveHref = getValidHttpUrl(driveUrl);
   const pubTags = tags.filter((t) => tagIds.includes(t.id));
   const kbProps = kbItemProps ? kbItemProps(index, pub.id) : {};
   const {
@@ -492,9 +496,9 @@ const PublicationTableRow = memo(forwardRef<HTMLTableRowElement, PublicationTabl
       {visibleColumns.pdf && (
         <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-center gap-1.5">
-            {pub.pdf_url ? (
+            {pdfHref ? (
               <a
-                href={pub.pdf_url}
+                href={pdfHref}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-muted-foreground hover:text-hot-pink transition-colors"
@@ -505,9 +509,9 @@ const PublicationTableRow = memo(forwardRef<HTMLTableRowElement, PublicationTabl
             ) : null}
             {driveLoading ? (
               <LoadingIcon className="w-3 h-3 animate-spin text-muted-foreground" />
-            ) : driveUrl ? (
+            ) : driveHref ? (
               <a
-                href={driveUrl}
+                href={driveHref}
                 target="_blank"
                 rel="noopener noreferrer"
                 title="open_in_drive"
@@ -516,7 +520,7 @@ const PublicationTableRow = memo(forwardRef<HTMLTableRowElement, PublicationTabl
                 <GoogleDriveIcon className="w-4 h-4" />
               </a>
             ) : null}
-            {!pub.pdf_url && !driveLoading && !driveUrl && (
+            {!pdfHref && !driveLoading && !driveHref && (
               <span className="text-muted-foreground text-xs">—</span>
             )}
           </div>

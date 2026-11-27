@@ -28,6 +28,7 @@ import {
 import { cn } from '@/lib/utils';
 import { HierarchicalTagBadge } from '@/components/tags/HierarchicalTagBadge';
 import { ReadingProgressControl, ImportantToggle } from './ReadingStateControl';
+import { getValidHttpUrl } from '@/lib/safeUrl';
 
 interface PublicationCardProps {
   publication: Publication;
@@ -84,6 +85,9 @@ export function PublicationCard({
   onUpdateReadingState,
 }: PublicationCardProps) {
   const [notesExpanded, setNotesExpanded] = useState(false);
+  // Only http(s) URLs become links (see getValidHttpUrl).
+  const pdfHref = getValidHttpUrl(publication.pdf_url);
+  const driveHref = getValidHttpUrl(driveUrl);
   
   const formatAuthors = (authors: string[]) => {
     if (authors.length === 0) return 'Unknown author';
@@ -170,9 +174,9 @@ export function PublicationCard({
               </div>
 
               <div className="flex flex-wrap items-center gap-1 shrink-0 sm:justify-end">
-                {show.pdf && publication.pdf_url && (
+                {show.pdf && pdfHref && (
                   <a
-                    href={publication.pdf_url}
+                    href={pdfHref}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
@@ -192,9 +196,9 @@ export function PublicationCard({
                     sync+{syncDiffCount}
                   </Badge>
                 )}
-                {!driveLoading && driveUrl && (
+                {!driveLoading && driveHref && (
                   <a
-                    href={driveUrl}
+                    href={driveHref}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}

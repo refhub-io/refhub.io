@@ -28,6 +28,10 @@ Phase 2 (correctness) of the v2.5 performance and maintainability milestone (#27
 
 ### Added
 - A database CHECK that limits `publication_relations.relation_type` to the six types, in migration `20261127000000_relation_type_check.sql`. It's added `NOT VALID`, then validated if every existing row conforms; otherwise a NOTICE lists the offending values (#255).
+## [2.2.1] - 2026-11-27
+
+### Security
+- Only http and https URLs become links. This covers profile links (GitHub, LinkedIn, Bluesky), paper URLs, and PDF, Drive and Semantic Scholar links, all of which can be shown to people other than whoever entered them. The profile form rejects other links and saves them trimmed and normalized. Migration `20261127120000_profile_links_http_only.sql` adds database CHECKs to the three profile link columns. Before adding them, it trims existing values and clears any value that isn't an http(s) URL.
 
 ## [2.2.0] - 2026-11-27
 
