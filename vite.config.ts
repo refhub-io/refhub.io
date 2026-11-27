@@ -29,6 +29,11 @@ export default defineConfig(({ mode }) => ({
     environment: "jsdom",
     setupFiles: "./src/test/setup.ts",
     css: true,
+    // jsdom component tests (VaultDialog, PublicationDialog, Inbox, KeyboardHelpOverlay)
+    // take 1-2 s alone and several times that when the whole suite runs in parallel, so
+    // vitest's 5 s default timed them out intermittently. One suite-wide limit replaces
+    // the per-test overrides they used to carry; 15 s still catches a hung test.
+    testTimeout: 15_000,
     // Agent worktrees under .claude/ hold stale copies of the test suite.
     exclude: [...configDefaults.exclude, ".claude/**"],
   },
