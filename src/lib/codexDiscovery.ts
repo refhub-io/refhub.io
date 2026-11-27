@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { RawVaultPublicationRow } from './publicationAggregate';
 import type { PublicationTag } from '@/types/database';
 import { logger } from '@/lib/logger';
+import { fetchAllRows, fetchAllRowsForIds } from '@/lib/fetchAllRows';
 
 export function normalizeTopic(raw: string): string {
   // Hyphens are treated as word separators, same as whitespace, so a tag or
@@ -209,7 +210,7 @@ export function countNewInLastDays(matches: TopicMatch[], days: number, now: Dat
   return matches.filter((m) => new Date(m.publication.created_at).getTime() >= cutoff).length;
 }
 
-function throwOnAnyError(results: { error: { message?: string } | null }[]): void {
+function throwOnAnyError(results: { error: unknown }[]): void {
   const failed = results.find((result) => result.error);
   if (failed?.error) throw failed.error;
 }
@@ -269,7 +270,9 @@ export async function fetchPublicCodexPublications(supabase: SupabaseClient): Pr
   const vaultIds = publicVaults.map((v) => v.id);
   const vaultsById = new Map(publicVaults.map((v) => [v.id, v]));
 
-  const vaultPubsRes = await supabase.from('vault_publications').select('*').in('vault_id', vaultIds);
+  // Paged: the public corpus can pass PostgREST's 1,000-row cap, which a plain select hits silently.
+  const vaultPubsRes = await fetchAllRowsForIds(vaultIds, (chunk, from, to) =>
+    supabase.from('vault_publications').select('*').in('vault_id', chunk).order('id').range(from, to));
   throwOnAnyError([vaultPubsRes]);
   const rawRows = (vaultPubsRes.data as RawVaultPublicationRow[]) || [];
   if (rawRows.length === 0) return { corpus: [], relations: [] };
@@ -281,9 +284,10 @@ export async function fetchPublicCodexPublications(supabase: SupabaseClient): Pr
     // query in this function (observed timing out — Postgres error 57014 —
     // even scoped to a small IN-list; see the perf-index migration).
     supabase.from('publication_tags').select('vault_publication_id, tag_id').in('vault_publication_id', pubIds),
-    // Matches the existing anonymous-read pattern in PublicVaultSimple.tsx:
-    // relations aren't filtered server-side, filtered against our id set below.
-    supabase.from('publication_relations').select('*'),
+    // Every visible relation, paged past the 1,000-row cap (a plain select stopped there
+    // silently), then filtered against our id set below. Filtering on the server would mean
+    // one request per 50 ids across the whole public corpus.
+    fetchAllRows((from, to) => supabase.from('publication_relations').select('*').order('id').range(from, to)),
   ]);
   throwOnAnyError([relationsRes]);
   // Tags are a lesser signal (tag-based match provenance) than relations —

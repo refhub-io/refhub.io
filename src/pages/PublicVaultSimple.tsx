@@ -4,6 +4,8 @@ import { logger } from '@/lib/logger';
 import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag, PublicationRelation } from '@/types/database';
 import { formatTimeAgo } from '@/lib/utils';
+import { fetchAllRows, fetchAllRowsForIds } from '@/lib/fetchAllRows';
+import { fetchRelationsForPublicationIds } from '@/lib/fetchRelations';
 import { resolveLastUpdatedActivity } from '@/lib/vaultPublicationAttribution';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -66,7 +68,6 @@ export default function PublicVault() {
   const [publicationTags, setPublicationTags] = useState<PublicationTag[]>([]);
   const [publicationRelations, setPublicationRelations] = useState<PublicationRelation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
   const [notFound, setNotFound] = useState(false);
   const [forking, setForking] = useState(false);
   const [forkInfo, setForkInfo] = useState<VaultForkInfo | null>(null);
@@ -233,11 +234,13 @@ export default function PublicVault() {
       // Increment view count
       await supabase.rpc('increment_vault_views', { vault_uuid: vaultData.id });
 
-      // Fetch publications via vault_publications
-      const { data: vaultPublicationsDataRaw } = await supabase
+      // Fetch publications via vault_publications, paged past PostgREST's 1,000-row cap
+      const { data: vaultPublicationsDataRaw } = await fetchAllRows((from, to) => supabase
         .from('vault_publications')
         .select('*')
-        .eq('vault_id', vaultData.id);
+        .eq('vault_id', vaultData.id)
+        .order('id')
+        .range(from, to));
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const vaultPublicationsData = vaultPublicationsDataRaw as any[];
@@ -296,22 +299,18 @@ export default function PublicVault() {
           .map((p) => p.original_publication_id)
           .filter((id): id is string => Boolean(id));
         if (vaultPubIds.length > 0) {
-          const { data: allRelationsData } = await supabase
-            .from('publication_relations')
-            .select('*');
-
-          const allPublicationIdsSet = new Set([...vaultPubIds, ...originalPublicationIds]);
-          setPublicationRelations(
-            (allRelationsData || []).filter((rel) =>
-              allPublicationIdsSet.has(rel.publication_id) ||
-              allPublicationIdsSet.has(rel.related_publication_id)
-            ) as PublicationRelation[]
-          );
-
-          const { data: pubTagsData } = await supabase
-            .from('publication_tags')
-            .select('*')
-            .in('vault_publication_id', vaultPubIds);
+          // Filtered on the server and paged: the old unfiltered select stopped silently at
+          // 1,000 rows across every visible vault. This read-only page still shows the
+          // papers if relations or tags fail to load, but logs the failure.
+          const [relationsRes, pubTagsRes] = await Promise.all([
+            fetchRelationsForPublicationIds(supabase, [...vaultPubIds, ...originalPublicationIds]),
+            fetchAllRowsForIds<PublicationTag>(vaultPubIds, (chunk, from, to) =>
+              supabase.from('publication_tags').select('*').in('vault_publication_id', chunk).order('id').range(from, to)),
+          ]);
+          if (relationsRes.error) logger.error('PublicVaultSimple', 'Failed to load relations:', relationsRes.error);
+          if (pubTagsRes.error) logger.error('PublicVaultSimple', 'Failed to load publication tags:', pubTagsRes.error);
+          setPublicationRelations(relationsRes.data);
+          const pubTagsData = pubTagsRes.error ? null : pubTagsRes.data;
 
           if (pubTagsData) {
             setPublicationTags(pubTagsData);

@@ -8,6 +8,8 @@ import { debug, warn, error as logError } from '@/lib/logger';
 import { getPageCache, setPageCache } from '@/lib/pageCache';
 import { syncDrivePdfAsset } from '@/lib/pdfAssets';
 import { formatVaultPublication } from '@/lib/formatVaultPublication';
+import { fetchAllRows, fetchAllRowsForIds } from '@/lib/fetchAllRows';
+import { fetchRelationsForPublicationIds } from '@/lib/fetchRelations';
 
 // Info about the last activity in the vault
 export type ActivityType = 'publication_added' | 'publication_updated' | 'publication_removed' | 'tag_added' | 'tag_updated' | 'tag_removed';
@@ -325,11 +327,14 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         userScopedTagsRes,
         sharesRes
       ] = await Promise.all([
-        supabase
+        // Paged: a plain select stops silently at PostgREST's 1,000-row cap.
+        fetchAllRows((from, to) => supabase
           .from('vault_publications')
           .select('*')
           .eq('vault_id', currentVaultId)
-          .order('created_at', { ascending: false }),
+          .order('created_at', { ascending: false })
+          .order('id')
+          .range(from, to)),
         supabase.from('tags').select('*').eq('vault_id', currentVaultId).order('name'),
         // Tags can be user-scoped (vault_id IS NULL) as well as vault-scoped --
         // a paper in this vault may carry either kind via publication_tags.
@@ -350,48 +355,20 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       const vaultPublicationIds = vaultPublications?.map(vp => vp.id).filter(id => id) || [];
       const originalPublicationIds = vaultPublications?.map(vp => vp.original_publication_id).filter(id => id) || [];
 
-      // Fetch publication relations
-      const allRelationsRes = await supabase
-        .from('publication_relations')
-        .select('*');
-
-      // Filter relations to only include those relevant to this vault's publications
-      const allPublicationIdsSet = new Set([...vaultPublicationIds, ...originalPublicationIds]);
-      const filteredRelations = allRelationsRes.data?.filter(rel =>
-        allPublicationIdsSet.has(rel.publication_id) ||
-        allPublicationIdsSet.has(rel.related_publication_id)
-      ) || [];
-
-      const relationsRes = { data: filteredRelations, error: allRelationsRes.error };
-
-      // Fetch publication tags for both the vault-specific copies and the original publications
-      let pubTagsRes;
-      if (vaultPublicationIds.length > 0 || originalPublicationIds.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let vaultTags: any[] = [];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let originalTags: any[] = [];
-
-        if (vaultPublicationIds.length > 0) {
-          const { data: vtData, error: vtError } = await supabase
-            .from('publication_tags')
-            .select('*')
-            .in('vault_publication_id', vaultPublicationIds);
-          if (!vtError) vaultTags = vtData || [];
-        }
-
-        if (originalPublicationIds.length > 0) {
-          const { data: otData, error: otError } = await supabase
-            .from('publication_tags')
-            .select('*')
-            .in('publication_id', originalPublicationIds);
-          if (!otError) originalTags = otData || [];
-        }
-
-        pubTagsRes = { data: [...vaultTags, ...originalTags], error: null };
-      } else {
-        pubTagsRes = { data: [], error: null };
-      }
+      // Relations and tags for this vault's papers, filtered on the server and paged past
+      // PostgREST's 1,000-row cap. An error from any of them fails the load, instead of
+      // quietly showing (and caching) a vault with missing relations or tags.
+      const [relationsRes, vaultTagsRes, originalTagsRes] = await Promise.all([
+        fetchRelationsForPublicationIds(supabase, [...vaultPublicationIds, ...originalPublicationIds]),
+        fetchAllRowsForIds<PublicationTag>(vaultPublicationIds, (chunk, from, to) =>
+          supabase.from('publication_tags').select('*').in('vault_publication_id', chunk).order('id').range(from, to)),
+        fetchAllRowsForIds<PublicationTag>(originalPublicationIds, (chunk, from, to) =>
+          supabase.from('publication_tags').select('*').in('publication_id', chunk).order('id').range(from, to)),
+      ]);
+      const pubTagsRes = {
+        data: [...vaultTagsRes.data, ...originalTagsRes.data],
+        error: vaultTagsRes.error || originalTagsRes.error,
+      };
 
       if (vaultPubsRes.error) throw vaultPubsRes.error;
       if (tagsRes.error) throw tagsRes.error;
