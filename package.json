@@ -13,7 +13,6 @@
     "lint": "eslint .",
     "typecheck": "tsc -b .",
     "preview": "vite preview",
-    "deploy": "bun run build && gh-pages -d dist",
     "test": "vitest run",
     "test:watch": "vitest"
   },

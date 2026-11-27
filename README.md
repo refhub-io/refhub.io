@@ -33,17 +33,17 @@ fonts:        plus jakarta sans • jetbrains mono
 
 ## // setup
 
-**prerequisites:** bun · supabase account
+**prerequisites:** node 24 (npm) · supabase account
 
 ```sh
 git clone https://github.com/refhub-io/refhub.io.git
 cd refhub.io
-bun install
+npm install
 ```
 
 set up supabase:
 1. create a project at [supabase.com](https://supabase.com)
-2. run `supabase/schema_consolidated.sql` in your supabase sql editor
+2. run `supabase/schema.sql` in your supabase sql editor (or, for a local docker stack with demo data, see `test/README.md`)
 3. copy your project url and anon key
 
 configure env:
@@ -57,7 +57,7 @@ VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
 start dev server:
 
 ```sh
-bun run dev
+npm run dev
 # → http://localhost:5173
 ```
 
@@ -66,11 +66,13 @@ bun run dev
 ## // build
 
 ```sh
-bun run build       # production build → dist/
-bun run deploy      # deploy to github pages
+npm run build       # production build → dist/
+npm run typecheck   # tsc -b .
+npm run lint        # eslint
+npm test            # vitest
 ```
 
-output in `dist/` — deploy to any static host.
+output in `dist/` — deploy to any static host. ci (`.github/workflows/ci.yml`) runs the same checks on every pull request, and deploys `main` to github pages once they pass.
 
 ---
 

@@ -11,7 +11,7 @@ refhub.io is a modern reference management platform for organizing academic publ
 | Layer | Technology |
 |-------|-----------|
 | Framework | React 18 + TypeScript 5.x + Vite 7.x |
-| Package Manager | Bun |
+| Package Manager | npm (`package-lock.json`) |
 | UI Components | shadcn/ui (Radix primitives + CVA variants) |
 | Styling | Tailwind CSS 3.x with HSL CSS variable theming |
 | Backend | Supabase (PostgreSQL + RLS + Auth + Realtime) |
