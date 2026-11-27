@@ -121,7 +121,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
     if (!currentVaultId) return;
 
     const cacheKey = `vault-content-${currentVaultId}` as const;
-    const cached = getPageCache<VaultContentCache>(cacheKey);
+    const cached = getPageCache<VaultContentCache>(cacheKey, user?.id);
     // Once this vault's content has loaded, current state is the freshest copy (realtime and
     // recent fetches update it), so it wins; the cached arrays are only a fallback before then.
     // Preferring the cache used to put older rows back into it after every vault settings edit.
@@ -133,8 +133,8 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       publicationTags: preferState ? publicationTags : cached.publicationTags,
       publicationRelations: preferState ? publicationRelations : cached.publicationRelations,
       vaultShares: preferState ? vaultShares : cached.vaultShares,
-    });
-  }, [currentVaultId, currentVault, publications, tags, publicationTags, publicationRelations, vaultShares]);
+    }, user?.id);
+  }, [currentVaultId, currentVault, publications, tags, publicationTags, publicationRelations, vaultShares, user?.id]);
   
   // Helper to get user display name (with caching)
   const getUserDisplayName = useCallback(async (userId: string): Promise<string | null> => {
@@ -436,7 +436,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         publicationTags: pubTagsRes.data as PublicationTag[],
         publicationRelations: relationsRes.data as PublicationRelation[],
         vaultShares: sharesRes.data as VaultShare[],
-      });
+      }, user?.id);
       
       // Set initial lastActivity based on most recently updated publication
       // Now uses updated_by field if available to show who made the last update
@@ -503,7 +503,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
 
     // Check cache first for instant restore
     const cacheKey = `vault-content-${vaultId}` as const;
-    const cached = getPageCache<VaultContentCache>(cacheKey);
+    const cached = getPageCache<VaultContentCache>(cacheKey, user?.id);
 
     if (cached) {
       debug('VaultContentContext', 'Restoring vault content from cache:', vaultId);
@@ -530,7 +530,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
     // Force the fetch effect to re-run even if vaultId is unchanged from
     // last time (revisiting the same vault after editing it elsewhere).
     setVisitNonce(n => n + 1);
-  }, []);
+  }, [user?.id]);
 
   // Set up a single real-time subscription for all vault-related changes
   useEffect(() => {

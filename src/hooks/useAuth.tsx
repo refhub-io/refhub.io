@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { clearUserDataCaches, syncCacheOwner } from '@/lib/userDataCaches';
 import {
   persistLastLoginProvider,
   persistPendingLastLoginProvider,
@@ -39,6 +40,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        // Clear caches filled by a different user (or by a session that just ended) before
+        // anything renders from them.
+        void syncCacheOwner(session?.user?.id ?? null);
         setSession(session);
         setUser(session?.user ?? null);
         // Only consume/apply the pending provider on an actual fresh sign-in.
@@ -127,6 +131,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    // Also cleared by the SIGNED_OUT event; doing it here too means nothing from this account
+    // is left in memory or IndexedDB when signOut resolves.
+    await clearUserDataCaches();
     // Keep last login provider so the sign-in screen can still highlight last used provider.
     // This improves the next-auth path when users sign out and then sign back in.
   };

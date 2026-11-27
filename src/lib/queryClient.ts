@@ -7,7 +7,9 @@ import { warn } from '@/lib/logger';
  * Custom IndexedDB persister for React Query
  * Uses idb-keyval for simple key-value storage in IndexedDB
  */
-const createIDBPersister = (idbValidKey: IDBValidKey = 'refhub-query-cache') => ({
+const PERSISTED_CACHE_KEY = 'refhub-query-cache';
+
+const createIDBPersister = (idbValidKey: IDBValidKey = PERSISTED_CACHE_KEY) => ({
   persistClient: async (client: Parameters<Parameters<typeof persistQueryClient>[0]['persister']['persistClient']>[0]) => {
     try {
       await set(idbValidKey, client);
@@ -63,12 +65,40 @@ export const queryClient = new QueryClient({
  * Initialize query persistence to IndexedDB
  * Call this once at app startup
  */
+/**
+ * The user id in the Supabase session stored in localStorage, read synchronously, so it's known
+ * before auth finishes loading. Null when nobody is signed in.
+ */
+export function readStoredSessionUserId(): string | null {
+  try {
+    // The Storage API rather than Object.keys(localStorage), which not every implementation enumerates.
+    const keys = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i) ?? '');
+    const key = keys.find((k) => k.startsWith('sb-') && k.endsWith('-auth-token'));
+    if (!key) return null;
+    return JSON.parse(localStorage.getItem(key) ?? 'null')?.user?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Removes React Query's IndexedDB copy, so a later page load can't restore it. */
+export async function removePersistedQueryCache(): Promise<void> {
+  try {
+    await del(PERSISTED_CACHE_KEY);
+  } catch (error) {
+    warn('QueryClient', 'Failed to remove persisted cache:', error);
+  }
+}
+
 export const initQueryPersistence = () => {
   const persister = createIDBPersister();
-  
+
   persistQueryClient({
     queryClient,
     persister,
+    // The persisted cache is only restored for the user who saved it: a copy saved under another
+    // user, or with nobody signed in, is discarded instead of shown to whoever signs in next.
+    buster: readStoredSessionUserId() ?? 'signed-out',
     // Max age of persisted cache: 24 hours
     maxAge: 24 * 60 * 60 * 1000,
     // Dehydrate options - what to persist
