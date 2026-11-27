@@ -40,7 +40,7 @@ import { useProfile, Profile } from '@/hooks/useProfile';
 import { useAuth } from '@/hooks/useAuth';
 
 const profileSchema = z.object({
-  display_name: z.string().min(1, 'display_name_required').max(100),
+  display_name: z.string().min(1, 'display_name_required').max(100, 'Display name must be at most 100 characters'),
   username: z
     .string()
     .min(3, 'Username must be at least 3 characters')
