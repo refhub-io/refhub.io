@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [2.2.1] - 2026-11-27
+
+### Security
+- Only http and https URLs become links. This covers profile links (GitHub, LinkedIn, Bluesky), paper URLs, and PDF, Drive and Semantic Scholar links, all of which can be shown to people other than whoever entered them. The profile form rejects other links and saves them trimmed and normalized. Migration `20261127120000_profile_links_http_only.sql` adds database CHECKs to the three profile link columns. Before adding them, it trims existing values and clears any value that isn't an http(s) URL.
+
 ## [2.2.0] - 2026-11-27
 
 Phase 1 (guardrails) of the v2.5 performance and maintainability milestone (#270).
