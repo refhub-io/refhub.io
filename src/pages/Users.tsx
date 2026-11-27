@@ -19,12 +19,9 @@ import { getPageCache, setPageCache, hasPageCache } from '@/lib/pageCache';
 import { 
   Search, 
   Users as UsersIcon,
-  Github,
-  Linkedin,
   Command,
   SortAsc
 } from 'lucide-react';
-import { Bluesky } from '@/components/icons/Bluesky';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,6 +29,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { ProfileLinks } from '@/components/profile/ProfileLinks';
 
 interface UserWithStats extends Profile {
   vault_count: number;
@@ -382,42 +380,7 @@ export default function Users() {
 
                       {/* Social Links */}
                       <div className="flex items-center gap-2 pt-4 border-t border-border/50">
-                        {researcher.github_url && (
-                          <a
-                            href={researcher.github_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-muted transition-colors"
-                            title="GitHub"
-                          >
-                            <Github className="w-4 h-4" />
-                          </a>
-                        )}
-                        {researcher.linkedin_url && (
-                          <a
-                            href={researcher.linkedin_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-muted transition-colors"
-                            title="LinkedIn"
-                          >
-                            <Linkedin className="w-4 h-4" />
-                          </a>
-                        )}
-                        {researcher.bluesky_url && (
-                          <a
-                            href={researcher.bluesky_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-muted transition-colors"
-                            title="Bluesky"
-                          >
-                            <Bluesky className="w-4 h-4" />
-                          </a>
-                        )}
+                        <ProfileLinks profile={researcher} stopPropagation />
                         
                         <Button
                           variant="ghost"

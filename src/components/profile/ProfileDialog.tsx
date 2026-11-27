@@ -38,6 +38,13 @@ import { Button } from '@/components/ui/button';
 import { ProfileAvatar } from './ProfileAvatar';
 import { useProfile, Profile } from '@/hooks/useProfile';
 import { useAuth } from '@/hooks/useAuth';
+import { getValidHttpUrl } from '@/lib/safeUrl';
+
+// Profile links show as clickable links on public profiles, so only http(s) URLs are accepted.
+const profileLinkField = z
+  .string()
+  .refine((value) => !value || getValidHttpUrl(value) !== null, 'use an http:// or https:// link')
+  .optional();
 
 const profileSchema = z.object({
   display_name: z.string().min(1, 'display_name_required').max(100, 'Display name must be at most 100 characters'),
@@ -49,9 +56,9 @@ const profileSchema = z.object({
     .optional()
     .or(z.literal('')),
   bio: z.string().max(500, 'Bio must be at most 500 characters').optional().or(z.literal('')),
-  github_url: z.string().url('Invalid URL').optional().or(z.literal('')),
-  linkedin_url: z.string().url('Invalid URL').optional().or(z.literal('')),
-  bluesky_url: z.string().url('Invalid URL').optional().or(z.literal('')),
+  github_url: profileLinkField,
+  linkedin_url: profileLinkField,
+  bluesky_url: profileLinkField,
   avatar_url: z.string().url('Invalid URL').optional().or(z.literal('')),
 });
 
@@ -162,9 +169,9 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
         display_name: data.display_name,
         username: data.username || null,
         bio: data.bio || null,
-        github_url: data.github_url || null,
-        linkedin_url: data.linkedin_url || null,
-        bluesky_url: data.bluesky_url || null,
+        github_url: getValidHttpUrl(data.github_url),
+        linkedin_url: getValidHttpUrl(data.linkedin_url),
+        bluesky_url: getValidHttpUrl(data.bluesky_url),
         avatar_url: data.avatar_url || null,
       };
 
@@ -225,9 +232,9 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
         display_name: data.display_name,
         username: data.username || null,
         bio: data.bio || null,
-        github_url: data.github_url || null,
-        linkedin_url: data.linkedin_url || null,
-        bluesky_url: data.bluesky_url || null,
+        github_url: getValidHttpUrl(data.github_url),
+        linkedin_url: getValidHttpUrl(data.linkedin_url),
+        bluesky_url: getValidHttpUrl(data.bluesky_url),
         avatar_url: data.avatar_url || null,
       };
 

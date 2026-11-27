@@ -13,8 +13,8 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Loader } from '@/components/ui/loader';
 import { logger } from '@/lib/logger';
-import { Github, Linkedin, ArrowLeft, BookOpen, Vault as VaultIcon, ExternalLink } from 'lucide-react';
-import { Bluesky } from '@/components/icons/Bluesky';
+import { ArrowLeft, BookOpen, Vault as VaultIcon, ExternalLink } from 'lucide-react';
+import { ProfileLinks } from '@/components/profile/ProfileLinks';
 
 type VaultWithCount = Vault & { vault_publications: { id: string }[]; is_fork?: boolean };
 
@@ -290,39 +290,7 @@ export default function UserProfile() {
 
                       {/* Social links */}
                       <div className="flex items-center gap-1 ml-auto">
-                        {researcherProfile.github_url && (
-                          <a
-                            href={researcherProfile.github_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-muted transition-colors"
-                            title="GitHub"
-                          >
-                            <Github className="w-4 h-4" />
-                          </a>
-                        )}
-                        {researcherProfile.linkedin_url && (
-                          <a
-                            href={researcherProfile.linkedin_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-muted transition-colors"
-                            title="LinkedIn"
-                          >
-                            <Linkedin className="w-4 h-4" />
-                          </a>
-                        )}
-                        {researcherProfile.bluesky_url && (
-                          <a
-                            href={researcherProfile.bluesky_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-muted transition-colors"
-                            title="Bluesky"
-                          >
-                            <Bluesky className="w-4 h-4" />
-                          </a>
-                        )}
+                        <ProfileLinks profile={researcherProfile} />
                       </div>
                     </div>
                   </div>

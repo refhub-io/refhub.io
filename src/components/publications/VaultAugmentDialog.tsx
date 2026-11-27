@@ -30,6 +30,7 @@ import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { SpinnerLoader } from '@/components/ui/loader';
 import { Plus, Check, ExternalLink, BookOpen, AlertCircle, RotateCcw, CheckCircle2, Search } from 'lucide-react';
+import { getValidHttpUrl } from '@/lib/safeUrl';
 
 export type AugmentTab = 'references' | 'citations' | 'related' | 'topic';
 
@@ -81,7 +82,8 @@ function formatAuthors(authors: { name: string }[]): string {
 
 function paperUrl(paper: SSPaper): string {
   if (paper.externalIds?.DOI) return `https://doi.org/${paper.externalIds.DOI}`;
-  if (paper.url) return paper.url;
+  const url = getValidHttpUrl(paper.url);
+  if (url) return url;
   return `https://www.semanticscholar.org/paper/${paper.paperId}`;
 }
 
