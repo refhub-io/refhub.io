@@ -48,6 +48,7 @@ POST_DUMP_MIGRATIONS=(
   # doesn't have this policy fix baked in yet. Temporary: should move out
   # once applied live and schema.sql is re-dumped.
   "20261125000005_remove_public_vault_write_access.sql"
+  "20261127000000_relation_type_check.sql"
 )
 
 cleanup() {
