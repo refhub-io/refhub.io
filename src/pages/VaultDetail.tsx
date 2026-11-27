@@ -35,6 +35,7 @@ import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { ExportDialog } from '@/components/publications/ExportDialog';
 import { PhaseLoader, LoadingPhase } from '@/components/ui/loading';
 import { storeRedirectAfterLogin } from '@/lib/authRedirect';
+import { findDuplicate } from '@/lib/dupeDetection';
 import { useToast } from '@/hooks/use-toast';
 import { useVaultAccess, requestVaultAccess } from '@/hooks/useVaultAccess';
 import { useVaultFavorites } from '@/hooks/useVaultFavorites';
@@ -539,29 +540,6 @@ export default function VaultDetail() {
     void invalidateVaults(); // Also refresh sidebar vaults to update visibility icons
   };
 
-  const checkForDuplicate = (newPub: Partial<Publication>, existingPubs: Publication[], excludeId?: string) => {
-    const duplicate = existingPubs.find(pub => {
-      if (excludeId && pub.id === excludeId) return false;
-
-      // Check DOI match (if DOI exists on both)
-      if (newPub.doi && pub.doi && newPub.doi.toLowerCase().trim() === pub.doi.toLowerCase().trim()) {
-        return true;
-      }
-
-      // Check title match (normalize for comparison)
-      if (newPub.title && pub.title) {
-        const normalizeTitle = (title: string) => title.toLowerCase().trim().replace(/\s+/g, ' ');
-        if (normalizeTitle(newPub.title) === normalizeTitle(pub.title)) {
-          return true;
-        }
-      }
-
-      return false;
-    });
-
-    return duplicate;
-  };
-
   const handleSavePublication = async (data: Partial<Publication>, tagIds: string[], vaultIds?: string[], isAutoSave = false, driveUrl?: string | null, feedbackSource?: Element | RefObject<Element | null> | null) => {
     if (!user || !vaultId || !canEdit) return; // Only allow editing if user has edit permission
 
@@ -626,12 +604,13 @@ export default function VaultDetail() {
         }
       } else {
         // Creating a new publication
-        // Check for duplicates before adding
-        const duplicate = checkForDuplicate(data, publications);
-        if (duplicate) {
+        // A paper with the same DOI blocks the save. A similar title/author match only warns
+        // (PublicationDialog shows that before saving), so it can be saved on purpose.
+        const duplicate = findDuplicate(data, publications);
+        if (duplicate?.kind === 'doi') {
           toast({
             title: 'Duplicate paper detected',
-            description: `“${duplicate.title.substring(0, 50)}...” already exists in this vault. Open the existing entry or change the new paper details before saving.`,
+            description: `"${duplicate.publication.title.substring(0, 50)}..." has the same DOI. Open the existing record or change the DOI before saving.`,
             variant: 'destructive', feedbackSeverity: 'error',
             source: null,
           });

@@ -19,9 +19,22 @@ export function normalizeBiblioString(value: string | null | undefined): string 
     .trim();
 }
 
-export function normalizeDoi(doi: string | null | undefined): string {
+/**
+ * Strips the URL and `doi:` prefixes a DOI is often pasted with (https://doi.org/,
+ * http://dx.doi.org/, www.doi.org, doi:), keeping its case, since lookups want the DOI as written.
+ */
+export function stripDoiPrefix(doi: string | null | undefined): string {
   if (!doi) return '';
-  return doi.trim().toLowerCase().replace(/^https?:\/\/(dx\.)?doi\.org\//, '');
+  return doi
+    .trim()
+    .replace(/^https?:\/\/(dx\.|www\.)?doi\.org\//i, '')
+    .replace(/^doi:\s*/i, '')
+    .trim();
+}
+
+/** The comparable form of a DOI: prefixes stripped and lowercased (DOIs are case-insensitive). */
+export function normalizeDoi(doi: string | null | undefined): string {
+  return stripDoiPrefix(doi).toLowerCase();
 }
 
 /** last name of one author string, handling both "Last, First" and "First Last" */
@@ -254,4 +267,38 @@ export function findDuplicateCandidates<T extends DupeCheckable>(
     }
   }
   return out.sort((a, b) => b.result.score - a.result.score);
+}
+
+export interface DuplicateMatch<T> {
+  /** 'doi': same normalized DOI, a definite duplicate. 'similar': strict title/author/year match. */
+  kind: 'doi' | 'similar';
+  publication: T;
+}
+
+/**
+ * The one "is this paper already here?" rule, for manual add, import, the inbox and vault augment.
+ * The same normalized DOI is a definite duplicate (manual add blocks it). Otherwise the best match
+ * at or above the strict preset's threshold (title-heavy, 0.9) is a 'similar' warning the user can
+ * override. The strict preset avoids flagging distinct papers in a series from the same group,
+ * venue and year, which the balanced preset does.
+ */
+export function findDuplicate<T extends DupeCheckable>(
+  candidate: DupeCheckable,
+  existing: T[],
+  options: { excludeId?: string } = {},
+): DuplicateMatch<T> | null {
+  const pool = options.excludeId ? existing.filter((pub) => pub.id !== options.excludeId) : existing;
+  const doi = normalizeDoi(candidate.doi);
+  if (doi) {
+    const byDoi = pool.find((pub) => normalizeDoi(pub.doi) === doi);
+    if (byDoi) return { kind: 'doi', publication: byDoi };
+  }
+  const preset = DUPE_PRESETS.strict;
+  const withoutDoi = { ...candidate, doi: null };
+  let best: { publication: T; score: number } | null = null;
+  for (const pub of pool) {
+    const { score } = scorePair(withoutDoi, pub, preset);
+    if (score >= preset.threshold && (!best || score > best.score)) best = { publication: pub, score };
+  }
+  return best ? { kind: 'similar', publication: best.publication } : null;
 }

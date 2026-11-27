@@ -1,6 +1,7 @@
 import { Publication } from "@/types/database";
 import { supabase } from '@/integrations/supabase/client';
 import { getBackendApiBaseUrl } from '@/lib/apiKeys';
+import { stripDoiPrefix } from '@/lib/dupeDetection';
 
 const LATEX_ACCENT_CHARS = String.raw`"'` + '`^~=.' + 'uvHckrb';
 
@@ -528,20 +529,8 @@ export async function getAccessToken() {
 }
 
 function cleanDOI(doi: string): string {
-  let cleanDoi = doi.trim();
-  
-  // Handle various DOI formats
-  if (cleanDoi.startsWith('https://doi.org/')) {
-    cleanDoi = cleanDoi.replace('https://doi.org/', '');
-  } else if (cleanDoi.startsWith('http://doi.org/')) {
-    cleanDoi = cleanDoi.replace('http://doi.org/', '');
-  } else if (cleanDoi.startsWith('doi:')) {
-    cleanDoi = cleanDoi.replace('doi:', '');
-  } else if (cleanDoi.startsWith('https://dx.doi.org/')) {
-    cleanDoi = cleanDoi.replace('https://dx.doi.org/', '');
-  }
-  
-  return cleanDoi;
+  // The shared prefix stripping (lib/dupeDetection), which also handles http://dx.doi.org/.
+  return stripDoiPrefix(doi);
 }
 
 async function fetchFromCrossRef(cleanDoi: string): Promise<DOIMetadata | null> {

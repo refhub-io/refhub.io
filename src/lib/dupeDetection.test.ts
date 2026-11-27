@@ -6,6 +6,8 @@ import {
   lastNameJaccard,
   normalizeBiblioString,
   normalizeDoi,
+  stripDoiPrefix,
+  findDuplicate,
   normalizeLastName,
   scorePair,
   similarityRatio,
@@ -171,5 +173,59 @@ describe('findDuplicateCandidates', () => {
 
   it('returns empty for an empty library', () => {
     expect(findDuplicateCandidates([], DUPE_PRESETS.balanced)).toEqual([]);
+  });
+});
+
+describe('DOI prefixes (one normalizer for every flow)', () => {
+  it.each([
+    ['https://doi.org/10.1/X'],
+    ['http://doi.org/10.1/X'],
+    ['http://dx.doi.org/10.1/X'],
+    ['https://dx.doi.org/10.1/X'],
+    ['https://www.doi.org/10.1/X'],
+    ['HTTPS://DOI.ORG/10.1/X'],
+    ['doi:10.1/X'],
+    ['DOI: 10.1/X'],
+    ['  10.1/x  '],
+  ])('normalizes %s to 10.1/x', (input) => {
+    expect(normalizeDoi(input)).toBe('10.1/x');
+  });
+
+  it('strips prefixes but keeps the case for lookups', () => {
+    expect(stripDoiPrefix('http://dx.doi.org/10.1109/TVCG.2024.1')).toBe('10.1109/TVCG.2024.1');
+  });
+});
+
+describe('findDuplicate', () => {
+  const existing = [
+    { id: 'a', title: 'Graph Drawing at Scale', authors: ['Ada Lovelace'], year: 2020, doi: '10.1/abc' },
+    { id: 'b', title: 'A Completely Different Paper', authors: ['Grace Hopper'], year: 2021, doi: null },
+  ];
+
+  it('reports the same DOI in any prefix form as a definite duplicate', () => {
+    const match = findDuplicate({ title: 'Other title', doi: 'https://doi.org/10.1/ABC' }, existing);
+    expect(match).toEqual({ kind: 'doi', publication: existing[0] });
+  });
+
+  it('reports a matching title without a DOI as similar (a warning, not a block)', () => {
+    const match = findDuplicate({ title: 'graph drawing at  scale', authors: ['A. Lovelace'], year: 2020 }, existing);
+    expect(match?.kind).toBe('similar');
+    expect(match?.publication.id).toBe('a');
+  });
+
+  it('prefers a DOI match over a similar title', () => {
+    const match = findDuplicate({ title: 'Graph Drawing at Scale', doi: '10.1/other' }, [
+      ...existing,
+      { id: 'c', title: 'Unrelated', authors: [], year: null, doi: '10.1/other' },
+    ]);
+    expect(match).toMatchObject({ kind: 'doi', publication: { id: 'c' } });
+  });
+
+  it('never matches the paper being edited', () => {
+    expect(findDuplicate({ title: 'Graph Drawing at Scale', doi: '10.1/abc' }, existing, { excludeId: 'a' })).toBeNull();
+  });
+
+  it('returns null when nothing is close', () => {
+    expect(findDuplicate({ title: 'Something new entirely', doi: '10.9/zzz' }, existing)).toBeNull();
   });
 });
