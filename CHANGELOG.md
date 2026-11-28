@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [2.3.5] - 2026-11-28
+
+### Changed
+- Vaults open in one request, through `get_vault_content()` in migration `20261128140000_get_vault_content.sql` (#258). **Apply the migration before this release goes live:** the new build calls the function. Opening a vault used to take an access check of its own, two dependent batches of queries and a third batch for stored PDFs. Now it's a single call, made alongside the page's own access check. At 100 ms of latency, a vault opens about 0.45 s sooner, both in-app and on a fresh load, with 8 fewer requests. The vault's content is also no longer fetched again every time your session token refreshes.
+
 ## [2.3.4] - 2026-11-28
 
 ### Fixed
