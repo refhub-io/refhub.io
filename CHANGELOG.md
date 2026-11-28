@@ -6,6 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [2.3.7] - 2026-11-28
+
+### Fixed
+- "All papers" and smart collections now include the papers in vaults shared with you (#283). A paper added in the app points at a record owned by whoever added it, which only they can read, so papers from vaults shared with you were left out.
+  - A blue share icon marks them. Its tooltip names the vault, and says `view_only` when you can't edit there.
+  - They open read-only, with an edit button if you're an editor in that vault.
+  - They can't be deleted from your library, so deleting in "all papers" can no longer remove a paper from someone else's vault.
+  - Papers in your own vaults whose record you can't read, such as one a collaborator added, now show up too.
+
 ## [2.3.4] - 2026-11-28
 
 ### Fixed
