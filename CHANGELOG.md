@@ -6,6 +6,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [2.3.13] - 2026-11-28
+
+### Changed
+- The Codex asks the database instead of downloading the public corpus (#275):
+  - **The grid pages.** It loads 36 vaults at a time as you scroll, searched, filtered and counted on the server, and draws only the rows on screen. With 109 public vaults and 10,000 public papers, it loads in 9 requests and 34 KB instead of 23 requests and 225 KB.
+  - **Exact counts.** A vault's paper, favorite and fork counts came from downloading one row per item, which stops at 1,000 rows: a 2,500-paper vault showed "0_papers".
+  - **Topic suggestions work at any size** and show the most common topics first. They used to put every public paper's id into one request, which failed with a few hundred public papers.
+  - **A topic's page loads only that topic:** 0.8 s instead of 4.0 s, and 0.9 MB instead of 11.5 MB, for a topic with 336 papers. Topics that come from tags work again: with a few hundred public papers, they showed "no public papers match".
+  - **Apply migration `20261128220000_codex_functions.sql` before deploying.**
+
 ## [2.3.12] - 2026-11-28
 
 ### Changed
