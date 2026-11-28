@@ -2,8 +2,6 @@ import type { Publication, Vault, Tag, PublicationRelation } from '@/types/datab
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { RawVaultPublicationRow } from './publicationAggregate';
 import type { PublicationTag } from '@/types/database';
-import { logger } from '@/lib/logger';
-import { fetchAllRows, fetchAllRowsForIds } from '@/lib/fetchAllRows';
 
 export function normalizeTopic(raw: string): string {
   // Hyphens are treated as word separators, same as whitespace, so a tag or
@@ -210,11 +208,6 @@ export function countNewInLastDays(matches: TopicMatch[], days: number, now: Dat
   return matches.filter((m) => new Date(m.publication.created_at).getTime() >= cutoff).length;
 }
 
-function throwOnAnyError(results: { error: unknown }[]): void {
-  const failed = results.find((result) => result.error);
-  if (failed?.error) throw failed.error;
-}
-
 function rawRowToPublication(row: RawVaultPublicationRow): Publication {
   return {
     id: row.id,
@@ -256,60 +249,21 @@ function rawRowToPublication(row: RawVaultPublicationRow): Publication {
   };
 }
 
-export interface PublicCodexData {
-  corpus: PublicCodexPublication[];
-  relations: PublicationRelation[];
+/** A slice of the public corpus, as get_codex_topic() returns it. */
+export interface CodexCorpusRows {
+  vaults: Vault[];
+  vault_publications: RawVaultPublicationRow[];
+  publication_tags: Pick<PublicationTag, 'vault_publication_id' | 'tag_id'>[];
+  tags: Tag[];
+  publication_relations: PublicationRelation[];
 }
 
-export async function fetchPublicCodexPublications(supabase: SupabaseClient): Promise<PublicCodexData> {
-  const vaultsRes = await supabase.from('vaults').select('*').eq('visibility', 'public');
-  throwOnAnyError([vaultsRes]);
-  const publicVaults = (vaultsRes.data as Vault[]) || [];
-  if (publicVaults.length === 0) return { corpus: [], relations: [] };
-
-  const vaultIds = publicVaults.map((v) => v.id);
-  const vaultsById = new Map(publicVaults.map((v) => [v.id, v]));
-
-  // Paged: the public corpus can pass PostgREST's 1,000-row cap, which a plain select hits silently.
-  const vaultPubsRes = await fetchAllRowsForIds(vaultIds, (chunk, from, to) =>
-    supabase.from('vault_publications').select('*').in('vault_id', chunk).order('id').range(from, to));
-  throwOnAnyError([vaultPubsRes]);
-  const rawRows = (vaultPubsRes.data as RawVaultPublicationRow[]) || [];
-  if (rawRows.length === 0) return { corpus: [], relations: [] };
-
-  const pubIds = rawRows.map((r) => r.id);
-  const [pubTagsRes, relationsRes] = await Promise.all([
-    // Only vault_publication_id/tag_id are used below; narrower than
-    // select('*') to cut payload size on what's shown to be the slowest
-    // query in this function (observed timing out — Postgres error 57014 —
-    // even scoped to a small IN-list; see the perf-index migration).
-    supabase.from('publication_tags').select('vault_publication_id, tag_id').in('vault_publication_id', pubIds),
-    // Every visible relation, paged past the 1,000-row cap (a plain select stopped there
-    // silently), then filtered against our id set below. Filtering on the server would mean
-    // one request per 50 ids across the whole public corpus.
-    fetchAllRows((from, to) => supabase.from('publication_relations').select('*').order('id').range(from, to)),
-  ]);
-  throwOnAnyError([relationsRes]);
-  // Tags are a lesser signal (tag-based match provenance) than relations —
-  // a slow/timed-out tags query shouldn't take down the whole discovery
-  // page along with it. Degrade to "no tag signals this refresh" instead.
-  if (pubTagsRes.error) {
-    logger.error('codexDiscovery', 'Failed to fetch publication_tags for Codex discovery (tag-based matching will be incomplete):', pubTagsRes.error);
-  }
-
-  const pubTags = pubTagsRes.error ? [] : ((pubTagsRes.data as PublicationTag[]) || []);
-  const tagIds = [...new Set(pubTags.map((pt) => pt.tag_id))];
-
-  let tags: Tag[] = [];
-  if (tagIds.length > 0) {
-    const tagsRes = await supabase.from('tags').select('*').in('id', tagIds);
-    throwOnAnyError([tagsRes]);
-    tags = (tagsRes.data as Tag[]) || [];
-  }
-  const tagsById = new Map(tags.map((t) => [t.id, t]));
-
+/** Each paper with its vault and the tags the caller can read on it. */
+export function buildCodexCorpus(rows: CodexCorpusRows): PublicCodexPublication[] {
+  const vaultsById = new Map(rows.vaults.map((v) => [v.id, v]));
+  const tagsById = new Map(rows.tags.map((t) => [t.id, t]));
   const tagsByPubId = new Map<string, Tag[]>();
-  pubTags.forEach((pt) => {
+  rows.publication_tags.forEach((pt) => {
     if (!pt.vault_publication_id) return;
     const tag = tagsById.get(pt.tag_id);
     if (!tag) return;
@@ -318,16 +272,43 @@ export async function fetchPublicCodexPublications(supabase: SupabaseClient): Pr
     tagsByPubId.set(pt.vault_publication_id, list);
   });
 
-  const corpus: PublicCodexPublication[] = rawRows.map((row) => ({
-    publication: rawRowToPublication(row),
-    vault: vaultsById.get(row.vault_id)!,
-    tags: tagsByPubId.get(row.id) || [],
-  }));
+  return rows.vault_publications
+    .filter((row) => vaultsById.has(row.vault_id))
+    .map((row) => ({
+      publication: rawRowToPublication(row),
+      vault: vaultsById.get(row.vault_id)!,
+      tags: tagsByPubId.get(row.id) || [],
+    }));
+}
 
-  const pubIdSet = new Set(pubIds);
-  const relations = ((relationsRes.data as PublicationRelation[]) || []).filter(
-    (rel) => pubIdSet.has(rel.publication_id) || pubIdSet.has(rel.related_publication_id),
-  );
+export interface CodexTopicData {
+  /** The public papers that mention the topic, and the public papers related to them. */
+  corpus: PublicCodexPublication[];
+  relations: PublicationRelation[];
+  /** Favorites and forks for each of those papers' vaults. */
+  popularity: Record<string, VaultPopularity>;
+  /** Those vaults' owners, where the caller can read their profile. */
+  ownersById: Record<string, { display_name: string | null; username: string | null }>;
+}
 
-  return { corpus, relations };
+interface CodexTopicRows extends CodexCorpusRows {
+  popularity: { vault_id: string; favorites: number; forks: number }[];
+  owners: { user_id: string; display_name: string | null; username: string | null }[];
+}
+
+/**
+ * What a topic's page needs, in one call (#275): instead of the whole public corpus, only the
+ * papers whose keywords, tags or notes mention the topic and the papers related to them. Pass the
+ * result to matchPublicationsForTopic(), which decides the matches as before.
+ */
+export async function fetchCodexTopic(supabase: SupabaseClient, topic: string): Promise<CodexTopicData> {
+  const { data, error } = await supabase.rpc('get_codex_topic', { p_topic: topic });
+  if (error) throw error;
+  const rows = data as unknown as CodexTopicRows;
+  return {
+    corpus: buildCodexCorpus(rows),
+    relations: rows.publication_relations,
+    popularity: Object.fromEntries(rows.popularity.map((p) => [p.vault_id, { favorites: p.favorites, forks: p.forks }])),
+    ownersById: Object.fromEntries(rows.owners.map((o) => [o.user_id, { display_name: o.display_name, username: o.username }])),
+  };
 }

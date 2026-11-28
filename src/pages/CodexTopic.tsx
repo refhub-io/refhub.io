@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
 import {
-  fetchPublicCodexPublications,
+  fetchCodexTopic,
   matchPublicationsForTopic,
   slugToTopic,
   deriveRelatedTopics,
@@ -79,42 +79,26 @@ export default function CodexTopic() {
       setCuratorsByOwnerId({});
       setVaultPopularity({});
       try {
-        const { corpus, relations } = await fetchPublicCodexPublications(supabase);
+        // One call: the papers that mention the topic, their neighbors by relation, and the
+        // vaults' popularity and owners. It used to download the whole public corpus (#275).
+        const { corpus, relations, popularity, ownersById } = await fetchCodexTopic(supabase, topic);
         if (cancelled) return;
         const computedMatches = matchPublicationsForTopic(topic, corpus, relations);
-        if (cancelled) return;
         setMatches(computedMatches);
 
-        const ownerIds = [...new Set(
+        // Curators are the owners of vaults with a direct match; popularity covers every matched vault.
+        const ownerIds = new Set(
           computedMatches
             .filter((m) => m.signals.some((s) => s.type !== 'citation'))
             .map((m) => m.vault.user_id),
-        )];
-        if (ownerIds.length > 0) {
-          const { data: profiles, error: profilesError } = await supabase
-            .from('profiles')
-            .select('user_id, display_name, username')
-            .in('user_id', ownerIds);
-          if (profilesError) throw profilesError;
-          if (!cancelled) {
-            setCuratorsByOwnerId(
-              Object.fromEntries((profiles || []).map((p) => [p.user_id, { display_name: p.display_name, username: p.username }])),
-            );
-          }
-        }
-
-        const matchedVaultIds = [...new Set(computedMatches.map((m) => m.vault.id))];
-        if (matchedVaultIds.length > 0) {
-          const popularity: Record<string, VaultPopularity> = {};
-          await Promise.all(matchedVaultIds.map(async (vaultId) => {
-            const [{ count: favorites }, { count: forks }] = await Promise.all([
-              supabase.from('vault_favorites').select('*', { count: 'exact', head: true }).eq('vault_id', vaultId),
-              supabase.from('vault_forks').select('*', { count: 'exact', head: true }).eq('original_vault_id', vaultId),
-            ]);
-            popularity[vaultId] = { favorites: favorites || 0, forks: forks || 0 };
-          }));
-          if (!cancelled) setVaultPopularity(popularity);
-        }
+        );
+        setCuratorsByOwnerId(
+          Object.fromEntries([...ownerIds].filter((id) => ownersById[id]).map((id) => [id, ownersById[id]])),
+        );
+        const matchedVaultIds = new Set(computedMatches.map((m) => m.vault.id));
+        setVaultPopularity(
+          Object.fromEntries([...matchedVaultIds].map((id) => [id, popularity[id] ?? { favorites: 0, forks: 0 }])),
+        );
       } catch (err) {
         logger.error('CodexTopic', 'Error fetching discovery data:', err);
         if (!cancelled) setError(true);

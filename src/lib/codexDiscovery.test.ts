@@ -356,58 +356,9 @@ describe('countNewInLastDays', () => {
   });
 });
 
-import { fetchPublicCodexPublications } from './codexDiscovery';
+import { buildCodexCorpus, fetchCodexTopic } from './codexDiscovery';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { RawVaultPublicationRow } from './publicationAggregate';
-import type { PublicationTag } from '@/types/database';
-
-type MockError = { message: string };
-
-function resolveOrError<T>(rows: T[] | undefined, error: MockError | undefined) {
-  if (error) return Promise.resolve({ data: null, error });
-  return Promise.resolve({ data: rows ?? [], error: null });
-}
-
-function makeCodexClient(data: {
-  publicVaults?: Vault[];
-  vaultPublications?: RawVaultPublicationRow[];
-  publicationTags?: PublicationTag[];
-  tags?: Tag[];
-  relations?: PublicationRelation[];
-  errors?: {
-    publicVaults?: MockError;
-    vaultPublications?: MockError;
-    publicationTags?: MockError;
-    tags?: MockError;
-    relations?: MockError;
-  };
-}): SupabaseClient {
-  const errors = data.errors ?? {};
-  // Paged queries end in .order().range(from, to); return that slice, like PostgREST does.
-  const paged = (rows: unknown[] | undefined, error: MockError | undefined) => ({
-    order: () => ({
-      range: (start: number, end: number) =>
-        error ? resolveOrError(undefined, error) : Promise.resolve({ data: (rows ?? []).slice(start, end + 1), error: null }),
-    }),
-  });
-  const from = vi.fn((table: string) => {
-    switch (table) {
-      case 'vaults':
-        return { select: () => ({ eq: () => resolveOrError(data.publicVaults, errors.publicVaults) }) };
-      case 'vault_publications':
-        return { select: () => ({ in: () => paged(data.vaultPublications, errors.vaultPublications) }) };
-      case 'publication_tags':
-        return { select: () => ({ in: () => resolveOrError(data.publicationTags, errors.publicationTags) }) };
-      case 'tags':
-        return { select: () => ({ in: () => resolveOrError(data.tags, errors.tags) }) };
-      case 'publication_relations':
-        return { select: () => paged(data.relations, errors.relations) };
-      default:
-        throw new Error(`Unexpected table in test mock: ${table}`);
-    }
-  });
-  return { from } as unknown as SupabaseClient;
-}
 
 const rawVaultPub = (id: string, vault_id: string, overrides: Partial<RawVaultPublicationRow> = {}): RawVaultPublicationRow => ({
   id,
@@ -449,64 +400,63 @@ const rawVaultPub = (id: string, vault_id: string, overrides: Partial<RawVaultPu
   ...overrides,
 });
 
-describe('fetchPublicCodexPublications', () => {
-  it('builds the corpus from public vaults, their publications, and tags', async () => {
-    const vault = makeVault('v1');
-    const client = makeCodexClient({
-      publicVaults: [vault],
-      vaultPublications: [rawVaultPub('p1', 'v1')],
-      publicationTags: [{ id: 'pt1', publication_id: null, vault_publication_id: 'p1', tag_id: 't1' }],
+describe('buildCodexCorpus', () => {
+  it('pairs each paper with its vault and the tags on it', () => {
+    const corpus = buildCodexCorpus({
+      vaults: [makeVault('v1')],
+      vault_publications: [rawVaultPub('p1', 'v1'), rawVaultPub('p2', 'v1')],
+      publication_tags: [{ vault_publication_id: 'p1', tag_id: 't1' }],
       tags: [makeTag('t1', 'graph drawing')],
-      relations: [],
+      publication_relations: [],
     });
-
-    const result = await fetchPublicCodexPublications(client);
-    expect(result.corpus).toHaveLength(1);
-    expect(result.corpus[0].publication.id).toBe('p1');
-    expect(result.corpus[0].vault.id).toBe('v1');
-    expect(result.corpus[0].tags.map((t) => t.name)).toEqual(['graph drawing']);
+    expect(corpus.map((e) => [e.publication.id, e.vault.id, e.tags.map((t) => t.name)])).toEqual([
+      ['p1', 'v1', ['graph drawing']],
+      ['p2', 'v1', []],
+    ]);
   });
 
-  it('keeps every relation past the 1,000-row cap (a plain select stopped there silently)', async () => {
-    const relations = Array.from({ length: 1200 }, (_, i) => ({
-      id: `r${i}`, publication_id: 'p1', related_publication_id: `other-${i}`, relation_type: 'cites', created_at: '', created_by: 'owner-1',
-    })) as PublicationRelation[];
-    const client = makeCodexClient({
-      publicVaults: [makeVault('v1')],
-      vaultPublications: [rawVaultPub('p1', 'v1')],
-      relations,
+  it("leaves out links to tags the caller can't read, and canonical links", () => {
+    const corpus = buildCodexCorpus({
+      vaults: [makeVault('v1')],
+      vault_publications: [rawVaultPub('p1', 'v1')],
+      publication_tags: [
+        { vault_publication_id: 'p1', tag_id: 'unreadable' },
+        { vault_publication_id: null, tag_id: 't1' },
+      ],
+      tags: [makeTag('t1', 'graph drawing')],
+      publication_relations: [],
     });
+    expect(corpus[0].tags).toEqual([]);
+  });
+});
 
-    const result = await fetchPublicCodexPublications(client);
-    expect(result.relations).toHaveLength(1200);
+describe('fetchCodexTopic', () => {
+  const rows = {
+    vaults: [makeVault('v1')],
+    vault_publications: [rawVaultPub('p1', 'v1', { keywords: ['Graph Drawing'] }), rawVaultPub('p2', 'v1')],
+    publication_tags: [],
+    tags: [],
+    publication_relations: [{ id: 'r1', publication_id: 'p1', related_publication_id: 'p2', relation_type: 'cites', created_at: '', created_by: 'owner-1' }] as PublicationRelation[],
+    popularity: [{ vault_id: 'v1', favorites: 3, forks: 1 }],
+    owners: [{ user_id: 'owner-1', display_name: 'Owner One', username: 'owner1' }],
+  };
+
+  it('asks get_codex_topic for the topic, and returns what matching needs', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: rows, error: null });
+    const result = await fetchCodexTopic({ rpc } as unknown as SupabaseClient, 'graph drawing');
+
+    expect(rpc).toHaveBeenCalledWith('get_codex_topic', { p_topic: 'graph drawing' });
+    expect(result.popularity).toEqual({ v1: { favorites: 3, forks: 1 } });
+    expect(result.ownersById).toEqual({ 'owner-1': { display_name: 'Owner One', username: 'owner1' } });
+    const matches = matchPublicationsForTopic('graph drawing', result.corpus, result.relations);
+    expect(matches.map((m) => [m.publication.id, m.signals.map((s) => s.type)])).toEqual([
+      ['p1', ['keyword']],
+      ['p2', ['citation']],
+    ]);
   });
 
-  it('returns an empty corpus (not an error) when there are no public vaults', async () => {
-    const client = makeCodexClient({ publicVaults: [] });
-    const result = await fetchPublicCodexPublications(client);
-    expect(result.corpus).toEqual([]);
-    expect(result.relations).toEqual([]);
-  });
-
-  it('throws if the relations query errors, instead of returning a partial corpus', async () => {
-    const client = makeCodexClient({
-      publicVaults: [makeVault('v1')],
-      vaultPublications: [rawVaultPub('p1', 'v1')],
-      errors: { relations: { message: 'boom' } },
-    });
-    await expect(fetchPublicCodexPublications(client)).rejects.toEqual({ message: 'boom' });
-  });
-
-  it('degrades to an empty tag list instead of rejecting when publication_tags errors (a slow/timed-out tags query must not take the whole discovery page down)', async () => {
-    const client = makeCodexClient({
-      publicVaults: [makeVault('v1')],
-      vaultPublications: [rawVaultPub('p1', 'v1')],
-      relations: [],
-      errors: { publicationTags: { message: 'canceling statement due to statement timeout' } },
-    });
-
-    const result = await fetchPublicCodexPublications(client);
-    expect(result.corpus).toHaveLength(1);
-    expect(result.corpus[0].tags).toEqual([]);
+  it('throws the error when the call fails', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: { message: 'boom' } });
+    await expect(fetchCodexTopic({ rpc } as unknown as SupabaseClient, 'graph drawing')).rejects.toEqual({ message: 'boom' });
   });
 });
