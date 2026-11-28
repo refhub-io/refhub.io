@@ -215,8 +215,9 @@ export default function VaultDetail() {
 
   // Smooth progress animation - fake progress that accelerates based on actual phase completion
   useEffect(() => {
-    // Don't animate if already complete
-    if (loaderComplete) return;
+    // Don't animate once complete, or once the data is ready and the loader is gone: each tick
+    // re-renders this whole page.
+    if (loaderComplete || dataReady) return;
 
     const completedCount = loadingPhases.filter(p => p.status === 'complete').length;
     const totalPhases = loadingPhases.length;
@@ -1608,12 +1609,13 @@ export default function VaultDetail() {
     }
   }, [accessStatus, authLoading, contentLoading, hasStartedInitialLoad, dataReady]);
 
-  // Hide loader only after progress animation completes
+  // Show the vault as soon as its data is ready. Waiting for the loader's progress animation to
+  // reach 100% used to add up to a second to every vault open.
   useEffect(() => {
-    if (dataReady && loaderComplete && !finishedInitialLoad) {
+    if (dataReady && !finishedInitialLoad) {
       setFinishedInitialLoad(true);
     }
-  }, [dataReady, loaderComplete, finishedInitialLoad]);
+  }, [dataReady, finishedInitialLoad]);
 
   // Determine if we should show the loading screen.
   // Cached vaults should render immediately while access/content silently refresh.
