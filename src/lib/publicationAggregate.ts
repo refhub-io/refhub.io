@@ -148,11 +148,25 @@ export function buildAllPublications(
     allPublicationsMap[pub.id] = pub;
   });
 
+  // A vault copy whose canonical paper isn't readable stands in for that paper, under the copy's
+  // own id. Users can only read their own canonical rows, so the papers in a vault shared with
+  // them, and those a collaborator added to their own vaults, point at canonical rows they can't
+  // see: those copies used to be dropped. Further copies of the same paper fill in what the
+  // stand-in lacks, the way copies fill in a canonical paper.
+  const standInIds: Record<string, string> = {};
   formattedVaultPublications.forEach((vp) => {
     if (vp.original_publication_id) {
       const canonical = allPublicationsMap[vp.original_publication_id];
       if (canonical) {
         allPublicationsMap[vp.original_publication_id] = mergeMissingDisplayMetadata(canonical, vp as Publication);
+        return;
+      }
+      const standInId = standInIds[vp.original_publication_id];
+      if (standInId) {
+        allPublicationsMap[standInId] = mergeMissingDisplayMetadata(allPublicationsMap[standInId], vp as Publication);
+      } else {
+        standInIds[vp.original_publication_id] = vp.id;
+        allPublicationsMap[vp.id] = vp as Publication;
       }
     } else if (!allPublicationsMap[vp.id]) {
       allPublicationsMap[vp.id] = vp as Publication;
@@ -168,27 +182,41 @@ export function buildAllPublications(
   return { allPublications: Object.values(allPublicationsMap), vaultPublicationLinks };
 }
 
+/**
+ * Maps a paper id to its entry in buildAllPublications' list. A vault copy's id goes to its
+ * canonical paper's entry, or to the copy standing in for that paper when it isn't readable; a
+ * canonical id goes to its stand-in, if it has one. Any other id comes back unchanged, so a
+ * standalone copy or a canonical paper maps to itself.
+ */
+export function buildEntryIdResolver(
+  publications: Publication[],
+  vaultPublicationLinks: VaultPublicationLink[],
+): (id: string) => string {
+  const entryIds = new Set(publications.map((pub) => pub.id));
+  // Only stand-ins carry original_publication_id: canonical rows have no such column, and copies
+  // merged into their canonical paper aren't entries.
+  const standInFor = new Map<string, string>();
+  publications.forEach((pub) => {
+    const original = (pub as Publication & { original_publication_id?: string | null }).original_publication_id;
+    if (original) standInFor.set(original, pub.id);
+  });
+  const linksById = new Map(vaultPublicationLinks.map((link) => [link.id, link]));
+  const canonicalEntry = (id: string) => (entryIds.has(id) ? id : standInFor.get(id) ?? id);
+  return (id) => canonicalEntry(linksById.get(id)?.original_publication_id || id);
+}
+
 export function buildPublicationVaultsMap(
   publications: Publication[],
   vaultPublicationLinks: VaultPublicationLink[],
 ): Record<string, string[]> {
   const map: Record<string, string[]> = {};
   publications.forEach((pub) => { map[pub.id] = []; });
+  // A copy belongs to its canonical paper's entry, or to its stand-in's, or, standalone, to its own.
+  const entryId = buildEntryIdResolver(publications, vaultPublicationLinks);
   vaultPublicationLinks.forEach((link) => {
-    if (link.original_publication_id) {
-      if (!map[link.original_publication_id]) map[link.original_publication_id] = [];
-      if (!map[link.original_publication_id].includes(link.vault_id)) {
-        map[link.original_publication_id].push(link.vault_id);
-      }
-    } else {
-      // A link with no original_publication_id is a standalone vault
-      // publication that keeps its own id in `publications` (see
-      // buildAllPublications). A link WITH an original_publication_id is
-      // merged away into the canonical publication above and never appears
-      // as its own `publications[].id`, so it must not get its own key here.
-      if (!map[link.id]) map[link.id] = [];
-      if (!map[link.id].includes(link.vault_id)) map[link.id].push(link.vault_id);
-    }
+    const key = entryId(link.id);
+    if (!map[key]) map[key] = [];
+    if (!map[key].includes(link.vault_id)) map[key].push(link.vault_id);
   });
   return map;
 }

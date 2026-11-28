@@ -25,6 +25,7 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
+import type { SharedPublicationInfo } from '@/lib/sharedPublications';
 import { DraggablePublication, PublicationDragHandle } from '@/components/dnd/DraggablePublication';
 import {
   Plus,
@@ -75,6 +76,9 @@ interface PublicationListProps {
   publicationActionLabel?: string;
   onDeletePublication?: (pub: Publication) => void;
   onDeletePublications?: (pubs: Publication[]) => void;
+  /** Papers here because a vault was shared with the user, by id: they get a cue, can't be
+   * deleted from this list, and are read-only for a viewer. */
+  sharedPublications?: Record<string, SharedPublicationInfo>;
   onExportBibtex: (pubs: Publication[]) => void;
   onDiscoverRelated?: (pubs: Publication[]) => void;
   onDiscoverByTopic?: () => void;
@@ -123,6 +127,7 @@ export function PublicationList({
   publicationActionLabel = 'edit',
   onDeletePublication,
   onDeletePublications,
+  sharedPublications,
   onExportBibtex,
   onDiscoverRelated,
   onDiscoverByTopic,
@@ -870,6 +875,7 @@ export function PublicationList({
             onOpen={openPublication}
             primaryActionLabel={publicationActionLabel}
             onDelete={onDeletePublication}
+            sharedPublications={sharedPublications}
             onExportBibtex={handleExportSingleBibtex}
             sortBy={sortBy}
             sortDirection={sortDirection}
@@ -912,6 +918,7 @@ export function PublicationList({
                       openPublication={openPublication}
                       primaryActionLabel={publicationActionLabel}
                       onDeletePublication={onDeletePublication}
+                      shared={sharedPublications?.[pub.id]}
                       onExportBibtex={handleExportSingleBibtex}
                       driveUrl={driveUrlsMap ? (driveUrlsMap[pub.id] ?? null) : null}
                       driveLoading={driveLoading}
@@ -959,6 +966,7 @@ interface PublicationCardRowProps extends Omit<PublicationDragHandle, 'ref'> {
   openPublication?: (pub: Publication) => void;
   primaryActionLabel: string;
   onDeletePublication?: (pub: Publication) => void;
+  shared?: SharedPublicationInfo;
   onExportBibtex: (pub: Publication) => void;
   driveUrl: string | null;
   driveLoading?: boolean;
@@ -990,6 +998,7 @@ const PublicationCardRow = memo(forwardRef<HTMLDivElement, PublicationCardRowPro
   openPublication,
   primaryActionLabel,
   onDeletePublication,
+  shared,
   onExportBibtex,
   driveUrl,
   driveLoading,
@@ -1028,7 +1037,8 @@ const PublicationCardRow = memo(forwardRef<HTMLDivElement, PublicationCardRowPro
         onToggleSelect={() => toggleSelection(pub.id)}
         onOpen={openPublication ? () => openPublication(pub) : undefined}
         primaryActionLabel={primaryActionLabel}
-        onDelete={onDeletePublication ? () => onDeletePublication(pub) : undefined}
+        onDelete={onDeletePublication && !shared ? () => onDeletePublication(pub) : undefined}
+        shared={shared}
         onExportBibtex={() => onExportBibtex(pub)}
         driveUrl={driveUrl}
         driveLoading={driveLoading}
@@ -1036,7 +1046,7 @@ const PublicationCardRow = memo(forwardRef<HTMLDivElement, PublicationCardRowPro
         syncLoading={syncLoading}
         syncCooldownSeconds={syncCooldownSeconds}
         onCheckSync={onCheckPublicationSync ? () => onCheckPublicationSync(pub) : undefined}
-        onUpdateReadingState={onUpdateReadingState ? (patch) => onUpdateReadingState(pub, patch) : undefined}
+        onUpdateReadingState={onUpdateReadingState && (!shared || shared.canEdit) ? (patch) => onUpdateReadingState(pub, patch) : undefined}
       />
     </div>
   );

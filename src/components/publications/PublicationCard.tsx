@@ -28,6 +28,8 @@ import {
 import { cn } from '@/lib/utils';
 import { HierarchicalTagBadge } from '@/components/tags/HierarchicalTagBadge';
 import { ReadingProgressControl, ImportantToggle } from './ReadingStateControl';
+import { SharedPaperCue } from './SharedPaperCue';
+import type { SharedPublicationInfo } from '@/lib/sharedPublications';
 import { getValidHttpUrl } from '@/lib/safeUrl';
 
 interface PublicationCardProps {
@@ -57,6 +59,8 @@ interface PublicationCardProps {
   syncCooldownSeconds?: number;
   onCheckSync?: () => void;
   onUpdateReadingState?: (patch: Partial<Pick<Publication, 'reading_state' | 'important'>>) => void;
+  /** Set when the paper is here because a vault was shared with the user. */
+  shared?: SharedPublicationInfo;
 }
 
 export function PublicationCard({
@@ -83,6 +87,7 @@ export function PublicationCard({
   syncCooldownSeconds = 0,
   onCheckSync,
   onUpdateReadingState,
+  shared,
 }: PublicationCardProps) {
   const [notesExpanded, setNotesExpanded] = useState(false);
   // Only http(s) URLs become links (see getValidHttpUrl).
@@ -147,6 +152,7 @@ export function PublicationCard({
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex-1 min-w-0">
                 <h3 className="font-bold text-base sm:text-lg text-foreground leading-tight line-clamp-3 sm:line-clamp-2 group-hover:text-primary transition-colors">
+                  {shared && <SharedPaperCue shared={shared} />}
                   {publication.title}
                 </h3>
                 {(show.authors || show.year || show.type) && (

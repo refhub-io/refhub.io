@@ -17,6 +17,8 @@ import { generateBibtexKey } from '@/lib/bibtex';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationDialog } from '@/components/publications/PublicationDialog';
+import { PublicationViewDialog } from '@/components/publications/PublicationViewDialog';
+import { findSharedPublications } from '@/lib/sharedPublications';
 import { AddImportDialog } from '@/components/publications/AddImportDialog';
 import { DuplicateCheckDialog } from '@/components/publications/DuplicateCheckDialog';
 import { VaultDialog } from '@/components/vaults/VaultDialog';
@@ -37,6 +39,7 @@ import { updatePublicationReadingState } from '@/lib/publicationReadingState';
 import { filterDashboardTags } from '@/lib/dashboardTagScope';
 import {
   buildAllPublications,
+  buildEntryIdResolver,
   buildPublicationVaultsMap,
   buildPublicationTagsMap,
   type VaultPublicationLink,
@@ -122,6 +125,8 @@ export default function Dashboard() {
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isDupeCheckOpen, setIsDupeCheckOpen] = useState(false);
   const [editingPublication, setEditingPublication] = useState<Publication | null>(null);
+  // A paper from a vault shared with the user opens read-only first: see sharedPublications.
+  const [viewingPublication, setViewingPublication] = useState<Publication | null>(null);
 
   const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
   const [editingVault, setEditingVault] = useState<Vault | null>(null);
@@ -168,28 +173,46 @@ export default function Dashboard() {
     // publication_relations rows are written using whichever id the dialog
     // was opened with: a canonical publications.id when created from All
     // Papers, or a vault_publications.id when created from within a vault
-    // (see usePublicationRelations). Resolve either to the canonical id
-    // before counting, since that's how `publications` here is keyed.
-    const linksById = new Map(vaultPublicationLinks.map(link => [link.id, link]));
-    const resolveCanonicalId = (rawId: string): string =>
-      linksById.get(rawId)?.original_publication_id || rawId;
-
-    const pubById = new Map<string, Publication>();
-    publications.forEach(pub => { pubById.set(pub.id, pub); });
-
+    // (see usePublicationRelations). Resolve either to its entry in
+    // `publications` before counting: the canonical paper, or the vault copy
+    // standing in for one the user can't read.
+    const entryId = buildEntryIdResolver(publications, vaultPublicationLinks);
     const map: Record<string, number> = {};
     publicationRelations.forEach((rel) => {
-      const id1 = resolveCanonicalId(rel.publication_id);
-      const id2 = resolveCanonicalId(rel.related_publication_id);
-
-      const vaultPubId1 = pubById.get(id1)?.id || id1;
-      const vaultPubId2 = pubById.get(id2)?.id || id2;
-
-      map[vaultPubId1] = (map[vaultPubId1] || 0) + 1;
-      map[vaultPubId2] = (map[vaultPubId2] || 0) + 1;
+      const id1 = entryId(rel.publication_id);
+      const id2 = entryId(rel.related_publication_id);
+      map[id1] = (map[id1] || 0) + 1;
+      map[id2] = (map[id2] || 0) + 1;
     });
     return map;
   }, [publications, publicationRelations, vaultPublicationLinks]);
+
+  // Papers from vaults shared with the user. They get a cue in the list, open read-only (with an
+  // edit button for an editor), and can't be deleted from here: they'd be deleted from the vault
+  // someone shared, which belongs to them.
+  const sharedPublications = useMemo(
+    () => findSharedPublications(publications, publicationVaultsMap, {
+      userId: user?.id,
+      vaults: vaults.concat(sharedVaults),
+      sharedVaultRoles,
+    }),
+    [publications, publicationVaultsMap, user?.id, vaults, sharedVaults, sharedVaultRoles],
+  );
+
+  const openPublicationForEditing = (pub: Publication) => {
+    setViewingPublication(null);
+    setEditingPublication(pub);
+    setIsPublicationDialogOpen(true);
+  };
+
+  const sharedPaperNotDeleted = (pubs: Publication[]) => {
+    const vaultNames = [...new Set(pubs.flatMap((pub) => sharedPublications[pub.id]?.vaultNames ?? []))];
+    toast({
+      title: pubs.length === 1 ? 'Shared paper not deleted' : `${pubs.length} shared papers not deleted`,
+      description: `${pubs.length === 1 ? "It's" : "They're"} in ${vaultNames.join(', ') || 'a vault'} shared with you. Remove ${pubs.length === 1 ? 'it' : 'them'} from that vault instead.`,
+      source: null,
+    });
+  };
 
   // Track auth loading phase
   useEffect(() => {
@@ -1506,11 +1529,21 @@ export default function Dashboard() {
         onAddPublication={() => setIsImportDialogOpen(true)}
         onFindDuplicates={() => setIsDupeCheckOpen(true)}
         onEditPublication={(pub) => {
-          setEditingPublication(pub);
-          setIsPublicationDialogOpen(true);
+          if (sharedPublications[pub.id]) setViewingPublication(pub);
+          else openPublicationForEditing(pub);
         }}
-        onDeletePublication={(pub) => setDeleteConfirmation(pub)}
-        onDeletePublications={(pubs) => pubs.length === 1 ? setDeleteConfirmation(pubs[0]) : setBulkDeleteConfirmation(pubs)}
+        onDeletePublication={(pub) => {
+          if (sharedPublications[pub.id]) sharedPaperNotDeleted([pub]);
+          else setDeleteConfirmation(pub);
+        }}
+        onDeletePublications={(pubs) => {
+          const shared = pubs.filter((pub) => sharedPublications[pub.id]);
+          const deletable = pubs.filter((pub) => !sharedPublications[pub.id]);
+          if (shared.length > 0) sharedPaperNotDeleted(shared);
+          if (deletable.length === 1) setDeleteConfirmation(deletable[0]);
+          else if (deletable.length > 1) setBulkDeleteConfirmation(deletable);
+        }}
+        sharedPublications={sharedPublications}
         onExportBibtex={handleExportBibtex}
         onMobileMenuOpen={() => setIsMobileSidebarOpen(true)}
         onOpenGraph={() => setIsGraphOpen(true)}
@@ -1528,6 +1561,20 @@ export default function Dashboard() {
         onUpdateReadingState={handleUpdateReadingState}
       />
       </div>
+
+      <PublicationViewDialog
+        open={!!viewingPublication}
+        onOpenChange={(open) => {
+          if (!open) setViewingPublication(null);
+        }}
+        publication={viewingPublication}
+        tags={viewingPublication ? tags.filter((tag) => (publicationTagsMap[viewingPublication.id] || []).includes(tag.id)) : []}
+        allTags={tags}
+        onEdit={viewingPublication && sharedPublications[viewingPublication.id]?.canEdit ? openPublicationForEditing : undefined}
+        onExport={(pub) => handleExportBibtex([pub])}
+        driveUrl={viewingPublication ? (pdfAssetsMap[viewingPublication.id] ?? null) : null}
+        driveLoading={pdfAssetsLoading}
+      />
 
       <PublicationDialog
         open={isPublicationDialogOpen}
@@ -1619,8 +1666,8 @@ export default function Dashboard() {
         tags={tags}
         publicationTags={publicationTags}
         onSelectPublication={(pub) => {
-          setEditingPublication(pub);
-          setIsPublicationDialogOpen(true);
+          if (sharedPublications[pub.id]) setViewingPublication(pub);
+          else openPublicationForEditing(pub);
         }}
       />
 
