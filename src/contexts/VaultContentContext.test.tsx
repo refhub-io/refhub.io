@@ -1,16 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useEffect } from 'react';
 
 // Per-table results for a fake Supabase client. get_vault_content assembles its answer from the
 // tables it reads, and fails if any of them fails; other tables are plain queries, where every
 // builder method chains and the builder resolves to the table's result.
-const { results, handleError, signedInUser, auth, requestedTables, pendingTables, rpcCalls } = vi.hoisted(() => ({
+const { results, handleError, signedInUser, auth, requestedTables, pendingTables, rpcCalls, realtime } = vi.hoisted(() => ({
   results: new Map<string, { data: unknown; error: unknown }>(),
   // Tables queried directly, in order; tables that never answer; RPC calls.
   requestedTables: [] as string[],
   pendingTables: new Set<string>(),
   rpcCalls: [] as { fn: string; args: unknown }[],
+  // Realtime channels opened, and the callbacks they report their status to.
+  realtime: { opened: 0, statusCallbacks: [] as ((status: string, err?: unknown) => void)[] },
   // One object, like the real auth state between token refreshes; auth.user is what useAuth returns.
   signedInUser: { id: 'user-1' },
   auth: { user: null as { id: string } | null },
@@ -41,7 +43,13 @@ vi.mock('@/integrations/supabase/client', () => {
     if (failed) return { data: null, error: failed.error };
     return { data: Object.fromEntries(Object.keys(contentTables).map((key, i) => [key, answers[i].data])), error: null };
   };
-  const channel = { on: () => channel, subscribe: () => channel };
+  const channel = {
+    on: () => channel,
+    subscribe: (callback?: (status: string, err?: unknown) => void) => {
+      if (callback) realtime.statusCallbacks.push(callback);
+      return channel;
+    },
+  };
   return {
     supabase: {
       from: (table: string) => {
@@ -54,7 +62,7 @@ vi.mock('@/integrations/supabase/client', () => {
         if (fn !== 'get_vault_content') throw new Error(`unexpected rpc ${fn}`);
         return getVaultContent();
       },
-      channel: () => channel,
+      channel: () => { realtime.opened += 1; return channel; },
       removeChannel: () => {},
     },
   };
@@ -103,6 +111,8 @@ beforeEach(() => {
   pendingTables.clear();
   rpcCalls.length = 0;
   auth.user = signedInUser;
+  realtime.opened = 0;
+  realtime.statusCallbacks.length = 0;
   results.set('vault_publications', {
     data: [{
       id: 'vp-1', vault_id: 'vault-1', original_publication_id: 'p-1', title: 'A paper', authors: ['Ada Lovelace'],
@@ -193,6 +203,33 @@ describe('VaultContentContext loading a vault', () => {
     view.rerender(tree());
 
     expect(rpcCalls).toHaveLength(1);
+  });
+
+  // The channel depended on the user object, which the auth state replaces on every token
+  // refresh: it was torn down and opened again, and changes in between never arrived.
+  it('keeps its realtime channel through a token refresh', async () => {
+    const tree = () => <VaultContentProvider><OpenVault vaultId="vault-1" /></VaultContentProvider>;
+    const view = render(tree());
+    await waitFor(() => expect(shown().papers).toBe(1));
+    const opened = realtime.opened;
+
+    auth.user = { id: 'user-1' };
+    view.rerender(tree());
+
+    expect(realtime.opened).toBe(opened);
+  });
+
+  // Changes made while the channel is down are never delivered.
+  it('fetches the vault again when its realtime channel re-joins after a drop', async () => {
+    render(<VaultContentProvider><OpenVault vaultId="vault-1" /></VaultContentProvider>);
+    await waitFor(() => expect(shown().papers).toBe(1));
+    const report = realtime.statusCallbacks.at(-1)!;
+
+    act(() => report('SUBSCRIBED'));
+    expect(rpcCalls).toHaveLength(1);
+
+    act(() => { report('CHANNEL_ERROR'); report('SUBSCRIBED'); });
+    await waitFor(() => expect(rpcCalls).toHaveLength(2));
   });
 
   // Row-level security hides a vault the user can't read: the call answers with no vault.

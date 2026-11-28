@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [2.3.8] - 2026-11-28
+
+### Fixed
+- An open vault no longer misses other people's changes (#285):
+  - **After a dropped connection.** Changes made while the live connection was down used to stay missing until you opened the vault again. When the connection comes back, the vault now catches up.
+  - **Around a session token refresh.** The live connection was closed and opened again on every token refresh, about hourly, and a change in between was lost. Since 2.3.5 nothing made up for it. The connection now stays open.
+  - **When you're given access.** If someone shares a vault with you, or approves your request, while you're on its request screen, its papers now load straight away instead of after a reload.
+
 ## [2.3.7] - 2026-11-28
 
 ### Fixed

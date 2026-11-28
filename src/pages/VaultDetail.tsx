@@ -42,6 +42,7 @@ import { useVaultFavorites } from '@/hooks/useVaultFavorites';
 import { useVaultFork } from '@/hooks/useVaultFork';
 import { useVaultContent } from '@/contexts/VaultContentContext';
 import { useSharedVaultOperations } from '@/hooks/useSharedVaultOperations';
+import { useReloadWhenAccessArrives } from '@/hooks/useReloadWhenAccessArrives';
 import { getForkSourceHref, getForkSourceLabel, getVaultForkInfo, VaultForkInfo } from '@/lib/vaultFork';
 import { buildVaultPublicationCopyPayload } from '@/lib/vaultPublicationAttribution';
 import { Lock, Globe, Shield, Clock, Crown, Edit, Eye, Heart, GitFork, PencilLine, Stethoscope, Archive, RefreshCw } from 'lucide-react';
@@ -92,7 +93,9 @@ export default function VaultDetail() {
     updateLastActivity,
     pdfAssetsMap,
     updatePdfAsset,
+    refreshVaultContent,
   } = useVaultContent();
+  useReloadWhenAccessArrives({ vaultId, accessStatus, accessVaultId: vault?.id, reload: refreshVaultContent });
 
   // Use the shared vault operations hook for optimistic updates
   const sharedVaultOps = useSharedVaultOperations({
