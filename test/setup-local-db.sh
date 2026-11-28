@@ -65,6 +65,10 @@ POST_DUMP_MIGRATIONS=(
   # Not yet applied to production: get_vault_content(), a vault in one round
   # trip. Temporary, like the entries above.
   "20261128140000_get_vault_content.sql"
+  # Not yet applied to production: get_library() and get_vault_content() that
+  # filter through indexes, and tag_links_for_papers(). Last, since it
+  # replaces both. Temporary, like the entries above.
+  "20261128180000_index_friendly_library_functions.sql"
 )
 
 cleanup() {

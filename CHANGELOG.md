@@ -13,6 +13,13 @@ project uses [Semantic Versioning](https://semver.org/). History prior to
 
 ### Fixed
 - Moving papers between sections in vault settings no longer makes the vault page drop papers added while settings were open, or revert other people's edits made in that time.
+## [2.3.9] - 2026-11-28
+
+### Fixed
+- The dashboard no longer fails with "Could not load dashboard data" before loading your library a few seconds later (#287).
+  - **One load per visit.** It loaded your library four times on every visit, all at once, and one of those loads could fail.
+  - **Faster functions.** `get_library()` and `get_vault_content()` now filter through indexes, and check tag links once per vault instead of once per link. Before, their cost grew with the whole database, not just your library. Measured locally on a database of 8,000 papers: a 734-paper library loads in 253 ms instead of 556, and a 250-paper vault in 83 ms instead of 306.
+  - **Apply migration `20261128180000_index_friendly_library_functions.sql`.** It can go in at any time: the results are the same, and the app needs no change for it.
 
 ## [2.3.8] - 2026-11-28
 
