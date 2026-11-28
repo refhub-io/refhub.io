@@ -2,15 +2,13 @@ import { createContext, useContext, useState, ReactNode, useEffect, useCallback,
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag, PublicationRelation, VaultShare } from '@/types/database';
-import { useVaultAccess } from '@/hooks/useVaultAccess';
 import { handleError } from '@/lib/toast';
 import { debug, warn, error as logError } from '@/lib/logger';
-import { getPageCache, setPageCache } from '@/lib/pageCache';
+import { clearPageCache, getPageCache, setPageCache } from '@/lib/pageCache';
 import { ownerTag } from '@/lib/cacheOwner';
 import { syncDrivePdfAsset } from '@/lib/pdfAssets';
 import { formatVaultPublication } from '@/lib/formatVaultPublication';
-import { fetchAllRows, fetchAllRowsForIds } from '@/lib/fetchAllRows';
-import { fetchRelationsForPublicationIds } from '@/lib/fetchRelations';
+import { buildPdfAssetsMap, fetchVaultContentRows } from '@/lib/vaultContent';
 
 // Info about the last activity in the vault
 export type ActivityType = 'publication_added' | 'publication_updated' | 'publication_removed' | 'tag_added' | 'tag_updated' | 'tag_removed';
@@ -30,6 +28,7 @@ interface VaultContentCache {
   publicationTags: PublicationTag[];
   publicationRelations: PublicationRelation[];
   vaultShares: VaultShare[];
+  pdfAssetsMap: Record<string, string | null>;
 }
 
 interface VaultContentContextType {
@@ -56,7 +55,6 @@ interface VaultContentContextType {
   updateLastActivity: (type: ActivityType, userId: string | null) => void;
   // PDF assets
   pdfAssetsMap: Record<string, string | null>;
-  pdfAssetsLoading: boolean;
   updatePdfAsset: (vaultPublicationId: string, url: string | null) => Promise<void>;
 }
 
@@ -68,6 +66,13 @@ interface VaultContentProviderProps {
 
 export function VaultContentProvider({ children }: VaultContentProviderProps) {
   const { user } = useAuth();
+  // The user's id, read when a fetch runs. Fetches start on visits (visitNonce), not on every new
+  // user object: the auth state hands over a new one with the same id on each token refresh, and
+  // several while a session restores, and each one used to start another fetch. A change of user
+  // still counts as a visit, since setCurrentVaultId depends on the id and VaultDetail calls it
+  // again; that call is also what clears the previous user's content.
+  const userIdRef = useRef(user?.id);
+  userIdRef.current = user?.id;
   const [currentVault, setCurrentVault] = useState<Vault | null>(null);
   const [publications, setPublications] = useState<Publication[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
@@ -79,7 +84,6 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
   const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
   const [lastActivity, setLastActivity] = useState<LastActivityInfo | null>(null);
   const [pdfAssetsMap, setPdfAssetsMap] = useState<Record<string, string | null>>({});
-  const [pdfAssetsLoading, setPdfAssetsLoading] = useState(false);
 
   const [currentVaultId, setCurrentVaultIdState] = useState<string | null>(null);
   // Bumped on every setCurrentVaultId call, including revisits to the same
@@ -114,8 +118,6 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
   // state with vault A's data after vault B is already selected.
   const latestRequestedVaultIdRef = useRef<string | null>(null);
 
-  const { canView } = useVaultAccess(currentVaultId || '', { enableRealtime: false });
-
   const updateCurrentVault = useCallback((vault: Vault) => {
     setCurrentVault(vault);
 
@@ -134,8 +136,9 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       publicationTags: preferState ? publicationTags : cached.publicationTags,
       publicationRelations: preferState ? publicationRelations : cached.publicationRelations,
       vaultShares: preferState ? vaultShares : cached.vaultShares,
+      pdfAssetsMap: preferState ? pdfAssetsMap : cached.pdfAssetsMap,
     }, ownerTag(user?.id));
-  }, [currentVaultId, currentVault, publications, tags, publicationTags, publicationRelations, vaultShares, user?.id]);
+  }, [currentVaultId, currentVault, publications, tags, publicationTags, publicationRelations, vaultShares, pdfAssetsMap, user?.id]);
   
   // Helper to get user display name (with caching)
   const getUserDisplayName = useCallback(async (userId: string): Promise<string | null> => {
@@ -212,71 +215,6 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
   }, [getUserDisplayName]);
 
 
-  const fetchPdfAssets = useCallback(async (vaultPublications: Publication[]) => {
-    if (vaultPublications.length === 0) {
-      setPdfAssetsMap({});
-      setPdfAssetsLoading(false);
-      return;
-    }
-
-    const vaultPublicationIds = vaultPublications.map(pub => pub.id).filter(Boolean);
-    const originalPublicationIds = vaultPublications
-      .map(pub => pub.original_publication_id)
-      .filter((id): id is string => Boolean(id));
-
-    try {
-      const [vaultAssetsRes, publicationAssetsRes] = await Promise.all([
-        vaultPublicationIds.length > 0
-          ? supabase
-              .from('publication_pdf_assets')
-              .select('vault_publication_id, stored_pdf_url')
-              .in('vault_publication_id', vaultPublicationIds)
-              .eq('storage_provider', 'google_drive')
-              .eq('status', 'stored')
-          : Promise.resolve({ data: [], error: null }),
-        originalPublicationIds.length > 0
-          ? supabase
-              .from('publication_pdf_assets')
-              .select('publication_id, stored_pdf_url')
-              .in('publication_id', originalPublicationIds)
-              .is('vault_publication_id', null)
-              .eq('storage_provider', 'google_drive')
-              .eq('status', 'stored')
-          : Promise.resolve({ data: [], error: null }),
-      ]);
-
-      if (vaultAssetsRes.error) throw vaultAssetsRes.error;
-      if (publicationAssetsRes.error) throw publicationAssetsRes.error;
-
-      const publicationAssetMap = new Map<string, string | null>();
-      for (const row of publicationAssetsRes.data ?? []) {
-        if (row.publication_id) {
-          publicationAssetMap.set(row.publication_id, row.stored_pdf_url ?? null);
-        }
-      }
-
-      const map: Record<string, string | null> = {};
-      for (const publication of vaultPublications) {
-        map[publication.id] = publication.original_publication_id
-          ? publicationAssetMap.get(publication.original_publication_id) ?? null
-          : null;
-      }
-      for (const row of vaultAssetsRes.data ?? []) {
-        if (row.vault_publication_id) {
-          // Vault-specific rows win, but publication-level rows provide the cross-vault fallback.
-          map[row.vault_publication_id] = row.stored_pdf_url ?? null;
-        }
-      }
-
-      setPdfAssetsMap(map);
-    } catch (err) {
-      debug('VaultContentContext', 'pdf assets fetch failed (non-fatal):', err);
-      setPdfAssetsMap({});
-    } finally {
-      setPdfAssetsLoading(false);
-    }
-  }, []);
-
   const updatePdfAsset = useCallback(async (vaultPublicationId: string, url: string | null) => {
     if (!user) return;
 
@@ -306,8 +244,9 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
 
   // Fetch vault content - extracted as a reusable function
   const fetchVaultContent = useCallback(async () => {
-    if (!currentVaultId || !user || !canView) {
-      debug('VaultContentContext', 'Skipping fetch - conditions not met', { hasId: !!currentVaultId, hasUser: !!user, canView });
+    const userId = userIdRef.current;
+    if (!currentVaultId || !userId) {
+      debug('VaultContentContext', 'Skipping fetch - conditions not met', { hasId: !!currentVaultId, hasUser: !!userId });
       return;
     }
 
@@ -325,77 +264,44 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
     setError(null);
 
     try {
-      // Fetch publications in this vault - prioritize vault-specific copies
-      const [
-        vaultPubsRes,
-        vaultScopedTagsRes,
-        userScopedTagsRes,
-        sharesRes,
-        vaultRes,
-      ] = await Promise.all([
-        // Paged: a plain select stops silently at PostgREST's 1,000-row cap.
-        fetchAllRows((from, to) => supabase
-          .from('vault_publications')
-          .select('*')
-          .eq('vault_id', currentVaultId)
-          .order('created_at', { ascending: false })
-          .order('id')
-          .range(from, to)),
-        supabase.from('tags').select('*').eq('vault_id', currentVaultId).order('name'),
-        // Tags can be user-scoped (vault_id IS NULL) as well as vault-scoped --
-        // a paper in this vault may carry either kind via publication_tags.
-        // Omitting user-scoped tags here left them unresolvable by id (see
-        // issue #233): publication_tags rows pointing at them still existed,
-        // but nothing in `tags` could supply their name/color for display.
-        supabase.from('tags').select('*').eq('user_id', user.id).is('vault_id', null).order('name'),
-        supabase.from('vault_shares').select('*').eq('vault_id', currentVaultId),
-        // The vault row depends on nothing else, so it comes with the first batch instead of
-        // after relations and tags.
-        supabase.from('vaults').select('*').eq('id', currentVaultId).single(),
-      ]);
-      const tagsRes = {
-        data: [...(vaultScopedTagsRes.data || []), ...(userScopedTagsRes.data || [])],
-        error: vaultScopedTagsRes.error || userScopedTagsRes.error,
-      };
+      // The whole vault in one round trip (#258). It doesn't wait for an access check: row-level
+      // security scopes the call, so a vault the user can't read comes back empty, and
+      // VaultDetail's own check decides what the page shows. A second check here repeated that
+      // one and held the content back until it finished.
+      const content = await fetchVaultContentRows(supabase, requestedVaultId);
 
-      // Get the vault publication IDs to fetch specific publication tags
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const vaultPublications = vaultPubsRes.data as any[];
-      const vaultPublicationIds = vaultPublications?.map(vp => vp.id).filter(id => id) || [];
-      const originalPublicationIds = vaultPublications?.map(vp => vp.original_publication_id).filter(id => id) || [];
+      if (isStale()) {
+        // A newer switch (e.g. rapid vault-hopping via keybinds) has already
+        // moved past the vault this fetch was for. Discard the result
+        // instead of clobbering whatever the newer, still-in-flight or
+        // already-resolved fetch has shown.
+        debug('VaultContentContext', 'Discarding stale fetch result for', requestedVaultId, 'latest requested is', latestRequestedVaultIdRef.current);
+        return;
+      }
 
-      // Relations and tags for this vault's papers, filtered on the server and paged past
-      // PostgREST's 1,000-row cap. An error from any of them fails the load, instead of
-      // quietly showing (and caching) a vault with missing relations or tags.
-      const [relationsRes, vaultTagsRes, originalTagsRes] = await Promise.all([
-        fetchRelationsForPublicationIds(supabase, [...vaultPublicationIds, ...originalPublicationIds]),
-        fetchAllRowsForIds<PublicationTag>(vaultPublicationIds, (chunk, from, to) =>
-          supabase.from('publication_tags').select('*').in('vault_publication_id', chunk).order('id').range(from, to)),
-        fetchAllRowsForIds<PublicationTag>(originalPublicationIds, (chunk, from, to) =>
-          supabase.from('publication_tags').select('*').in('publication_id', chunk).order('id').range(from, to)),
-      ]);
-      const pubTagsRes = {
-        data: [...vaultTagsRes.data, ...originalTagsRes.data],
-        error: vaultTagsRes.error || originalTagsRes.error,
-      };
+      const cacheKey = `vault-content-${requestedVaultId}` as const;
+      if (!content.vault) {
+        // The user can't read this vault, or it's gone: nothing to show or keep.
+        clearPageCache(cacheKey);
+        setCurrentVault(null);
+        setPublications([]);
+        setTags([]);
+        setPublicationTags([]);
+        setPublicationRelations([]);
+        setVaultShares([]);
+        setPdfAssetsMap({});
+        return;
+      }
 
-      if (vaultPubsRes.error) throw vaultPubsRes.error;
-      if (tagsRes.error) throw tagsRes.error;
-      if (pubTagsRes.error) throw pubTagsRes.error;
-      if (relationsRes.error) throw relationsRes.error;
-      if (sharesRes.error) throw sharesRes.error;
-
-      const { data: vaultData, error: vaultError } = vaultRes;
-
-      if (vaultError) throw vaultError;
-
+      const vaultPublications = content.vault_publications;
       // Convert vault publications to the same format as original publications
-      const formattedVaultPublications = (vaultPublications || []).map(formatVaultPublication);
+      const formattedVaultPublications = vaultPublications.map(formatVaultPublication);
+      const pdfAssets = buildPdfAssetsMap(formattedVaultPublications, content.pdf_assets);
 
       // Find the most recently updated publication to set initial lastActivity
       let mostRecentActivity: { timestamp: string; updatedBy: string | null } | null = null;
-      if (vaultPublications && vaultPublications.length > 0) {
-        const sorted = [...vaultPublications].sort((a, b) => 
+      if (vaultPublications.length > 0) {
+        const sorted = [...vaultPublications].sort((a, b) =>
           new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
         );
         const mostRecent = sorted[0];
@@ -407,37 +313,26 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         }
       }
 
-      if (isStale()) {
-        // A newer switch (e.g. rapid vault-hopping via keybinds) has already
-        // moved past the vault this fetch was for. Discard the result
-        // instead of clobbering whatever the newer, still-in-flight or
-        // already-resolved fetch has shown.
-        debug('VaultContentContext', 'Discarding stale fetch result for', requestedVaultId, 'latest requested is', latestRequestedVaultIdRef.current);
-        return;
-      }
-
       // Batch state updates to reduce re-renders
-      setCurrentVault(vaultData as Vault);
+      setCurrentVault(content.vault);
       setPublications(formattedVaultPublications);
-      // Fire pdf assets fetch async — does not block publication rendering
-      setPdfAssetsLoading(true);
-      fetchPdfAssets(formattedVaultPublications);
-      setTags(tagsRes.data as Tag[]);
-      setPublicationTags(pubTagsRes.data as PublicationTag[]);
-      setPublicationRelations(relationsRes.data as PublicationRelation[]);
-      setVaultShares(sharesRes.data as VaultShare[]);
-      
+      setPdfAssetsMap(pdfAssets);
+      setTags(content.tags);
+      setPublicationTags(content.publication_tags);
+      setPublicationRelations(content.publication_relations);
+      setVaultShares(content.vault_shares);
+
       // Save to cache for instant restore when switching back
-      const cacheKey = `vault-content-${currentVaultId}` as const;
       setPageCache<VaultContentCache>(cacheKey, {
-        currentVault: vaultData as Vault,
+        currentVault: content.vault,
         publications: formattedVaultPublications,
-        tags: tagsRes.data as Tag[],
-        publicationTags: pubTagsRes.data as PublicationTag[],
-        publicationRelations: relationsRes.data as PublicationRelation[],
-        vaultShares: sharesRes.data as VaultShare[],
-      }, ownerTag(user?.id));
-      
+        tags: content.tags,
+        publicationTags: content.publication_tags,
+        publicationRelations: content.publication_relations,
+        vaultShares: content.vault_shares,
+        pdfAssetsMap: pdfAssets,
+      }, ownerTag(userId));
+
       // Set initial lastActivity based on most recently updated publication
       // Now uses updated_by field if available to show who made the last update
       // Only set if we don't already have a more recent local activity
@@ -479,8 +374,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       }
       debug('VaultContentContext', 'Loading set to false');
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentVaultId, user, canView, formatVaultPublication]);
+  }, [currentVaultId, getUserDisplayName]);
 
   // Refresh function that can be called externally
   const refreshVaultContent = useCallback(async () => {
@@ -488,14 +382,15 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
   }, [fetchVaultContent]);
 
   // Fetch vault content when vaultId changes, or on every revisit of the
-  // same vault (visitNonce) -- see the comment on visitNonce above.
+  // same vault (visitNonce) -- see the comment on visitNonce above. A
+  // change of user is a revisit too: see userIdRef.
   useEffect(() => {
-    debug('VaultContentContext', 'Effect triggered', { currentVaultId, user: !!user, canView });
-    if (!currentVaultId || !user || !canView) {
+    debug('VaultContentContext', 'Effect triggered', { currentVaultId, hasUser: !!userIdRef.current });
+    if (!currentVaultId || !userIdRef.current) {
       return;
     }
     fetchVaultContent();
-  }, [currentVaultId, visitNonce, user, canView, fetchVaultContent]);
+  }, [currentVaultId, visitNonce, fetchVaultContent]);
 
   const setCurrentVaultId = useCallback((vaultId: string) => {
     // Set synchronously, before any state updates below, so an in-flight
@@ -516,6 +411,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       setPublicationTags(cached.publicationTags);
       setPublicationRelations(cached.publicationRelations);
       setVaultShares(cached.vaultShares);
+      setPdfAssetsMap(cached.pdfAssetsMap);
       // Don't set loading - we have cached data
     } else {
       // No cache - clear old data to prevent showing stale content
@@ -526,6 +422,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       setPublicationTags([]);
       setPublicationRelations([]);
       setVaultShares([]);
+      setPdfAssetsMap({});
     }
 
     setCurrentVaultIdState(vaultId);
@@ -856,7 +753,6 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         lastActivity,
         updateLastActivity,
         pdfAssetsMap,
-        pdfAssetsLoading,
         updatePdfAsset,
       }}
     >

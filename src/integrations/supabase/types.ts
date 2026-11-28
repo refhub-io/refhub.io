@@ -1293,6 +1293,7 @@ export type Database = {
           vault_count: number
         }[]
       }
+      get_vault_content: { Args: { p_vault_id: string }; Returns: Json }
       get_vault_metadata: {
         Args: { vault_id: string }
         Returns: {
