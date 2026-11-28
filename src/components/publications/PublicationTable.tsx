@@ -1,4 +1,5 @@
-import { memo, forwardRef } from 'react';
+import { memo, forwardRef, useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Publication, Tag, Vault } from '@/types/database';
 import { DraggablePublication, PublicationDragHandle } from '@/components/dnd/DraggablePublication';
 import {
@@ -61,6 +62,8 @@ interface PublicationTableProps {
   sharedPublications?: Record<string, SharedPublicationInfo>;
   onExportBibtex: (pub: Publication) => void;
   driveUrlsMap?: Record<string, string | null>;
+  /** Set to this table's scrollToIndex, for keyboard navigation to reach rows that aren't mounted. */
+  scrollToIndexRef?: MutableRefObject<((index: number) => void) | null>;
   driveLoading?: boolean;
   syncDiffCounts?: Record<string, number>;
   syncLoadingIds?: Set<string>;
@@ -123,7 +126,42 @@ export function PublicationTable({
   onSort,
   focusedIndex,
   kbItemProps,
+  scrollToIndexRef,
 }: PublicationTableProps) {
+  // Only the rows on screen (and a few either side) are in the DOM. The rows scroll inside this
+  // table's own area, below its sticky header, whose height offsets them.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const headRef = useRef<HTMLTableSectionElement>(null);
+  const [headHeight, setHeadHeight] = useState(0);
+  useLayoutEffect(() => {
+    const head = headRef.current;
+    if (!head) return;
+    const measure = () => setHeadHeight(head.getBoundingClientRect().height);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(head);
+    return () => observer.disconnect();
+  }, []);
+  const rowVirtualizer = useVirtualizer({
+    count: publications.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 57,
+    overscan: 10,
+    scrollMargin: headHeight,
+    scrollPaddingStart: headHeight,
+    getItemKey: (index) => publications[index]?.id ?? index,
+  });
+  useEffect(() => {
+    if (!scrollToIndexRef) return;
+    scrollToIndexRef.current = (index) => rowVirtualizer.scrollToIndex(index, { align: 'auto' });
+  }, [scrollToIndexRef, rowVirtualizer]);
+  const virtualRows = rowVirtualizer.getVirtualItems();
+  const lastRow = virtualRows[virtualRows.length - 1];
+  // Spacer rows keep the scroll height of the rows that aren't mounted.
+  const spaceAbove = virtualRows.length > 0 ? virtualRows[0].start - headHeight : 0;
+  const spaceBelow = lastRow ? rowVirtualizer.getTotalSize() - (lastRow.end - headHeight) : 0;
+
   // Sort indicator component for sortable column headers
   const SortIndicator = ({ field }: { field: SortField }) => {
     if (sortBy !== field) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-0 group-hover/sort:opacity-50 transition-opacity" />;
@@ -146,9 +184,9 @@ export function PublicationTable({
   );
 
   return (
-    <div className="w-full border border-border rounded-lg overflow-auto scrollbar-thin max-h-[calc(100vh-16rem)]">
+    <div ref={scrollRef} className="w-full border border-border rounded-lg overflow-auto scrollbar-thin max-h-[calc(100vh-16rem)]">
       <table className="w-full min-w-max caption-bottom text-sm">
-        <thead className="[&_tr]:border-b sticky top-0 z-10 bg-background/95 backdrop-blur-sm">
+        <thead ref={headRef} className="[&_tr]:border-b sticky top-0 z-10 bg-background/95 backdrop-blur-sm">
           <TableRow className="bg-muted/30 hover:bg-muted/30">
             <TableHead className="w-10">
               <span className="sr-only">Select</span>
@@ -201,18 +239,24 @@ export function PublicationTable({
           </TableRow>
         </thead>
         <TableBody>
-          {publications.map((pub, index) => {
+          {spaceAbove > 0 && (
+            <tr aria-hidden="true"><td colSpan={100} style={{ height: spaceAbove, padding: 0 }} /></tr>
+          )}
+          {virtualRows.map((row) => {
+            const index = row.index;
+            const pub = publications[index];
             const isSelected = selectedIds.has(pub.id);
             const dragPublicationIds = isSelected && selectedIds.size > 1
               ? Array.from(selectedIds)
               : [pub.id];
 
             return (
-              <DraggablePublication key={pub.id} publicationId={pub.id} dragPublicationIds={dragPublicationIds} disabled={dragDisabled}>
+              <DraggablePublication key={row.key} publicationId={pub.id} dragPublicationIds={dragPublicationIds} disabled={dragDisabled}>
                 {({ ref, listeners, attributes, isDragging }) => (
                   <PublicationTableRow
                     pub={pub}
                     index={index}
+                    dataIndex={index}
                     tags={tags}
                     tagIds={publicationTagsMap[pub.id] || EMPTY_STRING_ARRAY}
                     vaults={vaults}
@@ -236,7 +280,10 @@ export function PublicationTable({
                     onCheckSync={onCheckSync}
                     onUpdateReadingState={onUpdateReadingState}
                     kbItemProps={kbItemProps}
-                    ref={ref}
+                    ref={(el) => {
+                      ref(el);
+                      rowVirtualizer.measureElement(el);
+                    }}
                     listeners={listeners}
                     attributes={attributes}
                     isDragging={isDragging}
@@ -245,6 +292,9 @@ export function PublicationTable({
               </DraggablePublication>
             );
           })}
+          {spaceBelow > 0 && (
+            <tr aria-hidden="true"><td colSpan={100} style={{ height: spaceBelow, padding: 0 }} /></tr>
+          )}
         </TableBody>
       </table>
     </div>
@@ -271,6 +321,8 @@ interface PublicationTableRowProps extends Omit<PublicationDragHandle, 'ref'> {
   onExportBibtex: (pub: Publication) => void;
   driveUrl: string | null;
   driveLoading: boolean;
+  /** The row's index, as data-index, for the virtualizer to measure it. */
+  dataIndex?: number;
   syncDiffCount: number;
   syncLoading: boolean;
   syncCooldown: number;
@@ -305,6 +357,7 @@ const PublicationTableRow = memo(forwardRef<HTMLTableRowElement, PublicationTabl
   primaryActionLabel,
   onDelete,
   shared,
+  dataIndex,
   onExportBibtex,
   driveUrl,
   driveLoading,
@@ -332,6 +385,7 @@ const PublicationTableRow = memo(forwardRef<HTMLTableRowElement, PublicationTabl
   return (
     <TableRow
       ref={ref}
+      data-index={dataIndex}
       {...listeners}
       {...attributes}
       className={cn(

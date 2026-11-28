@@ -113,6 +113,11 @@ export interface UseKeyboardNavigationOptions {
   bootstrapOnNav?: boolean;
   /** Make this list's shortcuts available across normal app contexts. */
   appWideShortcuts?: boolean;
+  /**
+   * Scrolls an item into view by index. A virtualized list passes its virtualizer's: an item far
+   * from the screen isn't in the DOM, so the default lookup by element id can't find it.
+   */
+  scrollToIndex?: (index: number) => void;
 }
 
 export interface UseKeyboardNavigationReturn {
@@ -170,7 +175,10 @@ export function useKeyboardNavigation(
     resetKey,
     bootstrapOnNav = false,
     appWideShortcuts = false,
+    scrollToIndex,
   } = options;
+  const scrollToIndexRef = useRef(scrollToIndex);
+  scrollToIndexRef.current = scrollToIndex;
 
   const kb = useKeyboardContext();
   const [localFocusedIndex, setLocalFocusedIndex] = useState(0);
@@ -260,6 +268,10 @@ export function useKeyboardNavigation(
   // Scroll focused item into view
   const scrollIntoView = useCallback(
     (index: number) => {
+      if (scrollToIndexRef.current) {
+        scrollToIndexRef.current(index);
+        return;
+      }
       const itemId = `kb-item-${context}-${index}`;
       const el = document.getElementById(itemId);
       if (el) {

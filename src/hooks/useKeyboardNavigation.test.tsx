@@ -141,3 +141,33 @@ describe('useDialogKeyboardContext', () => {
     expect(result.current.activeContext).toBe('inbox');
   });
 });
+
+function press(key: string, init: KeyboardEventInit = {}): void {
+  act(() => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init }));
+  });
+}
+
+describe('useKeyboardNavigation scrolling', () => {
+  // A virtualized list passes scrollToIndex: the item to focus may not be mounted, so looking its
+  // element up by id would find nothing to scroll to.
+  it('hands scrolling to scrollToIndex when given, for items that may not be mounted', () => {
+    const scrolledTo: number[] = [];
+    renderHook(
+      () =>
+        useKeyboardNavigation({
+          context: 'publication-list',
+          itemIds: Array.from({ length: 500 }, (_, i) => `paper-${i}`),
+          appWideShortcuts: true,
+          activateOnMount: true,
+          scrollToIndex: (index) => { scrolledTo.push(index); },
+        }),
+      { wrapper: KeyboardProvider },
+    );
+
+    press('G', { shiftKey: true });
+    press('k');
+
+    expect(scrolledTo).toEqual([499, 498]);
+  });
+});
