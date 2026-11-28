@@ -330,7 +330,8 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         vaultPubsRes,
         vaultScopedTagsRes,
         userScopedTagsRes,
-        sharesRes
+        sharesRes,
+        vaultRes,
       ] = await Promise.all([
         // Paged: a plain select stops silently at PostgREST's 1,000-row cap.
         fetchAllRows((from, to) => supabase
@@ -347,7 +348,10 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         // issue #233): publication_tags rows pointing at them still existed,
         // but nothing in `tags` could supply their name/color for display.
         supabase.from('tags').select('*').eq('user_id', user.id).is('vault_id', null).order('name'),
-        supabase.from('vault_shares').select('*').eq('vault_id', currentVaultId)
+        supabase.from('vault_shares').select('*').eq('vault_id', currentVaultId),
+        // The vault row depends on nothing else, so it comes with the first batch instead of
+        // after relations and tags.
+        supabase.from('vaults').select('*').eq('id', currentVaultId).single(),
       ]);
       const tagsRes = {
         data: [...(vaultScopedTagsRes.data || []), ...(userScopedTagsRes.data || [])],
@@ -381,12 +385,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       if (relationsRes.error) throw relationsRes.error;
       if (sharesRes.error) throw sharesRes.error;
 
-      // Get the vault details
-      const { data: vaultData, error: vaultError } = await supabase
-        .from('vaults')
-        .select('*')
-        .eq('id', currentVaultId)
-        .single();
+      const { data: vaultData, error: vaultError } = vaultRes;
 
       if (vaultError) throw vaultError;
 
@@ -443,15 +442,17 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       // Now uses updated_by field if available to show who made the last update
       // Only set if we don't already have a more recent local activity
       if (mostRecentActivity && Date.now() - lastLocalActivityUpdateRef.current > 2000) {
-        const userName = mostRecentActivity.updatedBy 
-          ? await getUserDisplayName(mostRecentActivity.updatedBy) 
-          : null;
-        setLastActivity({
-          timestamp: mostRecentActivity.timestamp,
-          userId: mostRecentActivity.updatedBy,
-          userName,
-          type: 'publication_updated', // We don't know the actual type, default to updated
-        });
+        const activity = mostRecentActivity;
+        // Who made the last update is decorative, so the vault doesn't wait for the name.
+        void (activity.updatedBy ? getUserDisplayName(activity.updatedBy) : Promise.resolve(null)).then((userName) => {
+          if (isStale() || Date.now() - lastLocalActivityUpdateRef.current <= 2000) return;
+          setLastActivity({
+            timestamp: activity.timestamp,
+            userId: activity.updatedBy,
+            userName,
+            type: 'publication_updated', // We don't know the actual type, default to updated
+          });
+        }, () => {});
       }
       
       debug('VaultContentContext', 'Completed fetch, all state updated');

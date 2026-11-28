@@ -4,26 +4,36 @@ import { useEffect } from 'react';
 
 // Per-table results for a fake Supabase client: every query builder method chains, and the
 // builder resolves to the table's result whether it's awaited, paged or asked for .single().
-const { results, handleError, signedInUser } = vi.hoisted(() => ({
+const { results, handleError, signedInUser, requestedTables, pendingTables } = vi.hoisted(() => ({
   results: new Map<string, { data: unknown; error: unknown }>(),
+  // Tables in the order they were queried, and tables whose queries never answer.
+  requestedTables: [] as string[],
+  pendingTables: new Set<string>(),
   // One object, like the real auth state: the provider's fetch effect depends on it.
   signedInUser: { id: 'user-1' },
   handleError: vi.fn((_error: unknown, _context: string, _hasData?: boolean) => 'Could not load vault content'),
 }));
 
 vi.mock('@/integrations/supabase/client', () => {
-  const resultFor = (table: string) => results.get(table) ?? { data: [], error: null };
+  const resultFor = (table: string) =>
+    pendingTables.has(table) ? new Promise<never>(() => {}) : Promise.resolve(results.get(table) ?? { data: [], error: null });
   const query = (table: string) => {
     const builder: Record<string, unknown> = {};
     for (const method of ['select', 'eq', 'is', 'in', 'or', 'order', 'range', 'limit']) builder[method] = () => builder;
-    builder.single = () => Promise.resolve(resultFor(table));
-    builder.maybeSingle = () => Promise.resolve(resultFor(table));
+    builder.single = () => resultFor(table);
+    builder.maybeSingle = () => resultFor(table);
     builder.then = (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
-      Promise.resolve(resultFor(table)).then(resolve, reject);
+      resultFor(table).then(resolve, reject);
     return builder;
   };
   const channel = { on: () => channel, subscribe: () => channel };
-  return { supabase: { from: query, channel: () => channel, removeChannel: () => {} } };
+  return {
+    supabase: {
+      from: (table: string) => { requestedTables.push(table); return query(table); },
+      channel: () => channel,
+      removeChannel: () => {},
+    },
+  };
 });
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: signedInUser }) }));
 vi.mock('@/hooks/useVaultAccess', () => ({ useVaultAccess: () => ({ canView: true }) }));
@@ -41,7 +51,7 @@ const paperFromRealtime = { id: 'vp-2', title: 'Added by realtime' } as unknown 
 
 function OpenVault({ vaultId }: { vaultId: string }) {
   const {
-    setCurrentVaultId, publications, error, currentVault, setPublications, updateCurrentVault, refreshVaultContent,
+    setCurrentVaultId, publications, error, loading, currentVault, setPublications, updateCurrentVault, refreshVaultContent,
   } = useVaultContent();
   useEffect(() => {
     setCurrentVaultId(vaultId);
@@ -49,6 +59,7 @@ function OpenVault({ vaultId }: { vaultId: string }) {
   return (
     <>
       <output data-testid="vault">{JSON.stringify({ papers: publications.length, error })}</output>
+      <output data-testid="loading">{String(loading)}</output>
       <button onClick={() => void refreshVaultContent()}>refresh</button>
       <button onClick={() => setPublications((prev) => [...prev, paperFromRealtime])}>add_paper</button>
       <button onClick={() => currentVault && updateCurrentVault({ ...currentVault, name: 'Renamed' })}>rename</button>
@@ -62,6 +73,8 @@ beforeEach(() => {
   clearAllPageCaches();
   handleError.mockClear();
   results.clear();
+  requestedTables.length = 0;
+  pendingTables.clear();
   results.set('vault_publications', {
     data: [{
       id: 'vp-1', vault_id: 'vault-1', original_publication_id: 'p-1', title: 'A paper', authors: ['Ada Lovelace'],
@@ -122,4 +135,24 @@ describe('VaultContentContext loading a vault', () => {
     expect(cached?.currentVault.name).toBe('Renamed');
     expect(cached?.publications).toHaveLength(2);
   });
+
+  it('asks for the vault row with the papers, not after relations and tags', async () => {
+    render(<VaultContentProvider><OpenVault vaultId="vault-1" /></VaultContentProvider>);
+    await waitFor(() => expect(shown().papers).toBe(1));
+
+    expect(requestedTables.indexOf('vaults')).toBeGreaterThanOrEqual(0);
+    expect(requestedTables.indexOf('vaults')).toBeLessThan(requestedTables.indexOf('publication_relations'));
+  });
+
+  it("shows the vault without waiting for the last update's author name", async () => {
+    const [paper] = results.get('vault_publications')!.data as Record<string, unknown>[];
+    results.set('vault_publications', { data: [{ ...paper, updated_by: 'user-2' }], error: null });
+    pendingTables.add('profiles');
+
+    render(<VaultContentProvider><OpenVault vaultId="vault-1" /></VaultContentProvider>);
+
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
+    expect(shown().papers).toBe(1);
+  });
 });
+
