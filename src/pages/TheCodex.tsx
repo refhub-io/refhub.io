@@ -1,10 +1,14 @@
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { logger } from '@/lib/logger';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { Vault, VaultStats, VAULT_CATEGORIES } from '@/types/database';
-import { normalizeTopic, topicToSlug } from '@/lib/codexDiscovery';
+import { Vault, VAULT_CATEGORIES } from '@/types/database';
+import { topicToSlug } from '@/lib/codexDiscovery';
+import { CODEX_PAGE_SIZE, fetchCodexTopicSuggestions, fetchCodexVaultsPage, type CodexVault, type CodexVaultsCursor } from '@/lib/codexVaults';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { VirtualCardGrid } from '@/components/layout/VirtualCardGrid';
+import { CodexVaultCard } from '@/components/codex/CodexVaultCard';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
 import { useVaults, useInvalidateVaults } from '@/hooks/useVaults';
@@ -15,25 +19,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { LoadingSpinner } from '@/components/ui/loading';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { NotificationDropdown } from '@/components/notifications/NotificationDropdown';
 import { SidebarDndBoundary } from '@/components/layout/SidebarDndBoundary';
 import { ProfileDialog } from '@/components/profile/ProfileDialog';
 import { VaultDialog } from '@/components/vaults/VaultDialog';
-import VaultAbstractBlock from '@/components/vaults/VaultAbstractBlock';
 import { getPageCache, setPageCache, hasPageCache } from '@/lib/pageCache';
 import { 
-  BookOpen,
   Search, 
   FolderOpen,
-  ArrowRight,
-  Eye,
   Clock,
   Filter,
   Scroll,
   Library,
-  Heart,
-  GitFork,
   Menu
 } from 'lucide-react';
 import {
@@ -43,25 +40,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { formatDistanceToNow } from 'date-fns';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
-
-interface CodexVault extends Vault {
-  publication_count?: number;
-  stats?: VaultStats;
-  favorites_count?: number;
-  fork_count?: number;
-  is_fork?: boolean;
-  owner?: {
-    display_name: string | null;
-    avatar_url: string | null;
-    username: string | null;
-  };
-}
 
 interface CodexCache {
   vaults: CodexVault[];
+  total: number;
+  next: CodexVaultsCursor | null;
+  categories: string[];
+  topics: string[];
 }
+
+// A realtime refresh reloads every card already shown, up to the function's page limit.
+const MAX_REFRESH = 200;
 
 export default function TheCodex() {
   const { user } = useAuth();
@@ -75,6 +65,11 @@ export default function TheCodex() {
   const hasCachedData = useRef(hasPageCache('codex'));
   
   const [vaults, setVaults] = useState<CodexVault[]>([]);
+  // Every vault matching the search and category, and where the next page starts.
+  const [total, setTotal] = useState(0);
+  const [nextCursor, setNextCursor] = useState<CodexVaultsCursor | null>(null);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [loadingMore, setLoadingMore] = useState(false);
   const { ownedVaults: userVaults, sharedVaults } = useVaults();
   const invalidateVaults = useInvalidateVaults();
   const [loading, setLoading] = useState(!hasCachedData.current);
@@ -88,147 +83,98 @@ export default function TheCodex() {
   const [topicSuggestions, setTopicSuggestions] = useState<string[]>([]);
   const [topicSuggestionsLoading, setTopicSuggestionsLoading] = useState(false);
 
-  const fetchPublicVaults = async (silent = false) => {
+  // The database searches, filters, counts and pages the vaults (#275). The grid used to download
+  // every public vault plus one row per paper, favorite and fork in them, so past 1,000 rows its
+  // counts were wrong.
+  const debouncedSearch = useDebouncedValue(searchQuery, 250);
+  const category = categoryFilter === 'all' ? null : categoryFilter;
+  // The newest first-page request. An older one's answer, or a page loaded for it, is dropped.
+  const requestRef = useRef(0);
+  const loadingMoreRef = useRef(false);
+  const vaultCountRef = useRef(0);
+  vaultCountRef.current = vaults.length;
+
+  const loadFirstPage = useCallback(async ({ silent = false, limit = CODEX_PAGE_SIZE } = {}) => {
+    const request = ++requestRef.current;
     if (!silent) setLoading(true);
     try {
-      // Fetch public vaults with owner info
-      const { data: vaultsData, error: vaultsError } = await supabase
-        .from('vaults')
-        .select('*')
-        .eq('visibility', 'public')
-        .order('updated_at', { ascending: false });
-
-      if (vaultsError || !vaultsData) {
-        setLoading(false);
-        return;
-      }
-
-      const vaultIds = vaultsData.map((vault) => vault.id);
-      const ownerIds = [...new Set(vaultsData.map((vault) => vault.user_id))];
-
-      // Batched: one query per data source across ALL public vaults, instead
-      // of the previous 5-queries-PER-vault fan-out (N public vaults meant
-      // 5N round trips). Each result is grouped/counted client-side by
-      // vault_id below.
-      const [
-        forkedVaultRows,
-        vaultPubRows,
-        statsRows,
-        favoriteRows,
-        forkCountRows,
-        profileRows,
-      ] = vaultIds.length === 0
-        ? [[], [], [], [], [], []]
-        : await Promise.all([
-            supabase.from('vault_forks').select('forked_vault_id').in('forked_vault_id', vaultIds)
-              .then((res) => res.data || []),
-            supabase.from('vault_publications').select('vault_id').in('vault_id', vaultIds)
-              .then((res) => res.data || []),
-            supabase.from('vault_stats').select('*').in('vault_id', vaultIds)
-              .then((res) => res.data || []),
-            supabase.from('vault_favorites').select('vault_id').in('vault_id', vaultIds)
-              .then((res) => res.data || []),
-            supabase.from('vault_forks').select('original_vault_id').in('original_vault_id', vaultIds)
-              .then((res) => res.data || []),
-            supabase.from('profiles').select('user_id, display_name, avatar_url, username').in('user_id', ownerIds)
-              .then((res) => res.data || []),
-          ]);
-
-      const countBy = (rows: Record<string, unknown>[], key: string): Map<string, number> => {
-        const counts = new Map<string, number>();
-        rows.forEach((row) => {
-          const id = row[key] as string;
-          counts.set(id, (counts.get(id) || 0) + 1);
-        });
-        return counts;
-      };
-
-      const forkedVaultIds = new Set((forkedVaultRows as { forked_vault_id: string }[]).map((row) => row.forked_vault_id));
-      const publicationCounts = countBy(vaultPubRows as Record<string, unknown>[], 'vault_id');
-      const favoritesCounts = countBy(favoriteRows as Record<string, unknown>[], 'vault_id');
-      const forkCounts = countBy(forkCountRows as Record<string, unknown>[], 'original_vault_id');
-      const statsByVaultId = new Map((statsRows as VaultStats[]).map((s) => [s.vault_id, s]));
-      const profilesByUserId = new Map((profileRows as { user_id: string; display_name: string | null; avatar_url: string | null; username: string | null }[]).map((p) => [p.user_id, p]));
-
-      const vaultsWithData: CodexVault[] = vaultsData.map((vault) => ({
-        ...vault,
-        publication_count: publicationCounts.get(vault.id) || 0,
-        stats: statsByVaultId.get(vault.id),
-        favorites_count: favoritesCounts.get(vault.id) || 0,
-        fork_count: forkCounts.get(vault.id) || 0,
-        is_fork: forkedVaultIds.has(vault.id),
-        owner: profilesByUserId.get(vault.user_id),
-      }));
-
-      setVaults(vaultsWithData);
-      fetchTopicSuggestions(vaultIds);
+      const page = await fetchCodexVaultsPage(supabase, { search: debouncedSearch, category, limit });
+      if (request !== requestRef.current) return;
+      setVaults(page.vaults);
+      setTotal(page.total);
+      setNextCursor(page.next);
+      if (page.categories) setCategories(page.categories);
     } catch (error) {
       logger.error('TheCodex', 'Error fetching public vaults:', error);
     } finally {
-      setLoading(false);
+      if (request === requestRef.current) setLoading(false);
     }
-  };
+  }, [debouncedSearch, category]);
 
-  const fetchTopicSuggestions = async (publicVaultIds: string[]) => {
-    if (publicVaultIds.length === 0) {
-      setTopicSuggestions([]);
-      return;
-    }
-    setTopicSuggestionsLoading(true);
+  const loadMore = useCallback(async () => {
+    if (!nextCursor || loadingMoreRef.current) return;
+    const request = requestRef.current;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
     try {
-      const { data: vaultPubs } = await supabase
-        .from('vault_publications')
-        .select('id, keywords')
-        .in('vault_id', publicVaultIds);
-      const pubIds = (vaultPubs || []).map((p) => p.id);
-
-      const topics = new Set<string>();
-      (vaultPubs || []).forEach((p) => (p.keywords || []).forEach((k: string) => topics.add(normalizeTopic(k))));
-
-      if (pubIds.length > 0) {
-        const { data: pubTags } = await supabase.from('publication_tags').select('tag_id').in('vault_publication_id', pubIds);
-        const tagIds = [...new Set((pubTags || []).map((pt) => pt.tag_id))];
-        if (tagIds.length > 0) {
-          const { data: tagRows } = await supabase.from('tags').select('name').in('id', tagIds);
-          (tagRows || []).forEach((t) => topics.add(normalizeTopic(t.name)));
-        }
-      }
-
-      // Keep the FULL set here — the display cap is applied after filtering
-      // by searchQuery at render time, otherwise search-as-you-type could
-      // never find a topic that happened to sort past this cutoff.
-      setTopicSuggestions(Array.from(topics).sort());
+      const page = await fetchCodexVaultsPage(supabase, { search: debouncedSearch, category, after: nextCursor });
+      if (request !== requestRef.current) return;
+      setVaults((current) => [...current, ...page.vaults.filter((v) => !current.some((c) => c.id === v.id))]);
+      setTotal(page.total);
+      setNextCursor(page.next);
     } catch (error) {
-      logger.error('TheCodex', 'Error fetching topic suggestions:', error);
+      logger.error('TheCodex', 'Error fetching more public vaults:', error);
     } finally {
-      setTopicSuggestionsLoading(false);
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
     }
-  };
+  }, [nextCursor, debouncedSearch, category]);
 
-  // Save to cache whenever data changes
+  // The first page, again whenever the search or the category changes. Only a first visit without
+  // a cache shows the loader; afterwards the cards stay until the new ones arrive.
+  const shownOnceRef = useRef(hasCachedData.current);
   useEffect(() => {
-    if (user && vaults.length > 0 && !loading) {
-      setPageCache<CodexCache>('codex', { vaults }, user.id);
+    void loadFirstPage({ silent: shownOnceRef.current });
+    shownOnceRef.current = true;
+  }, [loadFirstPage]);
+
+  // Topic suggestions for the search, from the database.
+  useEffect(() => {
+    let cancelled = false;
+    setTopicSuggestionsLoading(true);
+    fetchCodexTopicSuggestions(supabase, debouncedSearch)
+      .then((suggestions) => { if (!cancelled) setTopicSuggestions(suggestions.map((s) => s.topic)); })
+      .catch((error) => logger.error('TheCodex', 'Error fetching topic suggestions:', error))
+      .finally(() => { if (!cancelled) setTopicSuggestionsLoading(false); });
+    return () => { cancelled = true; };
+  }, [debouncedSearch]);
+
+  // Save to cache whenever the unfiltered first view changes
+  useEffect(() => {
+    if (user && vaults.length > 0 && !loading && !debouncedSearch && !category) {
+      setPageCache<CodexCache>('codex', { vaults, total, next: nextCursor, categories, topics: topicSuggestions }, user.id);
     }
-  }, [user, vaults, loading]);
+  }, [user, vaults, total, nextCursor, categories, topicSuggestions, loading, debouncedSearch, category]);
 
   // Restore from cache on mount if available
   useEffect(() => {
     if (hasCachedData.current && user) {
       const cached = getPageCache<CodexCache>('codex', user.id);
-      if (cached) {
+      if (cached?.vaults) {
         setVaults(cached.vaults);
+        setTotal(cached.total ?? cached.vaults.length);
+        setNextCursor(cached.next ?? null);
+        setCategories(cached.categories ?? []);
+        setTopicSuggestions(cached.topics ?? []);
       }
     }
   }, [user]);
 
+  // Any change to a vault the viewer can see reloads the cards shown, once things settle.
+  const loadFirstPageRef = useRef(loadFirstPage);
+  loadFirstPageRef.current = loadFirstPage;
   useEffect(() => {
-    // If we have cached data, do a silent refresh in the background
-    const isSilent = hasCachedData.current;
-    fetchPublicVaults(isSilent);
-
-    // Subscribe to realtime changes for vaults table
-    // Since we query with visibility='public', any change will naturally filter correctly
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const channel = supabase
       .channel('public-vaults-changes')
       .on(
@@ -238,51 +184,20 @@ export default function TheCodex() {
           schema: 'public',
           table: 'vaults',
         },
-        (payload) => {
-
-          // Simply refetch on any vault change - the query filters by visibility='public'
-          // so vaults that become private will automatically disappear
-          fetchPublicVaults();
+        () => {
+          clearTimeout(timer);
+          timer = setTimeout(() => {
+            void loadFirstPageRef.current({ silent: true, limit: Math.min(MAX_REFRESH, Math.max(CODEX_PAGE_SIZE, vaultCountRef.current)) });
+          }, 1000);
         }
       )
       .subscribe();
 
     return () => {
+      clearTimeout(timer);
       supabase.removeChannel(channel);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const filteredVaults = vaults.filter((vault) => {
-    const query = searchQuery.toLowerCase();
-    const matchesSearch =
-      vault.name.toLowerCase().includes(query) ||
-      vault.description?.toLowerCase().includes(query) ||
-      vault.abstract?.toLowerCase().includes(query) ||
-      vault.category?.toLowerCase().includes(query);
-    
-    const matchesCategory = categoryFilter === 'all' || vault.category === categoryFilter;
-    
-    return matchesSearch && matchesCategory;
-  });
-
-  const uniqueCategories = [...new Set(vaults.map(v => v.category).filter(Boolean))];
-
-  const getOwnerInitials = (owner?: CodexVault['owner']) => {
-    if (!owner) return '?';
-    if (owner.display_name) {
-      return owner.display_name.slice(0, 2).toUpperCase();
-    }
-    if (owner.username) {
-      return owner.username.slice(0, 2).toUpperCase();
-    }
-    return '?';
-  };
-
-  const getOwnerName = (owner?: CodexVault['owner']) => {
-    if (!owner) return 'Unknown';
-    return owner.display_name || owner.username || 'Unknown';
-  };
 
   const handleFavorite = async (e: React.MouseEvent, vaultId: string) => {
     e.preventDefault();
@@ -425,8 +340,8 @@ export default function TheCodex() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">all_categories</SelectItem>
-                      {uniqueCategories.map((category) => (
-                        <SelectItem key={category} value={category!}>
+                      {categories.map((category) => (
+                        <SelectItem key={category} value={category}>
                           {category}
                         </SelectItem>
                       ))}
@@ -464,7 +379,7 @@ export default function TheCodex() {
               <p className="text-muted-foreground font-mono text-sm">// loading the codex...</p>
             </div>
           </div>
-        ) : filteredVaults.length === 0 ? (
+        ) : vaults.length === 0 ? (
           <div className="text-center py-16">
             <FolderOpen className="w-16 h-16 text-muted-foreground/50 mx-auto mb-4" />
             <p className="text-muted-foreground font-mono text-lg mb-2">
@@ -480,127 +395,30 @@ export default function TheCodex() {
           <>
             <div className="flex items-center justify-between mb-6">
               <p className="text-sm text-muted-foreground font-mono">
-                // {filteredVaults.length} collection{filteredVaults.length !== 1 ? 's' : ''} found
+                // {total} collection{total !== 1 ? 's' : ''} found
               </p>
             </div>
-            <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {filteredVaults.map((vault) => (
-                <Link
-                  key={vault.id}
-                  to={`/public/${vault.public_slug}`}
-                  className="group"
-                >
-                  <article
-                    className={`h-full p-6 rounded-2xl border-2 bg-card/50 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 flex flex-col ${vault.is_fork ? 'bg-amber-500/[0.03]' : ''}`}
-                    style={{ borderColor: `${vault.color}40` }}
-                  >
-                    {/* Header with owner info */}
-                    <div className="flex items-start gap-3 mb-4">
-                      <Avatar className="w-10 h-10 border-2 border-border ring-2 ring-background group-hover:ring-primary/20 transition-all">
-                        {vault.owner?.avatar_url ? (
-                          <img src={vault.owner.avatar_url} alt={getOwnerName(vault.owner)} className="object-cover" />
-                        ) : (
-                          <AvatarFallback className="text-xs font-mono bg-gradient-to-br from-primary/20 to-primary/10">
-                            {getOwnerInitials(vault.owner)}
-                          </AvatarFallback>
-                        )}
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs text-muted-foreground font-mono truncate">
-                            {vault.owner?.username ? `@${vault.owner.username}` : getOwnerName(vault.owner)}
-                          </span>
-                          <span className="text-xs text-muted-foreground/50">•</span>
-                          <span className="text-xs text-muted-foreground/70 font-mono">
-                            {formatDistanceToNow(new Date(vault.updated_at), { addSuffix: true })}
-                          </span>
-                        </div>
-                        <h2 className="font-bold text-lg group-hover:text-primary transition-colors line-clamp-1 font-mono">
-                          {vault.name}
-                        </h2>
-                      </div>
-                      <div 
-                        className="w-8 h-8 rounded-lg shrink-0 shadow-sm group-hover:scale-110 transition-transform flex items-center justify-center"
-                        style={{ backgroundColor: vault.color }}
-                      >
-                        <BookOpen className="w-4 h-4 text-white/90" />
-                      </div>
-                    </div>
-
-                    {/* Category Badge */}
-                    <div className="mb-3 flex flex-wrap gap-2">
-                      {vault.is_fork && (
-                        <Badge variant="outline" className="w-fit text-xs font-mono border-amber-500/30 text-amber-600">
-                          forked
-                        </Badge>
-                      )}
-                      {vault.category && (
-                        <Badge variant="secondary" className="w-fit text-xs font-mono">
-                          {vault.category.toLowerCase().replace(/\s+/g, '_')}
-                        </Badge>
-                      )}
-                    </div>
-
-                    {/* Description/Abstract */}
-                    {(vault.abstract || vault.description) && (
-                      <div className="mb-4 flex-1">
-                        <VaultAbstractBlock abstract={vault.abstract} description={vault.description} />
-                      </div>
-                    )}
-
-                    {/* Stats Row */}
-                    <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border/50 pt-3 text-xs font-mono text-muted-foreground">
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <BookOpen className="h-3.5 w-3.5 shrink-0" />
-                        <span className="break-all">{vault.publication_count}_papers</span>
-                      </div>
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <Eye className="h-3.5 w-3.5 shrink-0" />
-                        <span className="break-all">{vault.stats?.view_count || 0}_views</span>
-                      </div>
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <Heart className="h-3.5 w-3.5 shrink-0" />
-                        <span className="break-all">{vault.favorites_count || 0}_favorites</span>
-                      </div>
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <GitFork className="h-3.5 w-3.5 shrink-0" />
-                        <span className="break-all">{vault.fork_count || 0}_forks</span>
-                      </div>
-                    </div>
-
-                    {/* Footer */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        {user && (
-                          <>
-                            <button
-                              onClick={(e) => handleFavorite(e, vault.id)}
-                              disabled={vault.user_id === user.id}
-                              className={`p-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isFavorite(vault.id) ? 'text-rose-500' : 'text-muted-foreground hover:text-rose-500'}`}
-                              title={vault.user_id === user.id ? 'you_own_this_vault' : undefined}
-                            >
-                              <Heart className={`w-4 h-4 ${isFavorite(vault.id) ? 'fill-rose-500' : ''}`} />
-                            </button>
-                            <button
-                              onClick={(e) => handleFork(e, vault)}
-                              disabled={forkingId === vault.id || vault.user_id === user.id}
-                              className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                              title={vault.user_id === user.id ? 'you_own_this_vault' : undefined}
-                            >
-                              <GitFork className="w-4 h-4" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                      <div className="flex items-center text-sm text-primary font-semibold group-hover:gap-2 transition-all font-mono">
-                        explore
-                        <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
-                      </div>
-                    </div>
-                  </article>
-                </Link>
-              ))}
-            </div>
+            <VirtualCardGrid
+              items={vaults}
+              getKey={(vault) => vault.id}
+              onEndReached={loadMore}
+              renderItem={(vault) => (
+                <CodexVaultCard
+                  vault={vault}
+                  canAct={!!user}
+                  isOwn={!!user && vault.user_id === user.id}
+                  favorite={isFavorite(vault.id)}
+                  forking={forkingId === vault.id}
+                  onFavorite={handleFavorite}
+                  onFork={handleFork}
+                />
+              )}
+            />
+            {loadingMore && (
+              <div className="flex justify-center py-6">
+                <LoadingSpinner />
+              </div>
+            )}
           </>
         )}
             </div>
