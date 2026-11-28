@@ -68,6 +68,13 @@ describe('buildAllPublications', () => {
     expect(vaultPublicationLinks).toEqual([{ id: 'vp1', vault_id: 'vault-1', original_publication_id: 'p1' }]);
   });
 
+  // A NULL here blanked the whole dashboard: PublicationCard calls authors.length.
+  it('turns a vault copy with no authors (NULL) into an empty list', () => {
+    const vp = makeRawVaultPub({ id: 'vp1', original_publication_id: null, authors: null as unknown as string[] });
+    const { allPublications } = buildAllPublications([], [vp]);
+    expect(allPublications[0].authors).toEqual([]);
+  });
+
   it('treats a vault copy with no original_publication_id as standalone', () => {
     const vp = makeRawVaultPub({ id: 'vp1', original_publication_id: null });
     const { allPublications } = buildAllPublications([], [vp]);

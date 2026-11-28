@@ -101,7 +101,8 @@ export function buildAllPublications(
     id: vp.id,
     user_id: vp.created_by,
     title: vp.title,
-    authors: vp.authors,
+    // vault_publications.authors is nullable; every list here calls .length on it.
+    authors: vp.authors ?? [],
     year: vp.year,
     journal: vp.journal,
     volume: vp.volume,
