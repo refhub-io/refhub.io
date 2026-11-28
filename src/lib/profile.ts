@@ -4,6 +4,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { Profile } from '@/types/database';
 import { extractAuthProfileMetadata } from '@/lib/authProviders';
 
+/**
+ * The profile columns clients can read: everything but email, which the database doesn't grant
+ * to clients (see migration 20261128000000_hide_profile_emails.sql). Select these instead of `*`,
+ * which fails on that table. A user's own address comes from their auth session.
+ */
+export const PUBLIC_PROFILE_COLUMNS =
+  'id, user_id, display_name, avatar_url, username, bio, github_url, linkedin_url, bluesky_url, is_setup, created_at, updated_at' as const;
+
 async function hydrateProfileFromAuth(user: User, profile: Profile): Promise<Profile> {
   const emailFallback = user.email?.split('@')[0]?.trim();
   const { displayName, avatarUrl } = extractAuthProfileMetadata(user);
@@ -20,9 +28,6 @@ async function hydrateProfileFromAuth(user: User, profile: Profile): Promise<Pro
     updates.avatar_url = avatarUrl;
   }
 
-  if (user.email && !profile.email) {
-    updates.email = user.email;
-  }
 
   if (Object.keys(updates).length === 0) {
     return profile;
@@ -35,7 +40,7 @@ async function hydrateProfileFromAuth(user: User, profile: Profile): Promise<Pro
       updated_at: new Date().toISOString(),
     })
     .eq('user_id', user.id)
-    .select('*')
+    .select(PUBLIC_PROFILE_COLUMNS)
     .single();
 
   if (error) {
@@ -50,7 +55,7 @@ export async function ensureProfileExists(user: User): Promise<Profile | null> {
   // Check if profile exists
   const { data: existingProfile, error } = await supabase
     .from('profiles')
-    .select('*')
+    .select(PUBLIC_PROFILE_COLUMNS)
     .eq('user_id', user.id)
     .single();
 

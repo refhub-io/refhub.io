@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { ProfileLinks } from '@/components/profile/ProfileLinks';
+import { PUBLIC_PROFILE_COLUMNS } from '@/lib/profile';
 
 interface UserWithStats extends Profile {
   vault_count: number;
@@ -111,7 +112,7 @@ export default function Users() {
       // Only show researchers with completed profiles in the directory.
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
-        .select('*')
+        .select(PUBLIC_PROFILE_COLUMNS)
         .eq('is_setup', true)
         .order('created_at', { ascending: false });
 
