@@ -2,13 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useEffect } from 'react';
 
-// Per-table results for a fake Supabase client: every query builder method chains, and the
-// builder resolves to the table's result whether it's awaited, paged or asked for .single().
-const { results, handleError, signedInUser, requestedTables, pendingTables } = vi.hoisted(() => ({
+// Per-table results for a fake Supabase client. get_vault_content assembles its answer from the
+// tables it reads, and fails if any of them fails; other tables are plain queries, where every
+// builder method chains and the builder resolves to the table's result.
+const { results, handleError, signedInUser, requestedTables, pendingTables, rpcCalls } = vi.hoisted(() => ({
   results: new Map<string, { data: unknown; error: unknown }>(),
-  // Tables in the order they were queried, and tables whose queries never answer.
+  // Tables queried directly, in order; tables that never answer; RPC calls.
   requestedTables: [] as string[],
   pendingTables: new Set<string>(),
+  rpcCalls: [] as { fn: string; args: unknown }[],
   // One object, like the real auth state: the provider's fetch effect depends on it.
   signedInUser: { id: 'user-1' },
   handleError: vi.fn((_error: unknown, _context: string, _hasData?: boolean) => 'Could not load vault content'),
@@ -26,17 +28,37 @@ vi.mock('@/integrations/supabase/client', () => {
       resultFor(table).then(resolve, reject);
     return builder;
   };
+  // The tables get_vault_content reads, by the key it returns each one under.
+  const contentTables = {
+    vault: 'vaults', vault_publications: 'vault_publications', tags: 'tags', vault_shares: 'vault_shares',
+    publication_tags: 'publication_tags', publication_relations: 'publication_relations',
+    pdf_assets: 'publication_pdf_assets',
+  };
+  const getVaultContent = async () => {
+    const answers = await Promise.all(Object.values(contentTables).map(resultFor));
+    const failed = answers.find((answer) => answer.error);
+    if (failed) return { data: null, error: failed.error };
+    return { data: Object.fromEntries(Object.keys(contentTables).map((key, i) => [key, answers[i].data])), error: null };
+  };
   const channel = { on: () => channel, subscribe: () => channel };
   return {
     supabase: {
-      from: (table: string) => { requestedTables.push(table); return query(table); },
+      from: (table: string) => {
+        if (Object.values(contentTables).includes(table)) throw new Error(`selected ${table} directly`);
+        requestedTables.push(table);
+        return query(table);
+      },
+      rpc: (fn: string, args: unknown) => {
+        rpcCalls.push({ fn, args });
+        if (fn !== 'get_vault_content') throw new Error(`unexpected rpc ${fn}`);
+        return getVaultContent();
+      },
       channel: () => channel,
       removeChannel: () => {},
     },
   };
 });
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: signedInUser }) }));
-vi.mock('@/hooks/useVaultAccess', () => ({ useVaultAccess: () => ({ canView: true }) }));
 vi.mock('@/lib/toast', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/toast')>()),
   handleError,
@@ -52,6 +74,7 @@ const paperFromRealtime = { id: 'vp-2', title: 'Added by realtime' } as unknown 
 function OpenVault({ vaultId }: { vaultId: string }) {
   const {
     setCurrentVaultId, publications, error, loading, currentVault, setPublications, updateCurrentVault, refreshVaultContent,
+    pdfAssetsMap,
   } = useVaultContent();
   useEffect(() => {
     setCurrentVaultId(vaultId);
@@ -60,6 +83,7 @@ function OpenVault({ vaultId }: { vaultId: string }) {
     <>
       <output data-testid="vault">{JSON.stringify({ papers: publications.length, error })}</output>
       <output data-testid="loading">{String(loading)}</output>
+      <output data-testid="pdfs">{JSON.stringify(pdfAssetsMap)}</output>
       <button onClick={() => void refreshVaultContent()}>refresh</button>
       <button onClick={() => setPublications((prev) => [...prev, paperFromRealtime])}>add_paper</button>
       <button onClick={() => currentVault && updateCurrentVault({ ...currentVault, name: 'Renamed' })}>rename</button>
@@ -68,6 +92,7 @@ function OpenVault({ vaultId }: { vaultId: string }) {
 }
 
 const shown = () => JSON.parse(screen.getByTestId('vault').textContent ?? '{}');
+const pdfs = () => JSON.parse(screen.getByTestId('pdfs').textContent ?? '{}');
 
 beforeEach(() => {
   clearAllPageCaches();
@@ -75,6 +100,7 @@ beforeEach(() => {
   results.clear();
   requestedTables.length = 0;
   pendingTables.clear();
+  rpcCalls.length = 0;
   results.set('vault_publications', {
     data: [{
       id: 'vp-1', vault_id: 'vault-1', original_publication_id: 'p-1', title: 'A paper', authors: ['Ada Lovelace'],
@@ -86,7 +112,7 @@ beforeEach(() => {
 });
 
 describe('VaultContentContext loading a vault', () => {
-  it('shows and caches the vault when every query succeeds', async () => {
+  it('shows and caches the vault when it loads', async () => {
     render(<VaultContentProvider><OpenVault vaultId="vault-1" /></VaultContentProvider>);
 
     await waitFor(() => expect(shown().papers).toBe(1));
@@ -95,7 +121,8 @@ describe('VaultContentContext loading a vault', () => {
   });
 
   // #253: a failed tag query used to be ignored, so the vault showed, and was cached, untagged.
-  it('reports a failed publication_tags query as an error and caches nothing', async () => {
+  // The tag links now come in the same call as everything else, so they fail with it.
+  it('reports a failed load as an error and caches nothing, also when only the tag links fail', async () => {
     const tagError = { code: '57014', message: 'canceling statement due to statement timeout' };
     results.set('publication_tags', { data: null, error: tagError });
 
@@ -136,12 +163,49 @@ describe('VaultContentContext loading a vault', () => {
     expect(cached?.publications).toHaveLength(2);
   });
 
-  it('asks for the vault row with the papers, not after relations and tags', async () => {
+  // #258: an access check of its own, then two dependent batches of selects, then a third for
+  // stored PDFs. The mock throws on a direct select of any of the vault's tables, the access
+  // check's included.
+  it('loads the vault in one call, without selecting its tables or checking access itself', async () => {
     render(<VaultContentProvider><OpenVault vaultId="vault-1" /></VaultContentProvider>);
     await waitFor(() => expect(shown().papers).toBe(1));
 
-    expect(requestedTables.indexOf('vaults')).toBeGreaterThanOrEqual(0);
-    expect(requestedTables.indexOf('vaults')).toBeLessThan(requestedTables.indexOf('publication_relations'));
+    expect(rpcCalls).toEqual([{ fn: 'get_vault_content', args: { p_vault_id: 'vault-1' } }]);
+    expect(requestedTables).toEqual([]);
+    expect(handleError).not.toHaveBeenCalled();
+  });
+
+  // Row-level security hides a vault the user can't read: the call answers with no vault.
+  it('clears a vault the user can no longer read, without an error, and drops its cache', async () => {
+    render(<VaultContentProvider><OpenVault vaultId="vault-1" /></VaultContentProvider>);
+    await waitFor(() => expect(shown().papers).toBe(1));
+    expect(hasPageCache('vault-content-vault-1')).toBe(true);
+
+    results.set('vaults', { data: null, error: null });
+    results.set('vault_publications', { data: [], error: null });
+    fireEvent.click(screen.getByRole('button', { name: 'refresh' }));
+
+    await waitFor(() => expect(shown().papers).toBe(0));
+    expect(shown().error).toBeNull();
+    expect(hasPageCache('vault-content-vault-1')).toBe(false);
+    expect(handleError).not.toHaveBeenCalled();
+  });
+
+  it('has the stored PDF links with the papers, and restores them from the cache on a revisit', async () => {
+    results.set('publication_pdf_assets', {
+      data: [{ publication_id: 'p-1', vault_publication_id: null, stored_pdf_url: 'https://drive.example/a' }],
+      error: null,
+    });
+    const first = render(<VaultContentProvider><OpenVault vaultId="vault-1" /></VaultContentProvider>);
+    await waitFor(() => expect(shown().papers).toBe(1));
+    expect(pdfs()).toEqual({ 'vp-1': 'https://drive.example/a' });
+    first.unmount();
+
+    // Back again while the refresh is still on its way: the cached links show at once.
+    pendingTables.add('vaults');
+    render(<VaultContentProvider><OpenVault vaultId="vault-1" /></VaultContentProvider>);
+    await waitFor(() => expect(shown().papers).toBe(1));
+    expect(pdfs()).toEqual({ 'vp-1': 'https://drive.example/a' });
   });
 
   it("shows the vault without waiting for the last update's author name", async () => {

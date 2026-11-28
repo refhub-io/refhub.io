@@ -45,9 +45,8 @@ const LOADING_RESULT: VaultAccessResult = {
 
 let vaultAccessSubscriptionCounter = 0;
 
-// Retry callbacks of every mounted instance, by vault. VaultDetail and VaultContentContext
-// each run their own check on the same vault, so a retry from one also has to re-run a
-// failed check in the other.
+// Retry callbacks of every mounted instance, by vault, so a retry from one also re-runs a failed
+// check in any other instance for the same vault.
 const retryIfFailedByVault = new Map<string, Set<() => void>>();
 
 export const useVaultAccess = (

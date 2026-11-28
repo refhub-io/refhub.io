@@ -58,6 +58,9 @@ POST_DUMP_MIGRATIONS=(
   # Not yet applied to production: get_library(), the library in one scoped
   # round trip. Temporary, like the entries above.
   "20261128120000_get_library.sql"
+  # Not yet applied to production: get_vault_content(), a vault in one round
+  # trip. Temporary, like the entries above.
+  "20261128140000_get_vault_content.sql"
 )
 
 cleanup() {
