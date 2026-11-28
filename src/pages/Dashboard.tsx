@@ -91,7 +91,6 @@ export default function Dashboard() {
   // Only show loader if we don't have cached data (true first visit)
   const [showLoader, setShowLoader] = useState(!hasCachedData.current);
   const [loaderProgress, setLoaderProgress] = useState(0); // Track fake progress
-  const [loaderComplete, setLoaderComplete] = useState(false); // Track when ready to hide
 
   // Loading phases for the phase loader
   const [loadingPhases, setLoadingPhases] = useState<LoadingPhase[]>([
@@ -251,9 +250,6 @@ export default function Dashboard() {
           // If all phases complete, rush to 100%
           if (completedCount === totalPhases) {
             const newProgress = Math.min(prev + 5, 100);
-            if (newProgress >= 100) {
-              setLoaderComplete(true);
-            }
             return Math.round(newProgress);
           }
           
@@ -281,15 +277,17 @@ export default function Dashboard() {
     return () => cancelAnimationFrame(animationId);
   }, [showLoader, loadingPhases]);
 
-  // Hide loader after progress reaches 100% and shows completion briefly
+  // Hide the loader as soon as the data is in. It used to wait for its progress animation to reach
+  // 100%, then 600 ms more: over a second on every cold load. #278 did the same for the vault page.
+  const allPhasesComplete = loadingPhases.every((phase) => phase.status === 'complete');
   useEffect(() => {
-    if (loaderComplete && loaderProgress >= 100) {
-      const timer = setTimeout(() => {
-        setShowLoader(false);
-      }, 600); // Show completion state briefly
-      return () => clearTimeout(timer);
-    }
-  }, [loaderComplete, loaderProgress]);
+    if (allPhasesComplete) setShowLoader(false);
+  }, [allPhasesComplete]);
+
+  // A failed load is retried once, quietly: on a live site the first call can fail on a cold
+  // connection and the next succeed. Until 2.3.9 the duplicate loads did that by accident.
+  const retriedLoadRef = useRef(false);
+  const fetchDataRef = useRef<() => Promise<void>>();
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -412,10 +410,18 @@ export default function Dashboard() {
         publicationRelations: library.publication_relations,
         vaultPublicationLinks: rawVaultPublicationLinks,
       }, user?.id);
+      retriedLoadRef.current = false;
 
 
     } catch (error) {
       logger.error('Dashboard', 'Could not load dashboard data:', error);
+      if (!retriedLoadRef.current) {
+        retriedLoadRef.current = true;
+        setTimeout(() => { void fetchDataRef.current?.(); }, 1500);
+        return;
+      }
+      // Never leave the loader up: its phases only complete on success.
+      setShowLoader(false);
       toast({
         title: 'Could not load dashboard data',
         description: 'RefHub could not load your library, vaults, or tags. Please refresh the page.',
@@ -435,6 +441,7 @@ export default function Dashboard() {
   // a dependency, it made the load run twice, since its first run flips it.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, updatePhase]);
+  fetchDataRef.current = fetchData;
 
   // Restore from cache on mount if available (for instant navigation). Keyed on the user's id: the
   // auth state hands over a new user object on every token refresh and several while a session
@@ -454,7 +461,6 @@ export default function Dashboard() {
         setVaultPublicationLinks(cached.vaultPublicationLinks);
         setIsInitialLoad(false);
         // Skip loader animation for cached data
-        setLoaderComplete(true);
         setLoaderProgress(100);
       }
       // Always fetch fresh data (will update silently if we have cache)

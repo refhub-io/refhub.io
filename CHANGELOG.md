@@ -6,6 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [2.3.11] - 2026-11-28
+
+### Changed
+- Paper lists only draw the papers on screen (#275): all papers, vaults, smart collections, public vaults and Codex topics. With 730 papers, the dashboard now shows your library in under a second instead of about 4.5 s, and stays responsive while you scroll. Keyboard navigation still reaches any paper. Uses `@tanstack/react-virtual`.
+
+### Fixed
+- The dashboard no longer waits for its loading animation to finish before showing your library.
+- A failed dashboard load is retried once. If it fails again, the dashboard shows with an error instead of staying on the loader. Since 2.3.9, one failed load left the loader up until you reloaded the page.
+
 ## [2.3.10] - 2026-11-28
 
 ### Changed

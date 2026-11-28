@@ -1,5 +1,6 @@
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
-import { useState, useEffect, useRef, useMemo, useCallback, memo, forwardRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, memo, forwardRef } from 'react';
+import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { Publication, Tag, Vault } from '@/types/database';
 import { PublicationCard } from './PublicationCard';
 import { PublicationTable } from './PublicationTable';
@@ -257,6 +258,47 @@ export function PublicationList({
   // Apply sorting
   const filteredPublications = customFiltered.sort((a, b) => comparePublications(a, b, sortBy, sortDirection));
 
+  // Only the cards on screen (and a few either side) are in the DOM: a library of hundreds of
+  // papers used to mount every card at once, which held the main thread for seconds. The table
+  // view virtualizes its own rows, inside its own scroll area. Either view puts its
+  // scrollToIndex here, for keyboard navigation to reach cards that aren't mounted.
+  const scrollToIndexRef = useRef<((index: number) => void) | null>(null);
+  const cardsRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  // Where the cards start in the document, and the height of the sticky header over them.
+  const [cardsOffset, setCardsOffset] = useState(0);
+  const [stickyHeaderHeight, setStickyHeaderHeight] = useState(0);
+  // The document scrolls, not the list's own container: every page puts the list in a
+  // min-h-screen layout, so the container grows to fit and never scrolls itself.
+  const cardsVirtualizer = useWindowVirtualizer({
+    count: viewMode === 'cards' ? filteredPublications.length : 0,
+    estimateSize: () => 200,
+    overscan: 6,
+    scrollMargin: cardsOffset,
+    scrollPaddingStart: stickyHeaderHeight,
+    getItemKey: (index) => filteredPublications[index]?.id ?? index,
+  });
+  const hasCards = viewMode === 'cards' && filteredPublications.length > 0;
+  useLayoutEffect(() => {
+    const cards = cardsRef.current;
+    if (!hasCards || !cards) return;
+    // The header above the cards changes height (filters, the selection bar), and so does the
+    // window; both resize the body.
+    const measure = () => {
+      setCardsOffset(cards.getBoundingClientRect().top + window.scrollY);
+      setStickyHeaderHeight(headerRef.current?.getBoundingClientRect().height ?? 0);
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(document.body);
+    return () => observer.disconnect();
+  }, [hasCards]);
+  useEffect(() => {
+    if (viewMode !== 'cards') return;
+    scrollToIndexRef.current = (index) => cardsVirtualizer.scrollToIndex(index, { align: 'auto' });
+  }, [viewMode, cardsVirtualizer]);
+
   // Handler for table header sort clicks and the sort dropdown — shared so both
   // surfaces agree on each field's default direction (SORT_FIELD_OPTIONS).
   const handleTableSort = useCallback((field: SortField) => {
@@ -332,6 +374,7 @@ export function PublicationList({
     appWideShortcuts: true,
     containerRef: listContainerRef as React.RefObject<HTMLElement>,
     resetKey: selectedVault?.id ?? 'all_papers',
+    scrollToIndex: (index) => scrollToIndexRef.current?.(index),
   });
 
   // kbNav.selectedIds is the single source of truth for selection.
@@ -479,7 +522,7 @@ export function PublicationList({
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-x-hidden">
       {/* Header */}
-      <header className="bg-card/50 backdrop-blur-xl border-b-2 border-border px-3 sm:px-4 lg:px-8 py-3 sm:py-4 shrink-0 sticky top-0 z-10">
+      <header ref={headerRef} className="bg-card/50 backdrop-blur-xl border-b-2 border-border px-3 sm:px-4 lg:px-8 py-3 sm:py-4 shrink-0 sticky top-0 z-10">
         <div className="flex items-center gap-2 sm:gap-3">
           <MobileMenuButton 
             onClick={onMobileMenuOpen}
@@ -889,17 +932,27 @@ export function PublicationList({
             syncCooldowns={syncCooldowns}
             onCheckSync={onCheckPublicationSync}
             onUpdateReadingState={onUpdateReadingState}
+            scrollToIndexRef={scrollToIndexRef}
           />
         ) : (
-          <div className="space-y-3 sm:space-y-4 max-w-4xl mx-auto">
-            {filteredPublications.map((pub, index) => {
+          <div ref={cardsRef} className="relative max-w-4xl mx-auto" style={{ height: cardsVirtualizer.getTotalSize() }}>
+            {cardsVirtualizer.getVirtualItems().map((item) => {
+              const index = item.index;
+              const pub = filteredPublications[index];
               const isSelected = selectedIds.has(pub.id);
               const dragPublicationIds = isSelected && selectedIds.size > 1
                 ? Array.from(selectedIds)
                 : [pub.id];
 
               return (
-                <DraggablePublication key={pub.id} publicationId={pub.id} dragPublicationIds={dragPublicationIds} disabled={dragDisabled}>
+                <div
+                  key={item.key}
+                  data-index={index}
+                  ref={cardsVirtualizer.measureElement}
+                  className="absolute left-0 top-0 w-full pb-3 sm:pb-4"
+                  style={{ transform: `translateY(${item.start - cardsVirtualizer.options.scrollMargin}px)` }}
+                >
+                <DraggablePublication publicationId={pub.id} dragPublicationIds={dragPublicationIds} disabled={dragDisabled}>
                   {({ ref, listeners, attributes, isDragging }) => (
                     <PublicationCardRow
                       pub={pub}
@@ -935,6 +988,7 @@ export function PublicationList({
                     />
                   )}
                 </DraggablePublication>
+                </div>
               );
             })}
           </div>
@@ -1019,8 +1073,8 @@ const PublicationCardRow = memo(forwardRef<HTMLDivElement, PublicationCardRowPro
       ref={ref}
       {...listeners}
       {...attributes}
-      className={cn("animate-slide-up", isDragging && "opacity-40")}
-      style={{ animationDelay: `${index * 50}ms` }}
+      className={cn(index < 10 && "animate-slide-up", isDragging && "opacity-40")}
+      style={index < 10 ? { animationDelay: `${index * 50}ms` } : undefined}
       {...kbItemProps(index, pub.id)}
     >
       <PublicationCard
