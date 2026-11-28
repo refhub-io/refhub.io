@@ -472,9 +472,12 @@ export const requestVaultAccess = async (
   // First, get the user's profile information to include in the request
   const { data: profile } = await supabase
     .from('profiles')
-    .select('display_name, email, username')
+    .select('display_name, username')
     .eq('user_id', requesterId)
     .single();
+  // Profiles don't expose email; the requester's own address is in their session.
+  const { data: { session } } = await supabase.auth.getSession();
+  const requesterEmail = session?.user?.id === requesterId ? session.user.email ?? null : null;
 
   const { data, error } = await supabase
     .from('vault_access_requests')
@@ -482,7 +485,7 @@ export const requestVaultAccess = async (
       vault_id: vaultId,
       requester_id: requesterId,
       requester_name: profile?.display_name || profile?.username,
-      requester_email: profile?.email,
+      requester_email: requesterEmail,
       note,
       requested_role: requestedRole,
       status: 'pending',

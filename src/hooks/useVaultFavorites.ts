@@ -8,7 +8,7 @@ interface FavoriteVault extends Vault {
   publication_count?: number;
   owner?: {
     display_name: string | null;
-    email: string | null;
+    username: string | null;
   };
 }
 
@@ -41,7 +41,7 @@ async function fetchFavoritesData(userId: string): Promise<{ favorites: VaultFav
   // TheCodex's public vault listing — see #206).
   const [pubRows, profileRows] = await Promise.all([
     supabase.from('vault_publications').select('vault_id').in('vault_id', vaultIds).then((res) => res.data || []),
-    supabase.from('profiles').select('user_id, display_name, email').in('user_id', ownerIds).then((res) => res.data || []),
+    supabase.from('profiles').select('user_id, display_name, username').in('user_id', ownerIds).then((res) => res.data || []),
   ]);
 
   const publicationCounts = new Map<string, number>();
@@ -49,7 +49,7 @@ async function fetchFavoritesData(userId: string): Promise<{ favorites: VaultFav
     publicationCounts.set(row.vault_id, (publicationCounts.get(row.vault_id) || 0) + 1);
   });
   const profilesByUserId = new Map(
-    (profileRows as { user_id: string; display_name: string | null; email: string | null }[]).map((p) => [p.user_id, p]),
+    (profileRows as { user_id: string; display_name: string | null; username: string | null }[]).map((p) => [p.user_id, p]),
   );
 
   const favoriteVaults: FavoriteVault[] = vaults.map((vault) => ({

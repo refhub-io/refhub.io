@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { Profile, ensureProfileExists } from '@/lib/profile';
+import { PUBLIC_PROFILE_COLUMNS } from '@/lib/profile';
 
 export type { Profile };
 
@@ -53,7 +54,7 @@ export function useProfile() {
           updated_at: new Date().toISOString(),
         })
         .eq('user_id', user.id)
-        .select()
+        .select(PUBLIC_PROFILE_COLUMNS)
         .single();
 
       if (error) throw error;

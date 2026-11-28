@@ -54,7 +54,6 @@ interface CodexVault extends Vault {
   is_fork?: boolean;
   owner?: {
     display_name: string | null;
-    email: string | null;
     avatar_url: string | null;
     username: string | null;
   };
@@ -131,7 +130,7 @@ export default function TheCodex() {
               .then((res) => res.data || []),
             supabase.from('vault_forks').select('original_vault_id').in('original_vault_id', vaultIds)
               .then((res) => res.data || []),
-            supabase.from('profiles').select('user_id, display_name, email, avatar_url, username').in('user_id', ownerIds)
+            supabase.from('profiles').select('user_id, display_name, avatar_url, username').in('user_id', ownerIds)
               .then((res) => res.data || []),
           ]);
 
@@ -149,7 +148,7 @@ export default function TheCodex() {
       const favoritesCounts = countBy(favoriteRows as Record<string, unknown>[], 'vault_id');
       const forkCounts = countBy(forkCountRows as Record<string, unknown>[], 'original_vault_id');
       const statsByVaultId = new Map((statsRows as VaultStats[]).map((s) => [s.vault_id, s]));
-      const profilesByUserId = new Map((profileRows as { user_id: string; display_name: string | null; email: string | null; avatar_url: string | null; username: string | null }[]).map((p) => [p.user_id, p]));
+      const profilesByUserId = new Map((profileRows as { user_id: string; display_name: string | null; avatar_url: string | null; username: string | null }[]).map((p) => [p.user_id, p]));
 
       const vaultsWithData: CodexVault[] = vaultsData.map((vault) => ({
         ...vault,
@@ -274,15 +273,15 @@ export default function TheCodex() {
     if (owner.display_name) {
       return owner.display_name.slice(0, 2).toUpperCase();
     }
-    if (owner.email) {
-      return owner.email.slice(0, 2).toUpperCase();
+    if (owner.username) {
+      return owner.username.slice(0, 2).toUpperCase();
     }
     return '?';
   };
 
   const getOwnerName = (owner?: CodexVault['owner']) => {
     if (!owner) return 'Unknown';
-    return owner.display_name || owner.email?.split('@')[0] || 'Unknown';
+    return owner.display_name || owner.username || 'Unknown';
   };
 
   const handleFavorite = async (e: React.MouseEvent, vaultId: string) => {
