@@ -415,6 +415,7 @@ export default function Dashboard() {
 
 
     } catch (error) {
+      logger.error('Dashboard', 'Could not load dashboard data:', error);
       toast({
         title: 'Could not load dashboard data',
         description: 'RefHub could not load your library, vaults, or tags. Please refresh the page.',
@@ -430,14 +431,18 @@ export default function Dashboard() {
   // failure during session restoration never got a real retry once the
   // session settled, since the object reference had no reason to change
   // again. Same fix already applied in useAllPublications.ts and
-  // VaultDetail.tsx's fetchAllPublications.
+  // VaultDetail.tsx's fetchAllPublications. isInitialLoad isn't read here: as
+  // a dependency, it made the load run twice, since its first run flips it.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, isInitialLoad, updatePhase]);
+  }, [user?.id, updatePhase]);
 
-  // Restore from cache on mount if available (for instant navigation)
+  // Restore from cache on mount if available (for instant navigation). Keyed on the user's id: the
+  // auth state hands over a new user object on every token refresh and several while a session
+  // restores, and each one used to start another full load.
+  const userId = user?.id;
   useEffect(() => {
-    if (user) {
-      const cached = getPageCache<DashboardCache>('dashboard', user.id);
+    if (userId) {
+      const cached = getPageCache<DashboardCache>('dashboard', userId);
       if (cached) {
         // Restore cached data immediately - no loading screen needed
         setPublications(cached.publications);
@@ -455,7 +460,7 @@ export default function Dashboard() {
       // Always fetch fresh data (will update silently if we have cache)
       fetchData();
     }
-  }, [user, user?.id, fetchData]);
+  }, [userId, fetchData]);
 
   // Open vault settings if URL contains openVault param (e.g., from a notification)
   useEffect(() => {
