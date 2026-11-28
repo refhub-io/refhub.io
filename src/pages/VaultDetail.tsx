@@ -14,7 +14,7 @@ import { generateBibtexKey } from '@/lib/bibtex';
 import { formatTimeAgo } from '@/lib/utils';
 import { logger } from '@/lib/logger';
 import { hasPageCache, clearPageCache } from '@/lib/pageCache';
-import { fetchAllRows } from '@/lib/fetchAllRows';
+import { fetchLibrary } from '@/lib/library';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { PublicationList } from '@/components/publications/PublicationList';
 import { PublicationDialog } from '@/components/publications/PublicationDialog';
@@ -300,47 +300,17 @@ export default function VaultDetail() {
   }, [location.state, canEdit, publications, navigate, vaultId]);
 
   // Fetch all user publications
+  // The user's library, for the add, import and edit dialogs (duplicate checks, adding existing
+  // papers) and the vault chips on the cards. Scoped on the server (#275): this selected
+  // publications and vault_publications unfiltered, which row-level security answers with every
+  // public vault's papers. With 10,000 public papers in the database, that was 26 requests and
+  // 13 MB on every vault open.
   const fetchAllPublications = useCallback(async () => {
     if (!user) return;
-
     try {
-      // .order('id') is a tiebreaker: .range() pagination isn't stable
-      // across pages without a fully deterministic sort, and created_at
-      // alone can tie between rows.
-      const [pubsRes, vaultPubsRes] = await Promise.all([
-        // No .eq('user_id', ...) filter here, deliberately — matching
-        // Dashboard's equivalent fetch. RLS already scopes this to
-        // publications the user owns or can reach via an owned/shared vault;
-        // filtering by user_id client-side additionally excluded every
-        // publication a collaborator created in a shared vault, so the
-        // add-paper library picker (fed by allPublications, below) silently
-        // showed fewer papers here than the same account's Dashboard did.
-        fetchAllRows<Publication>((from, to) =>
-          supabase
-            .from('publications')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .order('id')
-            .range(from, to)
-            .returns<Publication[]>()
-        ),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        fetchAllRows<any>((from, to) =>
-          supabase
-            .from('vault_publications')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .order('id')
-            .range(from, to)
-        ),
-      ]);
-
-      if (pubsRes.error) throw pubsRes.error;
-      if (vaultPubsRes.error) throw vaultPubsRes.error;
-
-      const publications = pubsRes.data;
-      const vaultPublications = vaultPubsRes.data;
-
+      const library = await fetchLibrary(supabase);
+      const publications = library.publications;
+      const vaultPublications = library.vault_publications;
       setAllPublications(publications);
 
       // Create publicationVaultsMap to track which vaults each publication belongs to
@@ -402,12 +372,16 @@ export default function VaultDetail() {
     }
   }, [vaultId, setCurrentVaultId]);
 
-  // Fetch all publications when user changes (vaults come from useVaults())
+  // Fetch the library once per user, as before, but only after the first vault has loaded, so it
+  // doesn't hold back what the page shows first. Only the dialogs and the cards' vault chips use
+  // it. dataReady resets on every switch to an uncached vault, hence the ref.
+  const libraryLoadedForUserRef = useRef<string | null>(null);
   useEffect(() => {
-    if (user) {
+    if (user && dataReady && libraryLoadedForUserRef.current !== user.id) {
+      libraryLoadedForUserRef.current = user.id;
       fetchAllPublications();
     }
-  }, [user?.id, fetchAllPublications]);
+  }, [user, dataReady, fetchAllPublications]);
 
   // Fetch favorites and forks count for the current vault
   useEffect(() => {
