@@ -73,6 +73,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
   // again; that call is also what clears the previous user's content.
   const userIdRef = useRef(user?.id);
   userIdRef.current = user?.id;
+  const userId = user?.id;
   const [currentVault, setCurrentVault] = useState<Vault | null>(null);
   const [publications, setPublications] = useState<Publication[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
@@ -381,6 +382,10 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
     await fetchVaultContent();
   }, [fetchVaultContent]);
 
+  // The latest fetchVaultContent, so the realtime channel can catch up without re-subscribing.
+  const fetchVaultContentRef = useRef(fetchVaultContent);
+  fetchVaultContentRef.current = fetchVaultContent;
+
   // Fetch vault content when vaultId changes, or on every revisit of the
   // same vault (visitNonce) -- see the comment on visitNonce above. A
   // change of user is a revisit too: see userIdRef.
@@ -431,15 +436,18 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
     setVisitNonce(n => n + 1);
   }, [user?.id]);
 
-  // Set up a single real-time subscription for all vault-related changes
+  // Set up a single real-time subscription for all vault-related changes. It depends on the user's
+  // id, not the user object: the auth state hands over a new object on every token refresh, and
+  // re-subscribing then dropped whatever changed in between.
   useEffect(() => {
-    if (!currentVaultId || !user) {
-      debug('VaultContentContext', 'Skipping real-time subscription - no vaultId or user', { currentVaultId: !!currentVaultId, user: !!user });
+    if (!currentVaultId || !userId) {
+      debug('VaultContentContext', 'Skipping real-time subscription - no vaultId or user', { currentVaultId: !!currentVaultId, user: !!userId });
       setIsRealtimeConnected(false);
       return;
     }
 
     debug('VaultContentContext', 'Setting up unified real-time subscription for vault', currentVaultId);
+    let joined = false;
 
     const channel = supabase
       .channel(`vault-content-sync-${currentVaultId}`)
@@ -718,6 +726,12 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       )
       .subscribe((status, err) => {
         setIsRealtimeConnected(status === 'SUBSCRIBED');
+        if (status === 'SUBSCRIBED') {
+          // Changes made while the channel was down are never delivered, so after a re-join
+          // (the connection dropped and came back) the vault is fetched again to catch up.
+          if (joined) void fetchVaultContentRef.current();
+          joined = true;
+        }
         if (err) {
           logError('VaultContentContext', 'Realtime subscription error:', err);
         }
@@ -727,8 +741,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       setIsRealtimeConnected(false);
       supabase.removeChannel(channel);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentVaultId, user, formatVaultPublication]);
+  }, [currentVaultId, userId, updateLastActivity]);
 
   return (
     <VaultContentContext.Provider
