@@ -8,6 +8,7 @@ import type { Publication, Vault, Tag } from '@/types/database';
 import { buildAllPublications, buildPublicationVaultsMap, buildPublicationTagsMap } from './publicationAggregate';
 import { filterDashboardTags } from './dashboardTagScope';
 import { fetchUserVaults } from './vaults';
+import { findSharedPublications, type SharedPublicationInfo } from './sharedPublications';
 import { fetchLibrary } from './library';
 
 export interface AllPublicationsData {
@@ -22,6 +23,8 @@ export interface AllPublicationsData {
   // (smart collections) should treat this as "results may be incomplete"
   // rather than trusting an empty tag map at face value.
   tagsIncomplete: boolean;
+  /** Papers here because a vault was shared with the user, by id (see findSharedPublications). */
+  sharedPublications: Record<string, SharedPublicationInfo>;
 }
 
 export async function fetchAllPublicationsData(
@@ -36,7 +39,7 @@ export async function fetchAllPublicationsData(
     fetchLibrary(supabase),
   ]);
 
-  const { ownedVaults, sharedVaults, sharedVaultIds } = vaultsData;
+  const { ownedVaults, sharedVaults, sharedVaultIds, sharedVaultRoles } = vaultsData;
   const scopedTags = filterDashboardTags(
     library.tags,
     { userId, ownedVaults, sharedVaultIds },
@@ -58,13 +61,15 @@ export async function fetchAllPublicationsData(
     vaultPublicationLinks,
   );
 
+  const vaults = [...ownedVaults, ...sharedVaults];
   return {
     publications: allPublications,
-    vaults: [...ownedVaults, ...sharedVaults],
+    vaults,
     tags,
     publicationVaultsMap,
     publicationTagsMap,
     // The library arrives whole or not at all, so tags are never partial anymore.
     tagsIncomplete: false,
+    sharedPublications: findSharedPublications(allPublications, publicationVaultsMap, { userId, vaults, sharedVaultRoles }),
   };
 }

@@ -39,6 +39,8 @@ import { GoogleDriveIcon } from '@/components/ui/GoogleDriveIcon';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { getValidHttpUrl } from '@/lib/safeUrl';
+import { SharedPaperCue } from './SharedPaperCue';
+import type { SharedPublicationInfo } from '@/lib/sharedPublications';
 
 interface PublicationTableProps {
   publications: Publication[];
@@ -55,6 +57,8 @@ interface PublicationTableProps {
   onOpen?: (pub: Publication) => void;
   primaryActionLabel?: string;
   onDelete?: (pub: Publication) => void;
+  /** Papers here because a vault was shared with the user, by id. */
+  sharedPublications?: Record<string, SharedPublicationInfo>;
   onExportBibtex: (pub: Publication) => void;
   driveUrlsMap?: Record<string, string | null>;
   driveLoading?: boolean;
@@ -105,6 +109,7 @@ export function PublicationTable({
   onOpen,
   primaryActionLabel = 'edit',
   onDelete,
+  sharedPublications,
   onExportBibtex,
   driveUrlsMap = {},
   driveLoading = false,
@@ -221,6 +226,7 @@ export function PublicationTable({
                     onOpen={onOpen}
                     primaryActionLabel={primaryActionLabel}
                     onDelete={onDelete}
+                    shared={sharedPublications?.[pub.id]}
                     onExportBibtex={onExportBibtex}
                     driveUrl={driveUrlsMap[pub.id] ?? null}
                     driveLoading={driveLoading}
@@ -261,6 +267,7 @@ interface PublicationTableRowProps extends Omit<PublicationDragHandle, 'ref'> {
   onOpen?: (pub: Publication) => void;
   primaryActionLabel: string;
   onDelete?: (pub: Publication) => void;
+  shared?: SharedPublicationInfo;
   onExportBibtex: (pub: Publication) => void;
   driveUrl: string | null;
   driveLoading: boolean;
@@ -297,6 +304,7 @@ const PublicationTableRow = memo(forwardRef<HTMLTableRowElement, PublicationTabl
   onOpen,
   primaryActionLabel,
   onDelete,
+  shared,
   onExportBibtex,
   driveUrl,
   driveLoading,
@@ -355,6 +363,7 @@ const PublicationTableRow = memo(forwardRef<HTMLTableRowElement, PublicationTabl
       {visibleColumns.title && (
         <TableCell className="font-medium max-w-xs">
           <span className="line-clamp-2 hover:text-primary transition-colors">
+            {shared && <SharedPaperCue shared={shared} />}
             {pub.title}
           </span>
           {syncDiffCount > 0 && (
@@ -448,7 +457,7 @@ const PublicationTableRow = memo(forwardRef<HTMLTableRowElement, PublicationTabl
         <TableCell onClick={(e) => e.stopPropagation()}>
           <ReadingProgressControl
             value={pub.reading_state}
-            onChange={onUpdateReadingState ? (value) => onUpdateReadingState(pub, { reading_state: value }) : undefined}
+            onChange={onUpdateReadingState && (!shared || shared.canEdit) ? (value) => onUpdateReadingState(pub, { reading_state: value }) : undefined}
           />
         </TableCell>
       )}
@@ -457,7 +466,7 @@ const PublicationTableRow = memo(forwardRef<HTMLTableRowElement, PublicationTabl
         <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
           <ImportantToggle
             value={pub.important}
-            onChange={onUpdateReadingState ? (value) => onUpdateReadingState(pub, { important: value }) : undefined}
+            onChange={onUpdateReadingState && (!shared || shared.canEdit) ? (value) => onUpdateReadingState(pub, { important: value }) : undefined}
           />
         </TableCell>
       )}
@@ -569,7 +578,7 @@ const PublicationTableRow = memo(forwardRef<HTMLTableRowElement, PublicationTabl
               <Download className="w-4 h-4 mr-2" />
               export bibtex
             </DropdownMenuItem>
-            {onDelete && (
+            {onDelete && !shared && (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem

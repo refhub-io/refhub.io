@@ -50,7 +50,7 @@ export default function SmartCollectionDetail() {
   const { ownedVaults, sharedVaults } = useVaults();
   const invalidateVaults = useInvalidateVaults();
   const { toast } = useToast();
-  const { publications, tags, vaults, publicationTagsMap, publicationVaultsMap, loading: publicationsLoading, refetch } =
+  const { publications, tags, vaults, publicationTagsMap, publicationVaultsMap, sharedPublications, loading: publicationsLoading, refetch } =
     useAllPublications();
   const { collections, loading: collectionsLoading, updateCollection } = useSmartCollections();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -218,6 +218,7 @@ export default function SmartCollectionDetail() {
             relationsCountMap={{}}
             selectedVault={null}
             listTitle={collection?.name}
+            sharedPublications={sharedPublications}
             dragDisabled
             onExportBibtex={handleExportBibtex}
             onDiscoverRelated={ownedVaults.length > 0 ? (pubs) => {

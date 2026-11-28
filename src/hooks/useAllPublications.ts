@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import type { Publication, Vault, Tag } from '@/types/database';
 import { fetchAllPublicationsData } from '@/lib/allPublications';
+import type { SharedPublicationInfo } from '@/lib/sharedPublications';
 import { logger } from '@/lib/logger';
 
 export function useAllPublications() {
@@ -13,6 +14,7 @@ export function useAllPublications() {
   const [publicationVaultsMap, setPublicationVaultsMap] = useState<Record<string, string[]>>({});
   const [publicationTagsMap, setPublicationTagsMap] = useState<Record<string, string[]>>({});
   const [tagsIncomplete, setTagsIncomplete] = useState(false);
+  const [sharedPublications, setSharedPublications] = useState<Record<string, SharedPublicationInfo>>({});
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -23,6 +25,7 @@ export function useAllPublications() {
       setPublicationVaultsMap({});
       setPublicationTagsMap({});
       setTagsIncomplete(false);
+      setSharedPublications({});
       setLoading(false);
       return;
     }
@@ -36,6 +39,7 @@ export function useAllPublications() {
       setPublicationVaultsMap(data.publicationVaultsMap);
       setPublicationTagsMap(data.publicationTagsMap);
       setTagsIncomplete(data.tagsIncomplete);
+      setSharedPublications(data.sharedPublications);
     } catch (error) {
       // fetchAllPublicationsData throws on RLS denial, network blip, etc.
       // Log the error but don't crash the component tree; set loading false
@@ -58,5 +62,5 @@ export function useAllPublications() {
     load();
   }, [load]);
 
-  return { publications, vaults, tags, publicationVaultsMap, publicationTagsMap, tagsIncomplete, loading, refetch: load };
+  return { publications, vaults, tags, publicationVaultsMap, publicationTagsMap, tagsIncomplete, sharedPublications, loading, refetch: load };
 }

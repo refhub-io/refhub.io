@@ -4,6 +4,7 @@ import {
   buildAllPublications,
   buildPublicationVaultsMap,
   buildPublicationTagsMap,
+  buildEntryIdResolver,
   type RawVaultPublicationRow,
 } from './publicationAggregate';
 import type { Publication, PublicationTag } from '@/types/database';
@@ -80,6 +81,45 @@ describe('buildAllPublications', () => {
     const { allPublications } = buildAllPublications([], [vp]);
     expect(allPublications.map((p) => p.id)).toEqual(['vp1']);
   });
+
+  // A copy in a vault shared with the user points at the sharer's canonical row, which the user
+  // can't read. It used to be dropped from the list.
+  it("keeps a copy whose canonical paper isn't readable, under the copy's own id", () => {
+    const vp = makeRawVaultPub({ id: 'vp1', original_publication_id: 'someone-elses', title: 'Shared paper' });
+    const { allPublications } = buildAllPublications([], [vp]);
+    expect(allPublications.map((p) => [p.id, p.title])).toEqual([['vp1', 'Shared paper']]);
+  });
+
+  it('folds further copies of the same unreadable paper into one entry', () => {
+    const first = makeRawVaultPub({ id: 'vp1', vault_id: 'vault-a', original_publication_id: 'p9', abstract: null });
+    const second = makeRawVaultPub({ id: 'vp2', vault_id: 'vault-b', original_publication_id: 'p9', abstract: 'from vault b' });
+    const { allPublications } = buildAllPublications([], [first, second]);
+    expect(allPublications.map((p) => p.id)).toEqual(['vp1']);
+    expect(allPublications[0].abstract).toBe('from vault b');
+  });
+});
+
+describe('buildEntryIdResolver', () => {
+  const publications = [
+    makePub({ id: 'p1' }),
+    { ...makePub({ id: 'vp-stand-in' }), original_publication_id: 'p9' } as Publication,
+    makePub({ id: 'vp-standalone' }),
+  ];
+  const links = [
+    { id: 'vp-of-p1', vault_id: 'vault-a', original_publication_id: 'p1' },
+    { id: 'vp-stand-in', vault_id: 'vault-b', original_publication_id: 'p9' },
+    { id: 'vp-also-p9', vault_id: 'vault-c', original_publication_id: 'p9' },
+    { id: 'vp-standalone', vault_id: 'vault-a', original_publication_id: null },
+  ];
+  const entryId = buildEntryIdResolver(publications, links);
+
+  it("maps a copy to its canonical paper's entry", () => expect(entryId('vp-of-p1')).toBe('p1'));
+  it("maps every copy of an unreadable paper, and that paper's id, to its stand-in", () => {
+    expect(['vp-stand-in', 'vp-also-p9', 'p9'].map(entryId)).toEqual(['vp-stand-in', 'vp-stand-in', 'vp-stand-in']);
+  });
+  it('leaves canonical papers, standalone copies and unknown ids as they are', () => {
+    expect(['p1', 'vp-standalone', 'unknown'].map(entryId)).toEqual(['p1', 'vp-standalone', 'unknown']);
+  });
 });
 
 describe('buildPublicationVaultsMap', () => {
@@ -97,6 +137,15 @@ describe('buildPublicationVaultsMap', () => {
     const links = [{ id: 'vp1', vault_id: 'vault-a', original_publication_id: null }];
     expect(buildPublicationVaultsMap(publications, links)).toEqual({ vp1: ['vault-a'] });
   });
+
+  it("maps every vault holding an unreadable paper's copies to the copy standing in for it", () => {
+    const raw = [
+      makeRawVaultPub({ id: 'vp1', vault_id: 'vault-a', original_publication_id: 'p9' }),
+      makeRawVaultPub({ id: 'vp2', vault_id: 'vault-b', original_publication_id: 'p9' }),
+    ];
+    const { allPublications, vaultPublicationLinks } = buildAllPublications([], raw);
+    expect(buildPublicationVaultsMap(allPublications, vaultPublicationLinks)).toEqual({ vp1: ['vault-a', 'vault-b'] });
+  });
 });
 
 describe('buildPublicationTagsMap', () => {
@@ -106,6 +155,19 @@ describe('buildPublicationTagsMap', () => {
       { id: 't1', publication_id: 'p1', vault_publication_id: null, tag_id: 'tag-1' },
     ];
     expect(buildPublicationTagsMap(publications, publicationTags, [])).toEqual({ p1: ['tag-1'] });
+  });
+
+  it("shows the tags of every copy of an unreadable paper on the copy standing in for it", () => {
+    const raw = [
+      makeRawVaultPub({ id: 'vp1', vault_id: 'vault-a', original_publication_id: 'p9' }),
+      makeRawVaultPub({ id: 'vp2', vault_id: 'vault-b', original_publication_id: 'p9' }),
+    ];
+    const { allPublications, vaultPublicationLinks } = buildAllPublications([], raw);
+    const publicationTags: PublicationTag[] = [
+      { id: 't1', publication_id: null, vault_publication_id: 'vp1', tag_id: 'tag-1' },
+      { id: 't2', publication_id: null, vault_publication_id: 'vp2', tag_id: 'tag-2' },
+    ];
+    expect(buildPublicationTagsMap(allPublications, publicationTags, vaultPublicationLinks)).toEqual({ vp1: ['tag-1', 'tag-2'] });
   });
 
   it('resolves a vault-copy tag row to the canonical publication id', () => {
