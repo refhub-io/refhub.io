@@ -15,7 +15,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import { KbdHint } from '@/components/ui/KbdHint';
 import {
   Select,
@@ -27,7 +26,6 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { VaultSectionsPanel } from './VaultSectionsPanel';
 import { VaultRelationshipsPanel } from './VaultRelationshipsPanel';
-import { useKeyboardContext } from '@/contexts/KeyboardContext';
 import { useHotkeys, useDialogKeyboardContext } from '@/hooks/useKeyboardNavigation';
 import { Lock, Users, Globe, Mail, Trash2, Copy, Check, Link2, X, Save, Plus, Bell, ChevronDown, Archive, Settings, Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -40,6 +38,7 @@ import type { PublicationRelation } from '@/types/database';
 import { showError } from '@/lib/toast';
 import { formatVaultPublication } from '@/lib/formatVaultPublication';
 import { fetchAllRows } from '@/lib/fetchAllRows';
+import { fetchRelationsForPublicationIds } from '@/lib/fetchRelations';
 
 type VaultVisibility = 'private' | 'protected' | 'public';
 
@@ -120,7 +119,6 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   // TabsContent (a plain block), not anything inside VaultRelationshipsPanel's
   // own flex/grid rows, so quoterm's inline insertion can't land inside one.
   const relationshipsPanelAnchorRef = useRef<HTMLDivElement>(null);
-  const kbCtx = useKeyboardContext();
 
   const [activeTab, setActiveTab] = useState<'settings' | 'sections' | 'relationships'>('settings');
   const [name, setName] = useState('');
@@ -419,22 +417,10 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       return;
     }
 
-    // Filtered server-side to this vault's own publication ids, instead of
-    // paging the entire cross-vault publication_relations table and filtering
-    // client-side — that scan cost every relation in the account just to find
-    // the handful touching this vault, and only got worse once pagination
-    // (above) started actually fetching all of it instead of silently
-    // truncating at 1000 rows.
-    const idsList = Array.from(idsSet).join(',');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: allRelations, error: relationsError } = await fetchAllRows<any>((from, to) =>
-      supabase
-        .from('publication_relations')
-        .select('*')
-        .or(`publication_id.in.(${idsList}),related_publication_id.in.(${idsList})`)
-        .order('id')
-        .range(from, to)
-    );
+    // Filtered server-side to this vault's own publication ids and paged (the shared helper
+    // the vault page, public vault and Codex use), in chunks so a large vault can't push the
+    // id list past URL length limits.
+    const { data: allRelations, error: relationsError } = await fetchRelationsForPublicationIds(supabase, Array.from(idsSet));
 
     if (relationsError) {
       logger.error('VaultDialog', 'fetchVaultRelationshipData: publication_relations fetch failed', relationsError);

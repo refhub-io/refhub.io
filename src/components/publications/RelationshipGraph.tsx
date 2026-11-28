@@ -1,7 +1,7 @@
 import { useRef, useEffect, useCallback, useMemo, useState, useLayoutEffect } from 'react';
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
 import { Publication, PublicationRelation, RELATION_TYPES } from '@/types/database';
-import { Badge } from '@/components/ui/badge';
+import { RELATION_COLORS, relationColor } from '@/lib/relationColors';
 
 interface GraphNode {
   id: string;
@@ -34,13 +34,6 @@ export interface RelationshipGraphPanelProps {
   onSelectPublication?: (publication: Publication) => void;
 }
 
-const RELATION_COLORS: Record<string, string> = {
-  cites: '#22c55e',
-  extends: '#3b82f6',
-  contradicts: '#ef4444',
-  reviews: '#f97316',
-  builds_on: '#8b5cf6',
-};
 
 export function RelationshipGraphPanel({
   publications,
@@ -101,7 +94,7 @@ export function RelationshipGraphPanel({
       source: rel.publication_id,
       target: rel.related_publication_id,
       type: rel.relation_type,
-      color: RELATION_COLORS[rel.relation_type] || RELATION_COLORS.cites,
+      color: relationColor(rel.relation_type),
     }));
 
     // Find connected components via BFS so each component starts in its own grid cell

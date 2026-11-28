@@ -6,8 +6,11 @@ import { useVaultAccess } from '@/hooks/useVaultAccess';
 import { handleError } from '@/lib/toast';
 import { debug, warn, error as logError } from '@/lib/logger';
 import { getPageCache, setPageCache } from '@/lib/pageCache';
+import { ownerTag } from '@/lib/cacheOwner';
 import { syncDrivePdfAsset } from '@/lib/pdfAssets';
 import { formatVaultPublication } from '@/lib/formatVaultPublication';
+import { fetchAllRows, fetchAllRowsForIds } from '@/lib/fetchAllRows';
+import { fetchRelationsForPublicationIds } from '@/lib/fetchRelations';
 
 // Info about the last activity in the vault
 export type ActivityType = 'publication_added' | 'publication_updated' | 'publication_removed' | 'tag_added' | 'tag_updated' | 'tag_removed';
@@ -119,16 +122,20 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
     if (!currentVaultId) return;
 
     const cacheKey = `vault-content-${currentVaultId}` as const;
-    const cached = getPageCache<VaultContentCache>(cacheKey);
+    const cached = getPageCache<VaultContentCache>(cacheKey, ownerTag(user?.id));
+    // Once this vault's content has loaded, current state is the freshest copy (realtime and
+    // recent fetches update it), so it wins; the cached arrays are only a fallback before then.
+    // Preferring the cache used to put older rows back into it after every vault settings edit.
+    const preferState = currentVault?.id === currentVaultId || !cached;
     setPageCache<VaultContentCache>(cacheKey, {
       currentVault: vault,
-      publications: cached?.publications || publications,
-      tags: cached?.tags || tags,
-      publicationTags: cached?.publicationTags || publicationTags,
-      publicationRelations: cached?.publicationRelations || publicationRelations,
-      vaultShares: cached?.vaultShares || vaultShares,
-    });
-  }, [currentVaultId, publications, tags, publicationTags, publicationRelations, vaultShares]);
+      publications: preferState ? publications : cached.publications,
+      tags: preferState ? tags : cached.tags,
+      publicationTags: preferState ? publicationTags : cached.publicationTags,
+      publicationRelations: preferState ? publicationRelations : cached.publicationRelations,
+      vaultShares: preferState ? vaultShares : cached.vaultShares,
+    }, ownerTag(user?.id));
+  }, [currentVaultId, currentVault, publications, tags, publicationTags, publicationRelations, vaultShares, user?.id]);
   
   // Helper to get user display name (with caching)
   const getUserDisplayName = useCallback(async (userId: string): Promise<string | null> => {
@@ -325,11 +332,14 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         userScopedTagsRes,
         sharesRes
       ] = await Promise.all([
-        supabase
+        // Paged: a plain select stops silently at PostgREST's 1,000-row cap.
+        fetchAllRows((from, to) => supabase
           .from('vault_publications')
           .select('*')
           .eq('vault_id', currentVaultId)
-          .order('created_at', { ascending: false }),
+          .order('created_at', { ascending: false })
+          .order('id')
+          .range(from, to)),
         supabase.from('tags').select('*').eq('vault_id', currentVaultId).order('name'),
         // Tags can be user-scoped (vault_id IS NULL) as well as vault-scoped --
         // a paper in this vault may carry either kind via publication_tags.
@@ -350,48 +360,20 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       const vaultPublicationIds = vaultPublications?.map(vp => vp.id).filter(id => id) || [];
       const originalPublicationIds = vaultPublications?.map(vp => vp.original_publication_id).filter(id => id) || [];
 
-      // Fetch publication relations
-      const allRelationsRes = await supabase
-        .from('publication_relations')
-        .select('*');
-
-      // Filter relations to only include those relevant to this vault's publications
-      const allPublicationIdsSet = new Set([...vaultPublicationIds, ...originalPublicationIds]);
-      const filteredRelations = allRelationsRes.data?.filter(rel =>
-        allPublicationIdsSet.has(rel.publication_id) ||
-        allPublicationIdsSet.has(rel.related_publication_id)
-      ) || [];
-
-      const relationsRes = { data: filteredRelations, error: allRelationsRes.error };
-
-      // Fetch publication tags for both the vault-specific copies and the original publications
-      let pubTagsRes;
-      if (vaultPublicationIds.length > 0 || originalPublicationIds.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let vaultTags: any[] = [];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let originalTags: any[] = [];
-
-        if (vaultPublicationIds.length > 0) {
-          const { data: vtData, error: vtError } = await supabase
-            .from('publication_tags')
-            .select('*')
-            .in('vault_publication_id', vaultPublicationIds);
-          if (!vtError) vaultTags = vtData || [];
-        }
-
-        if (originalPublicationIds.length > 0) {
-          const { data: otData, error: otError } = await supabase
-            .from('publication_tags')
-            .select('*')
-            .in('publication_id', originalPublicationIds);
-          if (!otError) originalTags = otData || [];
-        }
-
-        pubTagsRes = { data: [...vaultTags, ...originalTags], error: null };
-      } else {
-        pubTagsRes = { data: [], error: null };
-      }
+      // Relations and tags for this vault's papers, filtered on the server and paged past
+      // PostgREST's 1,000-row cap. An error from any of them fails the load, instead of
+      // quietly showing (and caching) a vault with missing relations or tags.
+      const [relationsRes, vaultTagsRes, originalTagsRes] = await Promise.all([
+        fetchRelationsForPublicationIds(supabase, [...vaultPublicationIds, ...originalPublicationIds]),
+        fetchAllRowsForIds<PublicationTag>(vaultPublicationIds, (chunk, from, to) =>
+          supabase.from('publication_tags').select('*').in('vault_publication_id', chunk).order('id').range(from, to)),
+        fetchAllRowsForIds<PublicationTag>(originalPublicationIds, (chunk, from, to) =>
+          supabase.from('publication_tags').select('*').in('publication_id', chunk).order('id').range(from, to)),
+      ]);
+      const pubTagsRes = {
+        data: [...vaultTagsRes.data, ...originalTagsRes.data],
+        error: vaultTagsRes.error || originalTagsRes.error,
+      };
 
       if (vaultPubsRes.error) throw vaultPubsRes.error;
       if (tagsRes.error) throw tagsRes.error;
@@ -455,7 +437,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         publicationTags: pubTagsRes.data as PublicationTag[],
         publicationRelations: relationsRes.data as PublicationRelation[],
         vaultShares: sharesRes.data as VaultShare[],
-      });
+      }, ownerTag(user?.id));
       
       // Set initial lastActivity based on most recently updated publication
       // Now uses updated_by field if available to show who made the last update
@@ -478,10 +460,12 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         debug('VaultContentContext', 'Discarding stale fetch error for', requestedVaultId);
         return;
       }
-      // On error, show toast but keep existing data (graceful degradation)
-      const message = handleError(err, 'loading vault content', publications.length > 0);
+      // On error, show toast but keep existing data (graceful degradation). The ref holds the
+      // current list; this callback's own `publications` would be the stale one it closed over.
+      const hasData = publicationsRef.current.length > 0;
+      const message = handleError(err, 'loading vault content', hasData);
       // Only set error state if we have no cached data
-      if (publications.length === 0) {
+      if (!hasData) {
         setError(message);
       }
     } finally {
@@ -520,7 +504,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
 
     // Check cache first for instant restore
     const cacheKey = `vault-content-${vaultId}` as const;
-    const cached = getPageCache<VaultContentCache>(cacheKey);
+    const cached = getPageCache<VaultContentCache>(cacheKey, ownerTag(user?.id));
 
     if (cached) {
       debug('VaultContentContext', 'Restoring vault content from cache:', vaultId);
@@ -547,7 +531,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
     // Force the fetch effect to re-run even if vaultId is unchanged from
     // last time (revisiting the same vault after editing it elsewhere).
     setVisitNonce(n => n + 1);
-  }, []);
+  }, [user?.id]);
 
   // Set up a single real-time subscription for all vault-related changes
   useEffect(() => {

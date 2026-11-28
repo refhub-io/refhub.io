@@ -383,18 +383,25 @@ function makeCodexClient(data: {
   };
 }): SupabaseClient {
   const errors = data.errors ?? {};
+  // Paged queries end in .order().range(from, to); return that slice, like PostgREST does.
+  const paged = (rows: unknown[] | undefined, error: MockError | undefined) => ({
+    order: () => ({
+      range: (start: number, end: number) =>
+        error ? resolveOrError(undefined, error) : Promise.resolve({ data: (rows ?? []).slice(start, end + 1), error: null }),
+    }),
+  });
   const from = vi.fn((table: string) => {
     switch (table) {
       case 'vaults':
         return { select: () => ({ eq: () => resolveOrError(data.publicVaults, errors.publicVaults) }) };
       case 'vault_publications':
-        return { select: () => ({ in: () => resolveOrError(data.vaultPublications, errors.vaultPublications) }) };
+        return { select: () => ({ in: () => paged(data.vaultPublications, errors.vaultPublications) }) };
       case 'publication_tags':
         return { select: () => ({ in: () => resolveOrError(data.publicationTags, errors.publicationTags) }) };
       case 'tags':
         return { select: () => ({ in: () => resolveOrError(data.tags, errors.tags) }) };
       case 'publication_relations':
-        return { select: () => resolveOrError(data.relations, errors.relations) };
+        return { select: () => paged(data.relations, errors.relations) };
       default:
         throw new Error(`Unexpected table in test mock: ${table}`);
     }
@@ -458,6 +465,20 @@ describe('fetchPublicCodexPublications', () => {
     expect(result.corpus[0].publication.id).toBe('p1');
     expect(result.corpus[0].vault.id).toBe('v1');
     expect(result.corpus[0].tags.map((t) => t.name)).toEqual(['graph drawing']);
+  });
+
+  it('keeps every relation past the 1,000-row cap (a plain select stopped there silently)', async () => {
+    const relations = Array.from({ length: 1200 }, (_, i) => ({
+      id: `r${i}`, publication_id: 'p1', related_publication_id: `other-${i}`, relation_type: 'cites', created_at: '', created_by: 'owner-1',
+    })) as PublicationRelation[];
+    const client = makeCodexClient({
+      publicVaults: [makeVault('v1')],
+      vaultPublications: [rawVaultPub('p1', 'v1')],
+      relations,
+    });
+
+    const result = await fetchPublicCodexPublications(client);
+    expect(result.relations).toHaveLength(1200);
   });
 
   it('returns an empty corpus (not an error) when there are no public vaults', async () => {

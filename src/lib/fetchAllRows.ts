@@ -12,7 +12,6 @@ export async function fetchAllRows<T>(
 ): Promise<{ data: T[]; error: unknown }> {
   const all: T[] = [];
   let from = 0;
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     const { data, error } = await buildQuery(from, from + pageSize - 1);
     if (error) return { data: all, error };
@@ -22,4 +21,27 @@ export async function fetchAllRows<T>(
     from += pageSize;
   }
   return { data: all, error: null };
+}
+
+// Ids go into the request URL (an `in.(...)` list, sometimes twice), and long URLs get rejected
+// by proxies, so a big id list is sent in chunks. 50 UUIDs keep even a doubled list near 4 KB.
+const ID_CHUNK_SIZE = 50;
+
+/**
+ * Runs a paged query once per chunk of ids and returns every row: past PostgREST's row cap, and
+ * without an over-long URL however many ids there are. Stops at the first error and returns it,
+ * never a partial result.
+ */
+export async function fetchAllRowsForIds<T>(
+  ids: string[],
+  buildQuery: (chunk: string[], from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+  chunkSize = ID_CHUNK_SIZE,
+): Promise<{ data: T[]; error: unknown }> {
+  const unique = [...new Set(ids.filter(Boolean))];
+  const chunks: string[][] = [];
+  for (let i = 0; i < unique.length; i += chunkSize) chunks.push(unique.slice(i, i + chunkSize));
+  const results = await Promise.all(chunks.map((chunk) => fetchAllRows<T>((from, to) => buildQuery(chunk, from, to))));
+  const failed = results.find((result) => result.error);
+  if (failed) return { data: [], error: failed.error };
+  return { data: results.flatMap((result) => result.data), error: null };
 }

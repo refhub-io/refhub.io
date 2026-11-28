@@ -1,8 +1,9 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { dismissQuoterm, getQuotermsSnapshot } from 'quoterm';
 import { useVaultAccess } from './useVaultAccess';
-import { hasPageCache } from '../lib/pageCache';
+import { clearAllPageCaches, hasPageCache } from '../lib/pageCache';
+import { setCacheOwner } from '../lib/cacheOwner';
 import type { Vault } from '../types/database';
 
 const mockSingle = vi.fn();
@@ -42,6 +43,12 @@ function mockSignedIn(userId: string) {
 function mockSignedOut() {
   mockGetSession.mockResolvedValue({ data: { session: null }, error: null });
 }
+
+// The access cache is module-level. Without this, a test starts from the previous test's cached
+// answer as a background refresh, and its assertions race that refresh.
+beforeEach(() => {
+  clearAllPageCaches();
+});
 
 describe('useVaultAccess archived-vault behavior', () => {
   beforeEach(() => {
@@ -168,18 +175,82 @@ describe('useVaultAccess — signed-out visitor', () => {
     expect(result.current.vault).toBeNull();
   });
 
-  it('surfaces a toast when the metadata RPC itself fails, distinct from a genuine miss', async () => {
+  it('reports a failed metadata RPC as a retryable error (with a toast), not as denied', async () => {
     mockSignedOut();
     mockSingle.mockResolvedValue({ data: null, error: { code: 'PGRST116', message: 'no rows' } });
     mockRpc.mockResolvedValue({ data: null, error: { message: 'network error' } });
 
-    const { result } = renderHook(() => useVaultAccess('vault-1', { enableRealtime: false }));
+    const { result } = renderHook(() => useVaultAccess('vault-rpc-err', { enableRealtime: false }));
 
-    await waitFor(() => expect(result.current.accessStatus).toBe('denied'));
+    await waitFor(() => expect(result.current.accessStatus).toBe('error'));
+    expect(result.current.canView).toBe(false);
     expect(getQuotermsSnapshot().items[0]).toMatchObject({
       title: 'Could not check vault access',
       variant: 'error',
     });
+  });
+});
+
+describe('useVaultAccess — failed checks are errors, not denials', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('reports a failed vault query (anything but "no rows") as error', async () => {
+    mockSignedIn('user-1');
+    mockSingle.mockResolvedValue({ data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } });
+
+    const { result } = renderHook(() => useVaultAccess('vault-err-1', { enableRealtime: false }));
+
+    await waitFor(() => expect(result.current.accessStatus).toBe('error'));
+    expect(result.current.error).toBe('Could not check vault access');
+  });
+
+  it('reports a failed share lookup as error, instead of treating it as "no share"', async () => {
+    mockSignedIn('user-1');
+    mockSingle.mockResolvedValue({ data: makeVault({ user_id: 'owner-1', visibility: 'protected' }), error: null });
+    mockMaybeSingle.mockResolvedValue({ data: null, error: { message: 'connection reset' } });
+
+    const { result } = renderHook(() => useVaultAccess('vault-err-2', { enableRealtime: false }));
+
+    await waitFor(() => expect(result.current.accessStatus).toBe('error'));
+  });
+
+  // VaultDetail and VaultContentContext each run their own check on the same vault. When both
+  // fail, the retry button on the page has to recover both, or the vault opens with no papers.
+  it('retries a failed check in every instance for the vault, not only the one retried', async () => {
+    mockSignedIn('owner-1');
+    mockSingle.mockResolvedValue({ data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } });
+
+    const page = renderHook(() => useVaultAccess('vault-err-3', { enableRealtime: false }));
+    const content = renderHook(() => useVaultAccess('vault-err-3', { enableRealtime: false }));
+    await waitFor(() => expect(page.result.current.accessStatus).toBe('error'));
+    await waitFor(() => expect(content.result.current.accessStatus).toBe('error'));
+
+    mockSingle.mockResolvedValue({ data: makeVault({ id: 'vault-err-3' }), error: null });
+    act(() => page.result.current.refresh());
+
+    await waitFor(() => expect(page.result.current.accessStatus).toBe('granted'));
+    await waitFor(() => expect(content.result.current.accessStatus).toBe('granted'));
+    expect(content.result.current.canView).toBe(true);
+  });
+
+  it('leaves an instance whose check succeeded alone when another instance retries', async () => {
+    mockSignedIn('owner-1');
+    mockSingle
+      .mockResolvedValueOnce({ data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } })
+      .mockResolvedValue({ data: makeVault({ id: 'vault-err-4' }), error: null });
+
+    const page = renderHook(() => useVaultAccess('vault-err-4', { enableRealtime: false }));
+    const content = renderHook(() => useVaultAccess('vault-err-4', { enableRealtime: false }));
+    await waitFor(() => expect(page.result.current.accessStatus).toBe('error'));
+    await waitFor(() => expect(content.result.current.accessStatus).toBe('granted'));
+    const callsBeforeRetry = mockSingle.mock.calls.length;
+
+    act(() => page.result.current.refresh());
+
+    await waitFor(() => expect(page.result.current.accessStatus).toBe('granted'));
+    expect(mockSingle.mock.calls.length).toBe(callsBeforeRetry + 1);
   });
 });
 
@@ -248,18 +319,71 @@ describe('useVaultAccess — caching a denied result', () => {
     mockRpc.mockReset();
   });
 
-  it('does not cache a denied result caused by an unexpected error, so a later visit can recover', async () => {
-    // Simulates the exact failure mode behind the false "no_access" badge
-    // bug: an unrelated transient error (network blip, RLS hiccup) throws
-    // partway through the check and gets mapped to accessStatus: 'denied'
-    // by the catch-all. If that got cached, every later render of this
-    // vault within the same session would restore the stale denial
-    // instead of re-checking — this must never be persisted.
+  it('does not cache a failed check, so a later visit can recover', async () => {
+    // Simulates the failure mode behind the false "no_access" badge bug: a
+    // transient error (network blip, RLS hiccup) throws partway through the
+    // check. It's reported as 'error', not 'denied', and must never be
+    // cached, or later renders in the session would restore it instead of
+    // re-checking.
     mockGetSession.mockRejectedValue(new Error('network blip'));
 
     const { result } = renderHook(() => useVaultAccess('vault-cache-test', { enableRealtime: false }));
 
-    await waitFor(() => expect(result.current.accessStatus).toBe('denied'));
+    await waitFor(() => expect(result.current.accessStatus).toBe('error'));
     expect(hasPageCache('vault-access-vault-cache-test')).toBe(false);
+  });
+});
+
+describe('useVaultAccess — the signed-in user changes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // A vault page can stay open through a user switch, for example one made in another tab.
+  it("drops the previous user's answer at once and checks again for the new user", async () => {
+    setCacheOwner('owner-1');
+    mockSignedIn('owner-1');
+    mockSingle.mockResolvedValue({ data: makeVault({ id: 'vault-switch' }), error: null });
+
+    const { result } = renderHook(() => useVaultAccess('vault-switch', { enableRealtime: false }));
+    await waitFor(() => expect(result.current.accessStatus).toBe('granted'));
+
+    mockSignedIn('someone-else');
+    mockSingle.mockResolvedValue({ data: null, error: { code: 'PGRST116', message: 'no rows' } });
+    mockRpc.mockResolvedValue({ data: [], error: null });
+    act(() => setCacheOwner('someone-else'));
+
+    expect(result.current.canView).toBe(false);
+    expect(result.current.isOwner).toBe(false);
+    await waitFor(() => expect(result.current.accessStatus).toBe('denied'));
+    expect(result.current.vault).toBeNull();
+  });
+
+  // Caches are cleared on every user change; this checks the scoping behind that on its own.
+  it('does not reuse an answer cached for another user, or for a signed-out reader', async () => {
+    mockSignedIn('owner-1');
+    mockSingle.mockResolvedValue({ data: makeVault({ id: 'vault-scoped' }), error: null });
+    const cacheGrantedFor = async (owner: string) => {
+      setCacheOwner(owner);
+      const { result, unmount } = renderHook(() => useVaultAccess('vault-scoped', { enableRealtime: false }));
+      await waitFor(() => expect(result.current.accessStatus).toBe('granted'));
+      unmount();
+    };
+    const firstRenderFor = (owner: string | null) => {
+      setCacheOwner(owner);
+      const { result, unmount } = renderHook(() => useVaultAccess('vault-scoped', { enableRealtime: false }));
+      const status = result.current.accessStatus;
+      unmount();
+      return status;
+    };
+
+    await cacheGrantedFor('owner-1');
+    expect(firstRenderFor('owner-1')).toBe('granted');
+
+    await cacheGrantedFor('owner-1');
+    expect(firstRenderFor('someone-else')).toBe('loading');
+
+    await cacheGrantedFor('owner-1');
+    expect(firstRenderFor(null)).toBe('loading');
   });
 });

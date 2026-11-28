@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
-## [2.2.2] - 2026-11-28
+## [2.3.1] - 2026-11-28
 
 ### Security
 - Other users' email addresses are no longer readable. Profiles are readable by every signed-in user (the researcher directory), and some by visitors. Row-level security can't hide a column, so email was readable too, and the share dialog's user search matched it by substring.
@@ -16,6 +16,28 @@ project uses [Semantic Versioning](https://semver.org/). History prior to
   - Sharing with someone by username no longer stores their email address.
   - Apply the migration only after this release is live. Earlier builds select `*` from profiles, which the migration makes fail.
 
+## [2.3.0] - 2026-11-27
+
+Phase 2 (correctness) of the v2.5 performance and maintainability milestone (#270).
+
+### Fixed
+- Relations no longer disappear from vault pages, public vaults and the Codex past 1,000 rows: they're filtered on the server and paged. The same silent cap is gone from the tag, paper and Codex corpus queries next to them (#249).
+- A failed tag load no longer shows the vault as untagged, or caches it that way (#253).
+- One account's vaults can no longer be shown to the next account on a shared browser (#250):
+  - Client caches are cleared on sign-out and whenever a different user signs in, in every open tab. This includes React Query's 24-hour IndexedDB copy.
+  - A vault page left open through a user switch checks access again instead of keeping the previous user's answer.
+- A paper created on a vault page keeps its canonical id, so its first edit also updates the canonical copy (#252).
+- A failed vault access check shows a retryable `couldnt_check_access` screen instead of `vault_not_found`, and a failed background re-check no longer locks you out of a vault you're viewing (#256). Two stale-state bugs in the vault page's cache are fixed too.
+- Relations of type `related` (the database default, which the API and CLI create) now show a label and colour and can be edited (#255).
+- The password-reset and sign-up pages send post-login redirects through the same-origin check (#254).
+- BibTeX export: a value with unmatched braces can no longer break a `.bib` file, and line breaks become spaces (#251).
+
+### Changed
+- One duplicate rule for manual add, import, the inbox and vault augment (#257). The same DOI, in any form (`https://doi.org/…`, `doi:…`), blocks the save. A similar title and authors only warns, so such a paper can be saved on purpose; an exact title match used to block.
+- BibTeX export: generated keys use `nd` for a missing year instead of `n.d.`, and stored keys drop characters a BibTeX key can't contain. Web and API exports now produce the same keys (#251, refhub-io/.netlify#43).
+
+### Added
+- A database CHECK that limits `publication_relations.relation_type` to the six types, in migration `20261127000000_relation_type_check.sql`. It's added `NOT VALID`, then validated if every existing row conforms; otherwise a NOTICE lists the offending values (#255).
 ## [2.2.1] - 2026-11-27
 
 ### Security
