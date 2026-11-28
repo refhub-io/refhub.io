@@ -10,6 +10,10 @@ project uses [Semantic Versioning](https://semver.org/). History prior to
 
 ### Fixed
 - A vault shared with your email address now shows its papers, notes and tags, just as a vault shared with your account does (#281). Before, a share made through the API or the CLI, or to an address whose owner had no account yet, opened the vault with none of its papers, and the recipient's API key couldn't open it at all. Migration `20261128160000_link_email_shares.sql` links each such share to the account behind its address: when the share is made, when that account signs up or confirms the address, and once for every share that exists now. No app code changes, so the migration can be applied at any time.
+## [2.3.5] - 2026-11-28
+
+### Changed
+- Vaults open in one request, through `get_vault_content()` in migration `20261128140000_get_vault_content.sql` (#258). **Apply the migration before this release goes live:** the new build calls the function. Opening a vault used to take an access check of its own, two dependent batches of queries and a third batch for stored PDFs. Now it's a single call, made alongside the page's own access check. At 100 ms of latency, a vault opens about 0.45 s sooner, both in-app and on a fresh load, with 8 fewer requests. The vault's content is also no longer fetched again every time your session token refreshes.
 
 ## [2.3.4] - 2026-11-28
 

@@ -91,7 +91,6 @@ export default function VaultDetail() {
     lastActivity,
     updateLastActivity,
     pdfAssetsMap,
-    pdfAssetsLoading,
     updatePdfAsset,
   } = useVaultContent();
 
@@ -2131,7 +2130,6 @@ export default function VaultDetail() {
           onDeleteTag={canEdit ? handleDeleteTag : undefined}
           onCreateTag={canEdit ? handleCreateTag : undefined}
           driveUrlsMap={pdfAssetsMap}
-          driveLoading={pdfAssetsLoading}
           syncDiffCounts={syncDiffCounts}
           syncLoadingIds={syncLoadingIds}
           syncCooldowns={syncCooldowns}
@@ -2180,7 +2178,6 @@ export default function VaultDetail() {
         tags={viewingPublication ? tags.filter((tag) => (publicationTagsMap[viewingPublication.id] || []).includes(tag.id)) : []}
         allTags={tags}
         driveUrl={viewingPublication ? (pdfAssetsMap[viewingPublication.id] ?? null) : null}
-        driveLoading={pdfAssetsLoading}
         showWorkflowBadges
       />
 

@@ -62,6 +62,9 @@ POST_DUMP_MIGRATIONS=(
   # made to an email address to the account behind it, with triggers on
   # auth.users that a re-dumped schema.sql will never include.
   "20261128160000_link_email_shares.sql"
+  # Not yet applied to production: get_vault_content(), a vault in one round
+  # trip. Temporary, like the entries above.
+  "20261128140000_get_vault_content.sql"
 )
 
 cleanup() {
