@@ -74,14 +74,13 @@ interface AccessRequest {
   // join is actually wired up yet, but the render below already reads
   // .email/.username defensively, so the type reflects the shape it'd need
   // once that join exists rather than a bare `null`.
-  requester_profile: { email?: string | null; username?: string | null } | null;
+  requester_profile: { username?: string | null } | null;
 }
 
 interface UserSuggestion {
   user_id: string;
   display_name: string | null;
   username: string | null;
-  email: string | null;
 }
 
 const sanitizeProfileSearch = (value: string) =>
@@ -174,6 +173,8 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   const [vaultRelations, setVaultRelations] = useState<PublicationRelation[]>([]);
   const isArchived = !!vault?.archived_at;
   const slugCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // What the share input showed right after a suggestion was picked.
+  const selectedInputRef = useRef('');
   const isInitialLoadRef = useRef(true);
   const accessRequestsSectionRef = useRef<HTMLDivElement | null>(null);
   const initialValuesRef = useRef<{ name: string; description: string; color: string; category: string; abstract: string; visibility: VaultVisibility; publicSlug: string } | null>(null);
@@ -347,33 +348,29 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
             return share;
           }
           
-          let profile = null;
-          
+          let profile: { display_name: string | null; username: string | null } | null = null;
+
           // Try to look up profile by user_id first
           if (share.shared_with_user_id) {
             const { data: profileData } = await supabase
               .from('profiles')
-              .select('display_name, username, email')
+              .select('display_name, username')
               .eq('user_id', share.shared_with_user_id)
               .single();
             profile = profileData;
           }
-          
-          // If no profile found by user_id, try by email
+
+          // If no profile found by user_id, find the account behind the address the share was
+          // made with. Profiles don't expose email, so the server matches the whole address.
           if (!profile && share.shared_with_email) {
-            const { data: profileData } = await supabase
-              .from('profiles')
-              .select('display_name, username, email')
-              .eq('email', share.shared_with_email)
-              .single();
-            profile = profileData;
+            const { data: matches } = await supabase.rpc('find_profile_by_email', { p_email: share.shared_with_email });
+            profile = matches?.[0] ?? null;
           }
           
           if (profile) {
             return {
               ...share,
-              shared_with_name: share.shared_with_name || profile.display_name || profile.username || profile.email,
-              shared_with_email: share.shared_with_email || profile.email,
+              shared_with_name: share.shared_with_name || profile.display_name || profile.username || share.shared_with_email,
             };
           }
 
@@ -440,11 +437,14 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   }, []);
 
   const handleSelectUserSuggestion = useCallback((profile: UserSuggestion) => {
+    // A typed address stays as typed; otherwise the input shows who was picked.
+    const nextInput = email.includes('@') ? email : profile.username || profile.display_name || email;
+    selectedInputRef.current = nextInput;
     setSelectedProfile(profile);
-    setEmail(profile.email || '');
+    setEmail(nextInput);
     setShareUserError('');
     setSuggestionsOpen(false);
-  }, []);
+  }, [email]);
 
   const handleShareEmailChange = useCallback((value: string) => {
     setEmail(value);
@@ -481,23 +481,31 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
           .map((share) => share.shared_with_email?.toLowerCase())
           .filter(Boolean);
 
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('user_id, display_name, username, email')
-          .or(`email.ilike.%${search}%,display_name.ilike.%${search}%,username.ilike.%${search}%`)
-          .order('display_name', { ascending: true })
-          .order('username', { ascending: true })
-          .order('email', { ascending: true })
-          .limit(8);
+        // Names and usernames match by substring. Profiles don't expose email, so an address
+        // only matches whole, on the server, and the result never includes it.
+        const searchesEmail = search.includes('@') && !existingEmails.includes(search.toLowerCase());
+        const [byName, byEmail] = await Promise.all([
+          supabase
+            .from('profiles')
+            .select('user_id, display_name, username')
+            .or(`display_name.ilike.%${search}%,username.ilike.%${search}%`)
+            .order('display_name', { ascending: true })
+            .order('username', { ascending: true })
+            .limit(8),
+          searchesEmail
+            ? supabase.rpc('find_profile_by_email', { p_email: search })
+            : Promise.resolve({ data: [] as UserSuggestion[], error: null }),
+        ]);
 
-        if (error) throw error;
+        if (byName.error) throw byName.error;
+        if (byEmail.error) throw byEmail.error;
         if (cancelled) return;
 
-        const filtered = (data || []).filter((profile) => {
-          const profileEmail = profile.email?.toLowerCase();
-          return profile.user_id !== user?.id &&
-            !existingUserIds.includes(profile.user_id) &&
-            (!profileEmail || !existingEmails.includes(profileEmail));
+        const seen = new Set<string>();
+        const filtered = [...(byEmail.data || []), ...(byName.data || [])].filter((profile) => {
+          if (seen.has(profile.user_id)) return false;
+          seen.add(profile.user_id);
+          return profile.user_id !== user?.id && !existingUserIds.includes(profile.user_id);
         });
 
         setUserSuggestions(filtered as UserSuggestion[]);
@@ -526,7 +534,8 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
   }, [open]);
 
   useEffect(() => {
-    if (selectedProfile && email !== (selectedProfile.email || '')) {
+    // Deselect once the input no longer shows what picking the suggestion put there.
+    if (selectedProfile && email !== selectedInputRef.current) {
       setSelectedProfile(null);
     }
   }, [email, selectedProfile]);
@@ -917,20 +926,19 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
       let profile = selectedProfile;
       const query = email.trim().toLowerCase();
       if (!profile) {
-        const { data: emailMatch, error: emailLookupError } = await supabase
-          .from('profiles')
-          .select('user_id, display_name, username, email')
-          .eq('email', query)
-          .maybeSingle();
+        const { data: emailMatches, error: emailLookupError } = query.includes('@')
+          ? await supabase.rpc('find_profile_by_email', { p_email: query })
+          : { data: [] as UserSuggestion[], error: null };
 
         if (emailLookupError) throw emailLookupError;
+        const emailMatch = emailMatches?.[0];
 
         if (emailMatch) {
           profile = emailMatch as UserSuggestion;
         } else {
           const { data: usernameMatch, error: usernameLookupError } = await supabase
             .from('profiles')
-            .select('user_id, display_name, username, email')
+            .select('user_id, display_name, username')
             .eq('username', query)
             .maybeSingle();
 
@@ -946,18 +954,19 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
 
       const shareData: {
         vault_id: string;
-        shared_with_email: string;
+        shared_with_email: string | null;
         shared_by: string;
         role: 'viewer' | 'editor';
         shared_with_user_id: string;
         shared_with_name?: string | null;
       } = {
         vault_id: vault.id,
-        shared_with_email: (profile.email || query).toLowerCase(),
+        // Only an address the owner typed: profiles don't expose other users' email.
+        shared_with_email: query.includes('@') ? query : null,
         shared_by: user.id,
         role: sharePermission,
         shared_with_user_id: profile.user_id,
-        shared_with_name: profile.display_name || profile.username || profile.email,
+        shared_with_name: profile.display_name || profile.username || query,
       };
 
       const { error } = await supabase.from('vault_shares').insert(shareData);
@@ -1048,14 +1057,13 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
         // Look up the profile to get the display name
         const { data: profile } = await supabase
           .from('profiles')
-          .select('display_name, username, email')
+          .select('display_name, username')
           .eq('user_id', req.requester_id)
           .single();
-        
-        if (profile) {
-          insertObj.shared_with_name = profile.display_name || profile.username || profile.email;
-          insertObj.shared_with_email = profile.email;
-        }
+
+        // The address the requester sent with the request; profiles don't expose email.
+        insertObj.shared_with_name = profile?.display_name || profile?.username || req.requester_name || req.requester_email;
+        if (req.requester_email) insertObj.shared_with_email = req.requester_email;
       } else if (req.requester_email) {
         insertObj.shared_with_email = req.requester_email;
       }
@@ -1452,11 +1460,11 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                                 className="flex w-full flex-col rounded-sm px-2 py-2 text-left font-mono text-sm hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
                               >
                                 <span className="truncate">
-                                  {profile.display_name || profile.username || profile.email}
+                                  {profile.display_name || profile.username || 'unnamed_user'}
                                 </span>
-                                {profile.email && (
+                                {profile.username && (
                                   <span className="text-xs text-muted-foreground truncate">
-                                    {profile.email}
+                                    @{profile.username}
                                   </span>
                                 )}
                               </button>
@@ -1600,7 +1608,7 @@ export function VaultDialog({ open, onOpenChange, vault, initialRequestId, onSav
                         </div>
                         <div className="text-sm">
                           <div className="font-semibold">{r.display_name}</div>
-                          <div className="text-xs text-muted-foreground">{r.requester_email || r.requester_profile?.email || r.requester_profile?.username || ''}</div>
+                          <div className="text-xs text-muted-foreground">{r.requester_email || r.requester_profile?.username || ''}</div>
                           <div className="text-xs text-muted-foreground font-mono">requested: {r.requested_role === 'editor' ? 'write (editor)' : 'read (viewer)'}</div>
                           <div className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString()}</div>
                           {r.note && <div className="text-xs mt-1">{r.note}</div>}

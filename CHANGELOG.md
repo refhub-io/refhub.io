@@ -13,6 +13,19 @@ project uses [Semantic Versioning](https://semver.org/). History prior to
   - The page shows as soon as the vault's data is in. It used to wait for the loader's progress bar to finish animating, up to another second.
   - The vault's own row comes with the first batch of requests instead of after relations and tags.
   - The name in the "last update" line no longer holds the page back.
+## [2.3.2] - 2026-11-28
+
+### Fixed
+- Switching between light and dark mode is smooth. Before, the page restyled at once and hundreds of elements then animated their colors separately, which stuttered. Where the browser supports view transitions, the page now crossfades as a whole, with element transitions off for the switch. Elsewhere, and with reduced motion, the switch is instant. Measured on the dashboard, main-thread work per switch is down by more than half.
+## [2.3.1] - 2026-11-28
+
+### Security
+- Other users' email addresses are no longer readable. Profiles are readable by every signed-in user (the researcher directory), and some by visitors. Row-level security can't hide a column, so email was readable too, and the share dialog's user search matched it by substring.
+  - Migration `20261128000000_hide_profile_emails.sql` grants clients every profile column except email, and takes profiles out of the realtime publication.
+  - It adds `find_profile_by_email`, which returns the account behind a whole address, never an address.
+  - The app selects public columns only. A user's own address comes from their session.
+  - Sharing with someone by username no longer stores their email address.
+  - Apply the migration only after this release is live. Earlier builds select `*` from profiles, which the migration makes fail.
 
 ## [2.3.0] - 2026-11-27
 

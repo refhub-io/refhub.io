@@ -1275,6 +1275,14 @@ export type Database = {
       }
       delete_user: { Args: never; Returns: undefined }
       delete_vault: { Args: { p_vault_id: string }; Returns: undefined }
+      find_profile_by_email: {
+        Args: { p_email: string }
+        Returns: {
+          display_name: string | null
+          user_id: string
+          username: string | null
+        }[]
+      }
       get_researcher_stats: {
         Args: { p_user_ids: string[] }
         Returns: {
