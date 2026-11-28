@@ -4,8 +4,7 @@ import { logger } from '@/lib/logger';
 import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag, PublicationRelation } from '@/types/database';
 import { formatTimeAgo } from '@/lib/utils';
-import { fetchAllRows, fetchAllRowsForIds } from '@/lib/fetchAllRows';
-import { fetchRelationsForPublicationIds } from '@/lib/fetchRelations';
+import { fetchVaultContentRows, publicVaultTagging } from '@/lib/vaultContent';
 import { resolveLastUpdatedActivity } from '@/lib/vaultPublicationAttribution';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -178,72 +177,49 @@ export default function PublicVault() {
       // Fetch fork attribution (if this vault is itself a fork)
       getVaultForkInfo(vaultData.id).then(setForkInfo).catch(() => {});
 
-      // Fetch vault owner profile
-      const { data: ownerProfile } = await supabase
-        .from('profiles')
-        .select('display_name, username')
-        .eq('user_id', vaultData.user_id)
-        .maybeSingle();
-      
-      setVaultOwner(ownerProfile);
+      // Everything below depends only on the vault, so it's asked for at once: the owner, the
+      // counts, the last update, the view count, and the vault's content in one call (#275).
+      // The content used to come last, after six requests in a row, and then relations and tag
+      // links 50 ids at a time: about 300 requests for a 2,500-paper vault.
+      const [ownerRes, favsRes, forksRes, lastUpdatedRes, contentRes] = await Promise.all([
+        supabase.from('profiles').select('display_name, username').eq('user_id', vaultData.user_id).maybeSingle(),
+        supabase.from('vault_favorites').select('*', { count: 'exact', head: true }).eq('vault_id', vaultData.id),
+        supabase.from('vault_forks').select('*', { count: 'exact', head: true }).eq('original_vault_id', vaultData.id),
+        supabase
+          .from('vault_publications')
+          .select('updated_by, created_by, updated_at, created_at')
+          .eq('vault_id', vaultData.id)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        fetchVaultContentRows(supabase, vaultData.id).then(
+          (content) => ({ content, error: null }),
+          (error: unknown) => ({ content: null, error }),
+        ),
+        supabase.rpc('increment_vault_views', { vault_uuid: vaultData.id }),
+      ]);
+      setVaultOwner(ownerRes.data);
+      setFavoritesCount(favsRes.count || 0);
+      setForkCount(forksRes.count || 0);
 
-      // Fetch favorites count
-      const { count: favsCount } = await supabase
-        .from('vault_favorites')
-        .select('*', { count: 'exact', head: true })
-        .eq('vault_id', vaultData.id);
-      
-      setFavoritesCount(favsCount || 0);
-
-      // Fetch fork count
-      const { count: forksCount } = await supabase
-        .from('vault_forks')
-        .select('*', { count: 'exact', head: true })
-        .eq('original_vault_id', vaultData.id);
-      
-      setForkCount(forksCount || 0);
-
-      // Fetch last updated activity
-      const { data: lastUpdatedPub } = await supabase
-        .from('vault_publications')
-        .select('updated_by, created_by, updated_at, created_at')
-        .eq('vault_id', vaultData.id)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      const lastUpdated = resolveLastUpdatedActivity(lastUpdatedPub, vaultData.updated_at);
-
+      const lastUpdated = resolveLastUpdatedActivity(lastUpdatedRes.data, vaultData.updated_at);
+      // Who made the last update is decorative, so the papers don't wait for the name.
       if (lastUpdated.actorId) {
-        const { data: updaterProfile } = await supabase
+        void supabase
           .from('profiles')
           .select('display_name, username')
           .eq('user_id', lastUpdated.actorId)
-          .maybeSingle();
-        setLastUpdatedActivity({
-          profile: updaterProfile,
-          timestamp: lastUpdated.timestamp,
-        });
+          .maybeSingle()
+          .then(({ data: updaterProfile }) => setLastUpdatedActivity({ profile: updaterProfile, timestamp: lastUpdated.timestamp }));
       } else {
-        setLastUpdatedActivity({
-          profile: null,
-          timestamp: lastUpdated.timestamp,
-        });
+        setLastUpdatedActivity({ profile: null, timestamp: lastUpdated.timestamp });
       }
 
-      // Increment view count
-      await supabase.rpc('increment_vault_views', { vault_uuid: vaultData.id });
-
-      // Fetch publications via vault_publications, paged past PostgREST's 1,000-row cap
-      const { data: vaultPublicationsDataRaw } = await fetchAllRows((from, to) => supabase
-        .from('vault_publications')
-        .select('*')
-        .eq('vault_id', vaultData.id)
-        .order('id')
-        .range(from, to));
-
+      // This read-only page still shows the vault if its content fails to load, but logs why.
+      if (contentRes.error) logger.error('PublicVaultSimple', 'Failed to load vault content:', contentRes.error);
+      const content = contentRes.content;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const vaultPublicationsData = vaultPublicationsDataRaw as any[];
+      const vaultPublicationsData = (content?.vault_publications ?? []) as any[];
 
       let pubsData: Publication[] = [];
       if (vaultPublicationsData && vaultPublicationsData.length > 0) {
@@ -293,46 +269,10 @@ export default function PublicVault() {
         }));
         setPublications(pubsData);
 
-        // Fetch tags using vault_publication_id
-        const vaultPubIds = pubsData.map(p => p.id);
-        const originalPublicationIds = pubsData
-          .map((p) => p.original_publication_id)
-          .filter((id): id is string => Boolean(id));
-        if (vaultPubIds.length > 0) {
-          // Filtered on the server and paged: the old unfiltered select stopped silently at
-          // 1,000 rows across every visible vault. This read-only page still shows the
-          // papers if relations or tags fail to load, but logs the failure.
-          const [relationsRes, pubTagsRes] = await Promise.all([
-            fetchRelationsForPublicationIds(supabase, [...vaultPubIds, ...originalPublicationIds]),
-            fetchAllRowsForIds<PublicationTag>(vaultPubIds, (chunk, from, to) =>
-              supabase.from('publication_tags').select('*').in('vault_publication_id', chunk).order('id').range(from, to)),
-          ]);
-          if (relationsRes.error) logger.error('PublicVaultSimple', 'Failed to load relations:', relationsRes.error);
-          if (pubTagsRes.error) logger.error('PublicVaultSimple', 'Failed to load publication tags:', pubTagsRes.error);
-          setPublicationRelations(relationsRes.data);
-          const pubTagsData = pubTagsRes.error ? null : pubTagsRes.data;
-
-          if (pubTagsData) {
-            setPublicationTags(pubTagsData);
-            
-            const tagIds = [...new Set(pubTagsData.map(pt => pt.tag_id))];
-            if (tagIds.length > 0) {
-              const { data: tagsData } = await supabase
-                .from('tags')
-                .select('*')
-                .in('id', tagIds);
-
-              if (tagsData) {
-                setTags(tagsData);
-              }
-            } else {
-              setTags([]);
-            }
-          } else {
-            setPublicationTags([]);
-            setTags([]);
-          }
-        }
+        const tagging = publicVaultTagging(content ?? { publication_tags: [], tags: [] }, pubsData.map((p) => p.id));
+        setPublicationRelations(content?.publication_relations ?? []);
+        setPublicationTags(tagging.publicationTags);
+        setTags(tagging.tags);
       } else {
         setPublicationRelations([]);
         setPublicationTags([]);

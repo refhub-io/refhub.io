@@ -48,3 +48,20 @@ export function buildPdfAssetsMap(publications: Publication[], assets: StoredPdf
   }
   return map;
 }
+
+/**
+ * The tagging a public vault's page shows: the links on the vault's own papers, and the tags those
+ * links use. get_vault_content() also returns a signed-in visitor's personal tags and the owner's
+ * links on their canonical papers, which don't belong on the public page.
+ */
+export function publicVaultTagging(
+  content: Pick<VaultContentRows, 'publication_tags' | 'tags'>,
+  vaultPublicationIds: Iterable<string>,
+): { publicationTags: PublicationTag[]; tags: Tag[] } {
+  const ids = new Set(vaultPublicationIds);
+  const publicationTags = content.publication_tags.filter(
+    (link) => link.vault_publication_id !== null && ids.has(link.vault_publication_id),
+  );
+  const used = new Set(publicationTags.map((link) => link.tag_id));
+  return { publicationTags, tags: content.tags.filter((tag) => used.has(tag.id)) };
+}

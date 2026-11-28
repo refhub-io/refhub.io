@@ -69,6 +69,10 @@ POST_DUMP_MIGRATIONS=(
   # filter through indexes, and tag_links_for_papers(). Last, since it
   # replaces both. Temporary, like the entries above.
   "20261128180000_index_friendly_library_functions.sql"
+  # Not yet applied to production: anonymous visitors may call
+  # get_vault_content() and tag_links_for_papers(). Temporary, like the
+  # entries above.
+  "20261128200000_public_vault_content.sql"
 )
 
 cleanup() {

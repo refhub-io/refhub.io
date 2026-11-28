@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [2.3.12] - 2026-11-28
+
+### Changed
+- Vault pages load only what they show (#275):
+  - **The vault page loads your library, not every public vault.** Its dialogs check your papers for duplicates and offer them to add, and its cards show which of your vaults a paper is in. To get these, it read the papers of every vault you can see, including every public vault on refhub.io. With 10,000 public papers, that was 16 requests and about 13 MB, uncompressed, on every vault visit. It now makes the dashboard's one `get_library()` call, after the vault itself has shown.
+  - **A public vault's page asks for its content at once.** It fetched the papers, then their relations and tag links 50 at a time: 327 requests for a 2,500-paper vault when signed out. It now makes the vault page's one `get_vault_content()` call: 21 requests.
+  - **Apply migration `20261128200000_public_vault_content.sql` before deploying.** It lets signed-out visitors make that call. Without it, public vault pages show signed-out visitors no papers.
+
 ## [2.3.11] - 2026-11-28
 
 ### Changed
