@@ -15,6 +15,7 @@ import { Loader } from '@/components/ui/loader';
 import { logger } from '@/lib/logger';
 import { ArrowLeft, BookOpen, Vault as VaultIcon, ExternalLink } from 'lucide-react';
 import { ProfileLinks } from '@/components/profile/ProfileLinks';
+import { PUBLIC_PROFILE_COLUMNS } from '@/lib/profile';
 
 type VaultWithCount = Vault & { vault_publications: { id: string }[]; is_fork?: boolean };
 
@@ -72,7 +73,7 @@ export default function UserProfile() {
     try {
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('*')
+        .select(PUBLIC_PROFILE_COLUMNS)
         .eq('username', username)
         .eq('is_setup', true)
         .maybeSingle();

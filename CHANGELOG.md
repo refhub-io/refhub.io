@@ -6,6 +6,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [2.3.1] - 2026-11-28
+
+### Security
+- Other users' email addresses are no longer readable. Profiles are readable by every signed-in user (the researcher directory), and some by visitors. Row-level security can't hide a column, so email was readable too, and the share dialog's user search matched it by substring.
+  - Migration `20261128000000_hide_profile_emails.sql` grants clients every profile column except email, and takes profiles out of the realtime publication.
+  - It adds `find_profile_by_email`, which returns the account behind a whole address, never an address.
+  - The app selects public columns only. A user's own address comes from their session.
+  - Sharing with someone by username no longer stores their email address.
+  - Apply the migration only after this release is live. Earlier builds select `*` from profiles, which the migration makes fail.
+
 ## [2.3.0] - 2026-11-27
 
 Phase 2 (correctness) of the v2.5 performance and maintainability milestone (#270).

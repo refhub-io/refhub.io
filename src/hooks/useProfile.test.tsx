@@ -30,7 +30,7 @@ const mockedEnsureProfileExists = vi.mocked(ensureProfileExists);
 const fakeUser = { id: 'user-1', email: 'a@b.com' } as User;
 
 const profile: Profile = {
-  id: 'p1', user_id: 'user-1', display_name: 'Ada', email: 'a@b.com',
+  id: 'p1', user_id: 'user-1', display_name: 'Ada',
   avatar_url: 'https://example.com/a.png', username: 'ada', bio: null,
   github_url: null, linkedin_url: null, bluesky_url: null, is_setup: true,
   created_at: 'now', updated_at: 'now',
