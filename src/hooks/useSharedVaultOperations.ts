@@ -1,27 +1,22 @@
-import { useCallback, useRef } from 'react';
+import { useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Publication, Tag, PublicationTag } from '@/types/database';
 import { useToast } from '@/hooks/use-toast';
 import { extractBibliographicPatch } from '@/lib/publicationSync';
 import { formatVaultPublication } from '@/lib/formatVaultPublication';
 import { logger } from '@/lib/logger';
-
-interface OptimisticUpdate<T> {
-  id: string;
-  previousState: T[];
-  timestamp: number;
-}
+import type { VaultContentEdits } from '@/lib/vaultContentEdits';
 
 interface UseSharedVaultOperationsProps {
   vaultId: string | null;
   userId: string | null;
   canEdit: boolean;
   publications: Publication[];
-  setPublications: React.Dispatch<React.SetStateAction<Publication[]>>;
   tags: Tag[];
-  setTags: React.Dispatch<React.SetStateAction<Tag[]>>;
   publicationTags: PublicationTag[];
-  setPublicationTags: React.Dispatch<React.SetStateAction<PublicationTag[]>>;
+  /** The vault content's named edits (useVaultContentActions). A rollback undoes only what its
+   * operation changed, so other people's changes that arrived meanwhile stay. */
+  edits: VaultContentEdits;
 }
 
 /**
@@ -37,19 +32,12 @@ export function useSharedVaultOperations({
   userId,
   canEdit,
   publications,
-  setPublications,
   tags,
-  setTags,
   publicationTags,
-  setPublicationTags,
+  edits,
 }: UseSharedVaultOperationsProps) {
   const { toast } = useToast();
   
-  // Track pending optimistic updates for rollback
-  const pendingPublicationUpdates = useRef<Map<string, OptimisticUpdate<Publication>>>(new Map());
-  const pendingTagUpdates = useRef<Map<string, OptimisticUpdate<Tag>>>(new Map());
-  const pendingPublicationTagUpdates = useRef<Map<string, OptimisticUpdate<PublicationTag>>>(new Map());
-
   /**
    * Generate a unique operation ID for tracking optimistic updates
    */
@@ -67,26 +55,9 @@ export function useSharedVaultOperations({
       return { success: false, error: new Error('Not authorized to edit') };
     }
 
-    const operationId = generateOperationId();
-    const previousPublications = [...publications];
-
-    // Store previous state for potential rollback
-    pendingPublicationUpdates.current.set(operationId, {
-      id: publicationId,
-      previousState: previousPublications,
-      timestamp: Date.now(),
-    });
-
     // Apply optimistic update immediately
-    const optimisticPublication: Publication = {
-      ...publications.find(p => p.id === publicationId)!,
-      ...updates,
-      updated_at: new Date().toISOString(),
-    };
-
-    setPublications(prev => 
-      prev.map(pub => pub.id === publicationId ? optimisticPublication : pub)
-    );
+    const previousPublication = publications.find(p => p.id === publicationId);
+    edits.updatePublication(publicationId, { ...updates, updated_at: new Date().toISOString() });
 
     try {
       // Persist to database
@@ -135,28 +106,15 @@ export function useSharedVaultOperations({
         }
       }
 
-      // Clean up pending update tracking
-      pendingPublicationUpdates.current.delete(operationId);
-
       if (!options.silent) {
         toast({ title: 'paper_updated ✨' });
       }
 
       return { success: true };
     } catch (error) {
-      // Rollback the optimistic update — but only for the publication this call
-      // touched. `previousState` is a snapshot of the whole array taken from the
-      // render closure, so restoring it wholesale would also revert unrelated
-      // updates that happened after the snapshot and already persisted (e.g. the
-      // sibling patches of a vault health check batch apply).
-      const pending = pendingPublicationUpdates.current.get(operationId);
-      if (pending) {
-        const previousPublication = pending.previousState.find(p => p.id === publicationId);
-        if (previousPublication) {
-          setPublications(prev => prev.map(pub => (pub.id === publicationId ? previousPublication : pub)));
-        }
-        pendingPublicationUpdates.current.delete(operationId);
-      }
+      // Roll back only the paper this call touched: others may have changed and saved since
+      // (e.g. the sibling patches of a vault health check batch apply).
+      if (previousPublication) edits.replacePublication(publicationId, previousPublication);
 
       if (!options.silent) {
         toast({
@@ -168,7 +126,7 @@ export function useSharedVaultOperations({
 
       return { success: false, error: error as Error };
     }
-  }, [vaultId, userId, canEdit, publications, setPublications, toast]);
+  }, [vaultId, userId, canEdit, publications, edits, toast]);
 
   /**
    * Create a new tag in the shared vault with optimistic update
@@ -183,7 +141,6 @@ export function useSharedVaultOperations({
     }
 
     const operationId = generateOperationId();
-    const previousTags = [...tags];
 
     // Generate a temporary ID for optimistic update
     const tempId = `temp_${operationId}`;
@@ -218,15 +175,8 @@ export function useSharedVaultOperations({
       created_at: new Date().toISOString(),
     };
 
-    // Store previous state for potential rollback
-    pendingTagUpdates.current.set(operationId, {
-      id: tempId,
-      previousState: previousTags,
-      timestamp: Date.now(),
-    });
-
     // Apply optimistic update
-    setTags(prev => [...prev, optimisticTag]);
+    edits.addTags([optimisticTag]);
 
     try {
       // Persist to database
@@ -245,21 +195,12 @@ export function useSharedVaultOperations({
       if (error) throw error;
 
       // Replace temporary tag with real one from database
-      setTags(prev => 
-        prev.map(tag => tag.id === tempId ? (data as Tag) : tag)
-      );
-
-      // Clean up pending update tracking
-      pendingTagUpdates.current.delete(operationId);
+      edits.replaceTag(tempId, data as Tag);
 
       return { success: true, tag: data as Tag };
     } catch (error) {
       // Rollback optimistic update on error
-      const pending = pendingTagUpdates.current.get(operationId);
-      if (pending) {
-        setTags(pending.previousState);
-        pendingTagUpdates.current.delete(operationId);
-      }
+      edits.removeTags([tempId]);
 
       // Check if the error is due to unique constraint violation
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -279,7 +220,7 @@ export function useSharedVaultOperations({
 
       return { success: false, error: error as Error };
     }
-  }, [vaultId, userId, canEdit, tags, setTags, toast]);
+  }, [vaultId, userId, canEdit, tags, edits, toast]);
 
   /**
    * Update an existing tag with optimistic update
@@ -292,24 +233,15 @@ export function useSharedVaultOperations({
       return { success: false, error: new Error('Not authorized to update tags') };
     }
 
-    const operationId = generateOperationId();
-    const previousTags = [...tags];
     const existingTag = tags.find(t => t.id === tagId);
 
     if (!existingTag) {
       return { success: false, error: new Error('Tag not found') };
     }
 
-    // Store previous state for potential rollback
-    pendingTagUpdates.current.set(operationId, {
-      id: tagId,
-      previousState: previousTags,
-      timestamp: Date.now(),
-    });
-
     // Apply optimistic update
     const optimisticTag: Tag = { ...existingTag, ...updates };
-    setTags(prev => prev.map(tag => tag.id === tagId ? optimisticTag : tag));
+    edits.replaceTag(tagId, optimisticTag);
 
     try {
       const { data, error } = await supabase
@@ -322,19 +254,12 @@ export function useSharedVaultOperations({
       if (error) throw error;
 
       // Update with real data from database
-      setTags(prev => prev.map(tag => tag.id === tagId ? (data as Tag) : tag));
-
-      // Clean up pending update tracking
-      pendingTagUpdates.current.delete(operationId);
+      edits.replaceTag(tagId, data as Tag);
 
       return { success: true, tag: data as Tag };
     } catch (error) {
       // Rollback optimistic update on error
-      const pending = pendingTagUpdates.current.get(operationId);
-      if (pending) {
-        setTags(pending.previousState);
-        pendingTagUpdates.current.delete(operationId);
-      }
+      edits.replaceTag(tagId, existingTag);
 
       toast({
         title: 'error_updating_tag',
@@ -344,7 +269,7 @@ export function useSharedVaultOperations({
 
       return { success: false, error: error as Error };
     }
-  }, [userId, canEdit, tags, setTags, toast]);
+  }, [userId, canEdit, tags, edits, toast]);
 
   /**
    * Delete a tag with optimistic update
@@ -356,17 +281,6 @@ export function useSharedVaultOperations({
       return { success: false, error: new Error('Not authorized to delete tags') };
     }
 
-    const operationId = generateOperationId();
-    const previousTags = [...tags];
-    const previousPublicationTags = [...publicationTags];
-
-    // Store previous state for potential rollback
-    pendingTagUpdates.current.set(operationId, {
-      id: tagId,
-      previousState: previousTags,
-      timestamp: Date.now(),
-    });
-
     // Apply optimistic update - remove tag and its children
     const tagIdsToRemove = new Set<string>();
     const collectChildTags = (parentId: string) => {
@@ -375,8 +289,9 @@ export function useSharedVaultOperations({
     };
     collectChildTags(tagId);
 
-    setTags(prev => prev.filter(tag => !tagIdsToRemove.has(tag.id)));
-    setPublicationTags(prev => prev.filter(pt => !tagIdsToRemove.has(pt.tag_id)));
+    const removedTags = tags.filter(tag => tagIdsToRemove.has(tag.id));
+    const removedLinks = publicationTags.filter(pt => tagIdsToRemove.has(pt.tag_id));
+    edits.removeTags([...tagIdsToRemove]);
 
     try {
       // Note: Child tags and publication_tags will be deleted via CASCADE
@@ -387,18 +302,11 @@ export function useSharedVaultOperations({
 
       if (error) throw error;
 
-      // Clean up pending update tracking
-      pendingTagUpdates.current.delete(operationId);
-
       return { success: true };
     } catch (error) {
       // Rollback optimistic update on error
-      const pending = pendingTagUpdates.current.get(operationId);
-      if (pending) {
-        setTags(pending.previousState);
-        setPublicationTags(previousPublicationTags);
-        pendingTagUpdates.current.delete(operationId);
-      }
+      edits.addTags(removedTags);
+      edits.addPublicationTagLinks(removedLinks);
 
       toast({
         title: 'error_deleting_tag',
@@ -408,7 +316,7 @@ export function useSharedVaultOperations({
 
       return { success: false, error: error as Error };
     }
-  }, [userId, canEdit, tags, publicationTags, setTags, setPublicationTags, toast]);
+  }, [userId, canEdit, tags, publicationTags, edits, toast]);
 
   /**
    * Update publication tags with optimistic update
@@ -423,7 +331,6 @@ export function useSharedVaultOperations({
     }
 
     const operationId = generateOperationId();
-    const previousPublicationTags = [...publicationTags];
 
     // Get existing tag associations for this publication
     const existingTagIds = publicationTags
@@ -433,32 +340,19 @@ export function useSharedVaultOperations({
     // Calculate tags to add and remove
     const tagsToAdd = newTagIds.filter(id => !existingTagIds.includes(id));
     const tagsToRemove = existingTagIds.filter(id => !newTagIds.includes(id));
-
-    // Store previous state for potential rollback
-    pendingPublicationTagUpdates.current.set(operationId, {
-      id: publicationId,
-      previousState: previousPublicationTags,
-      timestamp: Date.now(),
-    });
+    const removedLinks = publicationTags.filter(pt =>
+      (pt.vault_publication_id === publicationId || pt.publication_id === publicationId) &&
+      tagsToRemove.includes(pt.tag_id));
+    const tempLinks = tagsToAdd.map(tagId => ({
+      id: `temp_${operationId}_${tagId}`,
+      publication_id: null,
+      vault_publication_id: publicationId,
+      tag_id: tagId,
+    })) as PublicationTag[];
 
     // Apply optimistic update
-    setPublicationTags(prev => {
-      // Remove old associations
-      const filtered = prev.filter(pt => 
-        !(pt.vault_publication_id === publicationId || pt.publication_id === publicationId) ||
-        !tagsToRemove.includes(pt.tag_id)
-      );
-      
-      // Add new associations
-      const newAssociations = tagsToAdd.map(tagId => ({
-        id: `temp_${operationId}_${tagId}`,
-        publication_id: null as string | null,
-        vault_publication_id: publicationId,
-        tag_id: tagId,
-      }));
-
-      return [...filtered, ...newAssociations] as PublicationTag[];
-    });
+    edits.removePublicationTagLinks(removedLinks.map(link => link.id));
+    edits.addPublicationTagLinks(tempLinks);
 
     try {
       // Validate that all tag IDs belong to this vault, or are one of the
@@ -514,17 +408,10 @@ export function useSharedVaultOperations({
 
         // Replace temporary IDs with real ones
         if (insertedTags) {
-          setPublicationTags(prev => {
-            const withoutTemp = prev.filter(pt => 
-              !pt.id.startsWith(`temp_${operationId}`)
-            );
-            return [...withoutTemp, ...insertedTags as PublicationTag[]];
-          });
+          edits.removePublicationTagLinks(tempLinks.map(link => link.id));
+          edits.addPublicationTagLinks(insertedTags as PublicationTag[]);
         }
       }
-
-      // Clean up pending update tracking
-      pendingPublicationTagUpdates.current.delete(operationId);
 
       if (!options.silent) {
         toast({ title: 'tags_updated ✨' });
@@ -533,11 +420,8 @@ export function useSharedVaultOperations({
       return { success: true };
     } catch (error) {
       // Rollback optimistic update on error
-      const pending = pendingPublicationTagUpdates.current.get(operationId);
-      if (pending) {
-        setPublicationTags(pending.previousState);
-        pendingPublicationTagUpdates.current.delete(operationId);
-      }
+      edits.removePublicationTagLinks(tempLinks.map(link => link.id));
+      edits.addPublicationTagLinks(removedLinks);
 
       if (!options.silent) {
         toast({
@@ -549,7 +433,7 @@ export function useSharedVaultOperations({
 
       return { success: false, error: error as Error };
     }
-  }, [vaultId, userId, canEdit, publicationTags, setPublicationTags, toast]);
+  }, [vaultId, userId, canEdit, publicationTags, edits, toast]);
 
   /**
    * Create a new publication in the vault with optimistic update
@@ -564,7 +448,6 @@ export function useSharedVaultOperations({
 
     const operationId = generateOperationId();
     const tempId = `temp_${operationId}`;
-    const previousPublications = [...publications];
 
     // The placeholder goes through the same mapping as the row that replaces it.
     const now = new Date().toISOString();
@@ -577,15 +460,8 @@ export function useSharedVaultOperations({
       updated_at: now,
     });
 
-    // Store previous state for potential rollback
-    pendingPublicationUpdates.current.set(operationId, {
-      id: tempId,
-      previousState: previousPublications,
-      timestamp: Date.now(),
-    });
-
     // Apply optimistic update
-    setPublications(prev => [optimisticPublication, ...prev]);
+    edits.addPublication(optimisticPublication);
 
     try {
       // First create the user's publication
@@ -625,12 +501,7 @@ export function useSharedVaultOperations({
 
       // Replace temporary publication with real one
       // Also filter out any duplicates that might have been added by realtime
-      setPublications(prev => {
-        // First, filter out any realtime-added duplicates with the same real ID
-        const filtered = prev.filter(pub => pub.id !== vaultPub.id);
-        // Then map to replace temp with final
-        return filtered.map(pub => pub.id === tempId ? finalPublication : pub);
-      });
+      edits.replacePublication(tempId, finalPublication);
 
       // Add tags if provided
       if (tagIds.length > 0) {
@@ -643,30 +514,20 @@ export function useSharedVaultOperations({
         );
 
         // Update local publication tags state
-        setPublicationTags(prev => [
-          ...prev,
-          ...tagIds.map(tagId => ({
-            id: `${vaultPub.id}_${tagId}`,
-            publication_id: null as string | null,
-            vault_publication_id: vaultPub.id,
-            tag_id: tagId,
-          })) as PublicationTag[],
-        ]);
+        edits.addPublicationTagLinks(tagIds.map(tagId => ({
+          id: `${vaultPub.id}_${tagId}`,
+          publication_id: null,
+          vault_publication_id: vaultPub.id,
+          tag_id: tagId,
+        })) as PublicationTag[]);
       }
-
-      // Clean up pending update tracking
-      pendingPublicationUpdates.current.delete(operationId);
 
       toast({ title: 'paper_added ✨' });
 
       return { success: true, publication: finalPublication };
     } catch (error) {
       // Rollback optimistic update on error
-      const pending = pendingPublicationUpdates.current.get(operationId);
-      if (pending) {
-        setPublications(pending.previousState);
-        pendingPublicationUpdates.current.delete(operationId);
-      }
+      edits.removePublications([tempId]);
 
       toast({
         title: 'error_creating_paper',
@@ -676,7 +537,7 @@ export function useSharedVaultOperations({
 
       return { success: false, error: error as Error };
     }
-  }, [vaultId, userId, canEdit, publications, setPublications, setPublicationTags, toast]);
+  }, [vaultId, userId, canEdit, edits, toast]);
 
   /**
    * Delete a publication from the vault with optimistic update
@@ -688,22 +549,12 @@ export function useSharedVaultOperations({
       return { success: false, error: new Error('Not authorized to delete publications') };
     }
 
-    const operationId = generateOperationId();
-    const previousPublications = [...publications];
-    const previousPublicationTags = [...publicationTags];
-
-    // Store previous state for potential rollback
-    pendingPublicationUpdates.current.set(operationId, {
-      id: publicationId,
-      previousState: previousPublications,
-      timestamp: Date.now(),
-    });
+    const removedPublication = publications.find(pub => pub.id === publicationId);
+    const removedLinks = publicationTags.filter(pt =>
+      pt.vault_publication_id === publicationId || pt.publication_id === publicationId);
 
     // Apply optimistic update
-    setPublications(prev => prev.filter(pub => pub.id !== publicationId));
-    setPublicationTags(prev => prev.filter(pt => 
-      pt.vault_publication_id !== publicationId && pt.publication_id !== publicationId
-    ));
+    edits.removePublications([publicationId]);
 
     try {
       const { error } = await supabase
@@ -713,20 +564,13 @@ export function useSharedVaultOperations({
 
       if (error) throw error;
 
-      // Clean up pending update tracking
-      pendingPublicationUpdates.current.delete(operationId);
-
       toast({ title: 'paper_removed ✨' });
 
       return { success: true };
     } catch (error) {
       // Rollback optimistic update on error
-      const pending = pendingPublicationUpdates.current.get(operationId);
-      if (pending) {
-        setPublications(pending.previousState);
-        setPublicationTags(previousPublicationTags);
-        pendingPublicationUpdates.current.delete(operationId);
-      }
+      if (removedPublication) edits.addPublication(removedPublication);
+      edits.addPublicationTagLinks(removedLinks);
 
       toast({
         title: 'error_deleting_paper',
@@ -736,7 +580,7 @@ export function useSharedVaultOperations({
 
       return { success: false, error: error as Error };
     }
-  }, [vaultId, userId, canEdit, publications, publicationTags, setPublications, setPublicationTags, toast]);
+  }, [vaultId, userId, canEdit, publications, publicationTags, edits, toast]);
 
   return {
     // Publication operations

@@ -40,7 +40,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useVaultAccess, requestVaultAccess } from '@/hooks/useVaultAccess';
 import { useVaultFavorites } from '@/hooks/useVaultFavorites';
 import { useVaultFork } from '@/hooks/useVaultFork';
-import { useVaultContent } from '@/contexts/VaultContentContext';
+import { useVaultContent, useVaultContentActions } from '@/contexts/VaultContentContext';
 import { useSharedVaultOperations } from '@/hooks/useSharedVaultOperations';
 import { useReloadWhenAccessArrives } from '@/hooks/useReloadWhenAccessArrives';
 import { getForkSourceHref, getForkSourceLabel, getVaultForkInfo, VaultForkInfo } from '@/lib/vaultFork';
@@ -84,17 +84,20 @@ export default function VaultDetail() {
     publicationTags,
     publicationRelations,
     loading: contentLoading,
-    setCurrentVaultId,
-    setPublications,
-    setTags,
-    setPublicationTags,
-    updateCurrentVault,
     lastActivity,
-    updateLastActivity,
     pdfAssetsMap,
+  } = useVaultContent();
+  const contentActions = useVaultContentActions();
+  const {
+    setCurrentVaultId,
+    updateCurrentVault,
+    updateLastActivity,
     updatePdfAsset,
     refreshVaultContent,
-  } = useVaultContent();
+    removePublications,
+    addTags,
+    updatePublications,
+  } = contentActions;
   useReloadWhenAccessArrives({ vaultId, accessStatus, accessVaultId: vault?.id, reload: refreshVaultContent });
 
   // Use the shared vault operations hook for optimistic updates
@@ -103,11 +106,9 @@ export default function VaultDetail() {
     userId: user?.id || null,
     canEdit,
     publications,
-    setPublications,
     tags,
-    setTags,
     publicationTags,
-    setPublicationTags,
+    edits: contentActions,
   });
 
   const handleUpdateReadingState = useCallback((
@@ -1176,8 +1177,7 @@ export default function VaultDetail() {
       }
 
       // Optimistic update
-      setPublications(prev => prev.filter(p => p.id !== deletedId));
-      setPublicationTags(prev => prev.filter(pt => pt.publication_id !== deletedId));
+      removePublications([deletedId]);
       clearPageCache(`vault-content-${vaultId}`);
 
       // Update last activity for the deleted publication
@@ -1236,8 +1236,7 @@ export default function VaultDetail() {
       }
 
       // Optimistic update
-      setPublications(prev => prev.filter(p => !ids.includes(p.id)));
-      setPublicationTags(prev => prev.filter(pt => !ids.includes(pt.publication_id)));
+      removePublications(ids);
       clearPageCache(`vault-content-${vaultId}`);
 
       updateLastActivity('publication_removed', user?.id || null);
@@ -1385,11 +1384,8 @@ export default function VaultDetail() {
 
       if (error) throw error;
 
-      // Use functional updater with dedupe check to prevent race with realtime
-      setTags(prev => {
-        if (prev.some(t => t.id === (data as Tag).id)) return prev;
-        return [...prev, data as Tag];
-      });
+      // A no-op if realtime delivered the tag first.
+      addTags([data as Tag]);
       return data as Tag;
     } catch (error) {
       // Check if the error is due to the unique constraint violation
@@ -2221,7 +2217,12 @@ export default function VaultDetail() {
             setIsVaultDialogOpen(open);
           }}
           vault={editingVault}
-          onPublicationsChange={setPublications}
+          // The panel works on its own copy of the papers and changes only their sections, so
+          // only those fields come back: other changes made meanwhile stay.
+          onPublicationsChange={(next) => updatePublications(next.map((pub) => ({
+            id: pub.id,
+            patch: { section_id: pub.section_id, section_position: pub.section_position },
+          })))}
           onSave={!editingVault || isOwner ? handleSaveVault : undefined}
           onUpdate={refetchVault}
           onDelete={isOwner ? (vault) => {
