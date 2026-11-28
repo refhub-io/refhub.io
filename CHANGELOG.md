@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [2.3.14] - 2026-11-28
+
+### Changed
+- Libraries and vaults load faster for signed-in users, the more relations they hold (#275). Checking access to each relation through the nested read policies cost about 0.7 ms per relation. Measured locally:
+  - a 2,500-paper public vault you're not a member of: its papers show after 1.2 s instead of 2.2 s;
+  - a library of 2,500 papers and 1,250 relations: 338 ms instead of 1.35 s, on the server.
+  - **Apply migration `20261128230000_relations_through_helper.sql`, after 2.3.13's.** The results are the same; the app needs no change for it.
+
 ## [2.3.13] - 2026-11-28
 
 ### Changed

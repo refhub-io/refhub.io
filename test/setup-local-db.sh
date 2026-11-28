@@ -77,6 +77,10 @@ POST_DUMP_MIGRATIONS=(
   # pages as functions, relations_for_papers(), and the keyword index.
   # Temporary, like the entries above.
   "20261128220000_codex_functions.sql"
+  # Not yet applied to production: get_library() and get_vault_content() read
+  # relations through relations_for_papers(). After the Codex functions, which
+  # create it. Temporary, like the entries above.
+  "20261128230000_relations_through_helper.sql"
 )
 
 cleanup() {
