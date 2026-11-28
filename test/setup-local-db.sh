@@ -73,6 +73,10 @@ POST_DUMP_MIGRATIONS=(
   # get_vault_content() and tag_links_for_papers(). Temporary, like the
   # entries above.
   "20261128200000_public_vault_content.sql"
+  # Not yet applied to production: the Codex grid, topic suggestions and topic
+  # pages as functions, relations_for_papers(), and the keyword index.
+  # Temporary, like the entries above.
+  "20261128220000_codex_functions.sql"
 )
 
 cleanup() {
