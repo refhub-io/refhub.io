@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useMemo, useRef, type Context } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Publication, Vault, Tag, PublicationTag, PublicationRelation, VaultShare } from '@/types/database';
@@ -9,6 +9,7 @@ import { ownerTag } from '@/lib/cacheOwner';
 import { syncDrivePdfAsset } from '@/lib/pdfAssets';
 import { formatVaultPublication } from '@/lib/formatVaultPublication';
 import { buildPdfAssetsMap, fetchVaultContentRows } from '@/lib/vaultContent';
+import { createVaultContentEdits, type VaultContentEdits } from '@/lib/vaultContentEdits';
 
 // Info about the last activity in the vault
 export type ActivityType = 'publication_added' | 'publication_updated' | 'publication_removed' | 'tag_added' | 'tag_updated' | 'tag_removed';
@@ -31,34 +32,42 @@ interface VaultContentCache {
   pdfAssetsMap: Record<string, string | null>;
 }
 
-interface VaultContentContextType {
+/** What the vault page shows. */
+export interface VaultContentState {
   currentVault: Vault | null;
   publications: Publication[];
   tags: Tag[];
   publicationTags: PublicationTag[];
   publicationRelations: PublicationRelation[];
-  vaultShares: VaultShare[];
   loading: boolean;
   error: string | null;
-  setCurrentVaultId: (vaultId: string) => void;
-  setPublications: React.Dispatch<React.SetStateAction<Publication[]>>;
-  setTags: React.Dispatch<React.SetStateAction<Tag[]>>;
-  setPublicationTags: React.Dispatch<React.SetStateAction<PublicationTag[]>>;
-  setPublicationRelations: React.Dispatch<React.SetStateAction<PublicationRelation[]>>;
-  setVaultShares: React.Dispatch<React.SetStateAction<VaultShare[]>>;
-  updateCurrentVault: (vault: Vault) => void;
-  // New methods for optimistic updates
-  refreshVaultContent: () => Promise<void>;
-  isRealtimeConnected: boolean;
-  // Last activity tracking
   lastActivity: LastActivityInfo | null;
-  updateLastActivity: (type: ActivityType, userId: string | null) => void;
-  // PDF assets
   pdfAssetsMap: Record<string, string | null>;
+}
+
+/** The vault's shares and the realtime connection: kept apart, since the vault page shows neither. */
+export interface VaultContentStatus {
+  vaultShares: VaultShare[];
+  isRealtimeConnected: boolean;
+}
+
+/**
+ * Everything that changes the vault's content, as named actions: no raw setters. The object only
+ * changes when the user or the vault does, so a component that only acts never re-renders for
+ * the content changing.
+ */
+export interface VaultContentActions extends VaultContentEdits {
+  setCurrentVaultId: (vaultId: string) => void;
+  refreshVaultContent: () => Promise<void>;
+  updateCurrentVault: (vault: Vault) => void;
+  updateLastActivity: (type: ActivityType, userId: string | null) => void;
   updatePdfAsset: (vaultPublicationId: string, url: string | null) => Promise<void>;
 }
 
-const VaultContentContext = createContext<VaultContentContextType | undefined>(undefined);
+// Separate contexts, so a component re-renders only for what it reads.
+const VaultContentStateContext = createContext<VaultContentState | undefined>(undefined);
+const VaultContentStatusContext = createContext<VaultContentStatus | undefined>(undefined);
+const VaultContentActionsContext = createContext<VaultContentActions | undefined>(undefined);
 
 interface VaultContentProviderProps {
   children: ReactNode;
@@ -96,6 +105,10 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
   // while the vault page wasn't mounted.
   const [visitNonce, setVisitNonce] = useState(0);
 
+  // The latest state, read by actions when they run, so they keep one identity across updates.
+  const latest = useRef({ currentVaultId, currentVault, publications, tags, publicationTags, publicationRelations, vaultShares, pdfAssetsMap });
+  latest.current = { currentVaultId, currentVault, publications, tags, publicationTags, publicationRelations, vaultShares, pdfAssetsMap };
+
   // Stable ref to the latest publications array so the realtime subscription
   // callback can check relevance without causing the subscription to be torn
   // down and re-created whenever publications change.
@@ -122,24 +135,26 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
   const updateCurrentVault = useCallback((vault: Vault) => {
     setCurrentVault(vault);
 
-    if (!currentVaultId) return;
+    const now = latest.current;
+    if (!now.currentVaultId) return;
 
-    const cacheKey = `vault-content-${currentVaultId}` as const;
-    const cached = getPageCache<VaultContentCache>(cacheKey, ownerTag(user?.id));
+    const cacheKey = `vault-content-${now.currentVaultId}` as const;
+    const owner = ownerTag(userIdRef.current);
+    const cached = getPageCache<VaultContentCache>(cacheKey, owner);
     // Once this vault's content has loaded, current state is the freshest copy (realtime and
     // recent fetches update it), so it wins; the cached arrays are only a fallback before then.
     // Preferring the cache used to put older rows back into it after every vault settings edit.
-    const preferState = currentVault?.id === currentVaultId || !cached;
+    const preferState = now.currentVault?.id === now.currentVaultId || !cached;
     setPageCache<VaultContentCache>(cacheKey, {
       currentVault: vault,
-      publications: preferState ? publications : cached.publications,
-      tags: preferState ? tags : cached.tags,
-      publicationTags: preferState ? publicationTags : cached.publicationTags,
-      publicationRelations: preferState ? publicationRelations : cached.publicationRelations,
-      vaultShares: preferState ? vaultShares : cached.vaultShares,
-      pdfAssetsMap: preferState ? pdfAssetsMap : cached.pdfAssetsMap,
-    }, ownerTag(user?.id));
-  }, [currentVaultId, currentVault, publications, tags, publicationTags, publicationRelations, vaultShares, pdfAssetsMap, user?.id]);
+      publications: preferState ? now.publications : cached.publications,
+      tags: preferState ? now.tags : cached.tags,
+      publicationTags: preferState ? now.publicationTags : cached.publicationTags,
+      publicationRelations: preferState ? now.publicationRelations : cached.publicationRelations,
+      vaultShares: preferState ? now.vaultShares : cached.vaultShares,
+      pdfAssetsMap: preferState ? now.pdfAssetsMap : cached.pdfAssetsMap,
+    }, owner);
+  }, []);
   
   // Helper to get user display name (with caching)
   const getUserDisplayName = useCallback(async (userId: string): Promise<string | null> => {
@@ -217,13 +232,14 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
 
 
   const updatePdfAsset = useCallback(async (vaultPublicationId: string, url: string | null) => {
-    if (!user) return;
+    const userId = userIdRef.current;
+    if (!userId) return;
 
     // Optimistic update
-    const previousUrl = pdfAssetsMap[vaultPublicationId];
+    const previousUrl = latest.current.pdfAssetsMap[vaultPublicationId];
     setPdfAssetsMap(prev => ({ ...prev, [vaultPublicationId]: url || null }));
 
-    const publication = publications.find(p => p.id === vaultPublicationId);
+    const publication = latest.current.publications.find(p => p.id === vaultPublicationId);
     const publicationId = publication?.original_publication_id ?? null;
 
     try {
@@ -231,7 +247,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       // copy of the same paper in the user's other vaults, matching how
       // bibliographic fields already propagate.
       await syncDrivePdfAsset(supabase, {
-        userId: user.id,
+        userId,
         publicationId,
         storedPdfUrl: url || null,
         originVaultPublicationId: vaultPublicationId,
@@ -241,7 +257,14 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       setPdfAssetsMap(prev => ({ ...prev, [vaultPublicationId]: previousUrl ?? null }));
       throw error;
     }
-  }, [pdfAssetsMap, publications, user]);
+  }, []);
+
+  // Named edits over the content: optimistic updates, their rollbacks, local follow-ups.
+  const edits = useMemo(() => createVaultContentEdits({
+    publications: setPublications,
+    tags: setTags,
+    publicationTags: setPublicationTags,
+  }), []);
 
   // Fetch vault content - extracted as a reusable function
   const fetchVaultContent = useCallback(async () => {
@@ -743,42 +766,50 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
     };
   }, [currentVaultId, userId, updateLastActivity]);
 
+  const state = useMemo<VaultContentState>(() => ({
+    currentVault, publications, tags, publicationTags, publicationRelations, loading, error, lastActivity, pdfAssetsMap,
+  }), [currentVault, publications, tags, publicationTags, publicationRelations, loading, error, lastActivity, pdfAssetsMap]);
+  const status = useMemo<VaultContentStatus>(
+    () => ({ vaultShares, isRealtimeConnected }),
+    [vaultShares, isRealtimeConnected],
+  );
+  const actions = useMemo<VaultContentActions>(() => ({
+    ...edits, setCurrentVaultId, refreshVaultContent, updateCurrentVault, updateLastActivity, updatePdfAsset,
+  }), [edits, setCurrentVaultId, refreshVaultContent, updateCurrentVault, updateLastActivity, updatePdfAsset]);
+
   return (
-    <VaultContentContext.Provider
-      value={{
-        currentVault,
-        publications,
-        tags,
-        publicationTags,
-        publicationRelations,
-        vaultShares,
-        loading,
-        error,
-        setCurrentVaultId,
-        setPublications,
-        setTags,
-        setPublicationTags,
-        setPublicationRelations,
-        setVaultShares,
-        updateCurrentVault,
-        refreshVaultContent,
-        isRealtimeConnected,
-        lastActivity,
-        updateLastActivity,
-        pdfAssetsMap,
-        updatePdfAsset,
-      }}
-    >
-      {children}
-    </VaultContentContext.Provider>
+    <VaultContentActionsContext.Provider value={actions}>
+      <VaultContentStatusContext.Provider value={status}>
+        <VaultContentStateContext.Provider value={state}>
+          {children}
+        </VaultContentStateContext.Provider>
+      </VaultContentStatusContext.Provider>
+    </VaultContentActionsContext.Provider>
   );
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
-export function useVaultContent() {
-  const context = useContext(VaultContentContext);
-  if (context === undefined) {
-    throw new Error('useVaultContent must be used within a VaultContentProvider');
+function useRequired<T>(context: Context<T | undefined>, hook: string): T {
+  const value = useContext(context);
+  if (value === undefined) {
+    throw new Error(`${hook} must be used within a VaultContentProvider`);
   }
-  return context;
+  return value;
+}
+
+/** What the vault page shows. Re-renders when that content changes. */
+// eslint-disable-next-line react-refresh/only-export-components
+export function useVaultContent(): VaultContentState {
+  return useRequired(VaultContentStateContext, 'useVaultContent');
+}
+
+/** The vault's shares and the realtime connection. */
+// eslint-disable-next-line react-refresh/only-export-components
+export function useVaultContentStatus(): VaultContentStatus {
+  return useRequired(VaultContentStatusContext, 'useVaultContentStatus');
+}
+
+/** The actions that change the vault's content. Never re-renders for the content changing. */
+// eslint-disable-next-line react-refresh/only-export-components
+export function useVaultContentActions(): VaultContentActions {
+  return useRequired(VaultContentActionsContext, 'useVaultContentActions');
 }

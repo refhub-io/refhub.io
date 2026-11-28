@@ -1,9 +1,12 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Publication } from '@/types/database';
+import type { Publication, PublicationTag } from '@/types/database';
+import { createVaultContentEdits } from '@/lib/vaultContentEdits';
 
 const inserted: Record<string, unknown[]> = {};
 const updated: Record<string, { value: unknown; filters: unknown[][] }[]> = {};
+// What a delete answers with; set by a test that needs it to fail.
+const deleteResult: { error: unknown } = { error: null };
 const rows: Record<string, Record<string, unknown>> = {
   publications: { id: 'pub-1', title: 'A Paper', user_id: 'user-1' },
   vault_publications: {
@@ -20,6 +23,7 @@ vi.mock('@/integrations/supabase/client', () => ({
         (inserted[table] ||= []).push(value);
         return { select: () => ({ single: () => Promise.resolve({ data: rows[table], error: null }) }) };
       },
+      delete: () => ({ eq: () => Promise.resolve(deleteResult) }),
       update: (value: unknown) => {
         const call = { value, filters: [] as unknown[][] };
         (updated[table] ||= []).push(call);
@@ -45,13 +49,14 @@ describe('useSharedVaultOperations.createVaultPublication', () => {
 
   it('puts the full row in state, including the canonical id and section fields', async () => {
     let state: Publication[] = [];
-    const setPublications = vi.fn((update: Publication[] | ((prev: Publication[]) => Publication[])) => {
-      state = typeof update === 'function' ? update(state) : update;
+    const edits = createVaultContentEdits({
+      publications: (update) => { state = update(state); },
+      tags: () => {},
+      publicationTags: () => {},
     });
     const { result } = renderHook(() => useSharedVaultOperations({
       vaultId: 'vault-1', userId: 'user-1', canEdit: true,
-      publications: state, setPublications,
-      tags: [], setTags: vi.fn(), publicationTags: [], setPublicationTags: vi.fn(),
+      publications: state, tags: [], publicationTags: [], edits,
     }));
 
     let outcome: Awaited<ReturnType<typeof result.current.createVaultPublication>> | undefined;
@@ -76,13 +81,14 @@ describe('useSharedVaultOperations.createVaultPublication', () => {
   // canonical copy.
   it('syncs the first edit of a paper created in this session to its canonical copy', async () => {
     let state: Publication[] = [];
-    const setPublications = vi.fn((update: Publication[] | ((prev: Publication[]) => Publication[])) => {
-      state = typeof update === 'function' ? update(state) : update;
+    const edits = createVaultContentEdits({
+      publications: (update) => { state = update(state); },
+      tags: () => {},
+      publicationTags: () => {},
     });
     const { result, rerender } = renderHook(() => useSharedVaultOperations({
       vaultId: 'vault-1', userId: 'user-1', canEdit: true,
-      publications: state, setPublications,
-      tags: [], setTags: vi.fn(), publicationTags: [], setPublicationTags: vi.fn(),
+      publications: state, tags: [], publicationTags: [], edits,
     }));
 
     await act(async () => {
@@ -101,19 +107,20 @@ describe('useSharedVaultOperations.createVaultPublication', () => {
   });
 
   it('shows a placeholder built by the same mapping until the inserted row arrives', async () => {
-    const setPublications = vi.fn();
+    const edits = {
+      ...createVaultContentEdits({ publications: () => {}, tags: () => {}, publicationTags: () => {} }),
+      addPublication: vi.fn(),
+    };
     const { result } = renderHook(() => useSharedVaultOperations({
       vaultId: 'vault-1', userId: 'user-1', canEdit: true,
-      publications: [], setPublications,
-      tags: [], setTags: vi.fn(), publicationTags: [], setPublicationTags: vi.fn(),
+      publications: [], tags: [], publicationTags: [], edits,
     }));
 
     await act(async () => {
       await result.current.createVaultPublication({ title: 'A Paper', authors: ['Ada Lovelace'] });
     });
 
-    const addPlaceholder = setPublications.mock.calls[0][0] as (prev: Publication[]) => Publication[];
-    const [placeholder] = addPlaceholder([]);
+    const [placeholder] = edits.addPublication.mock.calls[0] as [Publication];
     expect(placeholder.id).toMatch(/^temp_/);
     expect(placeholder).toMatchObject({
       title: 'A Paper', authors: ['Ada Lovelace'], user_id: 'user-1', publication_type: 'article',
@@ -122,3 +129,36 @@ describe('useSharedVaultOperations.createVaultPublication', () => {
   });
 });
 
+describe('useSharedVaultOperations rollbacks', () => {
+  beforeEach(() => { deleteResult.error = null; });
+
+  // Rollbacks used to restore a snapshot of the whole list, taken before the operation: whatever
+  // realtime delivered in the meantime vanished with it.
+  it('puts back only what a failed delete removed', async () => {
+    const paper = (id: string) => ({ id, title: id }) as Publication;
+    const state = {
+      publications: [paper('vp-a'), paper('vp-b')],
+      publicationTags: [{ id: 'l1', vault_publication_id: 'vp-a', publication_id: null, tag_id: 't1' }] as PublicationTag[],
+    };
+    const edits = createVaultContentEdits({
+      publications: (update) => { state.publications = update(state.publications); },
+      tags: () => {},
+      publicationTags: (update) => { state.publicationTags = update(state.publicationTags); },
+    });
+    deleteResult.error = { message: 'permission denied' };
+    const { result } = renderHook(() => useSharedVaultOperations({
+      vaultId: 'vault-1', userId: 'user-1', canEdit: true,
+      publications: state.publications, tags: [], publicationTags: state.publicationTags, edits,
+    }));
+
+    await act(async () => {
+      const deleting = result.current.deleteVaultPublication('vp-a');
+      // Meanwhile, realtime brings in someone else's new paper.
+      edits.addPublication(paper('vp-c'));
+      await deleting;
+    });
+
+    expect(state.publications.map((p) => p.id).sort()).toEqual(['vp-a', 'vp-b', 'vp-c']);
+    expect(state.publicationTags.map((l) => l.id)).toEqual(['l1']);
+  });
+});

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { useEffect } from 'react';
+import { Profiler, useEffect, type ReactNode } from 'react';
 
 // Per-table results for a fake Supabase client. get_vault_content assembles its answer from the
 // tables it reads, and fails if any of them fails; other tables are plain queries, where every
@@ -11,11 +11,22 @@ const { results, handleError, signedInUser, auth, requestedTables, pendingTables
   requestedTables: [] as string[],
   pendingTables: new Set<string>(),
   rpcCalls: [] as { fn: string; args: unknown }[],
-  // Realtime channels opened, and the callbacks they report their status to.
-  realtime: { opened: 0, statusCallbacks: [] as ((status: string, err?: unknown) => void)[] },
-  // One object, like the real auth state between token refreshes; auth.user is what useAuth returns.
+  // Realtime channels opened, the callbacks they report their status to, and their handlers by table.
+  realtime: {
+    opened: 0,
+    statusCallbacks: [] as ((status: string, err?: unknown) => void)[],
+    handlers: {} as Record<string, (payload: unknown) => void>,
+  },
+  // One object, like the real auth state between token refreshes. Components read auth.user
+  // through a store, so auth.set() re-renders only those that call useAuth, as a token refresh
+  // re-renders only the auth state's subscribers in the app.
   signedInUser: { id: 'user-1' },
-  auth: { user: null as { id: string } | null },
+  auth: {
+    user: null as { id: string } | null,
+    listeners: new Set<() => void>(),
+    set(user: { id: string } | null) { this.user = user; this.listeners.forEach((listener) => listener()); },
+    subscribe(listener: () => void) { auth.listeners.add(listener); return () => auth.listeners.delete(listener); },
+  },
   handleError: vi.fn((_error: unknown, _context: string, _hasData?: boolean) => 'Could not load vault content'),
 }));
 
@@ -44,7 +55,10 @@ vi.mock('@/integrations/supabase/client', () => {
     return { data: Object.fromEntries(Object.keys(contentTables).map((key, i) => [key, answers[i].data])), error: null };
   };
   const channel = {
-    on: () => channel,
+    on: (_type: string, filter: { table: string }, handler: (payload: unknown) => void) => {
+      realtime.handlers[filter.table] = handler;
+      return channel;
+    },
     subscribe: (callback?: (status: string, err?: unknown) => void) => {
       if (callback) realtime.statusCallbacks.push(callback);
       return channel;
@@ -67,13 +81,16 @@ vi.mock('@/integrations/supabase/client', () => {
     },
   };
 });
-vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: auth.user }) }));
+vi.mock('@/hooks/useAuth', async () => {
+  const { useSyncExternalStore } = await import('react');
+  return { useAuth: () => ({ user: useSyncExternalStore(auth.subscribe, () => auth.user) }) };
+});
 vi.mock('@/lib/toast', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/toast')>()),
   handleError,
 }));
 
-import { VaultContentProvider, useVaultContent } from './VaultContentContext';
+import { VaultContentProvider, useVaultContent, useVaultContentActions } from './VaultContentContext';
 import { clearAllPageCaches, getPageCache, hasPageCache } from '@/lib/pageCache';
 import { ownerTag } from '@/lib/cacheOwner';
 import type { Publication } from '@/types/database';
@@ -81,10 +98,8 @@ import type { Publication } from '@/types/database';
 const paperFromRealtime = { id: 'vp-2', title: 'Added by realtime' } as unknown as Publication;
 
 function OpenVault({ vaultId }: { vaultId: string }) {
-  const {
-    setCurrentVaultId, publications, error, loading, currentVault, setPublications, updateCurrentVault, refreshVaultContent,
-    pdfAssetsMap,
-  } = useVaultContent();
+  const { publications, error, loading, currentVault, pdfAssetsMap } = useVaultContent();
+  const { setCurrentVaultId, addPublication, updateCurrentVault, refreshVaultContent } = useVaultContentActions();
   useEffect(() => {
     setCurrentVaultId(vaultId);
   }, [vaultId, setCurrentVaultId]);
@@ -94,7 +109,7 @@ function OpenVault({ vaultId }: { vaultId: string }) {
       <output data-testid="loading">{String(loading)}</output>
       <output data-testid="pdfs">{JSON.stringify(pdfAssetsMap)}</output>
       <button onClick={() => void refreshVaultContent()}>refresh</button>
-      <button onClick={() => setPublications((prev) => [...prev, paperFromRealtime])}>add_paper</button>
+      <button onClick={() => addPublication(paperFromRealtime)}>add_paper</button>
       <button onClick={() => currentVault && updateCurrentVault({ ...currentVault, name: 'Renamed' })}>rename</button>
     </>
   );
@@ -113,6 +128,7 @@ beforeEach(() => {
   auth.user = signedInUser;
   realtime.opened = 0;
   realtime.statusCallbacks.length = 0;
+  realtime.handlers = {};
   results.set('vault_publications', {
     data: [{
       id: 'vp-1', vault_id: 'vault-1', original_publication_id: 'p-1', title: 'A paper', authors: ['Ada Lovelace'],
@@ -277,3 +293,53 @@ describe('VaultContentContext loading a vault', () => {
   });
 });
 
+// Stand-ins for the vault page, which shows content and acts on it, and for a component that only
+// acts. Each counts its commits through React's Profiler.
+const commits = { page: 0, actionsOnly: 0 };
+function PageProbe({ vaultId }: { vaultId: string }) {
+  const { publications } = useVaultContent();
+  const { setCurrentVaultId } = useVaultContentActions();
+  useEffect(() => {
+    setCurrentVaultId(vaultId);
+  }, [vaultId, setCurrentVaultId]);
+  return <output data-testid="probe">{publications.map((pub) => pub.title).join(' | ')}</output>;
+}
+function ActionsProbe() {
+  useVaultContentActions();
+  return null;
+}
+const profiled = (id: keyof typeof commits, node: ReactNode) => (
+  <Profiler id={id} onRender={() => { commits[id] += 1; }}>{node}</Profiler>
+);
+
+describe('VaultContentContext re-renders', () => {
+  // The value used to be one object, rebuilt on every render of the provider, so the vault page
+  // re-rendered for anything: a token refresh, the realtime connection coming up, a share.
+  it('re-renders the vault page only for content it shows, and an actions-only component never', async () => {
+    commits.page = 0;
+    commits.actionsOnly = 0;
+    render(
+      <VaultContentProvider>
+        {profiled('page', <PageProbe vaultId="vault-1" />)}
+        {profiled('actionsOnly', <ActionsProbe />)}
+      </VaultContentProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId('probe').textContent).toBe('A paper'));
+    await act(async () => {});
+    const loaded = { ...commits };
+
+    act(() => { auth.set({ id: 'user-1' }); }); // a token refresh: a new user object, the same user
+    act(() => { realtime.statusCallbacks.at(-1)!('SUBSCRIBED'); });
+    await act(async () => {
+      await realtime.handlers.vault_shares({ eventType: 'INSERT', new: { id: 'share-1', vault_id: 'vault-1' }, old: {} });
+    });
+    expect(commits).toEqual(loaded);
+
+    await act(async () => {
+      await realtime.handlers.vault_publications({ eventType: 'UPDATE', new: { id: 'vp-1', title: 'Renamed live' }, old: {} });
+    });
+    expect(screen.getByTestId('probe').textContent).toBe('Renamed live');
+    expect(commits.page).toBeGreaterThan(loaded.page);
+    expect(commits.actionsOnly).toBe(loaded.actionsOnly);
+  });
+});
