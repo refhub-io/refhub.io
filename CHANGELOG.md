@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [2.3.10] - 2026-11-28
+
+### Changed
+- The vault page re-renders only for the content it shows (#258). A session token refresh, the live connection coming up, or a vault share arriving no longer re-render the whole page. A failed edit now undoes only itself, so changes other people made meanwhile stay on screen.
+
+### Fixed
+- Moving papers between sections in vault settings no longer makes the vault page drop papers added while settings were open, or revert other people's edits made in that time.
+
 ## [2.3.8] - 2026-11-28
 
 ### Fixed
