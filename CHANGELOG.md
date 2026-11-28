@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [2.3.2] - 2026-11-28
+
+### Fixed
+- Switching between light and dark mode is smooth. Before, the page restyled at once and hundreds of elements then animated their colors separately, which stuttered. Where the browser supports view transitions, the page now crossfades as a whole, with element transitions off for the switch. Elsewhere, and with reduced motion, the switch is instant. Measured on the dashboard, main-thread work per switch is down by more than half.
+
 ## [2.3.0] - 2026-11-27
 
 Phase 2 (correctness) of the v2.5 performance and maintainability milestone (#270).
