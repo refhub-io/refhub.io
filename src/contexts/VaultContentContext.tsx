@@ -66,6 +66,13 @@ interface VaultContentProviderProps {
 
 export function VaultContentProvider({ children }: VaultContentProviderProps) {
   const { user } = useAuth();
+  // The user's id, read when a fetch runs. Fetches start on visits (visitNonce), not on every new
+  // user object: the auth state hands over a new one with the same id on each token refresh, and
+  // several while a session restores, and each one used to start another fetch. A change of user
+  // still counts as a visit, since setCurrentVaultId depends on the id and VaultDetail calls it
+  // again; that call is also what clears the previous user's content.
+  const userIdRef = useRef(user?.id);
+  userIdRef.current = user?.id;
   const [currentVault, setCurrentVault] = useState<Vault | null>(null);
   const [publications, setPublications] = useState<Publication[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
@@ -237,8 +244,9 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
 
   // Fetch vault content - extracted as a reusable function
   const fetchVaultContent = useCallback(async () => {
-    if (!currentVaultId || !user) {
-      debug('VaultContentContext', 'Skipping fetch - conditions not met', { hasId: !!currentVaultId, hasUser: !!user });
+    const userId = userIdRef.current;
+    if (!currentVaultId || !userId) {
+      debug('VaultContentContext', 'Skipping fetch - conditions not met', { hasId: !!currentVaultId, hasUser: !!userId });
       return;
     }
 
@@ -323,7 +331,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
         publicationRelations: content.publication_relations,
         vaultShares: content.vault_shares,
         pdfAssetsMap: pdfAssets,
-      }, ownerTag(user?.id));
+      }, ownerTag(userId));
 
       // Set initial lastActivity based on most recently updated publication
       // Now uses updated_by field if available to show who made the last update
@@ -366,7 +374,7 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
       }
       debug('VaultContentContext', 'Loading set to false');
     }
-  }, [currentVaultId, user, getUserDisplayName]);
+  }, [currentVaultId, getUserDisplayName]);
 
   // Refresh function that can be called externally
   const refreshVaultContent = useCallback(async () => {
@@ -374,14 +382,15 @@ export function VaultContentProvider({ children }: VaultContentProviderProps) {
   }, [fetchVaultContent]);
 
   // Fetch vault content when vaultId changes, or on every revisit of the
-  // same vault (visitNonce) -- see the comment on visitNonce above.
+  // same vault (visitNonce) -- see the comment on visitNonce above. A
+  // change of user is a revisit too: see userIdRef.
   useEffect(() => {
-    debug('VaultContentContext', 'Effect triggered', { currentVaultId, user: !!user });
-    if (!currentVaultId || !user) {
+    debug('VaultContentContext', 'Effect triggered', { currentVaultId, hasUser: !!userIdRef.current });
+    if (!currentVaultId || !userIdRef.current) {
       return;
     }
     fetchVaultContent();
-  }, [currentVaultId, visitNonce, user, fetchVaultContent]);
+  }, [currentVaultId, visitNonce, fetchVaultContent]);
 
   const setCurrentVaultId = useCallback((vaultId: string) => {
     // Set synchronously, before any state updates below, so an in-flight

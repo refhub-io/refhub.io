@@ -5,14 +5,15 @@ import { useEffect } from 'react';
 // Per-table results for a fake Supabase client. get_vault_content assembles its answer from the
 // tables it reads, and fails if any of them fails; other tables are plain queries, where every
 // builder method chains and the builder resolves to the table's result.
-const { results, handleError, signedInUser, requestedTables, pendingTables, rpcCalls } = vi.hoisted(() => ({
+const { results, handleError, signedInUser, auth, requestedTables, pendingTables, rpcCalls } = vi.hoisted(() => ({
   results: new Map<string, { data: unknown; error: unknown }>(),
   // Tables queried directly, in order; tables that never answer; RPC calls.
   requestedTables: [] as string[],
   pendingTables: new Set<string>(),
   rpcCalls: [] as { fn: string; args: unknown }[],
-  // One object, like the real auth state: the provider's fetch effect depends on it.
+  // One object, like the real auth state between token refreshes; auth.user is what useAuth returns.
   signedInUser: { id: 'user-1' },
+  auth: { user: null as { id: string } | null },
   handleError: vi.fn((_error: unknown, _context: string, _hasData?: boolean) => 'Could not load vault content'),
 }));
 
@@ -58,7 +59,7 @@ vi.mock('@/integrations/supabase/client', () => {
     },
   };
 });
-vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: signedInUser }) }));
+vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: auth.user }) }));
 vi.mock('@/lib/toast', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/toast')>()),
   handleError,
@@ -101,6 +102,7 @@ beforeEach(() => {
   requestedTables.length = 0;
   pendingTables.clear();
   rpcCalls.length = 0;
+  auth.user = signedInUser;
   results.set('vault_publications', {
     data: [{
       id: 'vp-1', vault_id: 'vault-1', original_publication_id: 'p-1', title: 'A paper', authors: ['Ada Lovelace'],
@@ -173,6 +175,24 @@ describe('VaultContentContext loading a vault', () => {
     expect(rpcCalls).toEqual([{ fn: 'get_vault_content', args: { p_vault_id: 'vault-1' } }]);
     expect(requestedTables).toEqual([]);
     expect(handleError).not.toHaveBeenCalled();
+  });
+
+  // Without an access check to wait for, every new user object started another fetch: the auth
+  // state hands one over on each token refresh, and several while a session restores.
+  it('loads once while the session restores, and not again on a token refresh', async () => {
+    const tree = () => <VaultContentProvider><OpenVault vaultId="vault-1" /></VaultContentProvider>;
+    auth.user = null;
+    const view = render(tree());
+    auth.user = { id: 'user-1' };
+    view.rerender(tree());
+    await waitFor(() => expect(shown().papers).toBe(1));
+
+    auth.user = { id: 'user-1' };
+    view.rerender(tree());
+    auth.user = { id: 'user-1' };
+    view.rerender(tree());
+
+    expect(rpcCalls).toHaveLength(1);
   });
 
   // Row-level security hides a vault the user can't read: the call answers with no vault.
