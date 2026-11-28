@@ -447,3 +447,18 @@
 .hljs-deletion {
   color: hsl(var(--destructive));
 }
+
+/* Theme switch (src/lib/themeTransition.ts). Element transitions are off for the switch, so the
+   page changes as one crossfade instead of hundreds of elements animating their colors
+   separately. Kept out of @layer so it wins over the transition utilities. */
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: none !important;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.3s;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
