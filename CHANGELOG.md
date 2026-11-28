@@ -6,6 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [2.3.4] - 2026-11-28
+
+### Fixed
+- "All papers", smart collections and the inbox now show only your library: your papers, and the papers in vaults you own or that are shared with you (#275). They used to include every public paper in the system, cut off at 1,000 rows. On the seed data, a 10-paper library showed 25 papers; with a large public vault in the system, a smart collection showed 1,000 other people's papers and none of yours.
+- A paper with no authors no longer blanks the dashboard.
+
+### Changed
+- Your library loads in one request, through `get_library()` in migration `20261128120000_get_library.sql`. **Apply the migration before this release goes live:** the new build calls the function. With another user's 3,000-paper public vault in the system, the dashboard downloads 99 KB instead of 11.8 MB.
+
 ## [2.3.3] - 2026-11-28
 
 ### Fixed
