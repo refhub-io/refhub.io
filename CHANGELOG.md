@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [2.3.3] - 2026-11-28
+
+### Fixed
+- Vaults open faster: measured at 100 ms of network latency, about 0.4 s sooner when opened from inside the app and 0.3 s sooner on a fresh load.
+  - The page shows as soon as the vault's data is in. It used to wait for the loader's progress bar to finish animating, up to another second.
+  - The vault's own row comes with the first batch of requests instead of after relations and tags.
+  - The name in the "last update" line no longer holds the page back.
+
 ## [2.3.0] - 2026-11-27
 
 Phase 2 (correctness) of the v2.5 performance and maintainability milestone (#270).
