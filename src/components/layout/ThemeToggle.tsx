@@ -1,6 +1,8 @@
 import { Moon, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState } from 'react';
+import { flushSync } from 'react-dom';
+import { switchTheme } from '@/lib/themeTransition';
 
 export function ThemeToggle() {
   // Initialize state from localStorage to avoid hydration mismatch
@@ -19,8 +21,9 @@ export function ThemeToggle() {
 
   const toggleTheme = () => {
     const newIsDark = !isDark;
-    setIsDark(newIsDark);
     localStorage.setItem('theme', newIsDark ? 'dark' : 'light');
+    // The icon updates in the same step as the page, so the crossfade shows them change together.
+    switchTheme(newIsDark, () => flushSync(() => setIsDark(newIsDark)));
   };
 
   return (
