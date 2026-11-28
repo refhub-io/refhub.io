@@ -1283,6 +1283,7 @@ export type Database = {
           username: string | null
         }[]
       }
+      get_library: { Args: Record<PropertyKey, never>; Returns: Json }
       get_researcher_stats: {
         Args: { p_user_ids: string[] }
         Returns: {
