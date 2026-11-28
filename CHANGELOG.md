@@ -6,6 +6,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/). History prior to
 1.4.2 was not tracked in this file.
 
+## [2.3.6] - 2026-11-28
+
+### Fixed
+- A vault shared with your email address now shows its papers, notes and tags, just as a vault shared with your account does (#281). Before, a share made through the API or the CLI, or to an address whose owner had no account yet, opened the vault with none of its papers, and the recipient's API key couldn't open it at all. Migration `20261128160000_link_email_shares.sql` links each such share to the account behind its address: when the share is made, when that account signs up or confirms the address, and once for every share that exists now. No app code changes, so the migration can be applied at any time.
 ## [2.3.5] - 2026-11-28
 
 ### Changed
