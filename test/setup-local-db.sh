@@ -55,6 +55,9 @@ POST_DUMP_MIGRATIONS=(
   # Not yet applied to production either: profile emails are no longer readable
   # by clients. Temporary, like the entries above.
   "20261128000000_hide_profile_emails.sql"
+  # Not yet applied to production: get_library(), the library in one scoped
+  # round trip. Temporary, like the entries above.
+  "20261128120000_get_library.sql"
 )
 
 cleanup() {

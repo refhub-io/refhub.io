@@ -26,7 +26,7 @@ import { ExportDialog } from '@/components/publications/ExportDialog';
 import { PhaseLoader, LoadingPhase } from '@/components/ui/loading';
 import { useToast } from '@/hooks/use-toast';
 import { getPageCache, setPageCache, hasPageCache, clearPageCache } from '@/lib/pageCache';
-import { fetchAllRows } from '@/lib/fetchAllRows';
+import { fetchLibrary } from '@/lib/library';
 import { buildVaultPublicationCopyPayload } from '@/lib/vaultPublicationAttribution';
 import {
   fetchSemanticScholarMetadataByDoi,
@@ -34,7 +34,7 @@ import {
 } from '@/lib/semanticScholar';
 import { createPublicationSyncPatch, extractBibliographicPatch, getPublicationSyncDiffs, PublicationSyncDiff } from '@/lib/publicationSync';
 import { updatePublicationReadingState } from '@/lib/publicationReadingState';
-import { filterDashboardTags, getDashboardAccessibleVaultIds } from '@/lib/dashboardTagScope';
+import { filterDashboardTags } from '@/lib/dashboardTagScope';
 import {
   buildAllPublications,
   buildPublicationVaultsMap,
@@ -282,52 +282,21 @@ export default function Dashboard() {
 
       // Fetch owned vaults, shared vaults, and other data
       setPdfAssetsLoading(true);
-      const [pubsRes, ownedVaultsRes, sharedVaultsRes, vaultPubsRes, relationsRes, pdfAssetsRes] = await Promise.all([
-        // PostgREST caps an unpaginated select at 1000 rows by default (no
-        // db-max-rows override in this repo) — a library past that many
-        // papers would silently lose everything beyond the first page.
-        // .order('id') is a tiebreaker: .range() pagination isn't stable
-        // across pages without a fully deterministic sort, and created_at
-        // alone can tie between rows.
-        fetchAllRows<Publication>((from, to) =>
-          supabase.from('publications').select('*').order('created_at', { ascending: false }).order('id').range(from, to).returns<Publication[]>()
-        ),
+      // One round trip for the library (#275): the user's papers with their tag links, relations,
+      // stored PDFs and tags, scoped on the server. The vault queries run alongside it.
+      const [library, ownedVaultsRes, sharedVaultsRes] = await Promise.all([
+        fetchLibrary(supabase),
         supabase.from('vaults').select('*').eq('user_id', user.id).order('name'),
         // Fetch vaults shared with current user (via email or user_id)
         supabase
           .from('vault_shares')
           .select('vault_id, role')
           .or(`shared_with_email.eq.${user.email},shared_with_user_id.eq.${user.id}`),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        fetchAllRows<any>((from, to) =>
-          supabase.from('vault_publications').select('*').order('created_at', { ascending: false }).order('id').range(from, to)
-        ),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        fetchAllRows<any>((from, to) => supabase.from('publication_relations').select('*').order('id').range(from, to)),
-        supabase
-          .from('publication_pdf_assets')
-          .select('publication_id, vault_publication_id, stored_pdf_url')
-          .eq('storage_provider', 'google_drive')
-          .eq('status', 'stored'),
       ]);
-
-      // publication_tags is fetched separately and NOT awaited here: it's
-      // shown (see PRs #205/#206) to be the slowest/most failure-prone query
-      // in this whole batch — an unscoped select relying entirely on RLS,
-      // observed timing out for 13-19s in production. Awaiting it inline
-      // used to delay every other piece of this page (vaults, publications,
-      // tags, relations all rendered fine on their own) behind however long
-      // it took to resolve or time out. Its own .then() (attached further
-      // down, once the other pieces it needs to merge into the cache are
-      // computed) updates state whenever it happens to resolve, without
-      // blocking anything else.
-      const pubTagsQuery = supabase
-        .from('publication_tags')
-        .select('id, publication_id, vault_publication_id, tag_id');
 
       // Build PDF assets map (keyed by publication_id for canonical, vault_publication_id for vault copies)
       const assetsMap: Record<string, string | null> = {};
-      for (const row of (pdfAssetsRes.data || [])) {
+      for (const row of library.pdf_assets) {
         if (row.vault_publication_id) {
           assetsMap[row.vault_publication_id] = row.stored_pdf_url ?? null;
         } else if (row.publication_id) {
@@ -340,33 +309,9 @@ export default function Dashboard() {
       // Complete vaults phase
       const ownedVaults = (ownedVaultsRes.data as Vault[]) || [];
       const sharedVaultIds = (sharedVaultsRes.data || []).map((share) => share.vault_id);
-      const scopedVaultIds = getDashboardAccessibleVaultIds({ ownedVaults, sharedVaultIds });
-
-      const tagQueries = [
-        supabase
-          .from('tags')
-          .select('*')
-          .eq('user_id', user.id)
-          .is('vault_id', null)
-          .order('name'),
-      ];
-
-      if (scopedVaultIds.length > 0) {
-        tagQueries.push(
-          supabase
-            .from('tags')
-            .select('*')
-            .in('vault_id', scopedVaultIds)
-            .order('name'),
-        );
-      }
-
-      const tagResults = await Promise.all(tagQueries);
-      const tagQueryError = tagResults.find((result) => result.error)?.error;
-      if (tagQueryError) throw tagQueryError;
 
       const scopedTags = filterDashboardTags(
-        tagResults.flatMap((result) => (result.data as Tag[] | null) || []),
+        library.tags,
         { userId: user.id, ownedVaults, sharedVaultIds },
       );
       const dedupedTags = Array.from(
@@ -378,9 +323,8 @@ export default function Dashboard() {
 
       // Combine original publications with vault-specific copies
       // For the dashboard, we want to show all publications the user has access to
-      const originalPublications = pubsRes.data as Publication[];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const vaultPublications = vaultPubsRes.data as any[];
+      const originalPublications = library.publications;
+      const vaultPublications = library.vault_publications;
 
       // Combine publications - deduplicating by original publication ID and aggregating
       // vault info. all_papers remains deduplicated by canonical/original publication
@@ -406,7 +350,8 @@ export default function Dashboard() {
       // Set the state with the processed data
       setPublications(allPublications);
       setTags(dedupedTags);
-      if (relationsRes.data) setPublicationRelations(relationsRes.data as PublicationRelation[]);
+      setPublicationRelations(library.publication_relations);
+      setPublicationTags(library.publication_tags);
 
       // Complete relations phase
       updatePhase('relations', 'complete');
@@ -434,32 +379,17 @@ export default function Dashboard() {
         setSharedVaults([]);
       }
       
-      // Save to cache for future visits. publicationTags isn't in yet (it's
-      // fetched separately above, non-blocking) — patched in below once it
-      // resolves, instead of waiting for it here.
+      // Save to cache for future visits.
       setPageCache<DashboardCache>('dashboard', {
         publications: allPublications,
         vaults: ownedVaults,
         sharedVaults: processedSharedVaults,
         tags: dedupedTags,
-        publicationTags: [],
-        publicationRelations: relationsRes.data as PublicationRelation[] || [],
+        publicationTags: library.publication_tags,
+        publicationRelations: library.publication_relations,
         vaultPublicationLinks: rawVaultPublicationLinks,
       }, user?.id);
 
-      void pubTagsQuery.then((res) => {
-        if (res.error) {
-          logger.error('Dashboard', 'Failed to fetch publication_tags (tag data will be incomplete):', res.error);
-          return;
-        }
-        const freshPublicationTags = (res.data as PublicationTag[]) || [];
-        setPublicationTags(freshPublicationTags);
-
-        const cached = getPageCache<DashboardCache>('dashboard', user?.id);
-        if (cached) {
-          setPageCache<DashboardCache>('dashboard', { ...cached, publicationTags: freshPublicationTags }, user?.id);
-        }
-      });
 
     } catch (error) {
       toast({

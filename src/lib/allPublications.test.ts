@@ -4,19 +4,15 @@ import { fetchAllPublicationsData } from './allPublications';
 import type { Publication, PublicationTag, Tag, Vault } from '@/types/database';
 import type { RawVaultPublicationRow } from './publicationAggregate';
 
-// Simulates the real Supabase chained query builder for exactly the call
-// shapes fetchAllPublicationsData issues:
-//   .from('publications').select('*').order(...)
+// Simulates the two things fetchAllPublicationsData asks Supabase for:
+//   supabase.rpc('get_library')                                 (papers, tag links, tags)
 //   .from('vaults').select('*').eq('user_id', ...).order('name')
 //   .from('vaults').select('*').in('id', [...])                (shared vault details)
 //   .from('vault_shares').select(...).or(...)
-//   .from('vault_publications').select('*').order(...)
-//   .from('publication_tags').select('*')
-//   .from('tags').select('*').eq('user_id', ...).is('vault_id', null).order('name')
-//   .from('tags').select('*').in('vault_id', [...]).order('name')
-// Each branch (eq vs in, for 'vaults' and 'tags') is distinguished by which
-// method is called, mirroring how the real query builder supports either
-// continuation from the same select() call.
+// The library tables have no .from() branch: querying one directly throws, which is how these
+// tests check the loader doesn't go back to unscoped selects (#275). An error configured for any
+// library table makes the RPC fail, since the server returns the library whole or not at all.
+
 type MockError = { message: string };
 
 /** Resolves to an error response if one is configured for `key`, else to `rows`. */
@@ -48,22 +44,6 @@ function makeClient(data: {
   const errors = data.errors ?? {};
   const from = vi.fn((table: string) => {
     switch (table) {
-      case 'publications':
-        return {
-          select: () => ({
-            order: () => resolveOrError(data.publications, errors.publications),
-          }),
-        };
-      case 'vault_publications':
-        return {
-          select: () => ({
-            order: () => resolveOrError(data.vaultPublications, errors.vaultPublications),
-          }),
-        };
-      case 'publication_tags':
-        return {
-          select: () => resolveOrError(data.publicationTags, errors.publicationTags),
-        };
       case 'vault_shares':
         return {
           select: () => ({
@@ -79,25 +59,29 @@ function makeClient(data: {
             in: () => resolveOrError(data.sharedVaultDetails, errors.sharedVaultDetails),
           }),
         };
-      case 'tags':
-        return {
-          select: () => ({
-            eq: () => ({
-              is: () => ({
-                order: () => resolveOrError(data.personalTags, errors.personalTags),
-              }),
-            }),
-            in: () => ({
-              order: () => resolveOrError(data.vaultTags, errors.vaultTags),
-            }),
-          }),
-        };
       default:
         throw new Error(`Unexpected table in test mock: ${table}`);
     }
   });
 
-  return { from } as unknown as SupabaseClient;
+  const libraryError = errors.publications ?? errors.vaultPublications ?? errors.publicationTags
+    ?? errors.personalTags ?? errors.vaultTags;
+  const rpc = vi.fn((fn: string) => {
+    if (fn !== 'get_library') throw new Error(`Unexpected RPC in test mock: ${fn}`);
+    if (libraryError) return Promise.resolve({ data: null, error: libraryError });
+    return Promise.resolve({
+      data: {
+        publications: data.publications ?? [],
+        vault_publications: data.vaultPublications ?? [],
+        publication_tags: data.publicationTags ?? [],
+        publication_relations: [],
+        pdf_assets: [],
+        tags: [...(data.personalTags ?? []), ...(data.vaultTags ?? [])],
+      },
+      error: null,
+    });
+  });
+  return { from, rpc } as unknown as SupabaseClient;
 }
 
 describe('fetchAllPublicationsData', () => {
@@ -187,7 +171,7 @@ describe('fetchAllPublicationsData', () => {
     expect(result.tags.map((t) => t.id).sort()).toEqual(['tag-1', 'tag-2']);
   });
 
-  it('rejects when one of the initial parallel queries errors, instead of returning an empty result', async () => {
+  it('rejects when the library RPC errors, instead of returning an empty result', async () => {
     const client = makeClient({ errors: { publications: { message: 'permission denied for table publications' } } });
 
     await expect(fetchAllPublicationsData(client, 'user-1', 'user@example.com')).rejects.toMatchObject({
@@ -206,7 +190,7 @@ describe('fetchAllPublicationsData', () => {
     });
   });
 
-  it('rejects when a tags query errors', async () => {
+  it('rejects when the library errors on tags', async () => {
     const client = makeClient({ errors: { personalTags: { message: 'tags query failed' } } });
 
     await expect(fetchAllPublicationsData(client, 'user-1', 'user@example.com')).rejects.toMatchObject({
@@ -214,34 +198,19 @@ describe('fetchAllPublicationsData', () => {
     });
   });
 
-  it('does NOT reject when publication_tags errors — it degrades to an empty tag map with tagsIncomplete set, instead of discarding vaults/publications too', async () => {
-    const ownedVault: Vault = {
-      id: 'vault-1', user_id: 'user-1', name: 'Owned', description: null,
-      color: '#fff', visibility: 'private', public_slug: null, category: null,
-      abstract: null, archived_at: null, created_at: 'now', updated_at: 'now',
-    };
-    const canonical: Publication = {
-      id: 'p1', user_id: 'user-1', title: 'Paper', authors: ['A'], year: 2020,
-      journal: null, volume: null, issue: null, pages: null, doi: null, url: null,
-      abstract: null, pdf_url: null, bibtex_key: null, publication_type: 'article',
-      notes: null, booktitle: null, chapter: null, edition: null, editor: null,
-      howpublished: null, institution: null, number: null, organization: null,
-      publisher: null, school: null, series: null, type: null, eid: null,
-      isbn: null, issn: null, keywords: null, reading_state: 'unread',
-      important: false, created_at: 'now', updated_at: 'now',
-    };
-
-    const client = makeClient({
-      publications: [canonical],
-      ownedVaults: [ownedVault],
-      errors: { publicationTags: { message: 'canceling statement due to statement timeout' } },
+  it('rejects when tag links fail: they arrive with the rest of the library, never partially', async () => {
+    const client = makeClient({ errors: { publicationTags: { message: 'canceling statement due to statement timeout' } } });
+    await expect(fetchAllPublicationsData(client, 'user-1', 'user@example.com')).rejects.toMatchObject({
+      message: 'canceling statement due to statement timeout',
     });
+  });
 
-    const result = await fetchAllPublicationsData(client, 'user-1', 'user@example.com');
-
-    expect(result.tagsIncomplete).toBe(true);
-    expect(result.publicationTagsMap).toEqual({ p1: [] });
-    expect(result.publications).toHaveLength(1);
-    expect(result.vaults.map((v) => v.id)).toEqual(['vault-1']);
+  it('asks the server for the library in one call, and never selects library tables directly', async () => {
+    const client = makeClient({});
+    await fetchAllPublicationsData(client, 'user-1', 'user@example.com');
+    expect(client.rpc).toHaveBeenCalledTimes(1);
+    expect(client.rpc).toHaveBeenCalledWith('get_library');
+    const tables = (client.from as ReturnType<typeof vi.fn>).mock.calls.map(([table]) => table);
+    expect(tables.every((table) => table === 'vaults' || table === 'vault_shares')).toBe(true);
   });
 });
